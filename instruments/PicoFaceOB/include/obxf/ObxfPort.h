@@ -31,6 +31,11 @@
 #include <cstdint>
 #include <cmath>
 #include <cstdlib>
+// The engine headers use std::array, std::min and std::fill without including
+// these themselves; newlib hands them out transitively, libc++ (host tests)
+// does not.
+#include <algorithm>
+#include <array>
 
 // RAM residency for the per-sample path. The RP2350 runs code from flash
 // through a 16 KB XIP cache; OscillatorBlock::ProcessSample alone is 18 KB of
@@ -41,6 +46,7 @@
 #include "pico.h"
 #else
 #define __not_in_flash_func(f) f
+#define __no_inline_not_in_flash_func(f) f
 #endif
 
 // ---------------------------------------------------------------------------

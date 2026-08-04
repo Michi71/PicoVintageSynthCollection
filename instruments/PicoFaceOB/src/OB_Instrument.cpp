@@ -55,25 +55,33 @@ public:
         uint32_t pkt;
         while (ob_ipc_pop(&pkt)) applyIpc(pkt);
 
+        // The core hands over SAMPLES_PER_BUFFER frames today; chunking keeps
+        // every frame rendered if that ever grows, instead of leaving the
+        // tail of `out` unwritten.
         static float buf[SAMPLES_PER_BUFFER];
-        uint32_t n = frames;
-        if (n > SAMPLES_PER_BUFFER) n = SAMPLES_PER_BUFFER;
+        uint32_t done = 0;
+        while (done < frames) {
+            uint32_t n = frames - done;
+            if (n > SAMPLES_PER_BUFFER) n = SAMPLES_PER_BUFFER;
 
-        engine_.renderBlock(buf, (int) n);
+            engine_.renderBlock(buf, (int) n);
 
-        // The OB-X is mono; both channels get the same sample.
-        for (uint32_t i = 0; i < n; ++i) {
-            float s = buf[i];
-            if (s < -1.f) s = -1.f; else if (s > 1.f) s = 1.f;
-            const int32_t v = (int32_t)(s * 32767.f);
-            out[i * 2 + 0] = v << 16;
-            out[i * 2 + 1] = v << 16;
+            // Mono sum on both channels. (The original is stereo via
+            // per-voice pan pots; this port does not carry panning.)
+            for (uint32_t i = 0; i < n; ++i) {
+                float s = buf[i];
+                if (s < -1.f) s = -1.f; else if (s > 1.f) s = 1.f;
+                const int32_t v = (int32_t)(s * 32767.f);
+                out[(done + i) * 2 + 0] = v << 16;
+                out[(done + i) * 2 + 1] = v << 16;
+            }
+            done += n;
         }
 
         // CPU load of this block against its real-time budget, the same
         // measure PicoFaceYC shows.
         const uint32_t us = time_us_32() - t0;
-        const float budget = (float) n * 1000000.f / (float) kSampleRate;
+        const float budget = (float) frames * 1000000.f / (float) kSampleRate;
         const float load = (float) us * 100.f / budget;
         load_ = load;
         if (load > loadPeak_) loadPeak_ = load;
@@ -133,7 +141,13 @@ public:
 
     // Version 2: OB_OSC1_PITCH was added to the parameter set, so a record
     // written before that has the wrong length and must be discarded.
-    uint16_t settingsVersion() const override { return 2; }
+    // Version 3: OB_BEND_RANGE appended; several control laws were also
+    // corrected to the OB-Xf originals (resonance, brightness, LFO rate,
+    // slop), so stored values from version 2 would mean different sounds.
+    // Version 4: the enum was reordered into panel sections and nine
+    // parameters added for the factory preset import; OB_FILTER_ENV_AMT
+    // became bipolar. Indices and meanings both moved.
+    uint16_t settingsVersion() const override { return 4; }
     size_t settingsSize() const override { return sizeof(float) * OB_PARAM_COUNT; }
 
     void settingsSave(uint8_t* buffer, size_t size) const override {

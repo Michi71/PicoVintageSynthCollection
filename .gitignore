@@ -15,3 +15,7 @@ compile_commands.json
 *.dis
 *.hex
 __pycache__/
+
+# host test binaries and rendered WAVs (tools/host_tests/README.md)
+tools/host_tests/**/*_test
+tools/host_tests/**/*.wav

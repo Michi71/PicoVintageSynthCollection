@@ -12,6 +12,7 @@ land next to their script and are gitignored.
 |---|---|---|
 | [`veeprom/`](veeprom/) | nothing | unit test of the core's virtual EEPROM: wear levelling, CRC, oversize rejection, 1000 saves. Prints PASS/FAIL per case. This one covers `core/`, not an instrument. |
 | [`yc/`](yc/) | nothing | renders the YC organ engine to a WAV file. No audio device involved. |
+| [`ob/`](ob/) | nothing | regression checks on the OB-X engine - pitch bend ranges, LFO->cutoff without LFO->pitch, mod lever vibrato, all presets finite - plus a WAV render. Prints pass/FAIL per case. |
 | [`j6/build_ui.sh`](j6/) | nothing | drives `J6_Controller` and the patch store through a scripted panel session - menu navigation, patch save/load, the free-slot rule. |
 | [`cp/`](cp/README.md) | portmidi | plays the mdaEPiano engine, with or without the reface CP effect chain, over CoreAudio. |
 | [`j6/build_juno.sh`](j6/) | portmidi | plays the Juno engine over CoreAudio. |

@@ -65,15 +65,20 @@ library any more.
 
 ## Presets
 
-Twelve factory patches from `assets/installer/.../Patches` of the original,
-converted into `include/ob_presets.h`. The .fxp files carry their parameters as
-named, normalized values in an embedded XML block, so the conversion is a name
-mapping onto `ob_params.h`. What this port does not have - unison, panning,
-LFO 2, the modulation matrix, velocity tracking - falls away, and the LFO
-waveform is rounded to the nearest of our five fixed positions. A patch that
-leans heavily on any of that will not sound identical here.
+**351 of the 488 factory patches**, in the original's 18 categories,
+converted by `tools/ob_fxp_to_presets/` (committed, rerunnable - see its
+README). The .fxp files carry their parameters as named, normalized values in
+an embedded XML block; the converter maps them with the exact SynthEngine
+control laws and an auto filter skips what the port cannot express: two
+audibly active LFOs (114 patches), off-centre master tune (4) and transposes
+outside the oscillator range (19). LFO2-only patches are merged onto the
+single global LFO, Transpose is folded into the oscillator semitones, and the
+invert switches fold into the bipolar parameter signs.
 
-Reachable under Menu -> Presets.
+The table costs ~70 KB of flash and 350 bytes of RAM (the category name
+pointers); preset data is only touched on load, never in the render path.
+Reachable under Menu -> Presets -> category. One patch ("Dreaming Anew")
+drives the engine hot enough to clip at the DAC - upstream does the same.
 
 ## Status
 
@@ -129,3 +134,63 @@ allocator then takes the quietest voice that has already been released.
 
 The adjustment screws are one line each: `kSampleRate` in
 `src/OB_Instrument.cpp`, `MAX_VOICES` in `include/obxf/ObxfPort.h`.
+
+## The review round (August 2026)
+
+A pass against the OB-Xf sources and the original OB-X manuals (owner's +
+service manual) found three real bugs and a set of control laws that had
+drifted from upstream. All fixed; `tools/host_tests/ob/` now proves the
+audible ones on the host. Settings version is 3 - older records are discarded
+on first boot.
+
+**Bugs.** Pitch bend was dead: `Voice.h` multiplies by `par.extmod.pbUp/pbDown`
+and nothing ever set them. They are now driven by a new **Bend Range**
+parameter with the two positions of the original bend assembly's Narrow/Broad
+switch - 2 or 12 semitones, the service manual's calibration points (0.167 V /
+1.000 V). Like the hardware switch it is not part of a program; presets leave
+it alone. - `OB_LFO_TO_CUTOFF` had upstream's semantics wrong: upstream
+`par.lfo1.cutoff` is a routing gain in [-1, 1] and the depth comes from
+`amt1`, so the port's `v * 60` was 60x too big AND silently gated by the
+LFO-to-pitch depth. The port now gives each LFO target its own depth: the
+cutoff term in `Voice.h` drops the `amt1` factor (documented there) and the
+parameter maps through upstream's amt1 curve. - The menu opened its
+three-entry list with a count of 2, so "<< BACK" did not exist; you left the
+menu by waiting five seconds.
+
+**Control laws pulled back to upstream**, so factory patch values mean the
+same sound: resonance (reverse-log, not linear - '32 Rez Bass gets its squelch
+back), brightness (7000..26000), LFO rate (logsc 0..250 Hz; the original tops
+out at 20 Hz anyway, service manual trimmer T5), filter slop (18 semitones)
+and level slop (0.67). The voice slop knob now also drives the per-oscillator
+tuning scatter (`unisonDetune * tuningSlop`, upstream's curve) - the term was
+already in the pitch path, it costs nothing, and that drift IS the old
+Oberheim character.
+
+**The modulation lever is additive now**: programmed LFO depth always applies
+in full (before, a patch played with the wheel down got 20 % of it), and the
+lever adds up to half a semitone of vibrato on top - which is how the
+original's lever sits on the panel DEPTH control.
+
+**Also**: power-on default is the 2-pole filter (the OB-X has no 4-pole; that
+mode belongs to the OB-Xa/OB-8 side of OB-Xf and stays available), and the
+per-voice LFO2 of the upstream engine - which nothing here can drive - is
+removed from `ProcessSample`, about 800 bytes less RAM code and measurable
+load off the render path (measured: 78 % -> 74 % peak with 6 of 6 voices).
+
+## The preset import (settings version 4)
+
+For the full factory bank the parameter set grew by ten: Env->Pitch and
+Env->PW (bipolar, the invert switches fold into the sign - as does the filter
+envelope's, so **Env Amt is bipolar now** with 0.5 neutral), the BothOscs
+switches for the two, PW Offset (osc2), Noise Colour, LFO->Volume tremolo,
+the 2-pole bandpass blend and the two Xpander controls (enable + 15 pole-mix
+modes). None of them cost a cycle: every one drives a field the ported
+Voice/Filter code has computed since day one - the port had the machinery of
+the whole OB-Xf voice on board and simply never plugged these in. Like the
+cutoff route before, the tremolo depth is decoupled from the shared amt2 in
+`Voice.h` (documented there). The enum was reordered into panel sections at
+the same time, hence settings version 4.
+
+The UI gained a category level for the 351 patches: Menu -> Presets lists the
+18 categories, each opens its own list, both with "<< BACK" and the idle
+timeout back to the panel.

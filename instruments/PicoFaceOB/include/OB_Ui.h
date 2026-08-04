@@ -3,9 +3,10 @@
 
 // OB_Ui.h - front panel and menu tree of PicoFaceOB.
 //
-// 36 parameters on three encoders: the selector pages through them two at a
+// 49 parameters on three encoders: the selector pages through them two at a
 // time, PARAM A and PARAM B edit the two on screen. A long press of the
-// selector opens the menu. Same state machine shape as YC_Ui and CP_Ui.
+// selector opens the menu; presets sit behind a category level (18 categories,
+// several hundred patches). Same state machine shape as YC_Ui and CP_Ui.
 //
 // Part of PicoFaceOB, GPL-3.0-or-later (see instruments/PicoFaceOB/LICENSE).
 
@@ -38,7 +39,9 @@ class OB_Ui
     void setPeakReset(void (*fn)(void*), void* ctx) { resetPeak_ = fn; resetCtx_ = ctx; }
 
   private:
-    enum class Screen : uint8_t { Panel, Menu, Presets, System, About, CpuLoad };
+    // Presets is the category list, PresetList the entries of one category -
+    // a flat list stopped working at 400+ factory patches.
+    enum class Screen : uint8_t { Panel, Menu, Presets, PresetList, System, About, CpuLoad };
 
     static constexpr uint8_t kPageCount = (OB_PARAM_COUNT + 1) / 2;
 
@@ -56,7 +59,8 @@ class OB_Ui
     Screen   screen_      = Screen::Panel;
     uint8_t  page_        = 0;
     uint8_t  sysCursor_   = 0;
-    uint8_t  presetCursor_ = 0;
+    uint8_t  catCursor_   = 0;  // last category browsed
+    uint8_t  entryCursor_ = 0;  // last preset inside it
     bool     dirty_       = true;
     uint32_t lastDrawMs_  = 0;
     uint32_t lastInputMs_ = 0;

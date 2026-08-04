@@ -44,14 +44,16 @@ class OB_Engine
     float getParam(uint8_t id) const { return (id < OB_PARAM_COUNT) ? params_[id] : 0.f; }
 
     // --- audio (producer context) -------------------------------------------
-    // Renders one mono block. The OB-X is a mono-out instrument; the adapter
-    // writes the same sample to both channels.
+    // Renders one mono block; the adapter writes the same sample to both
+    // channels. (The original is stereo - per-voice pan pots to L/R - but
+    // this port sums to mono.)
     void renderBlock(float* out, int frames);
 
     int soundingVoices();
 
   private:
     void applyParam(uint8_t id, float v01);
+    void updateLfo1PitchDepth();
     int allocateVoice(uint8_t note);
 
     Voice voices_[MAX_VOICES];

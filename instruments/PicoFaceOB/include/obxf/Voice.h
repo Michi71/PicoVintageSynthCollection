@@ -19,6 +19,18 @@
  * PORTED FOR PicoFaceOB (RP2350). Changes against the OB-Xf original:
  *   - double temporaries in the per-sample path -> float (1)
  *   - tan() -> ob_tan() (1)
+ *   - the per-voice LFO 2 is removed from ProcessSample: PicoFaceOB drives a
+ *     single global LFO, so its setRate/update/getVal and every par.lfo2 term
+ *     were dead weight, per sample and voice. The members stay for textual
+ *     proximity to upstream.
+ *   - the lfo1 cutoff term no longer multiplies amt1: upstream shares one
+ *     depth between the pitch and cutoff routes, this port gives each target
+ *     its own depth knob, so par.lfo1.cutoff IS the cutoff depth in
+ *     semitones (OB_Engine maps OB_LFO_TO_CUTOFF through upstream's amt1
+ *     curve).
+ *   - the lfo1 volume term drops the shared amt2 factor for the same reason:
+ *     par.lfo1.volume IS the tremolo depth (upstream's route * amt2norm,
+ *     which its 0.7 scale and 1.42857 correction multiplied out to anyway).
  */
 
 #ifndef OBXF_SRC_ENGINE_VOICE_H
@@ -176,11 +188,6 @@ class Voice
 
     inline float __not_in_flash_func(ProcessSample)()
     {
-        lfo2.setRate(juce::jmax(0.01f, lfo2BaseRate));
-        lfo2.update();
-
-        float lfo2In = lfo2.getVal();
-
         // Upstream asks a Tuning object per sample, which returns a double.
         // This port is equal temperament only, so the note number IS the
         // tuned note.
@@ -200,7 +207,6 @@ class Voice
 
         // envelope and LFO applied to the filter need a delay equal to internal oscillator delay
         float filterLFO1Mod = lfo1Delayed.feedReturn(lfo1In);
-        float filterLFO2Mod = lfo2Delayed.feedReturn(lfo2In);
 
         // The per-voice modulation matrix is not ported. Upstream saved and
         // restored thirteen parameters around this point, every sample and
@@ -219,8 +225,7 @@ class Voice
         float noisyCutoff = noiseGen.getWhite() * 3.365f;
 
         const float cutoffPitch =
-            getPitch((par.lfo1.cutoff * filterLFO1Mod * par.lfo1.amt1) +
-                     (par.lfo2.cutoff * filterLFO2Mod * par.lfo2.amt1) + par.filter.cutoff +
+            getPitch((par.lfo1.cutoff * filterLFO1Mod) + par.filter.cutoff +
                      slop.cutoff * par.slop.cutoff +
                      par.filter.envAmt * filterEnvDelayed.feedReturn(modEnv) - 45 +
                      (par.filter.keytrack * (pitchBendScaled + oscs.par.pitch.notePlaying + 40)));
@@ -238,10 +243,8 @@ class Voice
         float pwenv = modEnv * (oscs.par.mod.envToPWInvert ? -1 : 1);
 
         oscs.par.mod.osc1PWMod = (par.lfo1.osc1PW * lfo1In * par.lfo1.amt2) +
-                                 (par.lfo2.osc1PW * lfo2In * par.lfo2.amt2) +
                                  (par.osc.envPWBothOscs ? (par.osc.envPWAmt * pwenv) : 0);
         oscs.par.mod.osc2PWMod = (par.lfo1.osc2PW * lfo1In * par.lfo1.amt2) +
-                                 (par.lfo2.osc2PW * lfo2In * par.lfo2.amt2) +
                                  (par.osc.envPWAmt * pwenv) + par.osc.pwOsc2Offset;
 
         // pitch modulation
@@ -250,12 +253,10 @@ class Voice
         oscs.par.mod.osc1PitchMod =
             (!par.extmod.pbOsc2Only ? pitchBendScaled : 0) +
             (par.lfo1.osc1Pitch * lfo1In * par.lfo1.amt1) +
-            (par.lfo2.osc1Pitch * lfo2In * par.lfo2.amt1) +
             (par.osc.envPitchBothOscs ? (par.osc.envPitchAmt * pitchEnv) : 0) + vibratoLFOIn;
         oscs.par.mod.osc2PitchMod =
             pitchBendScaled + (par.lfo1.osc2Pitch * lfo1In * par.lfo1.amt1) +
-            (par.lfo2.osc2Pitch * lfo2In * par.lfo2.amt1) + (par.osc.envPitchAmt * pitchEnv) +
-            vibratoLFOIn;
+            (par.osc.envPitchAmt * pitchEnv) + vibratoLFOIn;
 
         // process oscillator block
         float oscSample = oscs.ProcessSample() * (1 - par.slop.level * slop.level);
@@ -270,15 +271,9 @@ class Voice
 
         // LFO outputs bipolar values and we need to be unipolar for amplitude modulation,
         // hence the * 0.5 + 0.5
-        // LFO's Mod Amount 2 parameter is scaled [0, 0.7], but we need the full [0, 1] swing here,
-        // hence the 1.42857... correction factor
-        // We also conditionally invert the LFO input because we're subtracting from full volume
-        // and we don't want this to *increase* volume
-        oscSample *= 1.f - (par.lfo1.volume * lfo1In * 0.5f + par.lfo1.absVolume * 0.5f) *
-                               (par.lfo1.amt2 * 1.4285714285714286f);
-
-        oscSample *= 1.f - (par.lfo2.volume * lfo2In * 0.5f + par.lfo2.absVolume * 0.5f) *
-                               (par.lfo2.amt2 * 1.4285714285714286f);
+        // par.lfo1.volume is the tremolo depth itself here (see the PORTED
+        // note): upstream's route * amt2 * 1.42857 collapses to exactly that.
+        oscSample *= 1.f - (par.lfo1.volume * lfo1In * 0.5f + par.lfo1.absVolume * 0.5f);
 
         // amp envelope
         float ampEnvVal = ampEnvDelayed.feedReturn(ampEnv.processSample() *

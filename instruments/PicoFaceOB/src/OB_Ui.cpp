@@ -32,18 +32,36 @@ constexpr uint32_t kMaxRedrawMs = 500;
 // One detent = one percent of a continuous parameter.
 constexpr float kStep = 0.01f;
 
-// ListView wants an array of pointers; the presets carry their names inline.
-const char* kPresetNames[OB_NPRESETS] = {};
-struct PresetNameInit
+// ListView wants arrays of pointers. Categories are filled once, the entry
+// list is refilled whenever a category is opened; both end in "<< BACK".
+const char* kCatNames[OB_NPRESET_CATS + 1] = {};
+const char* kEntryNames[OB_MAX_CAT_PRESETS + 1] = {};
+
+uint8_t fillCatNames()
 {
-    PresetNameInit()
+    for (int i = 0; i < OB_NPRESET_CATS; ++i)
     {
-        for (int i = 0; i < OB_NPRESETS; ++i)
-        {
-            kPresetNames[i] = obPresets[i].name;
-        }
+        kCatNames[i] = obPresetCategories[i].name;
     }
-} presetNameInit;
+    kCatNames[OB_NPRESET_CATS] = "<< BACK";
+    return (uint8_t)(OB_NPRESET_CATS + 1);
+}
+
+uint8_t fillEntryNames(uint8_t cat)
+{
+    const ObPresetCategory& c = obPresetCategories[cat];
+    for (int i = 0; i < c.count; ++i)
+    {
+        kEntryNames[i] = obPresets[c.first + i].name;
+    }
+    kEntryNames[c.count] = "<< BACK";
+    return (uint8_t)(c.count + 1);
+}
+
+// The 15 Xpander pole-mix responses, in Filter.h's table order.
+const char* const kXpanderModeNames[15] = {
+    "LP4", "LP3", "LP2", "LP1", "HP3", "HP2", "HP1", "BP4",
+    "BP2", "N2",  "PH3", "H2+L1", "H3+L1", "N2+L1", "P3+L1"};
 
 #ifdef PICOFACE_INSTRUMENT_NAME
 constexpr const char* kAboutName = PICOFACE_INSTRUMENT_NAME;
@@ -69,7 +87,7 @@ void OB_Ui::go(Screen next, uint32_t nowMs)
 
     if (next == Screen::Menu)
     {
-        list_.open(kMenuEntries, 2);
+        list_.open(kMenuEntries, 3);
     }
     else if (next == Screen::System)
     {
@@ -84,7 +102,11 @@ void OB_Ui::go(Screen next, uint32_t nowMs)
     }
     else if (next == Screen::Presets)
     {
-        list_.open(kPresetNames, (uint8_t) OB_NPRESETS, presetCursor_);
+        list_.open(kCatNames, fillCatNames(), catCursor_);
+    }
+    else if (next == Screen::PresetList)
+    {
+        list_.open(kEntryNames, fillEntryNames(catCursor_), entryCursor_);
     }
 }
 
@@ -166,12 +188,36 @@ void OB_Ui::tick(Display& d, const InputState& in)
     case Screen::Presets:
     {
         const int sel = list_.update(in);
-        if (sel >= 0)
+        if (sel == OB_NPRESET_CATS)
         {
-            presetCursor_ = (uint8_t) sel;
-            // Straight to the engine rather than through the ring: a preset is
-            // 38 parameters at once and would fill a quarter of it.
-            engine_.applyPreset(sel);
+            go(Screen::Menu, in.nowMs);
+        }
+        else if (sel >= 0)
+        {
+            if ((uint8_t) sel != catCursor_)
+            {
+                catCursor_   = (uint8_t) sel;
+                entryCursor_ = 0;
+            }
+            go(Screen::PresetList, in.nowMs);
+        }
+        break;
+    }
+
+    case Screen::PresetList:
+    {
+        const int sel = list_.update(in);
+        const ObPresetCategory& c = obPresetCategories[catCursor_];
+        if (sel == c.count)
+        {
+            go(Screen::Presets, in.nowMs);
+        }
+        else if (sel >= 0)
+        {
+            entryCursor_ = (uint8_t) sel;
+            // Straight to the engine rather than through the ring: a preset
+            // is the whole parameter set at once and would fill it.
+            engine_.applyPreset(c.first + sel);
             go(Screen::Panel, in.nowMs);
         }
         break;
@@ -196,7 +242,8 @@ void OB_Ui::tick(Display& d, const InputState& in)
         break;
     }
 
-    if ((screen_ == Screen::Menu || screen_ == Screen::System) &&
+    if ((screen_ == Screen::Menu || screen_ == Screen::System || screen_ == Screen::Presets ||
+         screen_ == Screen::PresetList) &&
         (in.nowMs - lastInputMs_) > kMenuIdleMs)
     {
         go(Screen::Panel, in.nowMs);
@@ -224,6 +271,8 @@ void OB_Ui::draw(Display& d)
     case Screen::Panel:   drawPanel(d);            break;
     case Screen::Menu:    list_.draw(d, "MENU");   break;
     case Screen::Presets: list_.draw(d, "PRESET"); break;
+    // the category name as title, so you know where you are
+    case Screen::PresetList: list_.draw(d, obPresetCategories[catCursor_].name); break;
     case Screen::System:  list_.draw(d, "SYSTEM"); break;
     case Screen::About:   drawAbout(d);            break;
     case Screen::CpuLoad: drawCpuLoad(d);          break;
@@ -242,7 +291,28 @@ void OB_Ui::valueText(uint8_t paramId, char* buf, size_t len) const
     const ObParamDesc& d = obParams[paramId];
     const float v = engine_.getParam(paramId);
 
-    if (d.steps == 2)
+    if (paramId == OB_BEND_RANGE)
+    {
+        // The two positions of the bend assembly switch, not On/Off.
+        snprintf(buf, len, "%s", v > 0.5f ? "Broad" : "Narrow");
+    }
+    else if (paramId == OB_NOISE_COLOR)
+    {
+        snprintf(buf, len, "%s", v < 1.f / 3.f ? "White" : (v < 2.f / 3.f ? "Pink" : "Red"));
+    }
+    else if (paramId == OB_XPANDER_MODE)
+    {
+        int idx = (int)(v * 14.f + 0.5f);
+        if (idx > 14) idx = 14;
+        snprintf(buf, len, "%s", kXpanderModeNames[idx]);
+    }
+    else if (paramId == OB_ENV_TO_PITCH || paramId == OB_ENV_TO_PW ||
+             paramId == OB_FILTER_ENV_AMT)
+    {
+        // bipolar: 0.5 is neutral, below inverts
+        snprintf(buf, len, "%+d", (int)((v - 0.5f) * 200.f + (v >= 0.5f ? 0.5f : -0.5f)));
+    }
+    else if (d.steps == 2)
     {
         snprintf(buf, len, "%s", v > 0.5f ? "On" : "Off");
     }

@@ -25,7 +25,15 @@
 #ifndef OBXF_SRC_ENGINE_BLEPDATA_H
 #define OBXF_SRC_ENGINE_BLEPDATA_H
 
+// Host tests build without the Pico SDK; there the placement attribute means
+// nothing and vanishes.
+#if __has_include("pico.h")
 #include "pico.h"
+#else
+#ifndef __not_in_flash
+#define __not_in_flash(group)
+#endif
+#endif
 
 #include "obxf/ObxfPort.h"
 
