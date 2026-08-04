@@ -422,10 +422,11 @@ running the program. On the RP2350 the flag lives in the POWMAN register
 `chip_reset.DOUBLE_TAP`, which survives the dip, so shortening the detection
 window does not help. With headphones instead of speakers it does not occur.
 
-**In the collection the library is linked for every instrument**
-(`cmake/PicoFaceInstrument.cmake`), so the behaviour above is back for this
-instrument. It has not been re-tested on the speaker setup; if it bites, the fix
-is to make the link optional per instrument rather than to change anything here.
+In the collection the library is linked by default - it is what keeps a board
+without an accessible BOOTSEL button reflashable - but
+`picoface_add_instrument()` takes a `NO_DOUBLE_RESET` keyword, and this
+instrument's `instrument.cmake` sets it. So the standalone behaviour is
+preserved: no double-tap RESET here, double-tap RESET everywhere else.
 
 The BOOTSEL button keeps working regardless.
 

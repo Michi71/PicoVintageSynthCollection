@@ -72,6 +72,7 @@ The instrument is found automatically on the next configure run, included in the
 | menu list for `uiTick()` (`picoface::ui::ListView`) | add `CORE_MODULES ui_menu` |
 | own hardware access | add your own `src/pico_hw.cpp` and set `CORE_EXCLUDE pico_hw.cpp` |
 | own .pio files | list them under `PIO_SOURCES` |
+| no double-tap RESET into BOOTSEL | add the flag `NO_DOUBLE_RESET` (see `docs/ARCHITECTURE.md`, section 7) |
 
 ## Documentation
 

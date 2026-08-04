@@ -14,7 +14,7 @@
 include_guard(GLOBAL)
 
 function(picoface_add_instrument)
-    set(_options "")
+    set(_options NO_DOUBLE_RESET)
     set(_one_value NAME PROGRAM_NAME VERSION USB_PID DIR)
     set(_multi_value SOURCES INCLUDE_DIRS DEFINES LINK_LIBRARIES PIO_SOURCES
                      CORE_EXCLUDE CORE_MODULES)
@@ -149,7 +149,6 @@ function(picoface_add_instrument)
         hardware_sync
         hardware_flash
         pico_unique_id
-        pico_bootsel_via_double_reset
         pico_util_buffer
         pico_multicore
         pico_stdio_uart
@@ -160,6 +159,19 @@ function(picoface_add_instrument)
         u8g2
         ${PF_LINK_LIBRARIES}
     )
+
+    # --- double-tap RESET into BOOTSEL ---------------------------------------
+    # Linked by default, because the library is what makes a board without an
+    # accessible BOOTSEL button reflashable. NO_DOUBLE_RESET opts out, and two
+    # instruments do: with a Waveshare Pico Audio board driving 3 W speakers,
+    # the inrush current on plug-in dips the supply, the chip browns out, and
+    # the library reads that reset as a double tap - the device then sits in
+    # BOOTSEL instead of running the program. The flag survives the dip in the
+    # POWMAN register, so shortening the detection window does not help. See
+    # instruments/PicoFaceMD/README.md, "Double-tap RESET".
+    if(NOT PF_NO_DOUBLE_RESET)
+        target_link_libraries(${PF_NAME} PRIVATE pico_bootsel_via_double_reset)
+    endif()
 
     # --- compile definitions -----------------------------------------------------
     set(_defines

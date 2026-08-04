@@ -421,10 +421,10 @@ collection, which knows only the keywords of `picoface_add_instrument()`.
 
 What is left of them: `JUNO_OVERSAMPLE` still exists as a macro with a default
 of 1 in `include/juno/juno_defs.h` and can be set through `DEFINES` in
-`instrument.cmake`. The safe mode is gone. Double-tap RESET into BOOTSEL is now
-always available, since the collection links `pico_bootsel_via_double_reset` for
-every instrument — see the PicoFaceMD README for the brownout case that made it
-undesirable on a speaker-driven prototype.
+`instrument.cmake`. The safe mode is gone. Double-tap RESET into BOOTSEL is on for
+this instrument: the collection links `pico_bootsel_via_double_reset` unless an
+instrument opts out with `NO_DOUBLE_RESET`, which J6 does not — see the
+PicoFaceMD README for the brownout case that made MD and SM opt out.
 
 ## Host test (macOS)
 

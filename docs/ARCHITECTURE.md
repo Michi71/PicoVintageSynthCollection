@@ -124,6 +124,7 @@ Like YC and CP, DX writes its own veeprom record and reports `settingsSize() == 
 | PIO_SOURCES | optional .pio files |
 | CORE_EXCLUDE | base names of core sources that the instrument replaces with its own variant |
 | CORE_MODULES | optional core modules; currently only ui_menu |
+| NO_DOUBLE_RESET | flag: do not link `pico_bootsel_via_double_reset`; set by PicoFaceMD and PicoFaceSM |
 
 ui_menu contains the non-blocking list widget `picoface::ui::ListView` for instruments that draw from `uiTick()`. Its predecessor ui_panel held the blocking widgets that polled their encoders themselves, plus the reface CP MIDI layer and its persistence; with PicoFaceCP converted it had no users left. The CP-specific parts now live under `instruments/PicoFaceCP`, the rest has been deleted. Since then the core contains no instrument-specific code at all.
 
@@ -299,6 +300,16 @@ What used to be a separate pico_hw.cpp is now a handful of compile definitions i
 | TARGET_RP2350=1 | RD, J6, MD, SM | ineffective, since the SDK defines PICO_BUILD anyway; carried over only for completeness |
 | RD_CLOCK_504=1 | RD | enables the 480 MHz branch |
 | PICOFACE_SYS_CLOCK_HZ, PICOFACE_QMI_M0_TIMING_TARGET | RD | clock target and matching flash timing; must be changed together |
+
+`NO_DOUBLE_RESET` belongs to the same family of per-instrument decisions. The
+library that turns a double tap on RESET into BOOTSEL is linked by default,
+because it is what keeps a board without an accessible BOOTSEL button
+reflashable. PicoFaceMD and PicoFaceSM opt out: with a Waveshare Pico Audio
+board driving 3 W speakers, the inrush current on plug-in dips the supply, the
+chip browns out, and the library reads that reset as a double tap - the device
+then sits in BOOTSEL instead of running. The flag lives in the POWMAN register
+and survives the dip, so shortening the detection window does not help. Both
+original repositories therefore did not link it; the keyword restores that.
 
 These defines are deliberately not unified in the helper but set per instrument the way they were in the original projects. Changing the spin lock implementation and the stack layout of a multicore audio build without a device would be careless.
 
