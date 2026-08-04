@@ -167,5 +167,8 @@ project conventions.
 
 ## License
 
-GPLv3, inherited from setBfree. See
-[the licensing section of the root README](../../README.md#license).
+GPL-3.0-or-later, as for the repository as a whole - but note the open question
+about this instrument in particular: the tree its tone generation goes back to
+(OpenB3 / BeatrixCPP) is AGPL-3.0, which would be stricter. Whether that reaches
+here depends on whether code was copied or the behaviour reimplemented from
+reading. See [the licensing section of the root README](../../README.md#license).

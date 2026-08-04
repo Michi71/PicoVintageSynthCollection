@@ -4,9 +4,10 @@ An Oberheim OB-X emulation, one of the eight instruments in
 [PicoVintageSynthCollection](../../README.md). The sound generation is a port of
 **OB-Xf** (https://github.com/surge-synthesizer/OB-Xf), the successor of OB-Xd.
 
-## License - different from the rest of the repository
+## License
 
-**This instrument is GPL-3.0-or-later**, because OB-Xf is. Concretely:
+**This instrument is GPL-3.0-or-later**, because OB-Xf is - which is also the
+licence of the repository as a whole. Concretely:
 
 - `instruments/PicoFaceOB/` as a whole, including the adapter files I wrote for
   this port: GPL-3.0-or-later, see `LICENSE`.
@@ -17,7 +18,9 @@ The files under `include/obxf/` are original OB-Xf source and carry their
 copyright header unchanged. Every ported file additionally has a
 `PORTED FOR PicoFaceOB` block listing what was changed.
 
-For how this relates to the licensing of the rest of the collection, see
+This instrument keeps a copy of the licence text of its own, next to the
+upstream files it applies to; the root `LICENSE` says the same thing for the
+repository. For the per-instrument upstreams see
 [the licensing section of the root README](../../README.md#license).
 
 ## What is ported

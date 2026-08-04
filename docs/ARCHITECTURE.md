@@ -236,13 +236,15 @@ this project: it is ported from
 [OB-Xf](https://github.com/surge-synthesizer/OB-Xf). Two things therefore set it
 apart from the other seven.
 
-**License.** OB-Xf is GPL-3.0-or-later. `instruments/PicoFaceOB/` is therefore
-GPL-3 as well, and the built `PicoFaceOB.uf2` is a GPL-3 work. Per-instrument
-licensing is possible at all because the boundary runs exactly along the
-instrument border the monorepo draws anyway - every instrument is its own
-binary. What the other seven are licensed under is currently unsettled and the
-repository has no root LICENSE file; the facts are collected in the licensing
-section of the root README.
+**License.** OB-Xf is GPL-3.0-or-later, and so is this repository as a whole
+(root `LICENSE`). What sets PicoFaceOB apart is not the licence itself but its
+origin: the files under `include/obxf/` are upstream source and keep the
+upstream copyright headers, so the instrument carries its own copy of the
+licence text next to them. Per-instrument licensing is possible at all because
+the boundary runs exactly along the instrument border the monorepo draws anyway
+- every instrument is its own binary. The per-instrument upstreams and one open
+question about PicoFaceYC are collected in the licensing section of the root
+README.
 
 **What the port consisted of.** The engine is header-only and was pleasantly
 free of JUCE; the actual work was elsewhere. Three findings were invisible on

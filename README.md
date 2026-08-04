@@ -87,28 +87,41 @@ tested there.** Open points are listed in
 
 ## License
 
-**Unsettled - this repository has no root LICENSE file yet.** The facts, so the
-decision can be made on them:
+**GNU General Public License, version 3 or later** - see [LICENSE](LICENSE).
+Copyright (C) 2026 Michi71.
+
+That is what every one of the seven single-instrument repositories this
+collection was assembled from already declared: all seven shipped the identical
+GPL-3 licence text, and every instrument README states GPL-3. It is also the
+lowest common denominator of what the engines are built on. Where an instrument
+derives from someone else's work:
 
 | Part | Upstream it derives from | That upstream's license |
 |---|---|---|
 | core, cmake, tools | own work | - |
-| PicoFaceYC | [setBfree](https://github.com/pantherb/setBfree) / BeatrixCPP (concepts) | GPL |
-| PicoFaceCP | [mda-EPiano](https://sourceforge.net/projects/mda-vst/) (engine, in-tree) | GPL-3 |
+| PicoFaceYC | [OpenB3 / BeatrixCPP](https://github.com/pantherb/setBfree) (tone generation concepts) | AGPL-3.0 - see the note below |
+| PicoFaceCP | [mda-EPiano](https://sourceforge.net/projects/mda-vst/) (engine, in tree) | GPL-3.0-or-later |
 | PicoFaceDX | an ESP32 reface DX emulation (engine) | see that project |
-| PicoFaceRD | [giulioz/rdpiano](https://github.com/giulioz/rdpiano) + MAME (reference emulator) | GPL |
-| PicoFaceJ6 | [junox](https://github.com/dzannotti/junox) (patch table, scaling) | GPL-3 |
+| PicoFaceRD | [giulioz/rdpiano](https://github.com/giulioz/rdpiano) + MAME (reference emulator, host side only) | GPL |
+| PicoFaceJ6 | [junox](https://github.com/dzannotti/junox) (patch table, parameter scaling) | GPL-3 |
 | PicoFaceMD | [BelaMiniMoogEmulation](https://github.com/lbros96/BelaMiniMoogEmulation) (ladder filter) | stated by its author to be under no copyright |
 | PicoFaceSM | [string-machine](https://github.com/jpcima/string-machine) (DSP models) | Boost Software License 1.0 |
 | PicoFaceOB | [OB-Xf](https://github.com/surge-synthesizer/OB-Xf) (engine) | GPL-3.0-or-later |
 
-All seven single-instrument repositories this collection was assembled from
-shipped a GPL-3 LICENSE file, and each instrument's README still states GPL-3
-(the exceptions above are the *upstream* licenses of individual components, not
-of the instrument as a whole). An earlier version of this README described the
-repository as "MIT except PicoFaceOB"; that does not match the sources, so it
-has been removed rather than carried forward.
+`instruments/PicoFaceOB/` additionally carries its own `LICENSE`, identical in
+text, because that instrument's engine is a direct port of OB-Xf and its files
+keep the upstream copyright headers. Every instrument builds into its own
+binary, so a stricter licence on one of them stays confined to that binary.
 
-Every instrument builds into its own binary, so per-instrument licensing is
-possible - but it needs to be decided and written down, and a root `LICENSE`
-file added.
+> **Open question, PicoFaceYC.** The tree the YC drawbar engine goes back to
+> (OpenB3 / BeatrixCPP) is **AGPL-3.0**, not GPL-3. The AGPL adds an obligation
+> that GPL-3 does not, and it cannot be dropped by relicensing. Whether it
+> reaches this repository depends on something only the author can answer: the
+> YC README describes the tone generation as *concepts* "reimplemented for the
+> RP2350 header-only architecture", and no file under
+> `instruments/PicoFaceYC/include/yc_engine/` carries upstream code or an
+> upstream copyright header - but the feature table also says "derived/ported
+> from setBfree (BeatrixCPP)". If code was copied rather than the behaviour
+> reimplemented from reading, `instruments/PicoFaceYC/` belongs under AGPL-3.0
+> and should get its own `LICENSE` the way PicoFaceOB has. If it was a clean
+> reimplementation, copyright does not follow the ideas and GPL-3 is right.
