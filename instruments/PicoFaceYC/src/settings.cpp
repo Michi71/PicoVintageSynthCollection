@@ -6,8 +6,6 @@
 #include <string.h>
 #include "pico/time.h"
 
-static SettingsV2 g_loaded;
-static bool g_loadedValid = false;
 static SettingsV2 g_lastSaved;
 static bool g_baselineInit = false;
 static SettingsV2 g_pending;
@@ -33,8 +31,7 @@ static void settings_gather(SettingsV2* s, YC_Synth_Bridge* yc, RefaceMidi* rm) 
     s->panel.midi_ctrl_mode = rm->midiControlEnabled() ? 1 : 0;
 }
 
-void settings_boot_restore_core0(YC_Synth_Bridge* yc) {
-    veeprom_init();
+void settings_boot_restore(YC_Synth_Bridge* yc, RefaceMidi* rm) {
     SettingsV2 s;
     uint16_t len = 0, ver = 0;
     if (!veeprom_load(&s, sizeof(s), &len, &ver)) return;
@@ -54,13 +51,7 @@ void settings_boot_restore_core0(YC_Synth_Bridge* yc) {
     st.volume = s.panel.volume;
     st.vol_gain = (float)st.volume / 127.0f;
     yc_wavetable_select(st.wave);
-    g_loaded = s;
-    g_loadedValid = true;
-}
-
-void settings_boot_restore_core1(RefaceMidi* rm) {
-    if (!g_loadedValid) return;
-    rm->setMidiControlEnabled(g_loaded.panel.midi_ctrl_mode != 0);
+    rm->setMidiControlEnabled(s.panel.midi_ctrl_mode != 0);
 }
 
 void settings_task(YC_Synth_Bridge* yc, RefaceMidi* rm) {
