@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // RD_Display.cpp — PicoFaceCP-style page renderer + blocking boot splash.
 // Page renderer only paints into the u8g2 full buffer; it MUST NOT call
 // u8g2_SendBuffer/FirstPage/NextPage (the main loop streams the buffer out in

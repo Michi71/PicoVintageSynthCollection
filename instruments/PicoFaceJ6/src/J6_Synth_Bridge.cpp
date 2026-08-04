@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 /*
   J6_Synth_Bridge.cpp -- wiring the Juno engine to the audio subsystem
 */

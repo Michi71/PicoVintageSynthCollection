@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // DX_Instrument.cpp - adapter binding the Yamaha reface DX to picoface::Instrument.
 //
 // PicoFaceDX uses the standard runtime model: the core owns board, USB, MIDI,

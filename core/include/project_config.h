@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // project_config.h - the PicoFace hardware platform.
 //
 // One board for every instrument: pin map and flash timing live here in

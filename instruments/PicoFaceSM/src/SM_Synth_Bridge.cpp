@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 /*
   SM_Synth_Bridge.cpp -- wiring the Solina engine to the audio subsystem
 */

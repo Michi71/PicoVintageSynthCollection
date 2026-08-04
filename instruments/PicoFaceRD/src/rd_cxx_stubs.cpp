@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // rd_cxx_stubs.cpp - PicoFaceRD only.
 //
 #include "pico/stdlib.h"

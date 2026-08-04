@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 /*
   juno_test.cpp  --  macOS host test for the Juno engine (PicoFaceJ6)
 

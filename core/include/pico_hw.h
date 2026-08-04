@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // pico_hw.h - hardware access for the PicoFace platform.
 //
 // Shared by every instrument. The three original variants differed only

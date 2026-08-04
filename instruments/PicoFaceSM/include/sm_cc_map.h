@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // sm_cc_map.h - controller numbers for the PicoFaceSM panel parameters.
 //
 // The Solina has no controller assignment of its own: the original is a purely

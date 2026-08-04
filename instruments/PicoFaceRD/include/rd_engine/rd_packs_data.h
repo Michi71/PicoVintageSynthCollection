@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Derived from giulioz/rdpiano and MAME; copyright is shared with their authors.
+// See instruments/PicoFaceRD/README.md.
+
 #ifndef RD_PACKS_DATA_H
 #define RD_PACKS_DATA_H
 

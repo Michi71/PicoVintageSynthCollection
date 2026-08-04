@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // OB_Engine.h - voice allocation and parameter mapping for PicoFaceOB.
 //
 // This is the PicoFace replacement for OB-Xf's Motherboard.h and

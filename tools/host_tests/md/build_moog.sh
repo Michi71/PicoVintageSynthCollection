@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Michi71
 # build_moog.sh -- macOS host build of the Moog engine
 # Compiles the *unmodified* Pico engine (src/moog/) together with
 # test/moog_test.cpp against CoreAudio + PortMidi. The Pico audio subsystem is

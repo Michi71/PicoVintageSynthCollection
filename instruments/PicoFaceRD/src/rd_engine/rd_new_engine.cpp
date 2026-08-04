@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Derived from giulioz/rdpiano and MAME; copyright is shared with their authors.
+// See instruments/PicoFaceRD/README.md.
+
 #include "rd_new_engine.h"
 #include "mame_utils.h"   // RD_HOT_FUNC
 #include <cstring>

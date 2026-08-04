@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // gen_pk4.cpp -- Host-Tool (C++17): packt RdSampleEntry (8 Byte) in uint32_t (4 Byte)
 #include "rom_tables.h"
 #include <cstdio>

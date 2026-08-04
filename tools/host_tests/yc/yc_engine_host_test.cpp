@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // tools/host_tests/yc/yc_engine_host_test.cpp
 // Host test program for the PicoFaceYC engine (C++17, no Pico SDK needed).
 // Build and run it with ./build_yc.sh; it renders a WAV next to the binary.

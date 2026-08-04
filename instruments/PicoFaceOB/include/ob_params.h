@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // ob_params.h - the parameter set PicoFaceOB exposes on its three encoders
 // and over MIDI CC.
 //

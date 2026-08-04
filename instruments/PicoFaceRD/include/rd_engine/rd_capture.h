@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Derived from giulioz/rdpiano and MAME; copyright is shared with their authors.
+// See instruments/PicoFaceRD/README.md.
+
 // host-only register-write capture; the original firmware itself acts as the
 // params_rom parser -- we record what it programs into the chip.
 

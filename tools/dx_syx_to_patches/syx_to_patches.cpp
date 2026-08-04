@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // syx_to_patches.cpp -- one-time host-only conversion tool (NOT part of the firmware build).
 // Converts the 32 real Yamaha reface DX factory-bank .syx bulk-dumps (from the ESP32
 // reference project this codebase's FM engine was ported from) into a static C++ table

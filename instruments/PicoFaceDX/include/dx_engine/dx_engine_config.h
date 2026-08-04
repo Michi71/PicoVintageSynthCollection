@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Ported from the RDX reface DX emulation for the ESP32; copyright is shared with
+// its authors. See instruments/PicoFaceDX/README.md.
+
 #pragma once
 // Minimal engine configuration for the RP2350 port (replaces ESP32 config.h -- no GPIO/display/SD definitions here, those belong to the host project).
 #define SAMPLE_RATE 44100

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // OB_Ui.h - front panel and menu tree of PicoFaceOB.
 //
 // 36 parameters on three encoders: the selector pages through them two at a

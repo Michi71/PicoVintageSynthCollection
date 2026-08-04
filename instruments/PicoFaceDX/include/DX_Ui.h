@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // DX_Ui.h
 //
 // Front panel and menu tree of PicoFaceDX as a state machine, driven one

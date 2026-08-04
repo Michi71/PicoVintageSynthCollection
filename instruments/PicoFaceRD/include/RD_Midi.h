@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // RD_Midi: Minimal MIDI front-end for the Roland MKS-20 / MK-80 emulation project.
 // Runs exclusively on Core 1 of the RP2350. Parses incoming MIDI events and
 // forwards the reduced event set (Note On, Note Off, Sustain CC64, Program

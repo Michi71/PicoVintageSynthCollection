@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 #pragma once
 #include "u8g2.h"
 #include "YC_Controller.h"

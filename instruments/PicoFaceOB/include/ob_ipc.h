@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // ob_ipc.h - same-core SPSC ring between MIDI/panel and the audio producer,
 // modelled on instruments/PicoFaceMD/include/md_ipc.h. Both sides run on
 // core0; render() drains the ring at block start.

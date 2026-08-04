@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Michi71
 # build_ui.sh -- macOS host build of the panel and patch-store tests
 # Compiles the *unmodified* controller and store (src/J6_Controller.cpp,
 # src/j6_patchstore.cpp) together with test/j6_ui_test.cpp. No audio and no

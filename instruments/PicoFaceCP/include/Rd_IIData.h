@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 /* Auto-generiert von build_instrument.py - NICHT MANUELL AENDERN
    Instrument: Rd II   Sample-Rate: 32000 Hz   Samples: 495112
    Daten groesse: 990224 Bytes (967.0 kB) */

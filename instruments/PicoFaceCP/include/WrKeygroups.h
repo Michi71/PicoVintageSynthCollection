@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 /* Auto-generiert von build_instrument.py - NICHT MANUELL AENDERN
    Instrument: Wr   Keygroups: 33 (11 Regionen x 3 Velocity-Layer)
    Engine: k += 3;  Velocity-Schwellen [48, 80]

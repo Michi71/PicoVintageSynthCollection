@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Michi71
 # build.sh -- macOS-Host-Build fuer den mdaEPiano-Test
 # Kompiliert die *unveraenderte* Pico-Engine (src/mdaEPiano.cpp) zusammen mit
 # test/test.cpp gegen CoreAudio + PortMidi. Die Pico-Audio-Subsystem wird ueber

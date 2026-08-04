@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // yc_logo.h - boot splash bitmap for PicoFaceYC.
 // Extracted verbatim from the original src/main.cpp during the monorepo
 // migration. Currently unused: the core draws its own text splash, same as

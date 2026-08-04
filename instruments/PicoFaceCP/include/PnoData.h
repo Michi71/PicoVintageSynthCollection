@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 /* Auto-generiert von build_instrument.py - NICHT MANUELL AENDERN
    Instrument: Pno   Sample-Rate: 32000 Hz   Samples: 149881
    Daten groesse: 299762 Bytes (292.7 kB) */

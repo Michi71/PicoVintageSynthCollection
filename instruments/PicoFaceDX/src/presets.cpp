@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // src/presets.cpp
 //
 // Built-in DX preset table: 32 real Yamaha reface DX factory-bank voices.

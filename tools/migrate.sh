@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Michi71
 #
 # tools/migrate.sh - populates the PicoVintageSynthCollection monorepo
 # from the six PicoFace repositories of the initial merge.

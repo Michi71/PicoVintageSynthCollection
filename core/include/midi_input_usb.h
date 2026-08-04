@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 #ifndef __MIDI_INPUT_USB__H__
 #define __MIDI_INPUT_USB__H__
 

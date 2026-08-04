@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // RD_Controller.h
 //
 // Architecture: Runs on Core 1. Parameter mutations are sent to the engine on Core 0

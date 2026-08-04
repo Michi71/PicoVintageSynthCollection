@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // RD_VintageFX: Vintage FX chain for MKS-20/MK-80 emulation.
 // Signal flow: in -> DAC filter -> bass shelf -> treble shelf -> tremolo -> BBD chorus (stereo) -> volume.
 // Mono in / stereo out. Native rate 20000/32000 Hz. RP2350 optimized.

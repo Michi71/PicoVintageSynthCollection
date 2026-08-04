@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 #ifndef __MIDI_SERIAL_H__
 #define __MIDI_SERIAL_H__
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 #include "RD_Controller.h"
 #include "rd_cc_map.h"
 #include "midi_serial.h"

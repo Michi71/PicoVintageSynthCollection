@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 /*
   MD_Synth_Bridge.h -- wiring the Moog engine to the Pico audio subsystem
 

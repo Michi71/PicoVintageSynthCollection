@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // SM_Instrument.cpp - adapter binding the ARP/Eminent Solina String Ensemble
 // classes to picoface::Instrument. Same shape as MD_Instrument.cpp.
 

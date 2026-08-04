@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // J6_Display.h — Pure-visual display module for PicoFaceJ6 (RP2350 + SH1106 128x64 via u8g2 C-API).
 // Mirrors the PicoFaceCP look: inverted header bar + separator, page indicator,
 // body lines and footer. Content strings are preformatted by the caller (j6_main.cpp).

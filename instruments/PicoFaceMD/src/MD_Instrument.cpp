@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // MD_Instrument.cpp - adapter binding the existing Minimoog Model D classes
 // to picoface::Instrument. Reference implementation: the other five
 // instruments follow this shape. The adapter owns the objects that

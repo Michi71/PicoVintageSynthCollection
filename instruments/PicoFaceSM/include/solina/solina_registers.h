@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 /*
   solina_registers.h -- Gate Output Circuit, Formant Circuit, Bass Circuit,
                         Register Circuit

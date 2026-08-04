@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // Host shim for pico/stdlib.h.
 //
 // Only exists so that core headers which are otherwise host-safe can be

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // include/midi_reface.h
 //
 // PicoFaceCP — Yamaha reface CP compatible MIDI layer (RP2350, C++17).

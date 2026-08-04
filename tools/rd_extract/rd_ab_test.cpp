@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // rd_ab_test.cpp -- A/B comparison: RdNewEngine vs Mcu reference emulator
 #include "rd_new_engine.h"
 #include "mcu.h"

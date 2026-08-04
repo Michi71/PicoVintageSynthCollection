@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // Same-core SPSC replacement for the cross-core SIO FIFO IPC; used by the PicoFaceJ6 build
 // where UI/MIDI and the audio IRQ share Core 0 and Core 1 is a dedicated sound-chip worker.
 

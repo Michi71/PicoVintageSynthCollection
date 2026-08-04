@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // =====================================================================
 // J6_Midi.cpp -- MIDI front end for PicoFaceJ6
 //

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // CP_Ui.cpp - front panel and menu tree of PicoFaceCP, see CP_Ui.h.
 
 #include "CP_Ui.h"

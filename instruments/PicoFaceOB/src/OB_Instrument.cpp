@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // OB_Instrument.cpp - adapter binding the ported OB-Xf engine to
 // picoface::Instrument. Standard runtime model: core0 does audio, USB, MIDI
 // and GUI, core1 is unused.

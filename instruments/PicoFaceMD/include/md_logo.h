@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // md_logo.h -- 128x64 XBM splash bitmap for PicoFaceMD.
 // PLACEHOLDER: copied from PicoFaceCP (image2cpp, 'Invert image colors' +
 // 'Swap bits in byte'). Replace the array below with your own bitmap of

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // MD_Display.h — Pure-visual display module for PicoFaceMD (RP2350 + SH1106 128x64 via u8g2 C-API).
 // Mirrors the PicoFaceCP look: inverted header bar + separator, page indicator,
 // body lines and footer. Content strings are preformatted by the caller (md_main.cpp).

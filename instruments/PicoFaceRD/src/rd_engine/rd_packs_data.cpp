@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Derived from giulioz/rdpiano and MAME; copyright is shared with their authors.
+// See instruments/PicoFaceRD/README.md.
+
 #include "rd_packs_data.h"
 
 static const uint8_t s_pack_p0[] __attribute__((aligned(4))) = {

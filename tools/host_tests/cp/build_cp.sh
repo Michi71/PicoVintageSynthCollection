@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Michi71
 # build_cp.sh -- macOS-Host-Build fuer die Reface-CP-Demo
 # Kompiliert die Pico-Engine (src/mdaEPiano.cpp) + die header-only Reface-CP-
 # Effektkette (effects/*.h) zusammen mit test/cp_test.cpp gegen CoreAudio +

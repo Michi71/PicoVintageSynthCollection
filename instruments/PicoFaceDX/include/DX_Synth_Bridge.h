@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 #ifndef DX_SYNTH_BRIDGE_H
 #define DX_SYNTH_BRIDGE_H
 

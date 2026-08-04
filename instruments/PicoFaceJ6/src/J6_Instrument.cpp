@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // J6_Instrument.cpp - adapter binding the Roland Juno-6 classes to
 // picoface::Instrument. Same shape as MD_Instrument.cpp, plus the user patch
 // store.

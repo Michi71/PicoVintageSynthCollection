@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Ported from the RDX reface DX emulation for the ESP32; copyright is shared with
+// its authors. See instruments/PicoFaceDX/README.md.
+
 // include/dx_engine/fx_base.h
 #pragma once
 #include <stdint.h>

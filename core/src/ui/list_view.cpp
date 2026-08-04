@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // list_view.cpp - implementation of picoface::ui::ListView (module ui_menu).
 //
 // Drawn through u8g2 directly rather than through the Display facade: the

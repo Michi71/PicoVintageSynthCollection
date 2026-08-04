@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // include/dx_patch_stage.h
 //
 // Staging area for a full RDX_Patch: the control side (preset pick, SysEx bulk

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 /**
  * Shared entry point for every instrument in the collection.
  * Brings up hardware, USB, display, audio pool, encoders and persistence,

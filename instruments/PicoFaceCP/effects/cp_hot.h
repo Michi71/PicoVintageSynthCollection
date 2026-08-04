@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // cp_hot.h
 //
 // Portability shim: place hot audio functions in RAM on the RP2350 (avoids

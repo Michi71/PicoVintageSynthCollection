@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // v2 bridge -- descriptor-driven RdNewEngine instead of the MAME emulation;
 // sustain handling lives here now (the firmware that used to do it is gone).
 

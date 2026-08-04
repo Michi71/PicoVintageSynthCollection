@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Michi71
 # build_yc.sh -- host build of the YC organ engine test.
 # Renders a WAV file; no audio device, no MIDI, no Pico SDK involved.
 set -e

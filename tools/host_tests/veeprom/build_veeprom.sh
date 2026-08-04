@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Michi71
 # Host test for the virtual EEPROM. This one targets the CORE, not an
 # instrument: veeprom.cpp moved into core/ with the monorepo merge, and every
 # instrument that persists anything sits on top of it.

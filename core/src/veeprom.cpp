@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // veeprom.cpp - Virtual EEPROM over flash for RP2350 (Pico SDK) and host unit tests.
 //
 // Two physical flash sectors (4096 B each) are used as a circular log of 256-byte

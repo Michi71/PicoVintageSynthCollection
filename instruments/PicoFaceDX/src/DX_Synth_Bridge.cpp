@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 #include "DX_Synth_Bridge.h"
 #include "pico/stdlib.h"
 #include "ram_hot.h"

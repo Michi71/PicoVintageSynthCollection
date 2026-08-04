@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // YC_Ui.cpp - front panel and menu tree of PicoFaceYC, see YC_Ui.h.
 
 #include "YC_Ui.h"

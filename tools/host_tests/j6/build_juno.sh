@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Michi71
 # build_juno.sh -- macOS host build of the Juno engine
 # Compiles the *unmodified* Pico engine (src/juno/) together with
 # test/juno_test.cpp against CoreAudio + PortMidi. The Pico audio subsystem is

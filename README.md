@@ -113,6 +113,18 @@ text, because that instrument's engine is a direct port of OB-Xf and its files
 keep the upstream copyright headers. Every instrument builds into its own
 binary, so a stricter licence on one of them stays confined to that binary.
 
+Source files carry a two-line SPDX header rather than the full notice, to keep
+it out of the way of the code. Three kinds exist:
+
+- own work: `GPL-3.0-or-later` plus the copyright line;
+- ported trees (`instruments/PicoFaceDX/include/dx_engine/`,
+  `instruments/PicoFaceRD/**/rd_engine/`): the licence line plus a note that
+  copyright is shared with the upstream authors - no sole claim is made there;
+- upstream files (`instruments/PicoFaceOB/include/obxf/`, CP's `mdaEPiano.*`,
+  MAME's `mame_utils.h` and `mcu_ops.h`, the SDK-derived `usb_descriptors.c`,
+  `get_serial.*` and `tusb_config.h`): untouched, they keep the header they
+  came with. The last four are MIT and BSD-3-Clause, not GPL.
+
 **On PicoFaceYC and the AGPL.** OpenB3 / BeatrixCPP, whose tone generation
 concepts the YC drawbar engine follows, is AGPL-3.0 - stricter than GPL-3, and
 not something that can be dropped by relicensing. It does not apply here: the

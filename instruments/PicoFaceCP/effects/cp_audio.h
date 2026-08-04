@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // cp_audio.h
 //
 // Glue layer: run the float Reface CP effect chain on int16 PCM blocks.

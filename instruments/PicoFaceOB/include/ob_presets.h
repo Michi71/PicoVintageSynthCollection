@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // ob_presets.h - factory patches converted from OB-Xf.
 //
 // Source: assets/installer/Surge Synth Team/OB-Xf/Patches in

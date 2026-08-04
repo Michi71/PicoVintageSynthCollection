@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // rd_dump_packs.cpp
 // Tiny host tool that writes the 16 embedded .rdp packs back to files,
 // so the regression tests exactly the data the firmware ships.

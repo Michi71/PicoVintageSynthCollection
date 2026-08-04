@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 #pragma once
 // dsp_lut.h — Shared sine lookup table (512 entries).
 // Initialised lazily by g_sinLUT(). Used by all LFOs in the effect chain

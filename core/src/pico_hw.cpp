@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // pico_hw.cpp - boot, clock and flash timing for the PicoFace platform.
 //
 // One board for every instrument. The only per-instrument choice left is

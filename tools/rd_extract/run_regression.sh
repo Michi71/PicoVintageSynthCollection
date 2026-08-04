@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Michi71
 # run_regression.sh
 # One-command host regression runner for PicoFaceRD.
 # Builds three host tools, dumps the 16 embedded .rdp packs, runs an A/B

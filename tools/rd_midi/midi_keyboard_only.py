@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Michi71
 """midi_keyboard_only.py - strip a Standard MIDI File to pure keyboard performance.
 
 Usage:

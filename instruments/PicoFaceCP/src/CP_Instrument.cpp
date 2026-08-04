@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // CP_Instrument.cpp - adapter binding the Yamaha reface CP electric piano
 // (mdaEPiano engine plus the reface CP effect chain) to picoface::Instrument.
 //

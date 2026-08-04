@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 #ifndef __ARDUINO_COMPAT_H__
 #define __ARDUINO_COMPAT_H__
 

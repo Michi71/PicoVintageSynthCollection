@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Michi71
 # build_solina.sh -- macOS host build of the Solina engine
 # Compiles the *unmodified* Pico engine (src/solina/) together with
 # test/solina_test.cpp against CoreAudio + PortMidi. The Pico audio subsystem

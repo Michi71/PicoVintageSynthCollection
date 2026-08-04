@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // wahwah.h
 // Touch wah for the Reface CP chain (header-only, no heap, no exceptions).
 // Core: resonant TPT state-variable filter, bandpass-dominant with resonance

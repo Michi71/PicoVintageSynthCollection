@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // RD_Instrument.cpp - adapter binding the Roland RD / MKS-20 classes to
 // picoface::Instrument. Unlike the other instruments the RD engine uses core1
 // as a dedicated RAM-resident voice worker, and it switches its sample rate at

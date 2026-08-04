@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 /* Auto-generiert von build_instrument.py - NICHT MANUELL AENDERN
    Instrument: CP   Sample-Rate: 32000 Hz   Samples: 296983
    Daten groesse: 593966 Bytes (580.0 kB) */

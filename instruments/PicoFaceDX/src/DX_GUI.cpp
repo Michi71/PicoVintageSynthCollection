@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 #include "DX_GUI.h"
 #include "dx_engine/DX_FXHost.h"
 #include <cstdio>

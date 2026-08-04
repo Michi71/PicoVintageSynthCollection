@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // reface_cp_fx.h
 //
 // Self-contained, header-only DSP primitives for the Yamaha Reface CP

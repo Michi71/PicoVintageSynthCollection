@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Michi71
+
 // Bridge-level stress: identical-chord retriggers + sustain pedal, like the
 // user's MIDI file. Renders through RD_Synth_Bridge (v2) on the host.
 #include "RD_Synth_Bridge_v2.h"
