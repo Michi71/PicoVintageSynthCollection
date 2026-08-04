@@ -60,9 +60,35 @@ Alle drei sind auf einem Desktop unsichtbar und auf einem Cortex-M33 fatal.
 Nach 1–3 enthaelt kein Objekt dieses Instruments mehr einen Aufruf der
 Double-Laufzeitbibliothek.
 
+## Presets
+
+Zwoelf Werkspatches aus `assets/installer/.../Patches` des Originals, umgesetzt
+in `include/ob_presets.h`. Die .fxp-Dateien tragen ihre Parameter als benannte,
+normierte Werte in einem eingebetteten XML-Block, die Umsetzung ist also eine
+Namenszuordnung auf `ob_params.h`. Was dieser Port nicht hat — Unisono,
+Panning, LFO 2, Modulationsmatrix, Velocity-Tracking — faellt weg, und die
+LFO-Wellenform wird auf die naechste unserer fuenf festen Positionen gerundet.
+Ein Patch, der stark daran haengt, klingt hier also nicht identisch.
+
+Erreichbar unter Menu → Presets.
+
 ## Stand
 
-Baut, auf Hardware **noch nicht getestet und klanglich nicht verifiziert**.
-Der Schirm unter Menu → System → CPU Load zeigt Auslastung, klingende Stimmen
-und verworfene IPC-Pakete — das ist der Messpunkt fuer die Frage, ob sechs
-Stimmen tragen.
+**Erster Hardware-Lauf: es brummte.** Ursache war die neutrale Lage der
+Oszillator-Grobstimmung. `Voice.h` fuettert die Oszillatoren mit
+`midiNote - 93`; upstream gleicht das in `processOsc1Pitch()` aus, das den
+normierten Parameter auf `val * 48` abbildet — die Mitte liegt also bei 24,
+nicht bei 0. `OB_Engine` setzte `pitch1` gar nicht, es blieb auf seinem
+deklarierten Default 0, und damit klang alles **zwei Oktaven zu tief**.
+Behoben; `OB_OSC1_PITCH` ist jetzt ein eigener Parameter.
+
+Die CPU-Last ist noch nicht eingeordnet. Zwei Dinge sind seither passiert:
+der Renderpfad und die BLEP-Tabellen liegen im RAM statt im XIP-Flash (ein
+Oszillator liest pro Sample zwei Zeilen zu 32 Floats — das schlaegt den
+XIP-Cache), und der Peak-Wert setzt sich beim Betreten des CPU-Load-Schirms
+zurueck. Vorher war er ein Maximum seit dem Einschalten, und der allererste
+Block nach dem Start laeuft mit kaltem Cache — ein einzelner Ausreisser stand
+danach fuer immer auf dem Schirm.
+
+Bleibt die Last zu hoch, ist die Stellschraube `MAX_VOICES` in
+`include/obxf/ObxfPort.h`.

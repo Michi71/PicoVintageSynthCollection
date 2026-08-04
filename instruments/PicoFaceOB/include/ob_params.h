@@ -26,6 +26,7 @@ enum ObParam : uint8_t {
     OB_CROSSMOD,
     OB_NOISE_MIX,
     OB_RINGMOD_MIX,
+    OB_OSC1_PITCH,
     OB_OSC2_PITCH,
     OB_BRIGHTNESS,
     // filter
@@ -82,6 +83,7 @@ inline const ObParamDesc obParams[OB_PARAM_COUNT] = {
     {"Crossmod",  0.00f, 110, 0},
     {"Noise",     0.00f, 111, 0},
     {"RingMod",   0.00f, 112, 0},
+    {"Osc1 Semi", 0.50f,  84, 0},
     {"Osc2 Semi", 0.50f, 113, 0},
     {"Bright",    1.00f,  75, 0},
 

@@ -26,11 +26,16 @@ class OB_Ui
     void tick(picoface::ui::Display& d, const picoface::ui::InputState& in);
     void drawNow(picoface::ui::Display& d);
 
-    // The adapter feeds these in for the CPU Load screen.
+    // The adapter feeds these in for the CPU Load screen. resetPeak is a
+    // callback into the adapter: the peak is a maximum since boot, and the
+    // very first block after power-on runs with cold caches, so one cold
+    // outlier would otherwise sit on the screen forever. Entering the screen
+    // restarts the measurement.
     void setLoad(float now, float peak) { load_ = now; loadPeak_ = peak; }
+    void setPeakReset(void (*fn)(void*), void* ctx) { resetPeak_ = fn; resetCtx_ = ctx; }
 
   private:
-    enum class Screen : uint8_t { Panel, Menu, System, About, CpuLoad };
+    enum class Screen : uint8_t { Panel, Menu, Presets, System, About, CpuLoad };
 
     static constexpr uint8_t kPageCount = (OB_PARAM_COUNT + 1) / 2;
 
@@ -48,11 +53,14 @@ class OB_Ui
     Screen   screen_      = Screen::Panel;
     uint8_t  page_        = 0;
     uint8_t  sysCursor_   = 0;
+    uint8_t  presetCursor_ = 0;
     bool     dirty_       = true;
     uint32_t lastDrawMs_  = 0;
     uint32_t lastInputMs_ = 0;
     float    load_        = 0.f;
     float    loadPeak_    = 0.f;
+    void   (*resetPeak_)(void*) = nullptr;
+    void*    resetCtx_    = nullptr;
 };
 
 #endif // OB_UI_H

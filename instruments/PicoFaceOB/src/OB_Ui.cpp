@@ -10,6 +10,7 @@
 
 #include "OB_Engine.h"
 #include "ob_ipc.h"
+#include "ob_presets.h"
 
 using picoface::ui::Button;
 using picoface::ui::Display;
@@ -18,7 +19,7 @@ using picoface::ui::InputState;
 
 namespace {
 
-const char* const kMenuEntries[]   = {"System", "<< BACK"};
+const char* const kMenuEntries[]   = {"Presets", "System", "<< BACK"};
 const char* const kSystemEntries[] = {"About", "CPU Load", "<< BACK"};
 
 constexpr uint32_t kMenuIdleMs  = 5000;
@@ -27,6 +28,19 @@ constexpr uint32_t kMaxRedrawMs = 500;
 
 // One detent = one percent of a continuous parameter.
 constexpr float kStep = 0.01f;
+
+// ListView wants an array of pointers; the presets carry their names inline.
+const char* kPresetNames[OB_NPRESETS] = {};
+struct PresetNameInit
+{
+    PresetNameInit()
+    {
+        for (int i = 0; i < OB_NPRESETS; ++i)
+        {
+            kPresetNames[i] = obPresets[i].name;
+        }
+    }
+} presetNameInit;
 
 #ifdef PICOFACE_INSTRUMENT_NAME
 constexpr const char* kAboutName = PICOFACE_INSTRUMENT_NAME;
@@ -57,6 +71,17 @@ void OB_Ui::go(Screen next, uint32_t nowMs)
     else if (next == Screen::System)
     {
         list_.open(kSystemEntries, 3, sysCursor_);
+    }
+    else if (next == Screen::CpuLoad)
+    {
+        if (resetPeak_)
+        {
+            resetPeak_(resetCtx_);
+        }
+    }
+    else if (next == Screen::Presets)
+    {
+        list_.open(kPresetNames, (uint8_t) OB_NPRESETS, presetCursor_);
     }
 }
 
@@ -129,8 +154,23 @@ void OB_Ui::tick(Display& d, const InputState& in)
     case Screen::Menu:
     {
         const int sel = list_.update(in);
-        if (sel == 0)      go(Screen::System, in.nowMs);
-        else if (sel == 1) go(Screen::Panel, in.nowMs);
+        if (sel == 0)      go(Screen::Presets, in.nowMs);
+        else if (sel == 1) go(Screen::System, in.nowMs);
+        else if (sel == 2) go(Screen::Panel, in.nowMs);
+        break;
+    }
+
+    case Screen::Presets:
+    {
+        const int sel = list_.update(in);
+        if (sel >= 0)
+        {
+            presetCursor_ = (uint8_t) sel;
+            // Straight to the engine rather than through the ring: a preset is
+            // 38 parameters at once and would fill a quarter of it.
+            engine_.applyPreset(sel);
+            go(Screen::Panel, in.nowMs);
+        }
         break;
     }
 
@@ -180,6 +220,7 @@ void OB_Ui::draw(Display& d)
     {
     case Screen::Panel:   drawPanel(d);            break;
     case Screen::Menu:    list_.draw(d, "MENU");   break;
+    case Screen::Presets: list_.draw(d, "PRESET"); break;
     case Screen::System:  list_.draw(d, "SYSTEM"); break;
     case Screen::About:   drawAbout(d);            break;
     case Screen::CpuLoad: drawCpuLoad(d);          break;

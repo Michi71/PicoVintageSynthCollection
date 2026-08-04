@@ -6,6 +6,8 @@
 
 #include <cmath>
 
+#include "pico.h"
+
 void OB_Engine::init(float sampleRate)
 {
     sampleRate_ = sampleRate;
@@ -128,7 +130,9 @@ void OB_Engine::setModWheel(float v01)
     // The mod wheel rides on LFO 1 depth, as on the original front panel.
     for (int i = 0; i < MAX_VOICES; ++i)
     {
-        voices_[i].par.lfo1.amt1 = params_[OB_LFO_TO_PITCH] * 12.f * (0.2f + 0.8f * modWheel_);
+        voices_[i].par.lfo1.amt1 =
+            logsc(logsc(params_[OB_LFO_TO_PITCH], 0.f, 1.f, 60.f), 0.f, 60.f, 10.f) *
+            (0.2f + 0.8f * modWheel_);
     }
 }
 
@@ -190,8 +194,14 @@ void OB_Engine::applyParam(uint8_t id, float v)
     case OB_CROSSMOD:    FOR_EACH_VOICE(oscs.par.osc.crossmod = v * 48.f); break;
     case OB_NOISE_MIX:   FOR_EACH_VOICE(oscs.par.mix.noise = v); break;
     case OB_RINGMOD_MIX: FOR_EACH_VOICE(oscs.par.mix.ringMod = v); break;
-    // +/- 24 semitones, centre detent at 0.5
-    case OB_OSC2_PITCH:  FOR_EACH_VOICE(oscs.par.osc.pitch2 = (float)((int)(v * 48.f) - 24)); break;
+    // Oscillator coarse pitch, 0..48 semitones with the neutral position at
+    // 24 - NOT at 0. Voice.h feeds the oscillators `midiNote - 93`, so A4
+    // (note 69) only lands on getPitch(0) = 440 Hz once the 24 are added
+    // back: 69 - 93 + 24 = 0. Upstream hides this in processOsc1Pitch(),
+    // which maps the normalised parameter to val * 48; leaving pitch1 at its
+    // declared default of 0 puts the whole instrument two octaves down.
+    case OB_OSC1_PITCH:  FOR_EACH_VOICE(oscs.par.osc.pitch1 = (float)(int)(v * 48.f + 0.5f)); break;
+    case OB_OSC2_PITCH:  FOR_EACH_VOICE(oscs.par.osc.pitch2 = (float)(int)(v * 48.f + 0.5f)); break;
     case OB_BRIGHTNESS:  FOR_EACH_VOICE(setBrightness(linsc(v, 4000.f, 26000.f))); break;
 
     // --- filter ---
@@ -239,10 +249,13 @@ void OB_Engine::applyParam(uint8_t id, float v)
         lfo1_.par.wave3blend = (w == 4) ? -1.f : 0.f;
         break;
     }
+    // amt1 and amt2 use upstream's double logsc curves, so a value taken from
+    // a factory patch means the same thing here.
     case OB_LFO_TO_PITCH:
         FOR_EACH_VOICE(par.lfo1.osc1Pitch = 1.f);
         FOR_EACH_VOICE(par.lfo1.osc2Pitch = 1.f);
-        FOR_EACH_VOICE(par.lfo1.amt1 = v * 12.f * (0.2f + 0.8f * modWheel_));
+        FOR_EACH_VOICE(par.lfo1.amt1 = logsc(logsc(v, 0.f, 1.f, 60.f), 0.f, 60.f, 10.f) *
+                                       (0.2f + 0.8f * modWheel_));
         break;
     case OB_LFO_TO_PW:
         FOR_EACH_VOICE(par.lfo1.osc1PW = 1.f);
@@ -265,11 +278,26 @@ void OB_Engine::applyParam(uint8_t id, float v)
     }
 }
 
+void OB_Engine::applyPreset(int index)
+{
+    if (index < 0 || index >= OB_NPRESETS)
+    {
+        return;
+    }
+    for (uint8_t i = 0; i < OB_PARAM_COUNT; ++i)
+    {
+        setParam(i, obPresets[index].value[i]);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Audio
 // ---------------------------------------------------------------------------
 
-void OB_Engine::renderBlock(float* out, int frames)
+// RAM resident: the voice path runs entirely inside this function after
+// inlining, and executing it from XIP flash costs cache misses the audio
+// budget cannot pay. Same treatment as PicoFaceCP's cp_render_block().
+void __no_inline_not_in_flash_func(OB_Engine::renderBlock)(float* out, int frames)
 {
     for (int s = 0; s < frames; ++s)
     {

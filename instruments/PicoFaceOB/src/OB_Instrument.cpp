@@ -28,7 +28,9 @@ constexpr uint32_t kSampleRate = 32000;
 
 class OBInstrument final : public picoface::Instrument {
 public:
-    OBInstrument() : ui_(engine_) {}
+    OBInstrument() : ui_(engine_) {
+        ui_.setPeakReset([](void* ctx) { ((OBInstrument*) ctx)->loadPeak_ = 0.f; }, this);
+    }
 
     const char* name() const override { return "PicoFaceOB"; }
 
@@ -118,7 +120,9 @@ public:
     // Persistence: the whole parameter set, one float per parameter
     // ----------------------------------------------------------------
 
-    uint16_t settingsVersion() const override { return 1; }
+    // Version 2: OB_OSC1_PITCH was added to the parameter set, so a record
+    // written before that has the wrong length and must be discarded.
+    uint16_t settingsVersion() const override { return 2; }
     size_t settingsSize() const override { return sizeof(float) * OB_PARAM_COUNT; }
 
     void settingsSave(uint8_t* buffer, size_t size) const override {

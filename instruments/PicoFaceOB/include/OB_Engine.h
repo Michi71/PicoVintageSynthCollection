@@ -18,6 +18,7 @@
 #include "obxf/Voice.h"
 #include "obxf/Smoother.h"
 #include "ob_params.h"
+#include "ob_presets.h"
 
 class OB_Engine
 {
@@ -36,6 +37,7 @@ class OB_Engine
     // Every parameter is normalised 0..1; the mapping to native units follows
     // OB-Xf's SynthEngine.
     void setParam(uint8_t id, float v01);
+    void applyPreset(int index);
     float getParam(uint8_t id) const { return (id < OB_PARAM_COUNT) ? params_[id] : 0.f; }
 
     // --- audio (producer context) -------------------------------------------

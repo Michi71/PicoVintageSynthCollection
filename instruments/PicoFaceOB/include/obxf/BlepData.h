@@ -15,9 +15,17 @@
  *
  * Source code is available at https://github.com/surge-synthesizer/OB-Xf
  */
+/*
+ * PORTED FOR PicoFaceOB (RP2350): the four tables are `inline` so the three
+ * translation units that include this header share ONE copy instead of
+ * carrying 33 KB each, and they live in RAM - an oscillator reads two rows
+ * of 32 floats per sample, which thrashes the XIP cache from flash.
+ */
 
 #ifndef OBXF_SRC_ENGINE_BLEPDATA_H
 #define OBXF_SRC_ENGINE_BLEPDATA_H
+
+#include "pico.h"
 
 #include "obxf/ObxfPort.h"
 
@@ -31,7 +39,7 @@ constexpr int B_SAMPLESx2 = B_SAMPLES * 2;
  * Then: lerp = rowA[i]*f1 + rowB[i]*frac  (sequential, SIMD-friendly)
  */
 // clang-format off
-const float blep[] =
+inline const float __not_in_flash("obxf_blep") blep[] =
 {
     -3.239520000e-18f, -1.371423000e-05f, 1.019683000e-04f, -2.552405000e-04f, 5.475735000e-04f, -9.985183000e-04f, 1.713736000e-03f, -2.747855000e-03f,
     4.249273000e-03f, -6.333798000e-03f, 9.254147000e-03f, -1.333135000e-02f, 1.927269000e-02f, -2.855073000e-02f, 4.545458000e-02f, -8.786753000e-02f,
@@ -294,7 +302,7 @@ const float blep[] =
     -8.786750000e-02f, 4.545456000e-02f, -2.855074000e-02f, 1.927269000e-02f, -1.333129000e-02f, 9.254217000e-03f, -6.333828000e-03f, 4.249275000e-03f,
     -2.747893000e-03f, 1.713812000e-03f, -9.984970000e-04f, 5.475879000e-04f, -2.552271000e-04f, 1.019835000e-04f, -1.370907000e-05f, 0.000000000e+00f
 };
-const float blepd2[] =
+inline const float __not_in_flash("obxf_blep") blepd2[] =
 {
     -1.619670000e-18f, -2.157152000e-05f, -1.169118000e-04f, 2.884141000e-04f, 1.016751000e-03f, -6.628190000e-04f, -3.188456000e-03f, 1.572480000e-03f,
     8.173740000e-03f, -3.007648000e-03f, -1.782132000e-02f, 5.940095000e-03f, 3.696484000e-02f, -1.362984000e-02f, -8.311049000e-02f, 6.573872000e-02f,
@@ -557,7 +565,7 @@ const float blepd2[] =
     6.573874000e-02f, -8.311057000e-02f, -1.362991000e-02f, 3.696483000e-02f, 5.940139000e-03f, -1.782131000e-02f, -3.007650000e-03f, 8.173704000e-03f,
     1.572430000e-03f, -3.188491000e-03f, -6.629229000e-04f, 1.016736000e-03f, 2.884269000e-04f, -1.169443000e-04f, -2.157688000e-05f, 0.000000000e+00f
 };
-const float blamp[] =
+inline const float __not_in_flash("obxf_blep") blamp[] =
 {
     -1.580000000e-21f, -2.899826000e-07f, 1.986054000e-06f, -1.827841000e-06f, 5.605325000e-06f, -5.735851000e-06f, 1.239543000e-05f, -1.370167000e-05f,
     2.432149000e-05f, -2.834301000e-05f, 4.554200000e-05f, -5.741840000e-05f, 9.254071000e-05f, -1.408367000e-04f, 2.816393000e-04f, -7.553766000e-04f,
@@ -820,7 +828,7 @@ const float blamp[] =
     -7.553697000e-04f, 2.816468000e-04f, -1.408309000e-04f, 9.256601000e-05f, -5.739927000e-05f, 4.559755000e-05f, -2.831221000e-05f, 2.437830000e-05f,
     -1.364946000e-05f, 1.245737000e-05f, -5.722046000e-06f, 5.722046000e-06f, -1.728535000e-06f, 2.086163000e-06f, -1.788139000e-07f, 0.000000000e+00f
 };
-const float blampd2[] =
+inline const float __not_in_flash("obxf_blep") blampd2[] =
 {
     -7.900000000e-22f, -2.908324000e-07f, -4.889252000e-06f, -4.236896000e-06f, 4.079191000e-05f, 6.965782000e-05f, -6.731477000e-05f, -1.662422000e-04f,
     1.842099000e-04f, 4.566706000e-04f, -3.002172000e-04f, -9.049284000e-04f, 6.588697000e-04f, 1.891847000e-03f, -1.603820000e-03f, -3.814235000e-03f,
