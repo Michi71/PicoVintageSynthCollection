@@ -12,7 +12,7 @@
 //     local control, MIDI control, etc.), 32 bytes.
 //
 // Autosave policy:
-//   Core 1 polls every 250 ms, builds a full snapshot, and if it differs
+//   uiTick() polls every 250 ms, builds a full snapshot, and if it differs
 //   from the last saved image and remains stable for 2000 ms, writes one
 //   veeprom record ("virtual potentiometer memory").
 //
@@ -47,19 +47,18 @@ struct __attribute__((packed)) SettingsV1 {
 
 static_assert(sizeof(SettingsV1) <= 240, "must fit VEEPROM_MAX_PAYLOAD");
 
-// Core 0, main(): veeprom_init() + load; if a valid V1 record exists, apply
-// instrument, engine params and all FX knobs/modes directly to ep/fx. MUST run
-// after the default FX init and BEFORE multicore_launch_core1() (single-core
-// phase, plain XIP reads).
-void settings_boot_restore_core0(mdaEPiano* ep, RefaceCpChain* fx);
+// init(): loads the record and applies it - instrument, engine params, all FX
+// knobs/modes, the UI octave and the RefaceMidi SYSTEM block. Must run after
+// the default FX init and after refaceMidi.init().
+//
+// One call since PicoFaceCP moved to the standard runtime model. It used to be
+// split into a core0 and a core1 half, with the loaded record parked in a
+// static in between, because engine and MIDI layer lived on different cores.
+// The core has already run veeprom_init() by the time init() is called.
+void settings_boot_restore(mdaEPiano* ep, RefaceCpChain* fx, RefaceMidi* rm);
 
-// Core 1, core1_main(): apply the Core-1-owned part of the loaded record: UI
-// octave (ui_set_octave) and the RefaceMidi SYSTEM block. Call after
-// refaceMidi.init().
-void settings_boot_restore_core1(RefaceMidi* rm);
-
-// Core 1, called continuously from ui_poll_usb(): every 250 ms gathers a
-// snapshot of all persisted values (getters + ui_get_octave + SYSTEM block);
-// when the snapshot differs from the last saved image and has been stable for
-// 2000 ms, writes one veeprom record ("virtual potentiometer memory" autosave).
+// Called from uiTick(): every 250 ms gathers a snapshot of all persisted
+// values (getters + ui_get_octave + SYSTEM block); when the snapshot differs
+// from the last saved image and has been stable for 2000 ms, writes one
+// veeprom record ("virtual potentiometer memory" autosave).
 void settings_task(mdaEPiano* ep, RefaceCpChain* fx, RefaceMidi* rm);

@@ -19,9 +19,7 @@
 # Exported variables:
 #   PICOFACE_CORE_INCLUDE_DIR                - core include directory
 #   PICOFACE_CORE_SOURCES                    - base core sources (absolute)
-#   PICOFACE_CORE_MODULE_UI_PANEL_SOURCES    - module "ui_panel" sources
 #   PICOFACE_CORE_MODULE_UI_MENU_SOURCES     - module "ui_menu" sources
-#   PICOFACE_CORE_MODULE_MIDI_REFACE_SOURCES - module "midi_reface" sources
 #   PICOFACE_CORE_MODULES                    - list of available module names
 # ============================================================================
 
@@ -39,41 +37,30 @@ set(PICOFACE_CORE_SOURCES
     # on every board and an idle RX interrupt costs nothing.
     "${CMAKE_CURRENT_SOURCE_DIR}/src/midi_serial.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/picoface_main.cpp"
-    # display.cpp lives under src/ui/ next to the optional ui_panel module, but
+    # display.cpp lives under src/ui/ next to the optional ui_menu module, but
     # it is a BASE source: picoface_main.cpp always instantiates the facade.
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/display.cpp"
 )
 
-# --- module: ui_panel ---------------------------------------------------------
-set(PICOFACE_CORE_MODULE_UI_PANEL_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/pico_frontpanel.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/pico_selection_list.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/pico_input_value.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/settings.cpp"
-)
-
 # --- module: ui_menu ----------------------------------------------------------
-# Non-blocking UI widgets for instruments that draw from uiTick(). Separate
-# from ui_panel on purpose: the two are alternatives, not layers - ui_panel
-# blocks inside its own encoder loop, ui_menu never does.
+# Non-blocking UI widgets for instruments that draw from uiTick().
+#
+# Successor of the module ui_panel, which held the blocking widgets that owned
+# the encoders in their own loop (pico_frontpanel.cpp, pico_selection_list.cpp,
+# pico_input_value.cpp) plus the PicoFaceCP settings layer. With PicoFaceCP on
+# the standard runtime model that module had no users left; its CP-specific
+# parts moved to instruments/PicoFaceCP, the rest is gone.
 set(PICOFACE_CORE_MODULE_UI_MENU_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/list_view.cpp"
 )
 
-# --- module: midi_reface ------------------------------------------------------
-set(PICOFACE_CORE_MODULE_MIDI_REFACE_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/midi/midi_reface.cpp"
-)
-
 # --- available modules --------------------------------------------------------
-set(PICOFACE_CORE_MODULES "ui_panel;ui_menu;midi_reface")
+set(PICOFACE_CORE_MODULES "ui_menu")
 
 # --- sanity check: every listed source file must exist ------------------------
 foreach(_picoface_src IN LISTS
         PICOFACE_CORE_SOURCES
-        PICOFACE_CORE_MODULE_UI_PANEL_SOURCES
-        PICOFACE_CORE_MODULE_UI_MENU_SOURCES
-        PICOFACE_CORE_MODULE_MIDI_REFACE_SOURCES)
+        PICOFACE_CORE_MODULE_UI_MENU_SOURCES)
     if(NOT EXISTS "${_picoface_src}")
         message(FATAL_ERROR "PicoFace core source missing: ${_picoface_src}")
     endif()
@@ -82,9 +69,7 @@ endforeach()
 # --- export everything to the including (parent) scope ------------------------
 set(PICOFACE_CORE_INCLUDE_DIR                "${PICOFACE_CORE_INCLUDE_DIR}"                PARENT_SCOPE)
 set(PICOFACE_CORE_SOURCES                    "${PICOFACE_CORE_SOURCES}"                    PARENT_SCOPE)
-set(PICOFACE_CORE_MODULE_UI_PANEL_SOURCES    "${PICOFACE_CORE_MODULE_UI_PANEL_SOURCES}"    PARENT_SCOPE)
 set(PICOFACE_CORE_MODULE_UI_MENU_SOURCES     "${PICOFACE_CORE_MODULE_UI_MENU_SOURCES}"     PARENT_SCOPE)
-set(PICOFACE_CORE_MODULE_MIDI_REFACE_SOURCES "${PICOFACE_CORE_MODULE_MIDI_REFACE_SOURCES}" PARENT_SCOPE)
 set(PICOFACE_CORE_MODULES                    "${PICOFACE_CORE_MODULES}"                    PARENT_SCOPE)
 
 # --- summary ------------------------------------------------------------------

@@ -70,7 +70,5 @@ Das Instrument wird beim naechsten Configure automatisch gefunden, in den Sammel
 | Bedarf | Vorgehen |
 |---|---|
 | Menueliste fuer `uiTick()` (`picoface::ui::ListView`) | `CORE_MODULES ui_menu` ergaenzen |
-| Blockierende Frontpanel-Widgets des Kerns nutzen | `CORE_MODULES ui_panel` ergaenzen - nur zusammen mit `ownsUserInterface()` sinnvoll |
-| Reface-MIDI-Mapping nutzen | `CORE_MODULES midi_reface` ergaenzen |
 | Eigene Hardware-Anbindung | eigene `src/pico_hw.cpp` anlegen und `CORE_EXCLUDE pico_hw.cpp` setzen |
 | Eigene .pio-Dateien | ueber `PIO_SOURCES` eintragen |

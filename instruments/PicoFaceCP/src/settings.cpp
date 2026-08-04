@@ -2,13 +2,11 @@
  * settings.cpp - Persistent settings management for PicoFaceCP firmware.
  *
  * This module handles saving and restoring synthesizer and effects parameters
- * to virtual EEPROM. The restore process is split across cores:
- * - Core 0 restores the engine and FX chain before multicore launch.
- * - Core 1 restores the UI octave and Reface MIDI system block after RefaceMidi initialization.
+ * to virtual EEPROM. Restore happens in one pass from init().
  *
- * Autosave is polled on core 1. It uses a debounce policy: changes must remain
- * stable for 2 seconds before being written to flash, preventing excessive writes
- * during continuous parameter sweeps.
+ * Autosave is polled from uiTick(). It uses a debounce policy: changes must
+ * remain stable for 2 seconds before being written to flash, preventing
+ * excessive writes during continuous parameter sweeps.
  */
 
 #include "settings.h"
@@ -22,8 +20,6 @@
 extern "C" void ui_set_octave(int oct);
 extern "C" int  ui_get_octave(void);
 
-static SettingsV1 g_loaded;
-static bool g_loadedValid = false;
 static SettingsV1 g_lastSaved;
 static bool g_baselineInit = false;
 static SettingsV1 g_pending;
@@ -54,8 +50,7 @@ static void settings_gather(SettingsV1* s, mdaEPiano* ep, RefaceCpChain* fx, Ref
     s->preGain = fx->getPreGain();
 }
 
-void settings_boot_restore_core0(mdaEPiano* ep, RefaceCpChain* fx) {
-    veeprom_init();
+void settings_boot_restore(mdaEPiano* ep, RefaceCpChain* fx, RefaceMidi* rm) {
     SettingsV1 s;
     uint16_t len = 0, ver = 0;
     if (!veeprom_load(&s, sizeof(s), &len, &ver)) return;
@@ -84,14 +79,8 @@ void settings_boot_restore_core0(mdaEPiano* ep, RefaceCpChain* fx) {
     fx->setVolume(s.volume);
     fx->setPreGain(s.preGain);
 
-    g_loaded = s;
-    g_loadedValid = true;
-}
-
-void settings_boot_restore_core1(RefaceMidi* rm) {
-    if (!g_loadedValid) return;
-    ui_set_octave(g_loaded.octave);
-    rm->loadSystemBlock(g_loaded.sysBlock);
+    ui_set_octave(s.octave);
+    rm->loadSystemBlock(s.sysBlock);
 }
 
 void settings_task(mdaEPiano* ep, RefaceCpChain* fx, RefaceMidi* rm) {

@@ -17,13 +17,13 @@ core/
 │   └── picoface/
 │       ├── instrument.h
 │       ├── ui.h
+│       ├── list_view.h
 │       └── midi.h
 └── src/
     ├── (Basisquellen)
-    ├── midi/
-    │   └── (Modul midi_reface)
     └── ui/
-        └── (Module ui_panel und ui_menu)
+        ├── display.cpp
+        └── (Modul ui_menu)
 lib/
 ├── audio
 ├── encoder
@@ -73,29 +73,24 @@ picoface::Instrument in core/include/picoface/instrument.h ist die einzige Schni
 
 Der Kern ruft init(), fragt danach sampleRate() ab und initialisiert damit den Audio-Pool. render() erhaelt ein int32-Wort pro Frame (gepacktes Stereo), wird blockweise aus der Producer-Schleife aufgerufen und darf nicht blockieren, nicht allokieren und kein printf verwenden; ein Instrument darf intern core1 als Worker nutzen, wie es PicoFaceRD tut. Ein Instrument registriert sich mit PICOFACE_REGISTER_INSTRUMENT(Typ).
 
-## 4a. Zwei Laufzeitmodelle
+## 4a. Ein Laufzeitmodell
 
-Die sechs Instrumente laufen in zwei verschiedenen Modellen. Der Kern unterstuetzt beide; welches gilt, entscheidet das Instrument ueber `ownsUserInterface()`.
+**Alle sechs Instrumente laufen im Standardmodell:** core0 macht Audio, USB, MIDI und GUI, der Kern pollt die Encoder in einen InputState und ruft `uiTick()`. core1 ist ungenutzt, bis auf PicoFaceRD, das ihn als Voice-Worker fahrt.
 
-| Modell | Instrumente | core0 | core1 | Bedienung |
-| --- | --- | --- | --- | --- |
-| Standard | PicoFaceMD, PicoFaceSM, PicoFaceJ6, PicoFaceRD, PicoFaceYC | Audio, USB, MIDI, GUI | ungenutzt (RD: Voice-Worker) | Kern pollt die Encoder in einen InputState und ruft uiTick() |
-| Instrument besitzt die UI | PicoFaceCP | nur Audio | USB, MIDI, Encoder, Frontpanel-Menue | Instrument fuehrt seine eigene Schleife in runUserInterface() |
+Der Kern unterstuetzt weiterhin ein zweites Modell, in dem ein Instrument ueber `ownsUserInterface()` die gesamte Bedienoberflaeche auf core1 uebernimmt (`runUserInterface`, `pumpCrossCore`, `flashLockHook`/`flashUnlockHook`). **Es hat seit der Umstellung von PicoFaceCP keinen Nutzer mehr.** Die Hooks stehen noch in `picoface::Instrument`, weil ein kuenftiges Instrument mit einer wirklich blockierenden Bedienung sie brauchen koennte; wer das nicht erwartet, kann sie samt dem `owns_ui`-Zweig in `picoface_main.cpp` streichen.
 
-Im zweiten Modell initialisiert der Kern weder Display noch Encoder, verdrahtet kein USB-MIDI und ruft weder uiInit() noch uiTick(). Er startet core1 mit runUserInterface() - zwingend vor init_audio(), weil der SDK-Handshake die SIO-FIFO benutzt - und ruft in jedem Durchlauf der Producer-Schleife pumpCrossCore(), womit das Instrument seinen Cross-Core-Kanal leert. Findet der Producer keinen freien Puffer, geht core0 per `__wfe()` schlafen statt zu drehen.
+### Die Umstellung von PicoFaceYC und PicoFaceCP
 
-PicoFaceCP schreibt auch selbst in den veeprom und meldet daher `settingsSize() == 0`. Weil sein Menue auf core1 laeuft, muss vor einem Flash-Zugriff core0 in RAM-residentem Code geparkt werden; das Paar dafuer liefert es ueber `flashLockHook()` und `flashUnlockHook()`.
+Beide liefen im zweiten Modell. Zwei Dinge daran waren nicht offensichtlich:
 
-### Die Umstellung von PicoFaceYC
+- `pico_UserInterfaceFrontPanel()` enthielt `for(;;)` und kehrte nie zurueck - die Funktion *war* die core1-Schleife, nicht ein Menue, das gelegentlich blockiert. An ihre Stelle treten `YC_Ui` und `CP_Ui`: Zustandsautomaten, die pro `uiTick()` einen Durchlauf machen. Das Listen-Widget dahinter liegt als `picoface::ui::ListView` im Kernmodul ui_menu und wird von beiden genutzt.
+- `ipc.h` schob seine Pakete mit `multicore_fifo_push_blocking` ueber die SIO-FIFO. Laeuft alles auf core0, blockiert dieser Push ohne Konsument fuer immer. Ersatz ist je ein Same-Core-Ring nach dem Vorbild von `instruments/PicoFaceMD/include/md_ipc.h`, den `render()` zu Blockbeginn leert. Ein Zwischenstand war nicht moeglich: ein Ring ohne Speicherbarrieren waere ueber Kerngrenzen hinweg unsicher gewesen, solange die UI noch auf core1 sass. IPC, UI und Adapter mussten zusammen umgestellt werden.
 
-PicoFaceYC lief bis zur Migration im zweiten Modell und nutzt jetzt das Standardmodell. Zwei Dinge daran waren nicht offensichtlich:
+Damit entfallen fuer beide `ownsUserInterface`, `runUserInterface`, `pumpCrossCore`, die Flash-Hooks und der Flash-Park-Handshake; die MIDI-Methoden der Adapter leiten jetzt wirklich weiter, statt leer zu sein. YCs Watchdog bleibt und wird aus `render()` statt aus `pumpCrossCore()` gefuettert; CP hatte nie einen.
 
-- `pico_UserInterfaceFrontPanel()` enthielt `for(;;)` und kehrte nie zurueck - die Funktion *war* die core1-Schleife, nicht ein Menue, das gelegentlich blockiert. An ihre Stelle tritt `YC_Ui` (instruments/PicoFaceYC/src/YC_Ui.cpp): ein Zustandsautomat ueber Panel, Menu, System, About und CPU Load, der pro `uiTick()` einen Durchlauf macht. Das Listen-Widget dahinter liegt als `picoface::ui::ListView` im Kernmodul ui_menu, weil CP es bei seiner Umstellung mitnutzen wird.
-- `ipc.h` schob seine Pakete mit `multicore_fifo_push_blocking` ueber die SIO-FIFO. Laeuft alles auf core0, blockiert dieser Push ohne Konsument fuer immer. Ersatz ist ein Same-Core-Ring nach dem Vorbild von `instruments/PicoFaceMD/include/md_ipc.h`, den `render()` zu Blockbeginn leert. Ein Zwischenstand war hier nicht moeglich: ein Ring ohne Speicherbarrieren waere ueber Kerngrenzen hinweg unsicher gewesen, solange die UI noch auf core1 sass. IPC, UI und Adapter mussten zusammen umgestellt werden.
+Beide schreiben ihren veeprom-Satz weiterhin selbst und melden daher `settingsSize() == 0` - die Debounce-Logik in `settings_task()` ist feiner als die des Kerns und kennt Werte, die bewusst nicht persistiert werden. Der Schreibvorgang laeuft jetzt wie bei den anderen vier auf core0 zwischen zwei Audiobloecken.
 
-Damit entfallen fuer YC `ownsUserInterface`, `runUserInterface`, `pumpCrossCore`, beide Flash-Hooks und der Flash-Park-Handshake; die MIDI-Methoden des Adapters leiten jetzt wirklich weiter, statt leer zu sein. Der Watchdog bleibt und wird aus `render()` statt aus `pumpCrossCore()` gefuettert.
-
-Die einheitliche GUI-Schnittstelle ist damit fuer fuenf der sechs Instrumente erreicht; die Umstellung des blockierenden Frontpanel-Menues von CP auf den InputState bleibt offen.
+CP war der haertere Fall: acht Panel-Screens und 22 lokale Variablen in der Schleife. Die Variablen sind Member von `CP_Ui` geworden. Sie bleiben noetig, weil eine Bedienung sofort auf dem Schirm stehen muss, waehrend der Ring die Engine erst zum naechsten Block erreicht; `refresh()` holt umgekehrt ein, was hinter dem Panel vorbei passiert ist - MIDI, ein Preset, ein SysEx-Parameter.
 
 ## 5. Build-System
 `picoface_add_instrument()` in `cmake/PicoFaceInstrument.cmake` erzeugt pro Instrument ein vollstaendiges Firmware-Target. Alle Einstellungen sind target-lokal (`target_compile_definitions` / `target_compile_options` statt globaler `add_compile_options`), weil sechs Targets mit widersprechenden Defines koexistieren muessen.
@@ -113,9 +108,9 @@ Die einheitliche GUI-Schnittstelle ist damit fuer fuenf der sechs Instrumente er
 | LINK_LIBRARIES | zusaetzliche Bibliotheken |
 | PIO_SOURCES | optionale .pio-Dateien |
 | CORE_EXCLUDE | Basisnamen von Kernquellen, die das Instrument durch eine eigene Variante ersetzt |
-| CORE_MODULES | optionale Kernmodule: ui_panel, ui_menu, midi_reface |
+| CORE_MODULES | optionale Kernmodule; derzeit nur ui_menu |
 
-ui_panel und ui_menu sind Alternativen, keine Schichten: ui_panel bringt die blockierenden Widgets mit, die ihre Encoder selbst pollen (nur noch CP), ui_menu die nicht blockierenden fuer Instrumente, die aus `uiTick()` heraus zeichnen.
+ui_menu enthaelt das nicht blockierende Listen-Widget `picoface::ui::ListView` fuer Instrumente, die aus `uiTick()` heraus zeichnen. Sein Vorgaenger ui_panel hielt die blockierenden Widgets, die ihre Encoder selbst pollten, dazu die reface-CP-MIDI-Schicht und deren Persistenz; mit der Umstellung von PicoFaceCP hatte er keinen Nutzer mehr. Die CP-spezifischen Teile liegen jetzt unter `instruments/PicoFaceCP`, der Rest ist geloescht. Seither enthaelt der Kern keinen instrumentspezifischen Code mehr.
 
 Instrumente werden per Auto-Discovery ueber `instruments/*/instrument.cmake` gefunden. Die CMake-Option `PICOFACE_INSTRUMENTS_FILTER` baut nur die genannten Instrumente; leer bedeutet alle. Das Sammel-Target `all_instruments` baut alles. `pico_add_extra_outputs` erzeugt die Dateien bereits unter dem Instrumentnamen, ein Umbenennen entfaellt.
 
@@ -157,18 +152,15 @@ MIDI kommt ueber zwei Wege herein und geht ueber zwei Wege hinaus: USB und DIN. 
 
 ### Empfang
 
-Der Empfang laeuft interruptgesteuert in einen lock-freien Ring von 256 Byte. Bei 31250 Baud trifft alle 320 Mikrosekunden ein Byte ein; die 32 Byte tiefe Hardware-FIFO gaebe nur rund 10 ms Reserve, was das blockierende Menue von PicoFaceCP ueberschreiten kann. Der Interrupt ist RAM-resident und bewegt nur Bytes, geparst wird in process(). Die Interruptprioritaet liegt unter der Audio-DMA und ueber USB.
+Der Empfang laeuft interruptgesteuert in einen lock-freien Ring von 256 Byte. Bei 31250 Baud trifft alle 320 Mikrosekunden ein Byte ein; die 32 Byte tiefe Hardware-FIFO gaebe nur rund 10 ms Reserve. Das reichte schon fuer die blockierenden Menues nicht, die es inzwischen nicht mehr gibt, und deckt heute den Flash-Schreibvorgang der Persistenz ab. Der Interrupt ist RAM-resident und bewegt nur Bytes, geparst wird in process(). Die Interruptprioritaet liegt unter der Audio-DMA und ueber USB.
 
 Der Parser beherrscht Running Status, SysEx bis 256 Byte und laesst Realtime-Bytes mitten in einer Nachricht unbeschadet durch. Note-On mit Velocity 0 wird als Note-Off behandelt.
 
-### Einbau je Laufzeitmodell
+### Einbau
 
-| Modell | Instrumente | Wo process() laeuft |
-|---|---|---|
-| Standard | MD, SM, J6, RD, YC | picoface_main.cpp, neben MIDIInputUSB::process() |
-| Instrument besitzt die UI | CP | ui_poll_usb() im Adapter, weil MIDI dort auf core1 liegt |
+`MIDISerial::process()` laeuft fuer alle sechs Instrumente in `picoface_main.cpp`, direkt neben `MIDIInputUSB::process()`.
 
-Realtime-Bytes und die reine Empfangsaktivitaet reicht der Kern ueber die optionalen Methoden `realtime()` und `midiActivity()` durch. Beide sind fuer die Active-Sensing-Ueberwachung der reface-Schicht noetig - deren 350-ms-Timeout schaltet bei Ausbleiben von 0xFE alle Stimmen ab. Die Defaults sind leer; die vier uebrigen Instrumente ignorieren beides.
+Realtime-Bytes und die reine Empfangsaktivitaet reicht der Kern ueber die optionalen Methoden `realtime()` und `midiActivity()` durch. Beide sind fuer die Active-Sensing-Ueberwachung der reface-Schicht von YC und CP noetig - deren 350-ms-Timeout schaltet bei Ausbleiben von 0xFE alle Stimmen ab. Die Defaults sind leer; die vier uebrigen Instrumente ignorieren beides.
 
 ### Senden
 
@@ -231,16 +223,11 @@ Nach der Zusammenfuehrung von project_config.h, pico_hw.h und pico_hw.cpp in den
 
 YCs `midi_input_usb.cpp` unterscheidet sich in genau einem Punkt: es macht aus einem Note-On mit Velocity 0 ein Note-Off. Der DIN-Parser des Kerns tut das ohnehin, YCs `RefaceMidi::onNoteOn()` nicht - dort gehoert die Behandlung hin, dann kann die Datei entfallen.
 
-`settings.cpp`, `midi_reface.cpp` und `pico_frontpanel.cpp` standen hier bis zur Umstellung von YC. Die ersten beiden liegen weiterhin unter `instruments/PicoFaceYC/src/`, ersetzen aber nichts mehr: YC fordert weder ui_panel noch midi_reface an, also gibt es keine Kernquelle gleichen Namens im Target. `pico_frontpanel.cpp` ist ersatzlos entfallen.
+`settings.cpp`, `midi_reface.cpp` und `pico_frontpanel.cpp` standen hier bis zur Umstellung von YC. Die ersten beiden liegen weiterhin unter `instruments/PicoFaceYC/src/`, ersetzen aber nichts mehr, weil es im Kern keine Quellen dieser Namen mehr gibt. `pico_frontpanel.cpp` ist ersatzlos entfallen.
 
 **Verdeckte Header**
 
-| Datei | Instrument |
-|---|---|
-| midi_reface.h, settings.h | PicoFaceYC |
-| veeprom.h | PicoFaceCP |
-
-`pico_frontpanel.h` und `pico_userinterface.h` sind mit dem blockierenden Frontpanel aus YC verschwunden. Die verbliebenen zwei sind gleichnamige, aber inhaltlich voellig andere Dateien: YCs `RefaceMidi` ist eine eigene Klasse fuer die YC-Parameter, nicht die CP-Fassung des Kerns.
+Keine mehr. `midi_reface.h` und `settings.h` waren CP-Fassungen im Kern, die von den gleichnamigen YC-Dateien verdeckt wurden - beide sind mit der CP-Umstellung nach `instruments/PicoFaceCP/include/` gewandert. `pico_frontpanel.h` und `pico_userinterface.h` sind mit den blockierenden Menues verschwunden. CPs `veeprom.h` unterschied sich von der Kernfassung in genau einer Kommentarzeile und ist geloescht.
 
 ### Per-Instrument-Defines
 
@@ -263,15 +250,15 @@ Diese Defines sind bewusst nicht im Helper vereinheitlicht, sondern je Instrumen
 
 - `core/src/picoface_main.cpp`: gemeinsames main() fuer beide Laufzeitmodelle.
 - `core/src/ui/display.cpp`: u8g2-Fassade; flush() stoesst nur die zeilenweise Ausgabe an.
-- Alle sechs Adapter. PicoFaceMD ist die Vorlage fuer das Standardmodell, PicoFaceCP das letzte mit instrumenteigener UI.
+- Alle sechs Adapter, alle im Standardmodell. PicoFaceMD ist die Vorlage.
 - Alle sechs bauen aus einem gemeinsamen Configure-Lauf und tragen je eine eigene USB-PID.
 - Alle sechs auf der Hardware getestet und lauffaehig, PicoFaceRD einschliesslich der 480-MHz-Taktung.
-- PicoFaceYC auf das Standardmodell umgestellt (Abschnitt 4a). Auf der Hardware noch nicht nachgemessen.
+- PicoFaceYC und PicoFaceCP auf das Standardmodell umgestellt (Abschnitt 4a). Beide auf der Hardware noch nicht nachgemessen.
 
 | Instrument | Flash | RAM | PID | Original (Flash/RAM) |
 |---|---|---|---|---|
 | PicoFaceYC | 135.840 | 47.828 | 0x1050 | 130.408 / 44.780 |
-| PicoFaceCP | 4.436.620 | 177.592 | 0x1051 | 4.431.112 / 175.612 |
+| PicoFaceCP | 4.432.112 | 178.108 | 0x1051 | 4.431.112 / 175.612 |
 | PicoFaceRD | 5.318.312 | 35.420 | 0x1052 | 5.312.968 / 33.928 |
 | PicoFaceJ6 | 104.680 | 19.192 | 0x1053 | 101.644 / 17.688 |
 | PicoFaceMD | 99.792 | 268.628 | 0x1054 | 96.828 / 267.124 |
@@ -281,13 +268,13 @@ Gemessen mit `arm-none-eabi-size` (text / bss).
 
 Der Aufschlag gegenueber den Einzelprojekten liegt bei 2 bis 4 KB Flash und rund 940 Byte RAM je Instrument - im Wesentlichen die vtable der Instrument-Schnittstelle und die zusaetzliche Indirektion.
 
-Die Umstellung von YC kostet 684 Byte Flash weniger und 556 Byte RAM mehr als die vorige Fassung: der Same-Core-Ring belegt 1032 Byte, dafuer entfallen die instrumenteigenen Encoder-, Button-, USB-MIDI- und u8g2-Objekte. Die uebrigen fuenf wachsen um 112 bis 744 Byte Flash - die beiden neuen MIDI-Methoden der Schnittstelle samt Verdrahtung im Kern; bei RD und SM kommt Ausrichtungs-Padding hinter den grossen Datenbloecken dazu.
+Die Umstellung kostet YC 684 Byte Flash weniger und 556 Byte RAM mehr als die vorige Fassung, CP 4.508 Byte Flash weniger und 516 Byte RAM mehr: der Same-Core-Ring belegt je 1032 Byte, dafuer entfallen die instrumenteigenen Encoder-, Button-, USB-MIDI- und u8g2-Objekte. Die uebrigen vier wachsen um 112 bis 744 Byte Flash - die beiden neuen MIDI-Methoden der Schnittstelle samt Verdrahtung im Kern; bei RD und SM kommt Ausrichtungs-Padding hinter den grossen Datenbloecken dazu.
 
 **Besonderheiten von PicoFaceRD:** RD nutzt core1 als RAM-residenten Voice-Worker und wechselt die Samplerate zur Laufzeit zwischen 20 und 32 kHz. Beides laeuft ueber die optionalen Hooks: `consumeSampleRateChange` laesst den Kern die Hardware-Rate erst umschalten, wenn die bereits in der DMA-Pipeline liegenden Puffer abgelaufen sind; `onAudioUnderrun` loest den Voice-Governor aus; `settingsSaveAllowed` verhindert einen Flash-Schreibvorgang, solange Stimmen klingen. Fuer die uebrigen Instrumente sind die Defaults dieser Hooks wirkungslos.
 
 **Offen:**
 
-1. Umstellung des Frontpanel-Menues von PicoFaceCP auf den InputState, damit auch es das Standardmodell nutzt. Der deutlich haertere Fall: 8 Screens und 22 lokale Zustandsvariablen, waehrend YC nur 3 Screens hatte und ohnehin schon an `YC_Controller` delegierte. Das Listen-Widget aus ui_menu steht bereit.
-2. Rueckfuehrung der Divergenzen aus Abschnitt 7 in den Kern.
-3. Hardware-Test des DIN-MIDI (Abschnitt 6a) und des umgestellten PicoFaceYC. Fuer YC ist der Blick auf System -> CPU Load der entscheidende: USB, MIDI und UI liegen jetzt auf dem Audio-Kern. Unter etwa 60 % Peak ist das tragfaehig.
+1. Hardware-Test des DIN-MIDI (Abschnitt 6a) und der beiden umgestellten Instrumente. Fuer YC ist der Blick auf System -> CPU Load der entscheidende: USB, MIDI und UI liegen jetzt auf dem Audio-Kern. Unter etwa 60 % Peak ist das tragfaehig. CP hat keine solche Anzeige; dort ist das Ohr der Massstab, plus die Zeile "IPC dropped" im ABOUT-Schirm, die nur bei einem uebergelaufenen Ring erscheint.
+2. YCs `midi_input_usb.cpp`, die letzte ersetzte Kernquelle neben RDs `veeprom.cpp` (Abschnitt 7).
+3. Entscheidung ueber das zweite Laufzeitmodell: `ownsUserInterface()` und die vier zugehoerigen Hooks haben keinen Nutzer mehr (Abschnitt 4a). Behalten als Extensionspunkt oder streichen.
 

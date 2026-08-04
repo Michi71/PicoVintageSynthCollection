@@ -9,12 +9,9 @@ set -euo pipefail
 SRC_ROOT="${SRC_ROOT:-$HOME/GitHub}"
 DEST="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CORE_DONOR=PicoFaceMD
-UI_DONOR=PicoFaceCP
 INSTRUMENTS=(PicoFaceYC PicoFaceCP PicoFaceRD PicoFaceJ6 PicoFaceMD PicoFaceSM)
 SHARED_HEADERS=(get_serial.h midi_input_usb.h tusb_config.h veeprom.h)
 CORE_SRC=(get_serial.c usb_descriptors.c pico_hw.cpp veeprom.cpp midi_input_usb.cpp)
-UI_SRC=(pico_frontpanel.cpp pico_selection_list.cpp pico_input_value.cpp settings.cpp)
-UI_HEADERS=(pico_userinterface.h pico_frontpanel.h settings.h midi_reface.h)
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 log() { echo "==> $*"; }
@@ -46,16 +43,10 @@ for f in "${SHARED_HEADERS[@]}"; do
   copy_file "$SRC_ROOT/$CORE_DONOR/include/$f" "$DEST/core/include/$f"
 done
 
-# 4. Optional core modules: frontpanel UI and reface MIDI mapping.
-log 'optional core modules'
-mkdir -p "$DEST/core/src/ui" "$DEST/core/src/midi"
-for f in "${UI_SRC[@]}"; do
-  copy_file "$SRC_ROOT/$UI_DONOR/src/$f" "$DEST/core/src/ui/$f"
-done
-copy_file "$SRC_ROOT/$UI_DONOR/src/midi_reface.cpp" "$DEST/core/src/midi/midi_reface.cpp"
-for f in "${UI_HEADERS[@]}"; do
-  copy_file "$SRC_ROOT/$UI_DONOR/include/$f" "$DEST/core/include/$f"
-done
+# 4. (The frontpanel UI, the reface MIDI layer and its settings module used to
+# be copied into core/src/ui and core/src/midi from the PicoFaceCP repository.
+# They were CP-specific and are no longer part of the core; the per-instrument
+# copy below picks them up where they belong.)
 
 # 5. Shared libraries.
 log 'shared libraries'
@@ -148,7 +139,9 @@ for inst in "${INSTRUMENTS[@]}"; do
   # variants and are authoritative. Remove the per-instrument copies
   # unconditionally - a byte comparison would keep them, because the comments
   # differ.
-  for hdr in project_config.h pico_hw.h; do
+  # veeprom.h is in the same category: PicoFaceCP's copy differed from the
+  # core version in one comment line only.
+  for hdr in project_config.h pico_hw.h veeprom.h; do
     if [[ -f "$DEST/instruments/$inst/include/$hdr" ]]; then
       rm "$DEST/instruments/$inst/include/$hdr"
       echo "    superseded by core/include/$hdr, removed: $inst/include/$hdr"

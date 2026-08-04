@@ -1,8 +1,17 @@
+// include/ipc.h
+//
+// Same-core SPSC ring between the control side (MIDI dispatch, front panel)
+// and the audio producer. Both run on core0: the producer drains the ring at
+// the top of render(), so an edit lands on the very next block.
+//
+// Was a cross-core channel over the SIO FIFO until PicoFaceCP moved to the
+// standard runtime model. multicore_fifo_push_blocking() cannot survive that
+// move - with no consumer on the other core it would block forever.
+// Modelled on instruments/PicoFaceMD/include/md_ipc.h.
 #ifndef __IPC_H__
 #define __IPC_H__
 
 #include <stdint.h>
-#include "pico/multicore.h"
 
 enum IpcCommand : uint8_t {
     IPC_CMD_NOTE_ON      = 0x01,
@@ -13,8 +22,7 @@ enum IpcCommand : uint8_t {
     IPC_CMD_VOICE_PARAM  = 0x06,
     IPC_CMD_PROGRAM      = 0x07,
     IPC_CMD_INSTRUMENT   = 0x08,
-    IPC_CMD_PITCH_BEND   = 0x09,
-    IPC_CMD_FLASH_LOCK   = 0x0A   // Core 1 asks Core 0 to park in RAM during flash write
+    IPC_CMD_PITCH_BEND   = 0x09
 };
 
 enum FxParam : uint8_t {
@@ -63,44 +71,68 @@ static inline float ipc_u16_to_f(uint16_t u) {
     return (float)u / 65535.0f;
 }
 
+// C++17 inline variables: exactly ONE ring across all translation units. A
+// header-level `static` would give every .cpp its own copy and silently
+// disconnect producer and consumer.
+// 256 entries: a full ring dropping a note-off is the classic stuck-note bug.
+inline volatile uint32_t cp_ipc_buf[256];
+inline volatile uint16_t cp_ipc_head = 0;
+inline volatile uint16_t cp_ipc_tail = 0;
+inline volatile uint32_t cp_ipc_dropped = 0;   // diagnostic, shown on the ABOUT screen
+
+static inline void cp_ipc_push(uint32_t pkt) {
+    uint16_t next_head = (cp_ipc_head + 1) & 255;
+    if (next_head != cp_ipc_tail) {
+        cp_ipc_buf[cp_ipc_head] = pkt;
+        cp_ipc_head = next_head;
+    } else {
+        cp_ipc_dropped++;
+    }
+}
+
+static inline bool cp_ipc_pop(uint32_t* pkt) {
+    if (cp_ipc_head != cp_ipc_tail) {
+        *pkt = cp_ipc_buf[cp_ipc_tail];
+        cp_ipc_tail = (cp_ipc_tail + 1) & 255;
+        return true;
+    }
+    return false;
+}
+
 static inline void ipc_send_note_on(uint8_t note, uint8_t vel) {
-    multicore_fifo_push_blocking(ipc_pack(IPC_CMD_NOTE_ON, note, vel));
+    cp_ipc_push(ipc_pack(IPC_CMD_NOTE_ON, note, vel));
 }
 
 static inline void ipc_send_note_off(uint8_t note) {
-    multicore_fifo_push_blocking(ipc_pack(IPC_CMD_NOTE_OFF, note, 0));
+    cp_ipc_push(ipc_pack(IPC_CMD_NOTE_OFF, note, 0));
 }
 
 static inline void ipc_send_cc(uint8_t cc, uint8_t value) {
-    multicore_fifo_push_blocking(ipc_pack(IPC_CMD_CC, cc, value));
+    cp_ipc_push(ipc_pack(IPC_CMD_CC, cc, value));
 }
 
 static inline void ipc_send_fx_param(uint8_t fx_id, float value01) {
-    multicore_fifo_push_blocking(ipc_pack(IPC_CMD_FX_PARAM, fx_id, ipc_f_to_u16(value01)));
+    cp_ipc_push(ipc_pack(IPC_CMD_FX_PARAM, fx_id, ipc_f_to_u16(value01)));
 }
 
 static inline void ipc_send_fx_mode(uint8_t fxm_id, uint8_t mode) {
-    multicore_fifo_push_blocking(ipc_pack(IPC_CMD_FX_MODE, fxm_id, mode));
+    cp_ipc_push(ipc_pack(IPC_CMD_FX_MODE, fxm_id, mode));
 }
 
 static inline void ipc_send_voice_param(uint8_t index, float value01) {
-    multicore_fifo_push_blocking(ipc_pack(IPC_CMD_VOICE_PARAM, index, ipc_f_to_u16(value01)));
+    cp_ipc_push(ipc_pack(IPC_CMD_VOICE_PARAM, index, ipc_f_to_u16(value01)));
 }
 
 static inline void ipc_send_program(uint8_t program) {
-    multicore_fifo_push_blocking(ipc_pack(IPC_CMD_PROGRAM, program, 0));
+    cp_ipc_push(ipc_pack(IPC_CMD_PROGRAM, program, 0));
 }
 
 static inline void ipc_send_instrument(uint8_t instrument) {
-    multicore_fifo_push_blocking(ipc_pack(IPC_CMD_INSTRUMENT, instrument, 0));
+    cp_ipc_push(ipc_pack(IPC_CMD_INSTRUMENT, instrument, 0));
 }
 
 static inline void ipc_send_pitch_bend(uint16_t bend14) {
-    multicore_fifo_push_blocking(ipc_pack(IPC_CMD_PITCH_BEND, 0, bend14));
-}
-
-static inline void ipc_send_flash_lock(void) {
-    multicore_fifo_push_blocking(ipc_pack(IPC_CMD_FLASH_LOCK, 0, 0));
+    cp_ipc_push(ipc_pack(IPC_CMD_PITCH_BEND, 0, bend14));
 }
 
 #endif // __IPC_H__
