@@ -95,6 +95,16 @@ static void pf_sysex(const uint8_t* d, uint16_t len)
     picoface::instrument().sysEx(d, len);
 }
 
+static void pf_realtime(uint8_t status)
+{
+    picoface::instrument().realtime(status);
+}
+
+static void pf_activity(void)
+{
+    picoface::instrument().midiActivity();
+}
+
 // -----------------------------------------------------------------------------
 // veeprom lock hooks
 // nothing to park - the write runs on core0 between two audio blocks.
@@ -218,6 +228,8 @@ int main(void)
         g_usbmidi.setProgramChangeCallback(pf_pc);
         g_usbmidi.setPitchBendCallback(pf_pb);
         g_usbmidi.setSysExCallback(pf_sysex);
+        g_usbmidi.setRealtimeCallback(pf_realtime);
+        g_usbmidi.setActivityCallback(pf_activity);
 
         // DIN MIDI onto the very same dispatch functions - an instrument does
         // not care which wire an event arrived on.
@@ -228,6 +240,8 @@ int main(void)
         midiSerial().setProgramChangeCallback(pf_pc);
         midiSerial().setPitchBendCallback(pf_pb);
         midiSerial().setSysExCallback(pf_sysex);
+        midiSerial().setRealtimeCallback(pf_realtime);
+        midiSerial().setActivityCallback(pf_activity);
     }
 
     // audio output at the engine's own rate

@@ -20,6 +20,7 @@
 #   PICOFACE_CORE_INCLUDE_DIR                - core include directory
 #   PICOFACE_CORE_SOURCES                    - base core sources (absolute)
 #   PICOFACE_CORE_MODULE_UI_PANEL_SOURCES    - module "ui_panel" sources
+#   PICOFACE_CORE_MODULE_UI_MENU_SOURCES     - module "ui_menu" sources
 #   PICOFACE_CORE_MODULE_MIDI_REFACE_SOURCES - module "midi_reface" sources
 #   PICOFACE_CORE_MODULES                    - list of available module names
 # ============================================================================
@@ -51,18 +52,27 @@ set(PICOFACE_CORE_MODULE_UI_PANEL_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/settings.cpp"
 )
 
+# --- module: ui_menu ----------------------------------------------------------
+# Non-blocking UI widgets for instruments that draw from uiTick(). Separate
+# from ui_panel on purpose: the two are alternatives, not layers - ui_panel
+# blocks inside its own encoder loop, ui_menu never does.
+set(PICOFACE_CORE_MODULE_UI_MENU_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/list_view.cpp"
+)
+
 # --- module: midi_reface ------------------------------------------------------
 set(PICOFACE_CORE_MODULE_MIDI_REFACE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/midi/midi_reface.cpp"
 )
 
 # --- available modules --------------------------------------------------------
-set(PICOFACE_CORE_MODULES "ui_panel;midi_reface")
+set(PICOFACE_CORE_MODULES "ui_panel;ui_menu;midi_reface")
 
 # --- sanity check: every listed source file must exist ------------------------
 foreach(_picoface_src IN LISTS
         PICOFACE_CORE_SOURCES
         PICOFACE_CORE_MODULE_UI_PANEL_SOURCES
+        PICOFACE_CORE_MODULE_UI_MENU_SOURCES
         PICOFACE_CORE_MODULE_MIDI_REFACE_SOURCES)
     if(NOT EXISTS "${_picoface_src}")
         message(FATAL_ERROR "PicoFace core source missing: ${_picoface_src}")
@@ -73,6 +83,7 @@ endforeach()
 set(PICOFACE_CORE_INCLUDE_DIR                "${PICOFACE_CORE_INCLUDE_DIR}"                PARENT_SCOPE)
 set(PICOFACE_CORE_SOURCES                    "${PICOFACE_CORE_SOURCES}"                    PARENT_SCOPE)
 set(PICOFACE_CORE_MODULE_UI_PANEL_SOURCES    "${PICOFACE_CORE_MODULE_UI_PANEL_SOURCES}"    PARENT_SCOPE)
+set(PICOFACE_CORE_MODULE_UI_MENU_SOURCES     "${PICOFACE_CORE_MODULE_UI_MENU_SOURCES}"     PARENT_SCOPE)
 set(PICOFACE_CORE_MODULE_MIDI_REFACE_SOURCES "${PICOFACE_CORE_MODULE_MIDI_REFACE_SOURCES}" PARENT_SCOPE)
 set(PICOFACE_CORE_MODULES                    "${PICOFACE_CORE_MODULES}"                    PARENT_SCOPE)
 

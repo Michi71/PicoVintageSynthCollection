@@ -3,11 +3,17 @@
 # The drawbar engine (yc_engine) is header-only under include/yc_engine, so it
 # needs no SOURCES entry -- the "include" dir below suffices.
 #
-# pico_hw.cpp and midi_input_usb.cpp are replaced by instrument-specific
-# variants: in the original PicoFaceYC repository both files diverged from the
-# versions shared by the other instruments. They are excluded from the core via
-# CORE_EXCLUDE and the local drop-ins in src/ are compiled instead. Converging
-# them back onto the core versions is tracked in docs/ARCHITECTURE.md.
+# midi_input_usb.cpp is replaced by an instrument-specific variant: in the
+# original PicoFaceYC repository it diverged from the version shared by the
+# other instruments (note-on with velocity 0 is turned into a note-off there).
+# It is excluded from the core via CORE_EXCLUDE and the local drop-in in src/
+# is compiled instead. Converging it back onto the core version is tracked in
+# docs/ARCHITECTURE.md.
+#
+# settings.cpp and midi_reface.cpp in src/ carry the same names as core
+# sources but no longer replace them: since the move to the standard runtime
+# model this instrument requests neither the ui_panel nor the midi_reface
+# module, so there is nothing to exclude.
 picoface_add_instrument(
     NAME PicoFaceYC
     PROGRAM_NAME "PicoFaceYC"
@@ -21,8 +27,8 @@ picoface_add_instrument(
         src/YC_Controller.cpp
         src/YC_GUI.cpp
         src/YC_Synth_Bridge.cpp
+        src/YC_Ui.cpp
         src/midi_input_usb.cpp
-        src/pico_frontpanel.cpp
         src/settings.cpp
         src/midi_reface.cpp
 
@@ -30,21 +36,12 @@ picoface_add_instrument(
         include
         effects
 
-    # YC still uses the shared panel/selection widgets from ui_panel
-    # (pico_selection_list.cpp, pico_input_value.cpp).
+    # Non-blocking selection list for the menu tree in YC_Ui.cpp.
     CORE_MODULES
-        ui_panel
-        midi_reface
+        ui_menu
 
-    # Core and module sources superseded by local variants in src/.
-    # pico_frontpanel.cpp, settings.cpp and midi_reface.cpp come from the
-    # requested modules; without excluding them here the link would fail with
-    # duplicate symbols.
     CORE_EXCLUDE
         midi_input_usb.cpp
-        pico_frontpanel.cpp
-        settings.cpp
-        midi_reface.cpp
 
     DEFINES
         PICO_USE_SW_SPIN_LOCKS=1

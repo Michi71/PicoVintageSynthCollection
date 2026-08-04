@@ -110,6 +110,17 @@ public:
     virtual void pitchBend(uint8_t channel, int16_t value) {}
     virtual void sysEx(const uint8_t* data, size_t length) {}
 
+    // Realtime status bytes (0xF8..0xFF) from either wire. Needed by an
+    // instrument that supervises active sensing (0xFE); the default ignores
+    // them.
+    virtual void realtime(uint8_t status) {}
+
+    // Any MIDI traffic on either wire, reported before the message itself is
+    // dispatched. Only useful together with realtime(): it is what keeps an
+    // active-sensing timeout from firing during a dense stream. The default
+    // ignores it.
+    virtual void midiActivity() {}
+
     // ------------------------------------------------------------------
     // GUI                                                         [core0]
     // ------------------------------------------------------------------

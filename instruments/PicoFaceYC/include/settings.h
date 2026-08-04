@@ -38,6 +38,12 @@ struct SettingsV2 {
 
 static_assert(sizeof(SettingsV2) <= 240, "must fit VEEPROM_MAX_PAYLOAD");
 
-void settings_boot_restore_core0(YC_Synth_Bridge* yc);
-void settings_boot_restore_core1(RefaceMidi* rm);
+// Restores the persisted record into engine and MIDI layer. One call since
+// PicoFaceYC moved to the standard runtime model - it used to be split into a
+// core0 and a core1 half, with the loaded record parked in a static in
+// between, because engine and MIDI layer lived on different cores.
+// The core has already run veeprom_init() by the time init() is called.
+void settings_boot_restore(YC_Synth_Bridge* yc, RefaceMidi* rm);
+
+// Debounced write-back, polled from uiTick().
 void settings_task(YC_Synth_Bridge* yc, RefaceMidi* rm);
