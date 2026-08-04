@@ -171,6 +171,7 @@ Diese Defines sind bewusst nicht im Helper vereinheitlicht, sondern je Instrumen
 - `core/src/ui/display.cpp`: u8g2-Fassade; flush() stoesst nur die zeilenweise Ausgabe an.
 - Alle sechs Adapter. PicoFaceMD ist die Vorlage fuer das Standardmodell, PicoFaceYC fuer das Modell mit instrumenteigener UI.
 - Alle sechs bauen aus einem gemeinsamen Configure-Lauf und tragen je eine eigene USB-PID.
+- Alle sechs auf der Hardware getestet und lauffaehig, PicoFaceRD einschliesslich der 480-MHz-Taktung.
 
 | Instrument | Flash | RAM | PID | Original (Flash/RAM) |
 |---|---|---|---|---|
@@ -187,6 +188,5 @@ Der Aufschlag gegenueber den Einzelprojekten liegt bei 2 bis 4 KB Flash und rund
 
 **Offen:**
 
-1. Test auf echter Hardware. Bisher ist nur verifiziert, dass alle sechs Images bauen und die richtige USB-Identitaet tragen.
-2. Umstellung der Frontpanel-Menues von PicoFaceYC und PicoFaceCP auf den InputState, damit auch sie das Standardmodell nutzen.
-3. Rueckfuehrung der Divergenzen aus Abschnitt 7 in den Kern.
+1. Umstellung der Frontpanel-Menues von PicoFaceYC und PicoFaceCP auf den InputState, damit auch sie das Standardmodell nutzen.
+2. Rueckfuehrung der Divergenzen aus Abschnitt 7 in den Kern.

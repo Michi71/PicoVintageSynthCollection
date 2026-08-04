@@ -47,7 +47,7 @@ cmake --build build
 
 ## Status
 
-**Alle sechs Instrumente bauen durch**, aus einem gemeinsamen Configure-Lauf und je mit eigener USB-PID. Offen ist der Test auf echter Hardware - siehe [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), Abschnitt 8.
+**Alle sechs Instrumente bauen aus einem gemeinsamen Configure-Lauf, je mit eigener USB-PID, und laufen auf der Hardware.** Was noch offen ist, steht in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), Abschnitt 8.
 
 ## Lizenz
 
