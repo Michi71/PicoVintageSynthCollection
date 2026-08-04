@@ -1,6 +1,6 @@
 # PicoVintageSynthCollection
 
-Sechs Vintage-Synthesizer-Emulationen fuer den RP2350, aus einer gemeinsamen Codebasis gebaut.
+Sieben Vintage-Synthesizer-Emulationen fuer den RP2350, aus einer gemeinsamen Codebasis gebaut.
 
 ## Instrumente
 
@@ -12,6 +12,7 @@ Sechs Vintage-Synthesizer-Emulationen fuer den RP2350, aus einer gemeinsamen Cod
 | instruments/PicoFaceJ6 | Roland Juno-6 | PicoFaceJ6.uf2 |
 | instruments/PicoFaceMD | Minimoog Model D | PicoFaceMD.uf2 |
 | instruments/PicoFaceSM | ARP/Eminent Solina String Ensemble | PicoFaceSM.uf2 |
+| instruments/PicoFaceOB | Oberheim OB-X (Engine aus OB-Xf portiert) | PicoFaceOB.uf2 |
 
 ## Hardware
 
@@ -47,8 +48,13 @@ cmake --build build
 
 ## Status
 
-**Alle sechs Instrumente bauen aus einem gemeinsamen Configure-Lauf, je mit eigener USB-PID, und laufen auf der Hardware.** Was noch offen ist, steht in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), Abschnitt 8.
+**Alle sieben Instrumente bauen aus einem gemeinsamen Configure-Lauf, je mit eigener USB-PID. Sechs davon laufen auf der Hardware; PicoFaceOB ist neu und dort noch ungetestet.** Was noch offen ist, steht in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), Abschnitt 8.
 
 ## Lizenz
 
-MIT
+MIT — **mit einer Ausnahme:** `instruments/PicoFaceOB/` steht unter
+GPL-3.0-or-later, weil die dort portierte Klangerzeugung aus
+[OB-Xf](https://github.com/surge-synthesizer/OB-Xf) stammt. Damit ist auch das
+gebaute `PicoFaceOB.uf2` ein GPL-3-Werk. Kern und die uebrigen sechs
+Instrumente sind nicht betroffen. Einzelheiten in
+[instruments/PicoFaceOB/README.md](instruments/PicoFaceOB/README.md).
