@@ -1,0 +1,209 @@
+// -----------------------------------------------------------------------------
+// picoface/instrument.h
+//
+// Stable contract between the shared picoface core and a concrete instrument.
+//
+// The common core (audio pipeline, hardware drivers, GUI framework, USB-MIDI)
+// is programmed exclusively against this interface. A new instrument only has
+// to:
+//
+//   1. implement this class in its own instrument subfolder, and
+//   2. call PICOFACE_REGISTER_INSTRUMENT(YourInstrumentType) exactly once.
+//
+// The core never sees the concrete type; it only calls picoface::instrument().
+// -----------------------------------------------------------------------------
+
+#ifndef PICOFACE_INSTRUMENT_H
+#define PICOFACE_INSTRUMENT_H
+
+#include <cstdint>
+#include <cstddef>
+
+#include "picoface/ui.h"
+#include "picoface/midi.h"
+
+namespace picoface {
+
+// Abstract base class: the ONLY docking point between the shared core and an
+// instrument implementation. Each section documents on which CPU core the
+// methods are executed (RP2350 dual-core: core0 = control/UI, core1 = audio).
+class Instrument {
+public:
+    Instrument() = default;
+    virtual ~Instrument() = default;
+
+    // Instruments are singletons owned by the registration macro.
+    Instrument(const Instrument&) = delete;
+    Instrument& operator=(const Instrument&) = delete;
+
+    // ------------------------------------------------------------------
+    // Identity                                                    [core0]
+    // ------------------------------------------------------------------
+
+    // Human-readable instrument name (e.g. for UI title / USB descriptors).
+    virtual const char* name() const = 0;
+
+    // ------------------------------------------------------------------
+    // Lifecycle
+    // ------------------------------------------------------------------
+
+    // [core0] Called once after hardware init, before the audio pool is
+    // started. The engine determines its own sample rate internally; the
+    // core calls init() first and queries sampleRate() afterwards to
+    // initialize the audio pool.
+    virtual void init() = 0;
+
+    // [core0] Queried by the core after init() to initialize the audio pool.
+    // Must return a valid sample rate after init() has been called.
+    virtual uint32_t sampleRate() const = 0;
+
+    // ------------------------------------------------------------------
+    // Audio pipeline              [audio producer context, hard realtime]
+    // ------------------------------------------------------------------
+
+    // Renders one block of audio into 'out'.
+    // 'out' holds one int32 word per frame (packed stereo), matching the
+    // buffer layout of the pico-extras audio pool and the existing engine
+    // method fill_buffer_i32().
+    // Called BLOCK-WISE from the core's producer loop - currently on
+    // core0; an instrument may internally use core1 as a worker.
+    // Hard realtime constraints: must not block, must not allocate,
+    // no printf.
+    virtual void render(int32_t* out, uint32_t frames) = 0;
+
+    // ------------------------------------------------------------------
+    // Audio pipeline hooks              [audio producer context]
+    // Optional; the defaults make the core behave exactly as before, so
+    // instruments that do not need them override nothing.
+    // ------------------------------------------------------------------
+
+    // Polled by the core after every rendered block. Return true exactly once
+    // when the engine has switched its internal sample rate; the core then
+    // re-reads sampleRate() and applies it to the hardware only after the
+    // buffers already queued in the DMA pipeline have drained - switching
+    // immediately would play the old-rate tail at the wrong speed. Consuming
+    // semantics: the flag must clear on read.
+    virtual bool consumeSampleRateChange() { return false; }
+
+    // Called when the I2S underrun counter has increased since the last
+    // main-loop pass. An instrument can use this to shed load, for example by
+    // dropping voices.
+    virtual void onAudioUnderrun() {}
+
+    // Asked before the core writes the debounced settings record. Return false
+    // to postpone: a flash write stalls the CPU for milliseconds, which is
+    // audible while notes are sounding. The core retries on the next idle
+    // window.
+    virtual bool settingsSaveAllowed() const { return true; }
+
+    // ------------------------------------------------------------------
+    // MIDI                                                        [core0]
+    // ------------------------------------------------------------------
+    // The core parses USB-MIDI (and DIN-MIDI) and dispatches here.
+    // Implementations must forward events to the audio core via a
+    // lock-free queue if they affect the render path.
+
+    virtual void noteOn(uint8_t channel, uint8_t note, uint8_t velocity) = 0;
+    virtual void noteOff(uint8_t channel, uint8_t note, uint8_t velocity) = 0;
+    virtual void controlChange(uint8_t channel, uint8_t cc, uint8_t value) {}
+    virtual void programChange(uint8_t channel, uint8_t program) {}
+    virtual void pitchBend(uint8_t channel, int16_t value) {}
+    virtual void sysEx(const uint8_t* data, size_t length) {}
+
+    // ------------------------------------------------------------------
+    // GUI                                                         [core0]
+    // ------------------------------------------------------------------
+
+    // Called once after display init; register screens/widgets here.
+    virtual void uiInit(ui::Display& display) {}
+
+    // Called from the main loop, typically at 30-60 Hz. Draw UI and
+    // consume input events. Must stay non-blocking.
+    virtual void uiTick(ui::Display& display, const ui::InputState& input) {}
+
+    // ------------------------------------------------------------------
+    // Alternative runtime model: the instrument owns the user interface
+    // ------------------------------------------------------------------
+    // By default the core polls the encoders into an InputState and calls
+    // uiTick() on core0, right next to the audio producer. Some instruments
+    // instead run their whole user interface - USB, MIDI, encoders and
+    // display - on core1, with a menu system that owns the encoders directly
+    // and blocks inside submenus. Those return true from ownsUserInterface()
+    // and the core steps aside.
+
+    // When true the core does NOT initialise board, USB, display, encoders
+    // or buttons, never calls uiInit()/uiTick(), and skips its own
+    // debounced settings save - such an instrument persists its state from
+    // its own loop. Report settingsSize() == 0 in that case.
+    virtual bool ownsUserInterface() const { return false; }
+
+    // [core1] Entry point used when ownsUserInterface() is true. Must
+    // never return. The core launches core1 with this BEFORE creating the
+    // audio pool, because the SDK uses the SIO FIFO for the launch
+    // handshake and the producer must not touch that FIFO while the
+    // handshake runs.
+    virtual void runUserInterface() {}
+
+    // [core0] Called once per pass of the producer loop, before rendering.
+    // An instrument that owns the user interface drains its cross-core
+    // channel here, so a note-on or panel edit lands on the very next
+    // block. Also the place for a watchdog kick.
+    virtual void pumpCrossCore() {}
+
+    // Optional lock hooks the core installs into the veeprom layer before
+    // any flash access. nullptr (the default) means there is nothing to
+    // park: the write runs on core0 between two audio blocks. An
+    // instrument whose user interface runs on core1 must park the other
+    // core in RAM-resident code first, and supplies the pair here.
+    using FlashLockFn   = bool (*)(void);
+    using FlashUnlockFn = void (*)(void);
+    virtual FlashLockFn   flashLockHook()   const { return nullptr; }
+    virtual FlashUnlockFn flashUnlockHook() const { return nullptr; }
+
+    // ------------------------------------------------------------------
+    // Persistence                                                 [core0]
+    // ------------------------------------------------------------------
+    // Settings are stored by the core (flash/SD). The instrument only
+    // serializes its own state into the provided buffer.
+
+    // Version of the instrument's own payload format. The core writes
+    // this value into the veeprom record and discards on load any
+    // record whose version differs. Increment on every layout change.
+    virtual uint16_t settingsVersion() const { return 1; }
+
+    // Number of bytes the instrument needs for its settings. 0 = no state.
+    virtual size_t settingsSize() const { return 0; }
+
+    // Serialize settings into 'buffer' (capacity 'size', == settingsSize()).
+    virtual void settingsSave(uint8_t* buffer, size_t size) const {}
+
+    // Deserialize settings from 'buffer' ('size' bytes stored previously).
+    // Must tolerate unknown/short buffers gracefully (version your format).
+    virtual void settingsLoad(const uint8_t* buffer, size_t size) {}
+};
+
+// The single entry point used by the core to reach the instrument.
+// Exactly ONE definition must exist per firmware image, provided by the
+// instrument subfolder (normally via PICOFACE_REGISTER_INSTRUMENT).
+// The core only ever calls this function.
+Instrument& instrument();
+
+} // namespace picoface
+
+// Registers an instrument type for this firmware image. TYPE must derive
+// from picoface::Instrument and be default-constructible. Expands to the
+// required definition of picoface::instrument() backed by a function-local
+// static instance (lazy construction, no static-init-order issues).
+// Use exactly once, at global scope, in the instrument subfolder.
+//
+// NOTE: the first call must happen on core0 (the core calls init() there
+// before starting core1), so the lazy-init guard is never contended.
+#define PICOFACE_REGISTER_INSTRUMENT(TYPE)                \
+    namespace picoface {                                  \
+        Instrument& instrument() {                        \
+            static TYPE instance;                         \
+            return instance;                              \
+        }                                                 \
+    }
+
+#endif // PICOFACE_INSTRUMENT_H

@@ -1,0 +1,77 @@
+cmake_minimum_required(VERSION 3.22)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+
+# Fallback only: an unconditional set() would silently override both -D on the
+# command line and the environment variable.
+if(NOT DEFINED PICO_EXTRAS_PATH AND NOT DEFINED ENV{PICO_EXTRAS_PATH})
+    set(PICO_EXTRAS_PATH ${CMAKE_CURRENT_SOURCE_DIR}/lib/pico-extras)
+endif()
+if(NOT DEFINED PICO_SDK_PATH AND NOT DEFINED ENV{PICO_SDK_PATH})
+    set(PICO_SDK_PATH ${CMAKE_CURRENT_SOURCE_DIR}/lib/pico-sdk)
+endif()
+
+if(NOT DEFINED PICO_PLATFORM)
+    set(PICO_PLATFORM "rp2350-arm-s")
+endif()
+if(NOT DEFINED PICO_BOARD)
+    set(PICO_BOARD "sparkfun_promicro_rp2350")
+endif()
+
+include(cmake/pico_sdk_import.cmake)
+include(cmake/pico_extras_import.cmake)
+
+set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -Wl,--print-memory-usage")
+set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} -Wl,--print-memory-usage")
+
+project(PicoVintageSynthCollection C CXX ASM)
+
+pico_sdk_init()
+
+include(PicoFaceInstrument)
+
+# Shared third-party STATIC libraries. These do not depend on the
+# per-instrument project_config.h and are therefore built once for all targets.
+add_subdirectory(lib/audio)
+add_subdirectory(lib/encoder)
+add_subdirectory(lib/u8g2)
+
+# Publishes PICOFACE_CORE_SOURCES / PICOFACE_CORE_INCLUDE_DIR. Must come before
+# the instruments.
+add_subdirectory(core)
+
+set(PICOFACE_INSTRUMENTS_FILTER "" CACHE STRING
+    "Build only these instruments (list of directory names); empty = build all")
+
+# Collect all instrument directories; CONFIGURE_DEPENDS ensures that
+# adding a new instrument directory triggers a re-configure
+file(GLOB _instrument_dirs CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/instruments/*)
+list(SORT _instrument_dirs)
+
+# Include every instrument directory matching the optional name filter
+foreach(_dir ${_instrument_dirs})
+    if(IS_DIRECTORY ${_dir} AND EXISTS ${_dir}/instrument.cmake)
+        get_filename_component(_name ${_dir} NAME)
+        if(NOT PICOFACE_INSTRUMENTS_FILTER OR _name IN_LIST PICOFACE_INSTRUMENTS_FILTER)
+            set(PICOFACE_CURRENT_INSTRUMENT_DIR ${_dir})
+            include(${_dir}/instrument.cmake)
+        endif()
+    endif()
+endforeach()
+
+# Verify that at least one instrument was configured
+get_property(_instruments GLOBAL PROPERTY PICOFACE_INSTRUMENTS)
+if(NOT _instruments)
+    message(FATAL_ERROR "No instruments configured (PICOFACE_INSTRUMENTS_FILTER='${PICOFACE_INSTRUMENTS_FILTER}')")
+endif()
+list(LENGTH _instruments _num_instruments)
+message(STATUS "Building ${_num_instruments} instrument(s): ${_instruments}")
+
+# Aggregate target that builds all instruments
+# (add_dependencies is required for target-level dependencies of custom targets)
+add_custom_target(all_instruments)
+add_dependencies(all_instruments ${_instruments})

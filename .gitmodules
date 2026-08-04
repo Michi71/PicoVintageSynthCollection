@@ -1,0 +1,9 @@
+[submodule "lib/pico-sdk"]
+	path = lib/pico-sdk
+	url = https://github.com/raspberrypi/pico-sdk.git
+[submodule "lib/pico-extras"]
+	path = lib/pico-extras
+	url = https://github.com/raspberrypi/pico-extras.git
+[submodule "lib/u8g2/u8g2"]
+	path = lib/u8g2/u8g2
+	url = https://github.com/olikraus/u8g2.git

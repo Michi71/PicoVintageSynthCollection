@@ -1,0 +1,318 @@
+#include "rd_effects.h"
+#include "ram_hot.h"
+#include <cmath>
+
+// One-pole low-pass coefficient (0..1) from cutoff freq
+static inline float onePoleCoef(float fc, float sr)
+{
+    return 1.0f - expf(-6.2831853f * fc / sr);
+}
+
+// Fast tanh/tan approximations (ported from PicoFaceCP dsp_fastmath.h)
+static inline float fastTanh(float x) {
+    x = x > 3.0f ? 3.0f : (x < -3.0f ? -3.0f : x);
+    float x2 = x * x;
+    return x * (27.0f + x2) / (27.0f + 9.0f * x2);
+}
+
+static inline float fastTan(float x) {
+    float x2 = x * x;
+    float x4 = x2 * x2;
+    return x * (945.0f - 105.0f * x2 + x4) / (945.0f - 420.0f * x2 + 15.0f * x4);
+}
+
+// RAM-friendly 2^y: exp2f lives in flash, so calling it from the RAM-resident
+// audio hot path triggers an XIP excursion. This cubic approx (max rel err
+// ~2e-4) is inaudible for an LFO-swept cutoff; valid for y in roughly [-127,127].
+static inline float fastExp2(float y)
+{
+    float n = floorf(y);
+    float f = y - n;                                   // fraction in [0,1)
+    float p = 1.0f + 0.695976f * f
+                  + 0.224494f * (f * f)
+                  + 0.0792024f * (f * f * f);
+    union { uint32_t u; float fl; } v;
+    v.u = (((uint32_t)(int32_t)n) + 127u) << 23;        // IEEE-754 exponent = 2^n
+    return v.fl * p;
+}
+
+// Init all states, zero delay, then configure coefficients.
+// Parameter defaults come from the member initializers in rd_effects.h.
+void RD_VintageFX::init(float sampleRate)
+{
+    // All filter states zero
+    dacLpState_   = 0.0f;
+    dacLpState2_  = 0.0f;
+    dacLpCoef_    = 0.0f;
+    bassLpState_  = 0.0f;
+    bassCoef_     = 0.0f;
+    trebleLpState_= 0.0f;
+    trebleCoef_   = 0.0f;
+
+    // BBD low-pass states
+    bbdLpStateA_  = 0.0f;
+    bbdLpStateB_  = 0.0f;
+    bbdLpCoef_    = 0.0f;
+
+    // Delay line
+    writeIdx_ = 0;
+    for (int i = 0; i < kDelayLen; ++i)
+        delay_[i] = 0.0f;
+
+    // LFO phases
+    tremPhase_   = 0.0f;
+    tremInc_     = 0.0f;
+    chorusPhase_ = 0.0f;
+    chorusInc_   = 0.0f;
+
+    // Phaser
+    phPhase_ = 0.0f;
+    phInc_   = 0.0f;
+    phRateHz_ = 0.0f;
+    phA_     = 0.9f;
+    phFb_    = 0.2f;
+    phCnt_   = 0;
+    for (int i = 0; i < kPhaserStages; ++i) { phX1_[i] = 0.0f; phY1_[i] = 0.0f; }
+    phLast_  = 0.0f;
+
+    // Shelf gains derived from current bass_/treble_ params
+    bassGain_   = powf(10.0f, (bass_   - 0.5f) * 18.0f / 20.0f) - 1.0f;
+    trebleGain_ = powf(10.0f, (treble_ - 0.5f) * 18.0f / 20.0f) - 1.0f;
+
+    chorusBaseSamples_  = 0.0f;
+    chorusModSamples_   = 0.0f;
+
+    setSampleRate(sampleRate);
+}
+
+// Configure all rate/coef-dependent parameters
+void RD_VintageFX::setSampleRate(float sr)
+{
+    sampleRate_ = sr;
+
+    // DAC reconstruction filter: 9 kHz or 0.45*sr max
+    dacLpCoef_ = onePoleCoef(fminf(6000.0f, 0.35f * sr), sr);  // vintage reconstruction: ~6 kHz, 2-pole (12 dB/oct) -> audibly softer/darker
+
+    // Bass/treble shelf low-pass references
+    bassCoef_   = onePoleCoef(100.0f,  sr);
+    trebleCoef_ = onePoleCoef(3000.0f, sr);
+
+    // BBD anti-alias / reconstruction: 6 kHz or 0.4*sr max
+    bbdLpCoef_ = onePoleCoef(fminf(6000.0f, 0.4f * sr), sr);
+
+    // Tremolo LFO: 0.5..8 Hz
+    tremInc_ = (0.5f + 7.5f * tremRate_) / sr;
+
+    // Chorus LFO: 0.3..1.2 Hz
+    chorusInc_ = (0.3f + 0.9f * chorusRate_) / sr;
+
+    // Phaser rate mapping: 0.1..5 Hz over normalized 0..1
+    phRateHz_ = 0.1f * powf(10.0f, phaserRate_ * 1.69897000433601880479f);
+    phInc_    = phRateHz_ / sr;
+
+    // Chorus delay centre + modulation depth in samples
+    chorusBaseSamples_ = 0.005f * sr;
+    chorusModSamples_  = chorusDepth_ * 0.003f * sr;
+
+    // Clamp so interpolation stays within the delay buffer
+    float maxDelay = (float)(kDelayLen - 4);
+    if (chorusBaseSamples_ + chorusModSamples_ > maxDelay)
+        chorusModSamples_ = maxDelay - chorusBaseSamples_;
+    if (chorusModSamples_ < 0.0f)
+        chorusModSamples_ = 0.0f;
+}
+
+// Parameter setter: v01 is 0..1 normalized
+void RD_VintageFX::setParam(uint8_t id, float v01)
+{
+    switch (id)
+    {
+    case RD_PARAM_VOLUME:
+        volume_ = v01;
+        break;
+
+    case RD_PARAM_CHORUS_ON:
+        chorusOn_ = (v01 >= 0.5f) ? 1 : 0;
+        break;
+
+    case RD_PARAM_CHORUS_RATE:
+        chorusRate_ = v01;
+        chorusInc_  = (0.3f + 0.9f * chorusRate_) / sampleRate_;
+        break;
+
+    case RD_PARAM_CHORUS_DEPTH:
+        chorusDepth_ = v01;
+        chorusModSamples_ = chorusDepth_ * 0.003f * sampleRate_;
+        {
+            float maxDelay = (float)(kDelayLen - 4);
+            if (chorusBaseSamples_ + chorusModSamples_ > maxDelay)
+                chorusModSamples_ = maxDelay - chorusBaseSamples_;
+            if (chorusModSamples_ < 0.0f)
+                chorusModSamples_ = 0.0f;
+        }
+        break;
+
+    case RD_PARAM_TREM_ON:
+        tremOn_ = (v01 >= 0.5f) ? 1 : 0;
+        break;
+
+    case RD_PARAM_TREM_RATE:
+        tremRate_ = v01;
+        tremInc_  = (0.5f + 7.5f * tremRate_) / sampleRate_;
+        break;
+
+    case RD_PARAM_TREM_DEPTH:
+        tremDepth_ = v01;
+        break;
+
+    case RD_PARAM_BASS:
+        bass_     = v01;
+        bassGain_ = powf(10.0f, (v01 - 0.5f) * 18.0f / 20.0f) - 1.0f;
+        break;
+
+    case RD_PARAM_TREBLE:
+        treble_     = v01;
+        trebleGain_ = powf(10.0f, (v01 - 0.5f) * 18.0f / 20.0f) - 1.0f;
+        break;
+
+    case RD_PARAM_DAC_FILTER_ON:
+        dacOn_ = (v01 >= 0.5f) ? 1 : 0;
+        break;
+
+    case RD_PARAM_PHASER_ON:
+        phaserOn_ = (v01 >= 0.5f) ? 1.0f : 0.0f;
+        break;
+
+    case RD_PARAM_PHASER_RATE:
+        phaserRate_ = v01;
+        phRateHz_   = 0.1f * powf(10.0f, phaserRate_ * 1.69897000433601880479f);
+        phInc_      = phRateHz_ / sampleRate_;
+        break;
+
+    case RD_PARAM_PHASER_DEPTH:
+        phaserDepth_ = v01;
+        break;
+
+    default:
+        break;
+    }
+}
+
+// Parabolic sine approximation, phase01 in 0..1, returns -1..1
+float RD_VintageFX::sinApprox(float phase01)
+{
+    // Map to -pi..pi via triangle, then parabolic fit
+    float x = phase01;
+    x -= 0.5f;                 // -0.5 .. 0.5
+    float s = (x >= 0.0f) ? 1.0f : -1.0f;
+    float a = fabsf(x);        // 0 .. 0.5
+    // Parabola: y = 8*a*(1-2*a), scaled by sign; peaks at a=0.25 -> +/-1.0
+    return s * (8.0f * a * (1.0f - 2.0f * a));
+}
+
+void RAM_HOT(RD_VintageFX::process)(float in, float* outL, float* outR) {
+    float x = in;
+
+    // 1. Vintage DAC: 12-bit requantization + 2-pole reconstruction lowpass.
+    //    FULLY gated -- bypassing must restore the clean signal (the old code
+    //    ran the lowpass unconditionally, so the toggle did nothing audible).
+    if (dacOn_ > 0.5f) {
+        x = (float)((int32_t)(x * 2048.0f)) * (1.0f / 2048.0f);  // true 12 bit over +-1.0
+        dacLpState_  += dacLpCoef_ * (x - dacLpState_);
+        dacLpState2_ += dacLpCoef_ * (dacLpState_ - dacLpState2_);
+        x = dacLpState2_;
+    }
+
+    // 2. Bass shelf
+    bassLpState_ += bassCoef_ * (x - bassLpState_);
+    x += bassGain_ * bassLpState_;
+
+    // 3. Treble shelf
+    trebleLpState_ += trebleCoef_ * (x - trebleLpState_);
+    x += trebleGain_ * (x - trebleLpState_);
+
+    // 4. Tremolo
+    if (tremOn_ > 0.5f) {
+        tremPhase_ += tremInc_;
+        if (tremPhase_ >= 1.0f) tremPhase_ -= 1.0f;
+        float g = 1.0f - tremDepth_ * 0.8f * (0.5f + 0.5f * sinApprox(tremPhase_));
+        x *= g;
+    }
+
+    // 4b. Phaser (mono 4-stage allpass)
+    if (phaserOn_ > 0.5f) {
+        if (++phCnt_ >= 8u) {
+            phCnt_ = 0u;
+            float oct = 0.6f + 1.6f * phaserDepth_;
+            float fc  = 750.0f * fastExp2(oct * sinApprox(phPhase_));
+            float t   = fastTan(3.14159265358979323846f * fc / sampleRate_);
+            phA_  = (1.0f - t) / (1.0f + t);
+            phFb_ = 0.2f + 0.55f * phaserDepth_;
+        }
+        phPhase_ += phInc_;
+        if (phPhase_ >= 1.0f) phPhase_ -= 1.0f;
+
+        float in = x + phFb_ * fastTanh(phLast_);
+        float sig = in;
+        for (int i = 0; i < kPhaserStages; ++i) {
+            float y = -phA_ * sig + phX1_[i] + phA_ * phY1_[i];
+            phX1_[i] = sig;
+            phY1_[i] = y;
+            sig = y;
+        }
+        phLast_ = sig;
+        x = 0.5f * x + 0.5f * sig;
+    }
+
+    // 5. Chorus and Delay
+    delay_[writeIdx_] = x;
+    if (chorusOn_ > 0.5f) {
+        chorusPhase_ += chorusInc_;
+        if (chorusPhase_ >= 1.0f) chorusPhase_ -= 1.0f;
+        float phB = chorusPhase_ + 0.5f;
+        if (phB >= 1.0f) phB -= 1.0f;
+
+        // Calculate delays
+        float delayA = chorusBaseSamples_ + chorusModSamples_ * triangle(chorusPhase_);
+        float delayB = chorusBaseSamples_ + chorusModSamples_ * triangle(phB);
+
+        // Tap A
+        float readPosA = writeIdx_ - delayA;
+        if (readPosA < 0.0f) readPosA += kDelayLen;
+        int i0A = (int)readPosA;
+        int i1A = (i0A + 1) & (kDelayLen - 1);
+        float fracA = readPosA - i0A;
+        float tapA = delay_[i0A] + fracA * (delay_[i1A] - delay_[i0A]);
+
+        // Tap B
+        float readPosB = writeIdx_ - delayB;
+        if (readPosB < 0.0f) readPosB += kDelayLen;
+        int i0B = (int)readPosB;
+        int i1B = (i0B + 1) & (kDelayLen - 1);
+        float fracB = readPosB - i0B;
+        float tapB = delay_[i0B] + fracB * (delay_[i1B] - delay_[i0B]);
+
+        // BBD lowpass and output mix
+        bbdLpStateA_ += bbdLpCoef_ * (tapA - bbdLpStateA_);
+        *outL = (x + bbdLpStateA_) * 0.7f * volume_;
+
+        bbdLpStateB_ += bbdLpCoef_ * (tapB - bbdLpStateB_);
+        *outR = (x + bbdLpStateB_) * 0.7f * volume_;
+    } else {
+        *outL = x * volume_;
+        *outR = x * volume_;
+    }
+    writeIdx_ = (writeIdx_ + 1) & (kDelayLen - 1);
+}
+
+// Triangle wave, phase01 in 0..1, returns -1..1
+float RD_VintageFX::triangle(float phase01)
+{
+    // 0->0, 0.25->1, 0.5->0, 0.75->-1, 1->0
+    float p = phase01 - 0.25f;
+    if (p < 0.0f) p += 1.0f;
+    if (p >= 0.5f)
+        return 3.0f - 4.0f * p;   // 0.5..1 -> 1..-1
+    else
+        return 4.0f * p - 1.0f;   // 0..0.5 -> -1..1
+}

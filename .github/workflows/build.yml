@@ -1,0 +1,100 @@
+name: Build & Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.instrument }}
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        instrument:
+          - PicoFaceYC
+          - PicoFaceCP
+          - PicoFaceRD
+          - PicoFaceJ6
+          - PicoFaceMD
+          - PicoFaceSM
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      # The Ubuntu apt package gcc-arm-none-eabi ships an incomplete libstdc++
+      # (missing headers such as <cstring>) and breaks this C++ build.
+      - name: Install ARM toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: 'latest'
+
+      - name: Install host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build build-essential python3 \
+            libusb-1.0-0-dev pkg-config
+
+      # The filter builds only this single instrument so the matrix jobs run
+      # in parallel and failures stay isolated per instrument.
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DPICOFACE_INSTRUMENTS_FILTER=${{ matrix.instrument }}
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      # pico_add_extra_outputs already creates the files under the instrument
+      # name, so no renaming is needed.
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts
+          cp build/${{ matrix.instrument }}.uf2 \
+             build/${{ matrix.instrument }}.elf \
+             build/${{ matrix.instrument }}.bin \
+             build/${{ matrix.instrument }}.elf.map \
+             artifacts/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.instrument }}-firmware
+          path: artifacts/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
+    steps:
+      # Collect all six instrument artifacts into a single directory.
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: PicoVintageSynthCollection ${{ github.ref_name }}
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: artifacts/*

@@ -1,0 +1,17 @@
+build/
+build_host/
+cmake-build-*/
+compile_commands.json
+.cache/
+.vscode/
+.idea/
+.DS_Store
+
+# build outputs, never committed
+*.uf2
+*.elf
+*.bin
+*.elf.map
+*.dis
+*.hex
+__pycache__/
