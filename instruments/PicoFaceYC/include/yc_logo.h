@@ -1,6 +1,7 @@
 // yc_logo.h - boot splash bitmap for PicoFaceYC.
 // Extracted verbatim from the original src/main.cpp during the monorepo
-// migration; the adapter draws it from runUserInterface().
+// migration. Currently unused: the core draws its own text splash, same as
+// for the other five instruments (whose logo headers are equally idle).
 #ifndef YC_LOGO_H
 #define YC_LOGO_H
 

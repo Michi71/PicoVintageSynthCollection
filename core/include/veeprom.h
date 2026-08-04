@@ -17,9 +17,12 @@
 //     the highest sequence number found during veeprom_init().
 //
 // Concurrency:
-//   Flash erase/program on RP2350 disables XIP, so Core 0 must be parked
-//   in RAM while Core 1 performs the operation. Lock/unlock hooks are
-//   registered via veeprom_set_lock_hooks() and invoked around erase/program.
+//   Flash erase/program on RP2350 disables XIP, so any code running on the
+//   other core must be RAM-resident or parked for the duration. Lock/unlock
+//   hooks are registered via veeprom_set_lock_hooks() and invoked around
+//   erase/program. All six instruments write from core0 between two audio
+//   blocks and install no-ops; the hooks exist for an instrument that keeps a
+//   worker on core1 which is not RAM-resident.
 //
 #pragma once
 

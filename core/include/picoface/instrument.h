@@ -25,8 +25,9 @@
 namespace picoface {
 
 // Abstract base class: the ONLY docking point between the shared core and an
-// instrument implementation. Each section documents on which CPU core the
-// methods are executed (RP2350 dual-core: core0 = control/UI, core1 = audio).
+// instrument implementation. Everything below runs on core0 - audio producer,
+// USB, MIDI and GUI share that core. core1 belongs to the instrument; it may
+// use it as a worker (as PicoFaceRD does) or leave it idle.
 class Instrument {
 public:
     Instrument() = default;
@@ -131,45 +132,6 @@ public:
     // Called from the main loop, typically at 30-60 Hz. Draw UI and
     // consume input events. Must stay non-blocking.
     virtual void uiTick(ui::Display& display, const ui::InputState& input) {}
-
-    // ------------------------------------------------------------------
-    // Alternative runtime model: the instrument owns the user interface
-    // ------------------------------------------------------------------
-    // By default the core polls the encoders into an InputState and calls
-    // uiTick() on core0, right next to the audio producer. Some instruments
-    // instead run their whole user interface - USB, MIDI, encoders and
-    // display - on core1, with a menu system that owns the encoders directly
-    // and blocks inside submenus. Those return true from ownsUserInterface()
-    // and the core steps aside.
-
-    // When true the core does NOT initialise board, USB, display, encoders
-    // or buttons, never calls uiInit()/uiTick(), and skips its own
-    // debounced settings save - such an instrument persists its state from
-    // its own loop. Report settingsSize() == 0 in that case.
-    virtual bool ownsUserInterface() const { return false; }
-
-    // [core1] Entry point used when ownsUserInterface() is true. Must
-    // never return. The core launches core1 with this BEFORE creating the
-    // audio pool, because the SDK uses the SIO FIFO for the launch
-    // handshake and the producer must not touch that FIFO while the
-    // handshake runs.
-    virtual void runUserInterface() {}
-
-    // [core0] Called once per pass of the producer loop, before rendering.
-    // An instrument that owns the user interface drains its cross-core
-    // channel here, so a note-on or panel edit lands on the very next
-    // block. Also the place for a watchdog kick.
-    virtual void pumpCrossCore() {}
-
-    // Optional lock hooks the core installs into the veeprom layer before
-    // any flash access. nullptr (the default) means there is nothing to
-    // park: the write runs on core0 between two audio blocks. An
-    // instrument whose user interface runs on core1 must park the other
-    // core in RAM-resident code first, and supplies the pair here.
-    using FlashLockFn   = bool (*)(void);
-    using FlashUnlockFn = void (*)(void);
-    virtual FlashLockFn   flashLockHook()   const { return nullptr; }
-    virtual FlashUnlockFn flashUnlockHook() const { return nullptr; }
 
     // ------------------------------------------------------------------
     // Persistence                                                 [core0]

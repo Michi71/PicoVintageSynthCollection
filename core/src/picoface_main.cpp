@@ -9,9 +9,7 @@
 #include <string.h>
 
 #include "pico/stdlib.h"
-#include "pico/multicore.h"
 #include "hardware/irq.h"
-#include "hardware/sync.h"
 
 #include "project_config.h"
 #include "pico_hw.h"
@@ -157,9 +155,6 @@ static void pf_build_input(picoface::ui::InputState& in, uint32_t nowMs)
     }
 }
 
-// Trampoline for multicore_launch_core1, which takes a plain function pointer.
-static void pf_core1_entry(void) { picoface::instrument().runUserInterface(); }
-
 int main(void)
 {
     // bring up the chip basics before anything else
@@ -167,82 +162,69 @@ int main(void)
 
     // grab the singleton instrument
     picoface::Instrument& inst = picoface::instrument();
-    const bool owns_ui = inst.ownsUserInterface();
 
     // Installed before init(), so an instrument may already use the veeprom
     // while starting up.
-    const auto lock   = inst.flashLockHook();
-    const auto unlock = inst.flashUnlockHook();
-    veeprom_set_lock_hooks(lock ? lock : pf_flash_lock, unlock ? unlock : pf_flash_unlock);
+    veeprom_set_lock_hooks(pf_flash_lock, pf_flash_unlock);
     veeprom_init();
 
     inst.init();   // engine first - it determines its own sample rate
 
-    if (owns_ui) {
-        // The instrument runs USB, MIDI, encoders and display on core1 itself.
-        // Launching must happen BEFORE init_audio(): the SDK uses the SIO FIFO
-        // for the handshake, and the producer loop must not touch that FIFO
-        // while it runs. Reset core1 into the bootrom holding pen first - after
-        // a debugger restart (core0 only) the handshake would otherwise hang.
-        multicore_reset_core1();
-        multicore_launch_core1(pf_core1_entry);
-    } else {
-        // board, serial and USB stack
-        board_init();
-        usb_serial_init();
-        tusb_init();
+    // board, serial and USB stack
+    board_init();
+    usb_serial_init();
+    tusb_init();
 
-        // display setup (SH1106, 128x64, I2C)
-        u8g2_Setup_sh1106_i2c_128x64_noname_f(&g_u8g2, U8G2_R0, u8x8_byte_pico_hw_i2c, u8x8_gpio_and_delay_pico);
-        u8g2_InitDisplay(&g_u8g2);
-        u8g2_SetPowerSave(&g_u8g2, 0);
-        u8g2_ClearBuffer(&g_u8g2);
+    // display setup (SH1106, 128x64, I2C)
+    u8g2_Setup_sh1106_i2c_128x64_noname_f(&g_u8g2, U8G2_R0, u8x8_byte_pico_hw_i2c, u8x8_gpio_and_delay_pico);
+    u8g2_InitDisplay(&g_u8g2);
+    u8g2_SetPowerSave(&g_u8g2, 0);
+    u8g2_ClearBuffer(&g_u8g2);
 
-        // splash screen: instrument name and firmware version, both centered
-        const char* name = inst.name();
-        u8g2_SetFont(&g_u8g2, u8g2_font_7x13B_tf);
-        u8g2_DrawStr(&g_u8g2, (128 - u8g2_GetStrWidth(&g_u8g2, name)) / 2, 28, name);
-        u8g2_SetFont(&g_u8g2, u8g2_font_6x10_tf);
-        u8g2_DrawStr(&g_u8g2, (128 - u8g2_GetStrWidth(&g_u8g2, PICOFACE_VERSION)) / 2, 44, PICOFACE_VERSION);
-        u8g2_SendBuffer(&g_u8g2);   // blocking is fine here, audio is not running yet
+    // splash screen: instrument name and firmware version, both centered
+    const char* name = inst.name();
+    u8g2_SetFont(&g_u8g2, u8g2_font_7x13B_tf);
+    u8g2_DrawStr(&g_u8g2, (128 - u8g2_GetStrWidth(&g_u8g2, name)) / 2, 28, name);
+    u8g2_SetFont(&g_u8g2, u8g2_font_6x10_tf);
+    u8g2_DrawStr(&g_u8g2, (128 - u8g2_GetStrWidth(&g_u8g2, PICOFACE_VERSION)) / 2, 44, PICOFACE_VERSION);
+    u8g2_SendBuffer(&g_u8g2);   // blocking is fine here, audio is not running yet
 
-        // hold the splash for 2000 ms, keeping USB alive
-        const absolute_time_t splash_end = make_timeout_time_ms(2000);
-        while (!time_reached(splash_end)) {
-            tud_task();
-            sleep_ms(1);
-        }
-
-        // buttons and encoders
-        g_btSel.Init();
-        g_btA.Init();
-        g_btB.Init();
-        g_encSel.init();
-        g_encA.init();
-        g_encB.init();
-
-        // wire up all MIDI callbacks
-        g_usbmidi.setNoteOnCallback(pf_note_on);
-        g_usbmidi.setNoteOffCallback(pf_note_off);
-        g_usbmidi.setCCCallback(pf_cc);
-        g_usbmidi.setProgramChangeCallback(pf_pc);
-        g_usbmidi.setPitchBendCallback(pf_pb);
-        g_usbmidi.setSysExCallback(pf_sysex);
-        g_usbmidi.setRealtimeCallback(pf_realtime);
-        g_usbmidi.setActivityCallback(pf_activity);
-
-        // DIN MIDI onto the very same dispatch functions - an instrument does
-        // not care which wire an event arrived on.
-        midiSerial().init();
-        midiSerial().setNoteOnCallback(pf_note_on);
-        midiSerial().setNoteOffCallback(pf_note_off);
-        midiSerial().setCCCallback(pf_cc);
-        midiSerial().setProgramChangeCallback(pf_pc);
-        midiSerial().setPitchBendCallback(pf_pb);
-        midiSerial().setSysExCallback(pf_sysex);
-        midiSerial().setRealtimeCallback(pf_realtime);
-        midiSerial().setActivityCallback(pf_activity);
+    // hold the splash for 2000 ms, keeping USB alive
+    const absolute_time_t splash_end = make_timeout_time_ms(2000);
+    while (!time_reached(splash_end)) {
+        tud_task();
+        sleep_ms(1);
     }
+
+    // buttons and encoders
+    g_btSel.Init();
+    g_btA.Init();
+    g_btB.Init();
+    g_encSel.init();
+    g_encA.init();
+    g_encB.init();
+
+    // wire up all MIDI callbacks
+    g_usbmidi.setNoteOnCallback(pf_note_on);
+    g_usbmidi.setNoteOffCallback(pf_note_off);
+    g_usbmidi.setCCCallback(pf_cc);
+    g_usbmidi.setProgramChangeCallback(pf_pc);
+    g_usbmidi.setPitchBendCallback(pf_pb);
+    g_usbmidi.setSysExCallback(pf_sysex);
+    g_usbmidi.setRealtimeCallback(pf_realtime);
+    g_usbmidi.setActivityCallback(pf_activity);
+
+    // DIN MIDI onto the very same dispatch functions - an instrument does
+    // not care which wire an event arrived on.
+    midiSerial().init();
+    midiSerial().setNoteOnCallback(pf_note_on);
+    midiSerial().setNoteOffCallback(pf_note_off);
+    midiSerial().setCCCallback(pf_cc);
+    midiSerial().setProgramChangeCallback(pf_pc);
+    midiSerial().setPitchBendCallback(pf_pb);
+    midiSerial().setSysExCallback(pf_sysex);
+    midiSerial().setRealtimeCallback(pf_realtime);
+    midiSerial().setActivityCallback(pf_activity);
 
     // audio output at the engine's own rate
     g_audio_pool = init_audio(inst.sampleRate(), 6);
@@ -250,8 +232,8 @@ int main(void)
     irq_set_priority(DMA_IRQ_0 + PICO_AUDIO_I2S_DMA_IRQ, 0x00);
     irq_set_priority(USBCTRL_IRQ, 0xC0);   // audio DMA must outrank USB
 
-    // Restore persisted settings. An instrument that owns the user interface
-    // reports size 0 and restores its state itself.
+    // Restore persisted settings. An instrument that writes its own veeprom
+    // record reports size 0 and restores its state itself.
     {
         const size_t need = inst.settingsSize();
         if (need > 0 && need <= VEEPROM_MAX_PAYLOAD) {
@@ -264,7 +246,7 @@ int main(void)
     }
 
     // hand the display over to the instrument UI
-    if (!owns_ui) inst.uiInit(g_display);
+    inst.uiInit(g_display);
 
     picoface::ui::InputState input{};
     uint32_t last_ui_ms = 0;
@@ -272,21 +254,14 @@ int main(void)
     bool settings_dirty = false;
 
     while (true) {
-        // 0. Let the instrument drain its cross-core channel, so a note-on or panel
-        //    edit lands on the very next block. Also the place for a watchdog kick.
-        //    Does nothing unless the instrument overrides it.
-        inst.pumpCrossCore();
-
         // 1. Audio producer in thread context - interruptible by every IRQ
         // -1 = idle, otherwise the number of buffers still to drain
         static int rateDrain = -1;
         audio_buffer_t* buffer;
-        bool produced = false;
         while ((buffer = take_audio_buffer(g_audio_pool, false)) != nullptr) {
             inst.render((int32_t*) buffer->buffer->bytes, buffer->max_sample_count);
             buffer->sample_count = buffer->max_sample_count;
             give_audio_buffer(g_audio_pool, buffer);
-            produced = true;
 
             // The core must not switch the hardware rate immediately: the roughly
             // five buffers already queued in the DMA pipeline were rendered at the
@@ -301,15 +276,6 @@ int main(void)
             }
             // A new signal while a countdown is still running simply re-arms it.
             if (inst.consumeSampleRateChange()) rateDrain = 5;
-        }
-
-        if (owns_ui) {
-            // Nothing else runs on this core: the instrument services USB, MIDI and
-            // the display on core1. Idle instead of spinning at 444 MHz.
-            // queue_free_audio_buffer() from the DMA IRQ and any cross-core push both
-            // SEV, and taking an enabled interrupt ends a WFE as well - no lost wakeup.
-            if (!produced) __wfe();
-            continue;
         }
 
         // 2. Incremental display flush
