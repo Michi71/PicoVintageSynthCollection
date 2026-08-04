@@ -99,5 +99,23 @@ und `g/(1+g)` ist `lpc`.
 Kostet 22 KB mehr RAM (Code wandert aus dem Flash), Gesamtbild jetzt 68 KB
 Flash-Text, 47,6 KB `.data`, 39,9 KB `.bss`.
 
-Bleibt die Last zu hoch, ist die Stellschraube `MAX_VOICES` in
-`include/obxf/ObxfPort.h`.
+**Dritter Lauf: Peak 53 % bei 6 von 6 Stimmen.** Der XIP-Cache war es also,
+38 Prozentpunkte.
+
+## Warum 44,1 kHz und nicht mehr Stimmen
+
+Die freigewordene Reserve geht in die Samplerate, nicht in die Polyphonie.
+Zwei Gruende, beide stehen im portierten Code:
+
+- Die Resonanzkompensation des Filters ist um 44 kHz herum geschrieben
+  (`sqrt(44000.f / sampleRate)` in `Filter.h`). Bei 44,1 kHz arbeitet der
+  Filter an seinem eigenen Auslegungspunkt.
+- Die Cutoff-Frequenz wird auf `sampleRate * 0.5 - 120` gedeckelt. Bei 32 kHz
+  sind das 15,9 kHz — unterhalb der 19 kHz, die der Code sonst zulaesst. Der
+  Filter kam also gar nicht an sein oberes Ende.
+
+Erwartete Last: 53 % × 44100/32000 ≈ 73 %. Die Alternative waere 8 Stimmen bei
+32 kHz gewesen (≈ 71 %) — beides zusammen geht nicht.
+
+Die Stellschrauben stehen an einer Zeile: `kSampleRate` in
+`src/OB_Instrument.cpp`, `MAX_VOICES` in `include/obxf/ObxfPort.h`.

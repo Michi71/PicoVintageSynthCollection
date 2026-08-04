@@ -22,9 +22,17 @@
 
 namespace {
 
-// 32 kHz. The OB-Xf voice is expensive and this is the rate at which six of
-// them fit; the CPU Load screen is there to find out whether it can go up.
-constexpr uint32_t kSampleRate = 32000;
+// 44.1 kHz. Started at 32 kHz, which measured 53% peak with six voices once
+// the per-sample path was out of XIP flash; the extra rate costs roughly
+// 44100/32000 of that.
+//
+// Spending the headroom here rather than on more voices is deliberate. The
+// filter's resonance compensation is written around 44 kHz
+// (`sqrt(44000 / sampleRate)` in Filter.h), so this is the engine's own
+// design point. And the cutoff is clamped to `sampleRate * 0.5 - 120`: at
+// 32 kHz that ceiling is 15.9 kHz, below the 19 kHz the code otherwise
+// allows, so the filter could not reach its own top end.
+constexpr uint32_t kSampleRate = 44100;
 
 class OBInstrument final : public picoface::Instrument {
 public:
