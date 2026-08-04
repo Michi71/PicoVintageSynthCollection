@@ -33,9 +33,10 @@ are in [`rd_extract/README.md`](rd_extract/README.md), and
 ## What is not here
 
 The original repositories also carried complete third-party projects under
-`tools/`: OpenB3/Beatrix (GPL, JUCE), which the YC drawbar engine is derived
-from, and the reface DX reference implementation the FM engine was ported from.
-They are not vendored here - this repository is MIT except for
-`instruments/PicoFaceOB/`, and pulling GPL sources in for reference would blur
-exactly the line that instrument's README draws so carefully. Each instrument's
-README names where its engine came from and links the upstream project.
+`tools/`: OpenB3/Beatrix (AGPL-3.0, JUCE), whose tone generation concepts the YC
+drawbar engine follows, and the reface DX reference implementation the FM engine
+was ported from. They are not vendored here. For OpenB3 that also keeps a
+stricter licence out of a GPL-3 repository - see the licensing section of the
+root README, which sets out why the AGPL does not reach PicoFaceYC. Each
+instrument's README names where its engine came from and links the upstream
+project.

@@ -2,14 +2,14 @@
 
 A Yamaha reface YC combo/home organ clone, one of the eight instruments in
 [PicoVintageSynthCollection](../../README.md). The organ engine is a
-wavetable-based additive footage synthesis architecture ported from setBfree
-concepts.
+wavetable-based additive footage synthesis architecture written for this
+project, following the tone generation concepts of setBfree.
 
 ## Features
 
 | Category | Details |
 | :--- | :--- |
-| **Engine** | Organ Flutes tone generator (wavetable-based additive footage synthesis). 5 wave types: H (tonewheel warm), V (Vox square), F (Farfisa sawtooth), A (Japanese transistor bright), Y (Yamaha transistor). Derived/ported from setBfree (BeatrixCPP). |
+| **Engine** | Organ Flutes tone generator (wavetable-based additive footage synthesis). 5 wave types: H (tonewheel warm), V (Vox square), F (Farfisa sawtooth), A (Japanese transistor bright), Y (Yamaha transistor). Written for this project, following the tone generation concepts of setBfree (BeatrixCPP); no upstream code. |
 | **Polyphony** | 16 voices (`YC_MAX_VOICES`). The Yamaha spec states 128; 32 still overloaded the RP2350 at 9 footages per voice plus full FX (§36), so the cap was lowered to 16 for guaranteed stability. Tunable `constexpr` in `yc_core.h`; a CPU-load watchdog (§38) forces all-notes-off on sustained overload. Raise only after an on-hardware CPU-load measurement. |
 | **Sample rate** | 44100 Hz |
 | **DMA buffer** | 64 samples (`kChunkLen` in `YC_Synth_Bridge`) |
@@ -156,10 +156,11 @@ A fixed chain (no slot system like PicoFaceDX):
 ## Acknowledgements
 
 The tone generation concepts (tonewheel/drawbar model, percussion,
-vibrato/chorus scanner, rotary speaker principle) were derived from the DSP
-concepts of [setBfree](https://github.com/pantherb/setBfree) / BeatrixCPP and
-reimplemented for the RP2350 header-only architecture. The setBfree tree itself
-is not vendored here; see [tools/README.md](../../tools/README.md).
+vibrato/chorus scanner, rotary speaker principle) come from
+[setBfree](https://github.com/pantherb/setBfree) / BeatrixCPP. The engine here
+was written from those concepts for the RP2350 header-only architecture, not
+copied from that code; the setBfree tree is not vendored here either, see
+[tools/README.md](../../tools/README.md).
 
 Code for the YC port was developed with an LLM-assisted workflow: architecture
 and review by the maintainer, code generation via glm-5.2, matching the existing
@@ -167,8 +168,11 @@ project conventions.
 
 ## License
 
-GPL-3.0-or-later, as for the repository as a whole - but note the open question
-about this instrument in particular: the tree its tone generation goes back to
-(OpenB3 / BeatrixCPP) is AGPL-3.0, which would be stricter. Whether that reaches
-here depends on whether code was copied or the behaviour reimplemented from
-reading. See [the licensing section of the root README](../../README.md#license).
+GPL-3.0-or-later, as for the repository as a whole - see
+[LICENSE](../../LICENSE).
+
+The tree whose concepts the drawbar engine follows, OpenB3 / BeatrixCPP, is
+AGPL-3.0, which would be stricter. It does not reach this instrument: the engine
+under `include/yc_engine/` was written for this project, and no upstream code
+was copied - which is why no file there carries an upstream copyright header.
+Copyright does not extend to the concepts themselves.

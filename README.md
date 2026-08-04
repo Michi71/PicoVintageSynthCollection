@@ -99,7 +99,7 @@ derives from someone else's work:
 | Part | Upstream it derives from | That upstream's license |
 |---|---|---|
 | core, cmake, tools | own work | - |
-| PicoFaceYC | [OpenB3 / BeatrixCPP](https://github.com/pantherb/setBfree) (tone generation concepts) | AGPL-3.0 - see the note below |
+| PicoFaceYC | [OpenB3 / BeatrixCPP](https://github.com/pantherb/setBfree) - tone generation *concepts* only, no code | AGPL-3.0 upstream, does not reach here; see below |
 | PicoFaceCP | [mda-EPiano](https://sourceforge.net/projects/mda-vst/) (engine, in tree) | GPL-3.0-or-later |
 | PicoFaceDX | an ESP32 reface DX emulation (engine) | see that project |
 | PicoFaceRD | [giulioz/rdpiano](https://github.com/giulioz/rdpiano) + MAME (reference emulator, host side only) | GPL |
@@ -113,15 +113,10 @@ text, because that instrument's engine is a direct port of OB-Xf and its files
 keep the upstream copyright headers. Every instrument builds into its own
 binary, so a stricter licence on one of them stays confined to that binary.
 
-> **Open question, PicoFaceYC.** The tree the YC drawbar engine goes back to
-> (OpenB3 / BeatrixCPP) is **AGPL-3.0**, not GPL-3. The AGPL adds an obligation
-> that GPL-3 does not, and it cannot be dropped by relicensing. Whether it
-> reaches this repository depends on something only the author can answer: the
-> YC README describes the tone generation as *concepts* "reimplemented for the
-> RP2350 header-only architecture", and no file under
-> `instruments/PicoFaceYC/include/yc_engine/` carries upstream code or an
-> upstream copyright header - but the feature table also says "derived/ported
-> from setBfree (BeatrixCPP)". If code was copied rather than the behaviour
-> reimplemented from reading, `instruments/PicoFaceYC/` belongs under AGPL-3.0
-> and should get its own `LICENSE` the way PicoFaceOB has. If it was a clean
-> reimplementation, copyright does not follow the ideas and GPL-3 is right.
+**On PicoFaceYC and the AGPL.** OpenB3 / BeatrixCPP, whose tone generation
+concepts the YC drawbar engine follows, is AGPL-3.0 - stricter than GPL-3, and
+not something that can be dropped by relicensing. It does not apply here: the
+engine under `instruments/PicoFaceYC/include/yc_engine/` was written for this
+project and contains no upstream code, which is why no file there carries an
+upstream copyright header. Copyright covers the expression, not the concepts,
+so GPL-3 is the right licence for it.
