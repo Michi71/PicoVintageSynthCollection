@@ -19,6 +19,7 @@
  * PORTED FOR PicoFaceOB (RP2350). Changes against the OB-Xf original:
  *   - double temporaries in the per-sample path -> float (2)
  *   - tan() -> ob_tan() (2)
+ *   - two redundant divisions in the 4 pole path folded into lpc
  *   - atan() -> ob_atan() (1)
  */
 
@@ -178,7 +179,10 @@ class Filter
 
     inline float resolveFeedback4Pole(float sample, float g, float lpc)
     {
-        float ml = 1.f / (1.f + g);
+        // ml = 1/(1+g) and lpc = g/(1+g), so ml is 1 - lpc. Saves a divide
+        // per sample and voice; on this target a float divide is ~14 cycles.
+        (void)g;
+        float ml = 1.f - lpc;
         float S =
             (lpc * (lpc * (lpc * state.pole1 + state.pole2) + state.pole3) + state.pole4) * ml;
         float G = lpc * lpc * lpc * lpc;
@@ -204,7 +208,8 @@ class Filter
         // damping
         state.pole1 = ob_atan(state.pole1 * state.resCorrection) * state.resCorrectionInv;
 
-        float goveroneplusg = g / (1.f + g);
+        // goveroneplusg is g/(1+g), which is exactly lpc computed above.
+        const float goveroneplusg = lpc;
         float y1 = res;
         float y2 = tpt_process_scaled_cutoff(state.pole2, y1, goveroneplusg);
         float y3 = tpt_process_scaled_cutoff(state.pole3, y2, goveroneplusg);

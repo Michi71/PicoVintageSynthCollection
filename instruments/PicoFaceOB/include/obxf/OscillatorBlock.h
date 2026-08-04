@@ -170,7 +170,7 @@ class OscillatorBlock
         osc2.phase = gen.noise.getWhite();
     }
 
-    inline float ProcessSample()
+    inline float __not_in_flash_func(ProcessSample)()
     {
         osc1.pitch = getPitch(par.mod.oscPitchNoise * gen.noise.getWhite() + par.pitch.notePlaying +
                               par.osc.pitch1 + par.mod.osc1PitchMod + par.pitch.tune +

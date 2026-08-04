@@ -32,6 +32,17 @@
 #include <cmath>
 #include <cstdlib>
 
+// RAM residency for the per-sample path. The RP2350 runs code from flash
+// through a 16 KB XIP cache; OscillatorBlock::ProcessSample alone is 18 KB of
+// code and is executed once per sample AND voice, so from flash it misses
+// essentially every time. __not_in_flash_func() is the pico-sdk macro the
+// other instruments use for the same purpose.
+#if __has_include("pico.h")
+#include "pico.h"
+#else
+#define __not_in_flash_func(f) f
+#endif
+
 // ---------------------------------------------------------------------------
 // Configuration (upstream: src/configuration.h)
 // ---------------------------------------------------------------------------

@@ -174,7 +174,7 @@ class Voice
 
     ~Voice() {}
 
-    inline float ProcessSample()
+    inline float __not_in_flash_func(ProcessSample)()
     {
         lfo2.setRate(juce::jmax(0.01f, lfo2BaseRate));
         lfo2.update();

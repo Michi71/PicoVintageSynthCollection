@@ -82,13 +82,22 @@ nicht bei 0. `OB_Engine` setzte `pitch1` gar nicht, es blieb auf seinem
 deklarierten Default 0, und damit klang alles **zwei Oktaven zu tief**.
 Behoben; `OB_OSC1_PITCH` ist jetzt ein eigener Parameter.
 
-Die CPU-Last ist noch nicht eingeordnet. Zwei Dinge sind seither passiert:
-der Renderpfad und die BLEP-Tabellen liegen im RAM statt im XIP-Flash (ein
-Oszillator liest pro Sample zwei Zeilen zu 32 Floats — das schlaegt den
-XIP-Cache), und der Peak-Wert setzt sich beim Betreten des CPU-Load-Schirms
-zurueck. Vorher war er ein Maximum seit dem Einschalten, und der allererste
-Block nach dem Start laeuft mit kaltem Cache — ein einzelner Ausreisser stand
-danach fuer immer auf dem Schirm.
+**Zweiter Lauf: es spielt, Peak 91 % bei 6 von 6 Stimmen.** Das sind rund
+2.100 Zyklen je Stimme und Sample - viel mehr als die Rechnung erwarten liess.
+Der Grund liess sich im Symbolverzeichnis nachsehen: `renderBlock()` lag zwar
+im RAM, aber GCC hatte `Voice::ProcessSample` (3,6 KB) und
+`OscillatorBlock::ProcessSample` (18 KB) nicht hineingezogen, sondern als
+eigene Funktionen im Flash gelassen. Der gesamte DSP lief also weiter ueber
+XIP - und 18 KB Code passen nicht in einen 16 KB grossen XIP-Cache, wenn sie
+pro Sample sechsmal durchlaufen werden.
+
+Beide sind jetzt mit `__not_in_flash_func()` markiert, ebenso die drei
+Rauschgeneratoren. Dazu sind im 4-Pol-Filter zwei Divisionen je Sample und
+Stimme entfallen, die rechnerisch schon dastanden: `1/(1+g)` ist `1 - lpc`,
+und `g/(1+g)` ist `lpc`.
+
+Kostet 22 KB mehr RAM (Code wandert aus dem Flash), Gesamtbild jetzt 68 KB
+Flash-Text, 47,6 KB `.data`, 39,9 KB `.bss`.
 
 Bleibt die Last zu hoch, ist die Stellschraube `MAX_VOICES` in
 `include/obxf/ObxfPort.h`.

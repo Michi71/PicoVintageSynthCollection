@@ -50,13 +50,13 @@ class Noise
     };
 
     // Gets the next white noise sample
-    inline float getWhite() { return getRandomValue() * white.volComp; };
+    inline float __not_in_flash_func(getWhite)() { return getRandomValue() * white.volComp; };
 
     /* Gets the next pink noise sample
 
     Adapted from Phil Burk's copyleft code:
     https://www.firstpr.com.au/dsp/pink-noise/phil_burk_19990905_patest_pink.c */
-    inline float getPink()
+    inline float __not_in_flash_func(getPink)()
     {
         // increment and mask index
         pink.index = (pink.index + 1) & pink.indexMask;
@@ -83,7 +83,7 @@ class Noise
     };
 
     // Gets the next red noise sample
-    inline float getRed()
+    inline float __not_in_flash_func(getRed)()
     {
         red.state += getWhite() * 0.05f;
 
