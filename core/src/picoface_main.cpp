@@ -18,6 +18,7 @@
 #include "veeprom.h"
 #include "get_serial.h"
 #include "midi_input_usb.h"
+#include "midi_serial.h"
 #include "audio_subsystem.h"
 #include "u8g2.h"
 #include "encoder.h"
@@ -217,6 +218,16 @@ int main(void)
         g_usbmidi.setProgramChangeCallback(pf_pc);
         g_usbmidi.setPitchBendCallback(pf_pb);
         g_usbmidi.setSysExCallback(pf_sysex);
+
+        // DIN MIDI onto the very same dispatch functions - an instrument does
+        // not care which wire an event arrived on.
+        midiSerial().init();
+        midiSerial().setNoteOnCallback(pf_note_on);
+        midiSerial().setNoteOffCallback(pf_note_off);
+        midiSerial().setCCCallback(pf_cc);
+        midiSerial().setProgramChangeCallback(pf_pc);
+        midiSerial().setPitchBendCallback(pf_pb);
+        midiSerial().setSysExCallback(pf_sysex);
     }
 
     // audio output at the engine's own rate
@@ -294,9 +305,10 @@ int main(void)
             picoface_ui_flush_row++;
         }
 
-        // 3. USB
+        // 3. USB and DIN MIDI
         tud_task();
         g_usbmidi.process();
+        midiSerial().process();
 
         // Report I2S underruns to the instrument so it can shed load.
         // (g_i2s_underrun_count comes from audio_i2s.h via audio_subsystem.h)

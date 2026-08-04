@@ -7,7 +7,10 @@
 #ifndef __PROJECT_CONFIG_H__
 #define __PROJECT_CONFIG_H__
 
+// DIN MIDI on uart1, behind the opto-coupler on the board. uart0 (GPIO 0/1)
+// stays reserved for stdio, so the two never collide.
 #define PIN_MIDI_RX 5
+#define PIN_MIDI_TX 4
 
 // Pimoroni Pico Audio
 //#define PIN_I2S_DOUT  9

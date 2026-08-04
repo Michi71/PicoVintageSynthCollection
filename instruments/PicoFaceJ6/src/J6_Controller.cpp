@@ -3,6 +3,7 @@
 */
 
 #include "J6_Controller.h"
+#include "midi_serial.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -332,6 +333,22 @@ void J6_Controller::sendParam(int id, float v)
     if (q < 0)    q = 0;
     if (q > 1000) q = 1000;
     ipc_send_param((uint8_t) id, (uint16_t) q);
+
+    /* Mirror the edit as a Control Change, the way the original front
+       panel does. Only the encoder path reaches this function - a value
+       that arrived over MIDI lands in onMidiParam() instead, so this
+       cannot loop back on itself. */
+    if (id < 0 || id >= JUNO_TOTAL_COUNT) return;
+
+    /* not every panel control has a controller number */
+    const uint8_t cc = kJunoParams[id].cc;
+    if (cc == 0xFF) return;
+
+    /* Omni is a receive setting; transmit falls back to channel 1 */
+    const uint8_t txCh = (midiCh_ == J6_MIDI_OMNI) ? 0 : midiCh_;
+
+    const uint8_t val = (uint8_t)((q * 127 + 500) / 1000);
+    midiSerial().sendControlChange(txCh, cc, val);
 }
 
 void J6_Controller::adjust(int slot, int delta)

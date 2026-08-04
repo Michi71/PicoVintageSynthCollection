@@ -1,4 +1,5 @@
 #include "midi_reface.h"
+#include "midi_serial.h"
 #include "YC_Synth_Bridge.h"
 #include "ipc.h"
 #include "tusb.h"
@@ -136,6 +137,10 @@ void RefaceMidi::notifyActivity() {
 
 void RefaceMidi::txBytes(const uint8_t* b, uint16_t n) {
     tud_midi_stream_write(0, b, n);
+    // Everything the reface layer sends - panel CCs, SysEx replies - goes out
+    // the DIN socket as well. Unconditional: unlike USB there is nothing to
+    // enumerate, and a receiver that is not plugged in simply does not listen.
+    midiSerial().write(b, n);
 }
 
 void RefaceMidi::txIdentityReply() {

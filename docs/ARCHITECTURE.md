@@ -129,6 +129,43 @@ cmake --build build
 
 VID bleibt 0x2E8A. Vor der Zusammenfuehrung trugen alle sechs Firmwares dieselbe PID 0x104C, sodass Hosts sie nicht unterscheiden konnten; PicoFaceYC meldete sich zudem faelschlich als "PicoFaceDX". `core/src/usb_descriptors.c` ist jetzt ueber die Compile-Definitions `PICOFACE_INSTRUMENT_NAME` und `PICOFACE_USB_PID` parametriert, wodurch beide Fehler entfallen.
 
+## 6a. MIDI-Transporte
+
+MIDI kommt ueber zwei Wege herein und geht ueber zwei Wege hinaus: USB und DIN. Die Callback-Signaturen von MIDISerial sind absichtlich identisch mit denen von MIDIInputUSB, sodass beide Transporte in dieselben Dispatch-Funktionen muenden - ein Instrument sieht nicht, auf welchem Draht ein Ereignis ankam.
+
+### Hardware
+
+| Signal | GPIO | Peripherie |
+|---|---|---|
+| MIDI RX | 5 | uart1 |
+| MIDI TX | 4 | uart1 |
+| stdio | 0 / 1 | uart0 |
+
+31250 Baud, 8N1, Optokoppler auf der Platine. stdio liegt bewusst auf uart0, damit sich beide nie in die Quere kommen.
+
+### Empfang
+
+Der Empfang laeuft interruptgesteuert in einen lock-freien Ring von 256 Byte. Bei 31250 Baud trifft alle 320 Mikrosekunden ein Byte ein; die 32 Byte tiefe Hardware-FIFO gaebe nur rund 10 ms Reserve, was die blockierenden Menues von PicoFaceYC und PicoFaceCP ueberschreiten koennen. Der Interrupt ist RAM-resident und bewegt nur Bytes, geparst wird in process(). Die Interruptprioritaet liegt unter der Audio-DMA und ueber USB.
+
+Der Parser beherrscht Running Status, SysEx bis 256 Byte und laesst Realtime-Bytes mitten in einer Nachricht unbeschadet durch. Note-On mit Velocity 0 wird als Note-Off behandelt.
+
+### Einbau je Laufzeitmodell
+
+| Modell | Instrumente | Wo process() laeuft |
+|---|---|---|
+| Standard | MD, SM, J6, RD | picoface_main.cpp, neben MIDIInputUSB::process() |
+| Instrument besitzt die UI | YC, CP | ui_poll_usb() im jeweiligen Adapter, weil MIDI dort auf core1 liegt |
+
+### Senden
+
+| Instrumente | Was gesendet wird |
+|---|---|
+| YC, CP | Panel-Aenderungen als CC und SysEx-Antworten; laeuft ueber RefaceMidi::txBytes(), das jetzt zusaetzlich auf den UART schreibt |
+| MD, J6 | Panel-Aenderungen als CC aus der Parametertabelle; jeder Eintrag traegt seine CC-Nummer, 0xFF bedeutet keine |
+| SM, RD | bisher nichts - siehe Abschnitt 8 |
+
+Gesendet wird nur aus dem Encoder-Pfad. Ein Wert, der ueber MIDI hereinkam, landet in onMidiParam() und nimmt diesen Weg nicht, sodass keine Rueckkopplung entstehen kann. Als Sendekanal dient der Empfangskanal; steht dieser auf Omni, faellt der Sendekanal auf Kanal 1 zurueck.
+
 ## 7. Verbliebene Divergenzen
 
 Nach der Zusammenfuehrung von project_config.h, pico_hw.h und pico_hw.cpp in den Kern bleibt Folgendes instrumentspezifisch.
@@ -175,12 +212,12 @@ Diese Defines sind bewusst nicht im Helper vereinheitlicht, sondern je Instrumen
 
 | Instrument | Flash | RAM | PID | Original (Flash/RAM) |
 |---|---|---|---|---|
-| PicoFaceYC | 135.332 | 46.708 | 0x1050 | 130.408 / 44.780 |
-| PicoFaceCP | 4.435.212 | 177.028 | 0x1051 | 4.431.112 / 175.612 |
-| PicoFaceRD | 5.316.592 | 34.852 | 0x1052 | 5.312.968 / 33.928 |
-| PicoFaceJ6 | 103.376 | 18.628 | 0x1053 | 101.644 / 17.688 |
-| PicoFaceMD | 98.496 | 268.064 | 0x1054 | 96.828 / 267.124 |
-| PicoFaceSM | 95.672 | 21.224 | 0x1055 | 91.868 / 20.288 |
+| PicoFaceYC | 136.524 | 47.272 | 0x1050 | 130.408 / 44.780 |
+| PicoFaceCP | 4.436.508 | 177.592 | 0x1051 | 4.431.112 / 175.612 |
+| PicoFaceRD | 5.317.568 | 35.416 | 0x1052 | 5.312.968 / 33.928 |
+| PicoFaceJ6 | 104.568 | 19.192 | 0x1053 | 101.644 / 17.688 |
+| PicoFaceMD | 99.680 | 268.628 | 0x1054 | 96.828 / 267.124 |
+| PicoFaceSM | 96.648 | 21.788 | 0x1055 | 91.868 / 20.288 |
 
 Der Aufschlag gegenueber den Einzelprojekten liegt bei 2 bis 4 KB Flash und rund 940 Byte RAM je Instrument - im Wesentlichen die vtable der Instrument-Schnittstelle und die zusaetzliche Indirektion.
 
@@ -190,3 +227,4 @@ Der Aufschlag gegenueber den Einzelprojekten liegt bei 2 bis 4 KB Flash und rund
 
 1. Umstellung der Frontpanel-Menues von PicoFaceYC und PicoFaceCP auf den InputState, damit auch sie das Standardmodell nutzen.
 2. Rueckfuehrung der Divergenzen aus Abschnitt 7 in den Kern.
+3. CC-Belegung fuer PicoFaceSM und PicoFaceRD festlegen, damit auch sie Panel-Aenderungen senden. Beide haben heute keine Parameter-zu-CC-Tabelle: die Solina-Engine nimmt nur fuenf Standard-CCs entgegen, RD nur CC 64, 92 und 93. Das ist eine Festlegung, keine Portierung, und betrifft auch den Empfang.

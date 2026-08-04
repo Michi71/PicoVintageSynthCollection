@@ -14,6 +14,7 @@
 #include "project_config.h"
 #include "ipc.h"
 #include "midi_input_usb.h"
+#include "midi_serial.h"
 #include "midi_reface.h"
 #include "YC_Synth_Bridge.h"
 #include "YC_Controller.h"
@@ -75,6 +76,9 @@ extern "C" int ui_get_octave(void) {
 extern "C" void ui_poll_usb(void) {
     tud_task();
     usbmidi.process();
+    // DIN MIDI is serviced here too: this instrument owns MIDI on core1,
+    // so the core never polls it for us.
+    midiSerial().process();
     refaceMidi.tick();
     settings_task(&ycBridge, &refaceMidi);
 }
@@ -303,6 +307,16 @@ public:
         usbmidi.setNoteOnCallback(note_on_callback); usbmidi.setNoteOffCallback(note_off_callback);
         usbmidi.setPitchBendCallback(pitch_bend_callback); usbmidi.setRealtimeCallback(realtime_callback);
         usbmidi.setSysExCallback(sysex_callback); usbmidi.setActivityCallback(activity_callback);
+        // Same handlers for DIN MIDI, so both wires feed the identical path.
+        midiSerial().init();
+        midiSerial().setCCCallback(cc_callback);
+        midiSerial().setProgramChangeCallback(program_change_callback);
+        midiSerial().setNoteOnCallback(note_on_callback);
+        midiSerial().setNoteOffCallback(note_off_callback);
+        midiSerial().setPitchBendCallback(pitch_bend_callback);
+        midiSerial().setRealtimeCallback(realtime_callback);
+        midiSerial().setSysExCallback(sysex_callback);
+        midiSerial().setActivityCallback(activity_callback);
         refaceMidi.init(&ycBridge);
         settings_boot_restore_core1(&refaceMidi);
         while (true) {
