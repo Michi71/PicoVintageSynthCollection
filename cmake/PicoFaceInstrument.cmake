@@ -3,7 +3,7 @@
 # Provides picoface_add_instrument(), the single entry point used by every
 # instrument sub-project to create a complete RP2350 firmware target.
 #
-# All settings are applied target-locally - nothing global - so that six
+# All settings are applied target-locally - nothing global - so that all
 # instruments with conflicting project_config.h files can coexist in one build.
 #
 # Requires before invocation:

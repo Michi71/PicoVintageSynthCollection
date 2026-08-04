@@ -1,6 +1,6 @@
 // pico_hw.h - hardware access for the PicoFace platform.
 //
-// Shared by all six instruments. The three original variants differed only
+// Shared by every instrument. The three original variants differed only
 // in which SDK headers they pulled in and whether they declared
 // pico_fpu_ftz_enable(); this is the union of both.
 #ifndef __PICO_HW_H__

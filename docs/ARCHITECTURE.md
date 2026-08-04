@@ -1,7 +1,7 @@
 # Architektur - PicoVintageSynthCollection
 
 ## 1. Ziel
-Monorepo, das 6 bisher getrennte RP2350-Synthesizer-Firmwares vereint (PicoFaceYC, PicoFaceCP, PicoFaceRD, PicoFaceJ6, PicoFaceMD, PicoFaceSM); PicoFaceOB ist als siebtes im Monorepo selbst entstanden. Eine gemeinsame Basis - Audio-Pipeline, Hardwareanbindung, GUI, USB-MIDI, Persistenz - an die sich Instrumente nur andocken. Alle Instrumente entstehen aus einem Build und werden unter ihrem eigenen Namen als Binary veroeffentlicht.
+Monorepo, das 7 bisher getrennte RP2350-Synthesizer-Firmwares vereint (PicoFaceYC, PicoFaceCP, PicoFaceRD, PicoFaceJ6, PicoFaceMD, PicoFaceSM, PicoFaceDX); PicoFaceOB ist als achtes im Monorepo selbst entstanden. Eine gemeinsame Basis - Audio-Pipeline, Hardwareanbindung, GUI, USB-MIDI, Persistenz - an die sich Instrumente nur andocken. Alle Instrumente entstehen aus einem Build und werden unter ihrem eigenen Namen als Binary veroeffentlicht.
 
 ## 2. Verzeichnisstruktur
 ```text
@@ -35,6 +35,7 @@ instruments/
 ├── PicoFaceJ6
 ├── PicoFaceMD
 ├── PicoFaceSM
+├── PicoFaceDX
 └── PicoFaceOB
 (je mit instrument.cmake, src/, include/)
 tools/
@@ -45,8 +46,8 @@ docs/
     └── build.yml
 ```
 
-## 3. Eine Hardwareplattform, sieben Instrumente
-Die Platine ist fuer alle sieben Instrumente dieselbe. Pin-Belegung und Flash-Timing liegen deshalb im Kern: `core/include/project_config.h` und `core/include/pico_hw.h`. In den sechs Ursprungs-Repositories war jede einzelne Pin-Definition bereits identisch; die Dateien unterschieden sich nur in Kommentaren, in einer zusaetzlichen QMI-Timing-Konstante fuer PicoFaceRD und in einem inline-Helfer. Die Kern-Fassungen sind die Vereinigung aller Varianten.
+## 3. Eine Hardwareplattform, acht Instrumente
+Die Platine ist fuer alle acht Instrumente dieselbe. Pin-Belegung und Flash-Timing liegen deshalb im Kern: `core/include/project_config.h` und `core/include/pico_hw.h`. In den sieben Ursprungs-Repositories war jede einzelne Pin-Definition bereits identisch; die Dateien unterschieden sich nur in Kommentaren, in einer zusaetzlichen QMI-Timing-Konstante fuer PicoFaceRD und in einem inline-Helfer. Die Kern-Fassungen sind die Vereinigung aller Varianten.
 
 ### Warum der Kern trotzdem keine Bibliothek ist
 
@@ -54,7 +55,7 @@ Der Kern veroeffentlicht weiterhin Listen absoluter Quellpfade statt einer STATI
 
 Daraus folgt weiterhin die Include-Reihenfolge `instruments/<NAME>/include` vor `core/include`, damit eine instrumenteigene Variante eines Headers gewinnt. Nach der Zusammenfuehrung betrifft das nur noch fuenf Header (siehe Abschnitt 7).
 
-Gegenbeispiel: lib/audio, lib/encoder und lib/u8g2 bleiben STATIC und werden einmal fuer alle sieben Targets gebaut.
+Gegenbeispiel: lib/audio, lib/encoder und lib/u8g2 bleiben STATIC und werden einmal fuer alle acht Targets gebaut.
 
 **Anmerkung zur Audio-Bibliothek:** lib/audio/src/audio_subsystem.cpp inkludierte urspruenglich project_config.h und las daraus PIN_I2S_DOUT und PIN_I2S_BCK. In den Altprojekten fiel das nicht auf, weil ein globales include_directories() den Instrument-Include-Pfad in jedes Target leakte. Die Bibliothek nutzt jetzt die Standardmakros PICO_AUDIO_I2S_DATA_PIN und PICO_AUDIO_I2S_CLOCK_PIN_BASE und kennt die Instrument-Konfiguration nicht mehr.
 
@@ -76,7 +77,7 @@ Der Kern ruft init(), fragt danach sampleRate() ab und initialisiert damit den A
 
 ## 4a. Das Laufzeitmodell
 
-**Alle sieben Instrumente laufen im selben Modell:** core0 macht Audio, USB, MIDI und GUI, der Kern pollt die Encoder in einen InputState und ruft `uiTick()`. core1 gehoert dem Instrument - PicoFaceRD nutzt ihn als Voice-Worker, die uebrigen sechs lassen ihn liegen.
+**Alle acht Instrumente laufen im selben Modell:** core0 macht Audio, USB, MIDI und GUI, der Kern pollt die Encoder in einen InputState und ruft `uiTick()`. core1 gehoert dem Instrument - PicoFaceRD nutzt ihn als Voice-Worker, die uebrigen sieben lassen ihn liegen.
 
 Es gab bis zur Umstellung von PicoFaceYC und PicoFaceCP ein zweites Modell, in dem ein Instrument ueber `ownsUserInterface()` die gesamte Bedienoberflaeche auf core1 uebernahm. Der Kern startete core1 dann selbst, initialisierte weder Display noch Encoder und rief `pumpCrossCore()` statt `uiTick()`; fuer den Flash-Zugriff lieferte das Instrument ein Paar Park-Hooks. Mit dem letzten Nutzer sind auch die fuenf Methoden aus `picoface::Instrument` und der zugehoerige Zweig in `picoface_main.cpp` verschwunden. Ein Instrument, das core1 braucht, startet ihn wie PicoFaceRD selbst aus seinem Adapter.
 
@@ -93,8 +94,41 @@ Beide schreiben ihren veeprom-Satz weiterhin selbst und melden daher `settingsSi
 
 CP war der haertere Fall: acht Panel-Screens und 22 lokale Variablen in der Schleife. Die Variablen sind Member von `CP_Ui` geworden. Sie bleiben noetig, weil eine Bedienung sofort auf dem Schirm stehen muss, waehrend der Ring die Engine erst zum naechsten Block erreicht; `refresh()` holt umgekehrt ein, was hinter dem Panel vorbei passiert ist - MIDI, ein Preset, ein SysEx-Parameter.
 
+### PicoFaceDX kam nach
+
+PicoFaceDX ist erst nach dieser Umstellung aus seinem eigenen Repository
+hereingekommen und stand dort noch vollstaendig im zweiten Modell: UI, USB und
+MIDI auf core1, IPC ueber die SIO-FIFO, dazu ein Flash-Park-Handshake
+(`IPC_CMD_FLASH_LOCK` plus ein RAM-residenter Spin-Loop auf core0), damit core1
+den Settings-Satz schreiben konnte, waehrend XIP aus war. Umgestellt wurde beim
+Import, nicht danach - der Kern musste das zweite Modell also nicht noch einmal
+zurueckholen. Es war dieselbe Arbeit wie bei YC und CP, nur schon bekannt:
+
+- `pico_UserInterfaceFrontPanel()` und die drei blockierenden Menue-Screens
+  (Presets, System, Master Volume) sind `DX_Ui` geworden, einem Zustandsautomaten
+  ueber `picoface::ui::ListView`. Die Presets-Liste bekommt jetzt ein Array aus
+  32 Namenszeigern statt einer 512 Byte langen, mit `\n` verketteten Zeichenkette.
+- `ipc.h` ist ein Same-Core-Ring nach dem Vorbild von YC. `IPC_CMD_FLASH_LOCK`,
+  `flash_park_core0()` und die beiden veeprom-Hooks entfallen ersatzlos: der
+  Schreibvorgang liegt jetzt wie bei allen anderen auf core0 zwischen zwei
+  Audiobloecken.
+- `settings_boot_restore_core0()` und `settings_boot_restore_core1()` sind zu
+  einem `settings_boot_restore()` zusammengefallen. Die Aufteilung existierte
+  nur, weil Patch und Master Volume vor dem core1-Start gesetzt sein mussten und
+  Oktave und SYSTEM-Block erst danach.
+- Die beiden Zustandswerte, die als core1-Globale in `main.cpp` lagen - UI-Oktave
+  und der Master-Volume-Spiegel -, sind mit ihren vier Zugriffsfunktionen in den
+  Adapter gewandert und behalten deren C-Verknuepfung, weil `midi_reface.cpp`,
+  `settings.cpp` und `DX_Ui.cpp` sie brauchen und keine davon den Adaptertyp
+  kennt.
+
+Wie YC und CP schreibt DX seinen veeprom-Satz selbst und meldet
+`settingsSize() == 0`; der Satz enthaelt einen vollstaendigen Patch. Zusaetzlich
+schreibt `RefaceMidi::txBytes()` jetzt auch auf den DIN-Ausgang (Abschnitt 6a);
+im Ursprungs-Repository gab es den noch nicht.
+
 ## 5. Build-System
-`picoface_add_instrument()` in `cmake/PicoFaceInstrument.cmake` erzeugt pro Instrument ein vollstaendiges Firmware-Target. Alle Einstellungen sind target-lokal (`target_compile_definitions` / `target_compile_options` statt globaler `add_compile_options`), weil sieben Targets mit widersprechenden Defines koexistieren muessen.
+`picoface_add_instrument()` in `cmake/PicoFaceInstrument.cmake` erzeugt pro Instrument ein vollstaendiges Firmware-Target. Alle Einstellungen sind target-lokal (`target_compile_definitions` / `target_compile_options` statt globaler `add_compile_options`), weil acht Targets mit widersprechenden Defines koexistieren muessen.
 
 | Schluesselwort | Bedeutung |
 |---|---|
@@ -135,8 +169,9 @@ cmake --build build
 | PicoFaceMD | 0x1054 |
 | PicoFaceSM | 0x1055 |
 | PicoFaceOB | 0x1056 |
+| PicoFaceDX | 0x1057 |
 
-VID bleibt 0x2E8A. Vor der Zusammenfuehrung trugen alle sechs Firmwares dieselbe PID 0x104C, sodass Hosts sie nicht unterscheiden konnten; PicoFaceYC meldete sich zudem faelschlich als "PicoFaceDX". `core/src/usb_descriptors.c` ist jetzt ueber die Compile-Definitions `PICOFACE_INSTRUMENT_NAME` und `PICOFACE_USB_PID` parametriert, wodurch beide Fehler entfallen.
+VID bleibt 0x2E8A. Vor der Zusammenfuehrung trugen alle sieben Ursprungs-Firmwares dieselbe PID 0x104C, sodass Hosts sie nicht unterscheiden konnten; PicoFaceYC meldete sich zudem faelschlich als "PicoFaceDX" - was mit dem echten PicoFaceDX am selben Host ein doppeltes Missverstaendnis gewesen waere. `core/src/usb_descriptors.c` ist jetzt ueber die Compile-Definitions `PICOFACE_INSTRUMENT_NAME` und `PICOFACE_USB_PID` parametriert, wodurch beide Fehler entfallen.
 
 ## 6a. MIDI-Transporte
 
@@ -160,7 +195,7 @@ Der Parser beherrscht Running Status, SysEx bis 256 Byte und laesst Realtime-Byt
 
 ### Einbau
 
-`MIDISerial::process()` laeuft fuer alle sieben Instrumente in `picoface_main.cpp`, direkt neben `MIDIInputUSB::process()`.
+`MIDISerial::process()` laeuft fuer alle acht Instrumente in `picoface_main.cpp`, direkt neben `MIDIInputUSB::process()`.
 
 Realtime-Bytes und die reine Empfangsaktivitaet reicht der Kern ueber die optionalen Methoden `realtime()` und `midiActivity()` durch. Beide sind fuer die Active-Sensing-Ueberwachung der reface-Schicht von YC und CP noetig - deren 350-ms-Timeout schaltet bei Ausbleiben von 0xFE alle Stimmen ab. Die Defaults sind leer; die vier uebrigen Instrumente ignorieren beides.
 
@@ -169,6 +204,7 @@ Realtime-Bytes und die reine Empfangsaktivitaet reicht der Kern ueber die option
 | Instrumente | Was gesendet wird |
 |---|---|
 | YC, CP | Panel-Aenderungen als CC und SysEx-Antworten; laeuft ueber RefaceMidi::txBytes(), das jetzt zusaetzlich auf den UART schreibt |
+| DX | dieselbe Schicht, aber anderer Inhalt: Active Sensing, Program Change beim Preset-Wechsel, SysEx-Antworten (Parameter, Bulk Dump, Identity Reply). Panel-Aenderungen sendet DX nicht - die drei Encoder erreichen nur eine Handvoll der Patch-Parameter, ein CC je bedientem Wert waere ein unvollstaendiges Abbild |
 | MD, J6 | Panel-Aenderungen als CC aus der Parametertabelle; jeder Eintrag traegt seine CC-Nummer, 0xFF bedeutet keine |
 | SM, RD | Panel-Aenderungen als CC aus einer eigens festgelegten Tabelle, siehe unten |
 
@@ -216,11 +252,11 @@ Voice Mode bleibt ohne CC: der Wert ist eine Aufzaehlung, keine 0..127-Groesse.
 
 PicoFaceOB ist das erste Instrument, dessen Klangerzeugung nicht aus diesem
 Projekt stammt: sie ist aus [OB-Xf](https://github.com/surge-synthesizer/OB-Xf)
-portiert. Zwei Dinge unterscheiden es deshalb von den uebrigen sechs.
+portiert. Zwei Dinge unterscheiden es deshalb von den uebrigen sieben.
 
 **Lizenz.** OB-Xf steht unter GPL-3.0-or-later. `instruments/PicoFaceOB/` steht
 daher ebenfalls unter GPL-3, und das gebaute `PicoFaceOB.uf2` ist ein
-GPL-3-Werk. Kern und die anderen sechs Instrumente bleiben MIT; MIT ist
+GPL-3-Werk. Kern und die anderen sieben Instrumente bleiben MIT; MIT ist
 GPL-kompatibel, die Kombination ist zulaessig, und die Trennung laeuft genau
 entlang der Instrumentgrenze, die das Monorepo ohnehin zieht. Einzelheiten in
 `instruments/PicoFaceOB/README.md`.
@@ -291,9 +327,9 @@ Diese Defines sind bewusst nicht im Helper vereinheitlicht, sondern je Instrumen
 
 - `core/src/picoface_main.cpp`: gemeinsames main() fuer beide Laufzeitmodelle.
 - `core/src/ui/display.cpp`: u8g2-Fassade; flush() stoesst nur die zeilenweise Ausgabe an.
-- Alle sieben Adapter, alle im Standardmodell. PicoFaceMD ist die Vorlage.
-- Alle sieben bauen aus einem gemeinsamen Configure-Lauf und tragen je eine eigene USB-PID.
-- Sechs davon auf der Hardware getestet und lauffaehig, PicoFaceRD einschliesslich der 480-MHz-Taktung. PicoFaceOB ist neu und dort noch ungetestet (Abschnitt 6b).
+- Alle acht Adapter, alle im Standardmodell. PicoFaceMD ist die Vorlage.
+- Alle acht bauen aus einem gemeinsamen Configure-Lauf und tragen je eine eigene USB-PID.
+- Sechs davon auf der Hardware getestet und lauffaehig, PicoFaceRD einschliesslich der 480-MHz-Taktung. PicoFaceOB (Abschnitt 6b) und PicoFaceDX (Abschnitt 4a) sind dort noch ungetestet.
 - PicoFaceYC und PicoFaceCP auf das Standardmodell umgestellt (Abschnitt 4a) und in dieser Fassung auf der Hardware bestaetigt. Damit ist das zweite Laufzeitmodell ersatzlos aus dem Kern entfernt.
 
 | Instrument | Flash | RAM | PID | Original (Flash/RAM) |
@@ -305,6 +341,7 @@ Diese Defines sind bewusst nicht im Helper vereinheitlicht, sondern je Instrumen
 | PicoFaceMD | 99.168 | 268.624 | 0x1054 | 96.828 / 267.124 |
 | PicoFaceSM | 96.232 | 21.784 | 0x1055 | 91.868 / 20.288 |
 | PicoFaceOB | 131.724 | 42.248 | 0x1056 | - (neu) |
+| PicoFaceDX | 170.052 | 218.508 | 0x1057 | 164.964 / 216.012 |
 
 Gemessen mit `arm-none-eabi-size` (text / bss). PicoFaceOBs RAM sind zu 32 KB
 die sechs Stimmen des OB-Xf-Voice-Objekts, gut 5,3 KB je Stimme; dazu kommen
@@ -315,10 +352,20 @@ Der Aufschlag gegenueber den Einzelprojekten liegt bei 2 bis 4 KB Flash und rund
 
 Die Umstellung von YC und CP samt dem Wegfall des zweiten Laufzeitmodells kostet YC 1.300 und CP 5.012 Byte Flash weniger als vorher, bei 552 bzw. 512 Byte mehr RAM: der Same-Core-Ring belegt je 1032 Byte, dafuer entfallen die instrumenteigenen Encoder-, Button-, USB-MIDI- und u8g2-Objekte. J6, MD und SM verlieren rund 500 Byte Flash - der `owns_ui`-Zweig und die fuenf entfallenen virtuellen Methoden wiegen mehr als die zwei neuen MIDI-Methoden; nur RD liegt 528 Byte hoeher, weil hinter seinem grossen Sampleblock das Ausrichtungs-Padding anders faellt.
 
+DX faellt mit 5.088 Byte Flash und 2.496 Byte RAM aus diesem Rahmen, aber in eine
+andere Richtung als YC und CP: es kam bereits umgestellt herein und vergleicht
+sich deshalb nicht gegen eine frisch entfernte core1-Schleife, sondern gegen ein
+Repository ohne DIN-MIDI und ohne `ListView`. Der Same-Core-Ring belegt wieder 1.032 Byte, der
+DIN-Empfangsring 256 weitere; den Rest tragen die Parser- und Kernobjekte, die es
+im Ursprungs-Repository so nicht gab.
+
 **Besonderheiten von PicoFaceRD:** RD nutzt core1 als RAM-residenten Voice-Worker und wechselt die Samplerate zur Laufzeit zwischen 20 und 32 kHz. Beides laeuft ueber die optionalen Hooks: `consumeSampleRateChange` laesst den Kern die Hardware-Rate erst umschalten, wenn die bereits in der DMA-Pipeline liegenden Puffer abgelaufen sind; `onAudioUnderrun` loest den Voice-Governor aus; `settingsSaveAllowed` verhindert einen Flash-Schreibvorgang, solange Stimmen klingen. Fuer die uebrigen Instrumente sind die Defaults dieser Hooks wirkungslos.
 
 **Offen:**
 
 1. Hardware-Test des DIN-MIDI (Abschnitt 6a).
 2. YCs `midi_input_usb.cpp`, die letzte ersetzte Kernquelle neben RDs `veeprom.cpp` (Abschnitt 7).
+3. Hardware-Test von PicoFaceOB und PicoFaceDX. Bei DX ist besonders die
+   umgestellte Bedienoberflaeche zu pruefen: Preset-Wechsel, Master Volume und
+   der Settings-Schreibvorgang liefen dort vorher auf core1.
 

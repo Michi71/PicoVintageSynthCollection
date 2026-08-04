@@ -1,6 +1,6 @@
 // pico_hw.cpp - boot, clock and flash timing for the PicoFace platform.
 //
-// One board for all six instruments. The only per-instrument choice left is
+// One board for every instrument. The only per-instrument choice left is
 // the clock target and its matching flash timing (see the two macros below);
 // PicoFaceRD overrides both through DEFINES in its instrument.cmake.
 #pragma GCC optimize("Ofast")

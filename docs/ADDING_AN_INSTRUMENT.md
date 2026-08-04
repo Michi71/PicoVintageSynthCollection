@@ -47,7 +47,7 @@ picoface_add_instrument(
     NAME PicoFaceXX
     PROGRAM_NAME "PicoFaceXX"
     VERSION "0.1"
-    USB_PID 0x1056
+    USB_PID 0x1058
     DIR ${PICOFACE_CURRENT_INSTRUMENT_DIR}
     SOURCES
         src/XX_Instrument.cpp

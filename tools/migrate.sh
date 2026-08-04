@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
 #
 # tools/migrate.sh - populates the PicoVintageSynthCollection monorepo
-# from the six existing PicoFace repositories.
+# from the six PicoFace repositories of the initial merge.
 # Source repositories are READ-ONLY, never modified.
+#
+# PicoFaceDX is deliberately NOT in the list below, although it also came from
+# its own repository: it was imported after the second runtime model had been
+# removed from the core and had to be converted on the way in (front panel,
+# IPC, settings - see docs/ARCHITECTURE.md section 4a). Re-running this script
+# with PicoFaceDX added would copy the unconverted core1 sources back over that
+# work. PicoFaceOB never had a repository of its own.
 
 set -euo pipefail
 

@@ -1,9 +1,9 @@
 // project_config.h - the PicoFace hardware platform.
 //
-// One board for all six instruments: pin map and flash timing live here in
+// One board for every instrument: pin map and flash timing live here in
 // the core, not per instrument. Every pin below was already identical in all
-// six original repositories; only comments and one extra timing constant
-// differed, which is why this used to be copied six times.
+// original repositories; only comments and one extra timing constant
+// differed, which is why this used to be copied once per instrument.
 #ifndef __PROJECT_CONFIG_H__
 #define __PROJECT_CONFIG_H__
 
@@ -81,7 +81,7 @@
 #define PICOFACE_QMI_M0_TIMING_RD 0x60007304u
 
 // Which of the two target values an instrument uses is a software decision in
-// its pico_hw.cpp, not a hardware difference - the board is identical for all
-// six.
+// its instrument.cmake, not a hardware difference - the board is identical for
+// every instrument.
 
 #endif // __PROJECT_CONFIG_H__

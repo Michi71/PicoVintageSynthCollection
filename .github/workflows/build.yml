@@ -25,7 +25,8 @@ jobs:
           - PicoFaceJ6
           - PicoFaceMD
           - PicoFaceSM
-          # GPL-3, unlike the other six - see instruments/PicoFaceOB/README.md
+          - PicoFaceDX
+          # GPL-3, unlike the other seven - see instruments/PicoFaceOB/README.md
           - PicoFaceOB
 
     steps:
@@ -86,7 +87,7 @@ jobs:
       contents: write
 
     steps:
-      # Collect all six instrument artifacts into a single directory.
+      # Collect all instrument artifacts into a single directory.
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
