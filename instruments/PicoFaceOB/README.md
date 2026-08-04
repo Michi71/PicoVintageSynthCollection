@@ -114,8 +114,17 @@ Zwei Gruende, beide stehen im portierten Code:
   sind das 15,9 kHz — unterhalb der 19 kHz, die der Code sonst zulaesst. Der
   Filter kam also gar nicht an sein oberes Ende.
 
-Erwartete Last: 53 % × 44100/32000 ≈ 73 %. Die Alternative waere 8 Stimmen bei
-32 kHz gewesen (≈ 71 %) — beides zusammen geht nicht.
+Erwartete Last: 53 % × 44100/32000 ≈ 73 %. Gemessen: **78 % Peak bei 6 von 6
+Stimmen**, Klang stimmt. Die Alternative waere 8 Stimmen bei 32 kHz gewesen
+(≈ 71 %) — beides zusammen geht nicht.
+
+**Zur langen Nachhallzeit von Last und Stimmenzahl:** kein Fehler. Die
+Huellkurvenzeiten der Werkspatches gehen durch `logsc(v, 8, 60000, 900)`,
+also bis 60 Sekunden. "5 AM Pad" hat 45,7 s Release und 60 s Decay auf der
+Amp-Huellkurve; solange haelt eine Stimme, und solange steht die Last. Bei
+sechs Stimmen heisst das: wer mehr als sechs Noten innerhalb einer Release-
+Phase spielt, klaut sich Stimmen. Die Vergabe nimmt dann die leiseste bereits
+losgelassene.
 
 Die Stellschrauben stehen an einer Zeile: `kSampleRate` in
 `src/OB_Instrument.cpp`, `MAX_VOICES` in `include/obxf/ObxfPort.h`.

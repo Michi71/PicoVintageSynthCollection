@@ -242,6 +242,15 @@ Objekt dieses Instruments mehr die Double-Laufzeitbibliothek. Nicht portiert
 sind Modulationsmatrix, Unisono, MPE, Patch-Bänke und Oversampling; 32 Stimmen
 sind sechs geworden.
 
+**Der teuerste Posten war aber keiner davon, sondern der XIP-Cache.**
+`OscillatorBlock::ProcessSample` sind 18 KB Code, die pro Sample sechsmal
+durchlaufen werden - das passt nicht in einen 16 KB grossen Cache. Erst
+`__not_in_flash_func()` auf dieser und `Voice::ProcessSample` brachte den Peak
+von 91 % auf 53 % bei 32 kHz. Die freigewordene Reserve ging in die Samplerate:
+44,1 kHz ist der Auslegungspunkt des Filters (`sqrt(44000 / sampleRate)`) und
+hebt den Cutoff-Deckel von 15,9 auf 22 kHz. Endstand **78 % Peak bei 6 von 6
+Stimmen**, auf der Hardware bestaetigt.
+
 ## 7. Verbliebene Divergenzen
 
 Nach der Zusammenfuehrung von project_config.h, pico_hw.h und pico_hw.cpp in den Kern bleibt Folgendes instrumentspezifisch.
@@ -295,10 +304,12 @@ Diese Defines sind bewusst nicht im Helper vereinheitlicht, sondern je Instrumen
 | PicoFaceJ6 | 104.056 | 19.188 | 0x1053 | 101.644 / 17.688 |
 | PicoFaceMD | 99.168 | 268.624 | 0x1054 | 96.828 / 267.124 |
 | PicoFaceSM | 96.232 | 21.784 | 0x1055 | 91.868 / 20.288 |
-| PicoFaceOB | 128.720 | 42.184 | 0x1056 | - (neu) |
+| PicoFaceOB | 131.724 | 42.248 | 0x1056 | - (neu) |
 
 Gemessen mit `arm-none-eabi-size` (text / bss). PicoFaceOBs RAM sind zu 32 KB
-die sechs Stimmen des OB-Xf-Voice-Objekts, gut 5,3 KB je Stimme.
+die sechs Stimmen des OB-Xf-Voice-Objekts, gut 5,3 KB je Stimme; dazu kommen
+47,6 KB `.data`, weil dort der RAM-residente Renderpfad und die BLEP-Tabellen
+liegen (Abschnitt 6b).
 
 Der Aufschlag gegenueber den Einzelprojekten liegt bei 2 bis 4 KB Flash und rund 940 Byte RAM je Instrument - im Wesentlichen die vtable der Instrument-Schnittstelle und die zusaetzliche Indirektion.
 
@@ -308,8 +319,6 @@ Die Umstellung von YC und CP samt dem Wegfall des zweiten Laufzeitmodells kostet
 
 **Offen:**
 
-1. Hardware-Test des DIN-MIDI (Abschnitt 6a) und von PicoFaceOB. Bei OB ist
-   Menu -> System -> CPU Load der Messpunkt: die Stimmenzahl ist geschaetzt,
-   nicht gemessen. Klanglich ist der Port ebenfalls noch unverifiziert.
+1. Hardware-Test des DIN-MIDI (Abschnitt 6a).
 2. YCs `midi_input_usb.cpp`, die letzte ersetzte Kernquelle neben RDs `veeprom.cpp` (Abschnitt 7).
 
