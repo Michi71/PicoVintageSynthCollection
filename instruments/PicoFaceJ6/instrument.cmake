@@ -19,4 +19,8 @@ picoface_add_instrument(
         src/juno/juno_params.cpp
         src/juno/juno_presets.cpp
     INCLUDE_DIRS include
+
+    DEFINES
+        PICO_USE_SW_SPIN_LOCKS=1
+        TARGET_RP2350=1
 )

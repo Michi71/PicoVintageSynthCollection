@@ -18,7 +18,6 @@ picoface_add_instrument(
         src/mdaEPiano.cpp
         src/presets.cpp
         src/pico_program_select.cpp
-        src/pico_hw.cpp
 
     INCLUDE_DIRS
         include
@@ -28,7 +27,7 @@ picoface_add_instrument(
         ui_panel
         midi_reface
 
-    # Core source superseded by the local variant in src/
-    CORE_EXCLUDE
-        pico_hw.cpp
+    DEFINES
+        PICO_STACK_SIZE=0x1000
+        PICO_CORE1_STACK_SIZE=0x1000
 )

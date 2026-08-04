@@ -42,4 +42,8 @@ picoface_add_instrument(
     # Here an instrument enters the filename of a core source that it
     # replaces with its own variant in src/ (e.g. pico_hw.cpp).
     CORE_EXCLUDE   # MD uses the base core sources unmodified
+
+    DEFINES
+        PICO_USE_SW_SPIN_LOCKS=1
+        TARGET_RP2350=1
 )

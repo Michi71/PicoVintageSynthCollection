@@ -167,13 +167,13 @@ function(picoface_add_instrument)
         PICO_AUDIO_I2S_DATA_PIN=26
         PICO_AUDIO_I2S_CLOCK_PIN_BASE=27
     )
-    if(PICO_PLATFORM STREQUAL "rp2350-arm-s")
-        list(APPEND _defines
-            PICO_USE_SW_SPIN_LOCKS=1
-            PICO_STACK_SIZE=0x1000
-            PICO_CORE1_STACK_SIZE=0x1000
-        )
-    endif()
+    # PICO_USE_SW_SPIN_LOCKS and the enlarged stacks are deliberately NOT set
+    # here. In the original repositories they were per-instrument: YC, J6, MD
+    # and SM used software spin locks, CP and RD did not; YC, CP and RD raised
+    # the stacks, J6, MD and SM did not. Applying them to everything changed
+    # locking primitives and stack layout for instruments that never had them,
+    # which is not something to do untested on a multicore audio build. Each
+    # instrument therefore passes what it used to have via DEFINES.
     list(APPEND _defines
         PICOFACE_INSTRUMENT_NAME=\"${PF_PROGRAM_NAME}\"
         PICOFACE_USB_PID=${PF_USB_PID}

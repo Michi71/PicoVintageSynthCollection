@@ -25,8 +25,10 @@ picoface_add_instrument(
         src/rd_effects.cpp
 
         # replaced core sources
-        src/pico_hw.cpp
         src/veeprom.cpp
+
+        # libstdc++ exception stubs; only RD pulls in std::vector
+        src/rd_cxx_stubs.cpp
 
         # engine
         src/rd_engine/mcu.cpp
@@ -53,6 +55,15 @@ picoface_add_instrument(
         include/rd_engine
 
     CORE_EXCLUDE
-        pico_hw.cpp
         veeprom.cpp
+
+    DEFINES
+    # RD is the only instrument that does not run at 444 MHz. Both values
+    # below must move together; see core/src/pico_hw.cpp.
+        PICO_STACK_SIZE=0x1000
+        PICO_CORE1_STACK_SIZE=0x1000
+        TARGET_RP2350=1
+        RD_CLOCK_504=1
+        PICOFACE_SYS_CLOCK_HZ=480000000
+        PICOFACE_QMI_M0_TIMING_TARGET=PICOFACE_QMI_M0_TIMING_RD
 )

@@ -1,3 +1,8 @@
+// pico_hw.cpp - boot, clock and flash timing for the PicoFace platform.
+//
+// One board for all six instruments. The only per-instrument choice left is
+// the clock target and its matching flash timing (see the two macros below);
+// PicoFaceRD overrides both through DEFINES in its instrument.cmake.
 #pragma GCC optimize("Ofast")
 #include <pico/time.h>
 #include "hardware/clocks.h"
@@ -14,6 +19,20 @@
 #else
 #include <hardware/structs/qmi.h>
 #include <hardware/structs/xip.h>
+#endif
+
+
+// Clock target and the matching flash timing. Five instruments run at 444 MHz
+// with the OC timing; PicoFaceRD sets both to its 480 MHz pair through DEFINES
+// in its instrument.cmake. The two MUST be changed together - the timing encodes
+// a divider of the system clock, so a mismatched pair either runs the flash out
+// of spec or leaves performance on the table.
+#ifndef PICOFACE_SYS_CLOCK_HZ
+#define PICOFACE_SYS_CLOCK_HZ 444000000
+#endif
+
+#ifndef PICOFACE_QMI_M0_TIMING_TARGET
+#define PICOFACE_QMI_M0_TIMING_TARGET PICOFACE_QMI_M0_TIMING_OC
 #endif
 
 uint8_t u8x8_byte_pico_hw_i2c(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
@@ -63,23 +82,17 @@ uint8_t u8x8_gpio_and_delay_pico(u8x8_t *u8x8, uint8_t msg,uint8_t arg_int, void
 
 void pico_init()
 {
-    // Enable FPU flush-to-zero (FZ) + default-NaN (DN) mode. Without this,
-    // any continuously-decaying IIR state in the audio path (operator
-    // feedback low-pass in RDX_Operator::compute(), reverb/delay/chorus
-    // feedback loops) eventually settles into the subnormal float range,
-    // where the Cortex-M33 FPU falls back to a much slower software path --
-    // audible as intermittent hissing/jitter, worse the more voices are
-    // simultaneously decaying (e.g. fast note changes). Flushing denormals
-    // to zero is inaudible (values are already below the noise floor) and
-    // is standard practice for real-time audio DSP.
-    {
-        uint32_t fpscr;
-        __asm__ volatile ("vmrs %0, fpscr" : "=r" (fpscr));
-        fpscr |= (1u << 24) | (1u << 25);
-        __asm__ volatile ("vmsr fpscr, %0" : : "r" (fpscr));
-    }
+    // FPU flush-to-zero + default-NaN for THIS core (see pico_hw.h for the
+    // rationale; core 1 repeats the call at the top of core1_main).
+    pico_fpu_ftz_enable();
 
 #if PICO_RP2350
+    // NOTE: 1.60 V is +45% over the nominal 1.1 V DVDD and above the SDK's
+    // "at your own risk" limit -- it was adopted for the overclock but never
+    // bisected. With hardware at hand: step down (1.50 -> 1.40 -> 1.35) using
+    // a sustained full-polyphony soak with the CPU-load page as pass
+    // criterion, then keep one 50 mV step of margin. Lower voltage means less
+    // die heating and slower aging.
     vreg_disable_voltage_limit();
     vreg_set_voltage(VREG_VOLTAGE_1_60);
     sleep_ms(10);   // switching regulator settles in tens of microseconds
@@ -100,15 +113,14 @@ void pico_init()
     // so keep the slack timing in that case. The symptom is then loud rather
     // than subtle: the synth runs at 150 MHz and the load percentage on the
     // status line goes through the roof.
-    volatile uint32_t *qmi_m0_timing = (uint32_t *)0x400d000c;
-
-    *qmi_m0_timing = PICOFACE_QMI_M0_TIMING_SAFE;
+    qmi_hw->m[0].timing = PICOFACE_QMI_M0_TIMING_SAFE;
     __dsb();
     __isb();
 
-    const bool clockOk = set_sys_clock_hz(444000000, false);
-    *qmi_m0_timing = clockOk ? PICOFACE_QMI_M0_TIMING_OC
-                             : PICOFACE_QMI_M0_TIMING_SAFE;
+    const bool clockOk = set_sys_clock_hz(PICOFACE_SYS_CLOCK_HZ, false);
+    // The SAFE timing stays in place if the target turned out to be unreachable.
+    qmi_hw->m[0].timing = clockOk ? PICOFACE_QMI_M0_TIMING_TARGET
+                                  : PICOFACE_QMI_M0_TIMING_SAFE;
     __dsb();
     __isb();
 #else

@@ -19,4 +19,8 @@ picoface_add_instrument(
         src/solina/solina_phaser.cpp
         src/solina/solina_registers.cpp
     INCLUDE_DIRS include
+
+    DEFINES
+        PICO_USE_SW_SPIN_LOCKS=1
+        TARGET_RP2350=1
 )

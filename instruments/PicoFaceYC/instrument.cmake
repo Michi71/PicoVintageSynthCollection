@@ -21,7 +21,6 @@ picoface_add_instrument(
         src/YC_Controller.cpp
         src/YC_GUI.cpp
         src/YC_Synth_Bridge.cpp
-        src/pico_hw.cpp
         src/midi_input_usb.cpp
         src/pico_frontpanel.cpp
         src/settings.cpp
@@ -42,9 +41,13 @@ picoface_add_instrument(
     # requested modules; without excluding them here the link would fail with
     # duplicate symbols.
     CORE_EXCLUDE
-        pico_hw.cpp
         midi_input_usb.cpp
         pico_frontpanel.cpp
         settings.cpp
         midi_reface.cpp
+
+    DEFINES
+        PICO_USE_SW_SPIN_LOCKS=1
+        PICO_STACK_SIZE=0x1000
+        PICO_CORE1_STACK_SIZE=0x1000
 )

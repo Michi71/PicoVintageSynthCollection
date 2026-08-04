@@ -130,13 +130,13 @@ cmake --build build
 VID bleibt 0x2E8A. Vor der Zusammenfuehrung trugen alle sechs Firmwares dieselbe PID 0x104C, sodass Hosts sie nicht unterscheiden konnten; PicoFaceYC meldete sich zudem faelschlich als "PicoFaceDX". `core/src/usb_descriptors.c` ist jetzt ueber die Compile-Definitions `PICOFACE_INSTRUMENT_NAME` und `PICOFACE_USB_PID` parametriert, wodurch beide Fehler entfallen.
 
 ## 7. Verbliebene Divergenzen
-Nach der Zusammenfuehrung von project_config.h und pico_hw.h in den Kern bleibt Folgendes instrumentspezifisch.
+
+Nach der Zusammenfuehrung von project_config.h, pico_hw.h und pico_hw.cpp in den Kern bleibt Folgendes instrumentspezifisch.
 
 **Ersetzte Kernquellen**
 
 | Datei | Instrumente |
 |---|---|
-| pico_hw.cpp | PicoFaceYC, PicoFaceCP, PicoFaceRD |
 | midi_input_usb.cpp | PicoFaceYC |
 | veeprom.cpp | PicoFaceRD |
 | pico_frontpanel.cpp, settings.cpp, midi_reface.cpp | PicoFaceYC |
@@ -148,9 +148,21 @@ Nach der Zusammenfuehrung von project_config.h und pico_hw.h in den Kern bleibt 
 | midi_reface.h, pico_frontpanel.h, pico_userinterface.h, settings.h | PicoFaceYC |
 | veeprom.h | PicoFaceCP |
 
-Die drei pico_hw.cpp-Varianten unterscheiden sich im Zieltakt - PicoFaceRD faehrt 480 MHz, die uebrigen 444 MHz - und in Details der Takt- und Flash-Initialisierung. Das ist eine Software-Entscheidung je Instrument, keine Hardware-Differenz. Die YC-Gruppe ersetzt zusaetzlich Teile des ui_panel-Moduls, weil ihre Menue-Variante von der des CP-Spenders abweicht.
+### Per-Instrument-Defines
 
-`tools/migrate.sh` meldet solche Dateien beim Lauf mit `DIVERGENT, kept locally`; byteidentische Dateien entfernt es automatisch, und project_config.h, pico_hw.h sowie usb_descriptors.c entfernt es unbedingt, weil die Kern-Fassung massgeblich ist.
+Was frueher als eigene pico_hw.cpp vorlag, ist jetzt eine Handvoll Compile-Definitions in der jeweiligen instrument.cmake.
+
+| Define | Instrumente | Wirkung |
+|---|---|---|
+| PICO_USE_SW_SPIN_LOCKS=1 | YC, J6, MD, SM | Software-Spinlocks statt Hardware |
+| PICO_STACK_SIZE, PICO_CORE1_STACK_SIZE = 0x1000 | YC, CP, RD | Stacks in die Scratch-Baenke |
+| TARGET_RP2350=1 | RD, J6, MD, SM | wirkungslos, da das SDK ohnehin PICO_BUILD definiert; nur der Vollstaendigkeit halber uebernommen |
+| RD_CLOCK_504=1 | RD | schaltet den 480-MHz-Zweig frei |
+| PICOFACE_SYS_CLOCK_HZ, PICOFACE_QMI_M0_TIMING_TARGET | RD | Taktziel und passendes Flash-Timing; muessen zusammen geaendert werden |
+
+Diese Defines sind bewusst nicht im Helper vereinheitlicht, sondern je Instrument gesetzt wie in den Ursprungsprojekten. Spinlock-Implementierung und Stack-Layout eines Multicore-Audiobuilds ohne Geraet umzustellen waere leichtfertig.
+
+`tools/migrate.sh` meldet abweichende Dateien mit `DIVERGENT, kept locally`; project_config.h, pico_hw.h und usb_descriptors.c entfernt es unbedingt, weil die Kern-Fassung massgeblich ist.
 
 ## 8. Offene Arbeit
 **Erledigt:**
@@ -161,15 +173,15 @@ Die drei pico_hw.cpp-Varianten unterscheiden sich im Zieltakt - PicoFaceRD faehr
 - Alle sechs bauen aus einem gemeinsamen Configure-Lauf und tragen je eine eigene USB-PID.
 
 | Instrument | Flash | RAM | PID | Original (Flash/RAM) |
-| --- | --- | --- | --- | --- |
+|---|---|---|---|---|
 | PicoFaceYC | 135.332 | 46.708 | 0x1050 | 130.408 / 44.780 |
-| PicoFaceCP | 4.435.156 | 177.028 | 0x1051 | 4.431.112 / 175.612 |
-| PicoFaceRD | 5.308.352 | 34.852 | 0x1052 | 5.312.968 / 33.928 |
-| PicoFaceJ6 | 105.424 | 20.676 | 0x1053 | 101.644 / 17.688 |
-| PicoFaceMD | 100.544 | 270.112 | 0x1054 | 96.828 / 267.124 |
-| PicoFaceSM | 97.720 | 23.272 | 0x1055 | 91.868 / 20.288 |
+| PicoFaceCP | 4.435.212 | 177.028 | 0x1051 | 4.431.112 / 175.612 |
+| PicoFaceRD | 5.316.592 | 34.852 | 0x1052 | 5.312.968 / 33.928 |
+| PicoFaceJ6 | 103.376 | 18.628 | 0x1053 | 101.644 / 17.688 |
+| PicoFaceMD | 98.496 | 268.064 | 0x1054 | 96.828 / 267.124 |
+| PicoFaceSM | 95.672 | 21.224 | 0x1055 | 91.868 / 20.288 |
 
-Der Aufschlag liegt bei 3 bis 6 KB Flash und rund 3 KB RAM je Instrument; PicoFaceRD ist rund 5 KB kleiner, weil sein frueherer rd_main.cpp entfaellt.
+Der Aufschlag gegenueber den Einzelprojekten liegt bei 2 bis 4 KB Flash und rund 940 Byte RAM je Instrument - im Wesentlichen die vtable der Instrument-Schnittstelle und die zusaetzliche Indirektion.
 
 **Besonderheiten von PicoFaceRD:** RD nutzt core1 als RAM-residenten Voice-Worker und wechselt die Samplerate zur Laufzeit zwischen 20 und 32 kHz. Beides laeuft ueber die optionalen Hooks: `consumeSampleRateChange` laesst den Kern die Hardware-Rate erst umschalten, wenn die bereits in der DMA-Pipeline liegenden Puffer abgelaufen sind; `onAudioUnderrun` loest den Voice-Governor aus; `settingsSaveAllowed` verhindert einen Flash-Schreibvorgang, solange Stimmen klingen. Fuer die uebrigen Instrumente sind die Defaults dieser Hooks wirkungslos.
 
