@@ -1,6 +1,6 @@
 # Ein neues Instrument hinzufuegen
 
-Beispiel ist ein fiktives PicoFaceXX. Es sind genau vier Schritte noetig; am Build-System muss nichts geaendert werden.
+Beispiel ist ein fiktives PicoFaceXX. Es sind genau drei Schritte noetig; am Build-System muss nichts geaendert werden.
 
 ## Schritt 1: Verzeichnis anlegen
 
@@ -10,11 +10,9 @@ mkdir -p instruments/PicoFaceXX/{src,include}
 
 Hinweis: Der Verzeichnisname ist zugleich der Target- und Binaryname.
 
-## Schritt 2: project_config.h anlegen
+Eine eigene `project_config.h` braucht das Instrument nicht. Pin-Belegung und Flash-Timing gelten fuer die ganze Plattform und liegen in `core/include/project_config.h`; dasselbe gilt fuer `core/include/pico_hw.h`. Nur wenn ein Instrument tatsaechlich abweichende Hardware voraussetzt, legt es eine eigene Fassung in seinem include-Verzeichnis ab - die gewinnt dann per Include-Reihenfolge.
 
-`instruments/PicoFaceXX/include/project_config.h` enthaelt die Pin-Map und das QMI-Flash-Timing dieses Instruments. Am einfachsten von einem bestehenden Instrument kopieren und anpassen. Dieser Header wird von den Kernquellen inkludiert; weil das Instrument-Include-Verzeichnis vor `core/include` steht, gewinnt diese Datei.
-
-## Schritt 3: Adapter implementieren
+## Schritt 2: Adapter implementieren
 
 `instruments/PicoFaceXX/src/XX_Instrument.cpp`
 
@@ -40,7 +38,7 @@ Hinweis: `name()`, `init()`, `sampleRate()`, `render()`, `noteOn()` und `noteOff
 
 Als vollstaendiges Beispiel dient `instruments/PicoFaceMD/src/MD_Instrument.cpp`. Dort ist zu sehen, wie eine bestehende Engine samt Controller, Display und MIDI-Frontend angebunden wird, wie `render()` zuerst den IPC-Ring leert und wie die Persistenz ueber `settingsVersion()`, `settingsSize()`, `settingsSave()` und `settingsLoad()` laeuft.
 
-## Schritt 4: instrument.cmake anlegen
+## Schritt 3: instrument.cmake anlegen
 
 `instruments/PicoFaceXX/instrument.cmake`
 

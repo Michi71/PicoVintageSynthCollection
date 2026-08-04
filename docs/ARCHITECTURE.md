@@ -44,12 +44,18 @@ docs/
     └── build.yml
 ```
 
-## 3. Zentrale Entwurfsentscheidung: der Kern ist keine Bibliothek
-project_config.h (Pin-Map, QMI-Flash-Timing) ist pro Instrument verschieden und wird von Kernquellen (pico_hw.cpp, veeprom.cpp, midi_input_usb.h) inkludiert. Eine vorgebaute STATIC-Library liesse sich nicht pro Instrument gegen ein anderes project_config.h uebersetzen. Deshalb veroeffentlicht core/CMakeLists.txt nur Listen absoluter Quellpfade; jedes Instrument-Target uebersetzt sie selbst.
-Konsequenz: Include-Reihenfolge ist instruments/<NAME>/include VOR core/include - so gewinnt immer die instrumenteigene Variante eines Headers.
-Gegenbeispiel: lib/audio, lib/encoder und lib/u8g2 bleiben STATIC, werden also nur einmal gebaut und von allen sechs Targets geteilt.
+## 3. Eine Hardwareplattform, sechs Instrumente
+Die Platine ist fuer alle sechs Instrumente dieselbe. Pin-Belegung und Flash-Timing liegen deshalb im Kern: `core/include/project_config.h` und `core/include/pico_hw.h`. In den sechs Ursprungs-Repositories war jede einzelne Pin-Definition bereits identisch; die Dateien unterschieden sich nur in Kommentaren, in einer zusaetzlichen QMI-Timing-Konstante fuer PicoFaceRD und in einem inline-Helfer. Die Kern-Fassungen sind die Vereinigung aller Varianten.
 
-**Anmerkung zur Audio-Bibliothek:** lib/audio/src/audio_subsystem.cpp inkludierte urspruenglich project_config.h und las daraus PIN_I2S_DOUT und PIN_I2S_BCK. In den Altprojekten fiel das nicht auf, weil ein globales include_directories() den Instrument-Include-Pfad in jedes Target leakte; im Monorepo mit target-lokalen Include-Pfaden brach der Build daran. Da beide Pins in allen sechs Instrumenten identisch sind (26 und 27), nutzt die Bibliothek jetzt die Standardmakros PICO_AUDIO_I2S_DATA_PIN und PICO_AUDIO_I2S_CLOCK_PIN_BASE mit ebendiesen Defaults und kennt die Instrument-Konfiguration nicht mehr.
+### Warum der Kern trotzdem keine Bibliothek ist
+
+Der Kern veroeffentlicht weiterhin Listen absoluter Quellpfade statt einer STATIC-Library, jetzt aber aus zwei anderen Gruenden. Erstens ist `core/src/usb_descriptors.c` ueber die Compile-Definitions PICOFACE_INSTRUMENT_NAME und PICOFACE_USB_PID parametriert, die pro Target verschieden sind; die Datei muss also je Target uebersetzt werden. Zweitens ersetzen einzelne Instrumente Kernquellen durch eigene Varianten, und aus einer fertig gebauten Bibliothek laesst sich kein Member pro Target austauschen.
+
+Daraus folgt weiterhin die Include-Reihenfolge `instruments/<NAME>/include` vor `core/include`, damit eine instrumenteigene Variante eines Headers gewinnt. Nach der Zusammenfuehrung betrifft das nur noch fuenf Header (siehe Abschnitt 7).
+
+Gegenbeispiel: lib/audio, lib/encoder und lib/u8g2 bleiben STATIC und werden einmal fuer alle sechs Targets gebaut.
+
+**Anmerkung zur Audio-Bibliothek:** lib/audio/src/audio_subsystem.cpp inkludierte urspruenglich project_config.h und las daraus PIN_I2S_DOUT und PIN_I2S_BCK. In den Altprojekten fiel das nicht auf, weil ein globales include_directories() den Instrument-Include-Pfad in jedes Target leakte. Die Bibliothek nutzt jetzt die Standardmakros PICO_AUDIO_I2S_DATA_PIN und PICO_AUDIO_I2S_CLOCK_PIN_BASE und kennt die Instrument-Konfiguration nicht mehr.
 
 ## 4. Der Andock-Contract
 picoface::Instrument in core/include/picoface/instrument.h ist die einzige Schnittstelle zwischen Kern und Instrument.
@@ -124,17 +130,27 @@ cmake --build build
 VID bleibt 0x2E8A. Vor der Zusammenfuehrung trugen alle sechs Firmwares dieselbe PID 0x104C, sodass Hosts sie nicht unterscheiden konnten; PicoFaceYC meldete sich zudem faelschlich als "PicoFaceDX". `core/src/usb_descriptors.c` ist jetzt ueber die Compile-Definitions `PICOFACE_INSTRUMENT_NAME` und `PICOFACE_USB_PID` parametriert, wodurch beide Fehler entfallen.
 
 ## 7. Verbliebene Divergenzen
-Stand der Migration:
+Nach der Zusammenfuehrung von project_config.h und pico_hw.h in den Kern bleibt Folgendes instrumentspezifisch.
 
-| Datei | betroffene Instrumente |
+**Ersetzte Kernquellen**
+
+| Datei | Instrumente |
 |---|---|
 | pico_hw.cpp | PicoFaceYC, PicoFaceCP, PicoFaceRD |
 | midi_input_usb.cpp | PicoFaceYC |
 | veeprom.cpp | PicoFaceRD |
-| veeprom.h | PicoFaceCP |
-| pico_hw.h | alle (jeweils eigene Variante) |
+| pico_frontpanel.cpp, settings.cpp, midi_reface.cpp | PicoFaceYC |
 
-Jede dieser Divergenzen ist ein Kandidat fuer eine spaetere Rueckfuehrung in den Kern. `tools/migrate.sh` meldet solche Dateien beim Lauf mit `DIVERGENT, kept locally`; byteidentische Dateien entfernt es automatisch.
+**Verdeckte Header**
+
+| Datei | Instrument |
+|---|---|
+| midi_reface.h, pico_frontpanel.h, pico_userinterface.h, settings.h | PicoFaceYC |
+| veeprom.h | PicoFaceCP |
+
+Die drei pico_hw.cpp-Varianten unterscheiden sich im Zieltakt - PicoFaceRD faehrt 480 MHz, die uebrigen 444 MHz - und in Details der Takt- und Flash-Initialisierung. Das ist eine Software-Entscheidung je Instrument, keine Hardware-Differenz. Die YC-Gruppe ersetzt zusaetzlich Teile des ui_panel-Moduls, weil ihre Menue-Variante von der des CP-Spenders abweicht.
+
+`tools/migrate.sh` meldet solche Dateien beim Lauf mit `DIVERGENT, kept locally`; byteidentische Dateien entfernt es automatisch, und project_config.h, pico_hw.h sowie usb_descriptors.c entfernt es unbedingt, weil die Kern-Fassung massgeblich ist.
 
 ## 8. Offene Arbeit
 **Erledigt:**

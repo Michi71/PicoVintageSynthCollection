@@ -141,6 +141,20 @@ for inst in "${INSTRUMENTS[@]}"; do
     fi
   done
 
+  # The hardware is identical on all six boards, so project_config.h (pin map,
+  # flash timing) and pico_hw.h now live in core/include. The versions in the
+  # old repositories differed only in comments plus one extra timing constant
+  # and one inline helper; the core copies are the hand-merged union of all
+  # variants and are authoritative. Remove the per-instrument copies
+  # unconditionally - a byte comparison would keep them, because the comments
+  # differ.
+  for hdr in project_config.h pico_hw.h; do
+    if [[ -f "$DEST/instruments/$inst/include/$hdr" ]]; then
+      rm "$DEST/instruments/$inst/include/$hdr"
+      echo "    superseded by core/include/$hdr, removed: $inst/include/$hdr"
+    fi
+  done
+
   # Per-instrument usb_descriptors.c is obsolete (core version is parameterised
   # via PICOFACE_INSTRUMENT_NAME / PICOFACE_USB_PID); remove unconditionally.
   if [[ -f "$DEST/instruments/$inst/src/usb_descriptors.c" ]]; then

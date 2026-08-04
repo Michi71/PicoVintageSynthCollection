@@ -1,3 +1,9 @@
+// project_config.h - the PicoFace hardware platform.
+//
+// One board for all six instruments: pin map and flash timing live here in
+// the core, not per instrument. Every pin below was already identical in all
+// six original repositories; only comments and one extra timing constant
+// differed, which is why this used to be copied six times.
 #ifndef __PROJECT_CONFIG_H__
 #define __PROJECT_CONFIG_H__
 
@@ -40,7 +46,7 @@
 //   CLKDIV  [7:0]   flash clock = clk_sys / CLKDIV
 //   RXDELAY [10:8]  read data sample point, in clk_sys cycles
 // The upper bits (COOLDOWN=1, PAGEBREAK=2, MIN_DESELECT=7) are identical in
-// both values below; only CLKDIV and RXDELAY differ.
+// all three values below; only CLKDIV and RXDELAY differ.
 
 // Set BEFORE the clk_sys change, and left in place if the change fails.
 // CLKDIV=8, RXDELAY=2 -- deliberately slack, because this is the timing the
@@ -64,5 +70,15 @@
 // restore in veeprom.cpp -- these MUST match or the device runs with
 // wrong flash timing after the first settings save.
 #define PICOFACE_QMI_M0_TIMING_OC 0x60007303u
+
+// 480 MHz target: CLKDIV=4, RXDELAY=3 -> 120 MHz flash, within spec. Used by
+// PicoFaceRD, whose engine needs the higher core clock; the other five run at
+// 444 MHz and use the OC value above. Same single-source-of-truth rule: boot
+// (pico_hw.cpp) and the post-flash-write restore in veeprom.cpp must agree.
+#define PICOFACE_QMI_M0_TIMING_RD 0x60007304u
+
+// Which of the two target values an instrument uses is a software decision in
+// its pico_hw.cpp, not a hardware difference - the board is identical for all
+// six.
 
 #endif // __PROJECT_CONFIG_H__
