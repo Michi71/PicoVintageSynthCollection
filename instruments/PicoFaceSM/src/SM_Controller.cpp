@@ -3,6 +3,8 @@
 */
 
 #include "SM_Controller.h"
+#include "sm_cc_map.h"
+#include "midi_serial.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -116,6 +118,19 @@ void SM_Controller::sendParam(int id, float v)
     uint16_t q = (uint16_t) (v * 1000.0f + 0.5f);
     if (q > 1000) q = 1000;
     ipc_send_param((uint8_t) id, q);
+
+    /* Mirror the edit as a Control Change, the way the reface instruments do.
+       Only the encoder path reaches this function - importSettings() calls
+       ipc_send_param() directly - so a restore at boot stays silent and this
+       cannot loop back on itself. */
+    if (id < 0 || id >= SOLINA_PARAM_COUNT) return;
+
+    const uint8_t cc = kSolinaCc[id];
+    if (cc == SM_CC_NONE) return;
+
+    /* Omni is a receive setting; transmit falls back to channel 1 */
+    const uint8_t txCh = (midiCh_ == SM_MIDI_OMNI) ? 0 : midiCh_;
+    midiSerial().sendControlChange(txCh, cc, (uint8_t)((q * 127 + 500) / 1000));
 }
 
 void SM_Controller::adjust(int slot, int delta)

@@ -162,9 +162,47 @@ Der Parser beherrscht Running Status, SysEx bis 256 Byte und laesst Realtime-Byt
 |---|---|
 | YC, CP | Panel-Aenderungen als CC und SysEx-Antworten; laeuft ueber RefaceMidi::txBytes(), das jetzt zusaetzlich auf den UART schreibt |
 | MD, J6 | Panel-Aenderungen als CC aus der Parametertabelle; jeder Eintrag traegt seine CC-Nummer, 0xFF bedeutet keine |
-| SM, RD | bisher nichts - siehe Abschnitt 8 |
+| SM, RD | Panel-Aenderungen als CC aus einer eigens festgelegten Tabelle, siehe unten |
 
 Gesendet wird nur aus dem Encoder-Pfad. Ein Wert, der ueber MIDI hereinkam, landet in onMidiParam() und nimmt diesen Weg nicht, sodass keine Rueckkopplung entstehen kann. Als Sendekanal dient der Empfangskanal; steht dieser auf Omni, faellt der Sendekanal auf Kanal 1 zurueck.
+
+### CC-Belegung fuer PicoFaceSM und PicoFaceRD
+
+Anders als MD und J6 brachten diese beiden keine Parameter-zu-CC-Zuordnung mit: die Solina ist im Original rein elektromechanisch, und der RD beantwortet nur Sustain und ein paar Mode-Messages. Die folgenden Tabellen sind deshalb eine Festlegung dieses Projekts. Sie liegen in `instruments/PicoFaceSM/include/sm_cc_map.h` und `instruments/PicoFaceRD/include/rd_cc_map.h` und gelten fuer **beide** Richtungen - Senden und Empfangen greifen auf dieselbe Tabelle zu und koennen daher nicht auseinanderlaufen.
+
+Leitlinien: Standard-Controller dort, wo die Funktion wirklich passt (72 Release, 73 Attack, 74 Brightness); der General-MIDI-Effektblock fuer die Modulationssektionen (92 Tremolo, 93 Chorus, 94 Detune, 95 Phaser); alles Uebrige aus dem undefinierten Bereich. CC 7, 64 und 120/121/123 bleiben bewusst frei - die verarbeiten die Engines bereits auf eigenem Weg, ein zweiter Pfad zum selben Wert waere mehrdeutig.
+
+**PicoFaceRD**
+
+| CC | Parameter | | CC | Parameter |
+|---|---|---|---|---|
+| 92 | Tremolo an | | 105 | Tremolo Depth |
+| 93 | Chorus an | | 106 | Bass |
+| 94 | Master Tune | | 107 | Treble |
+| 95 | Phaser an | | 108 | Volume |
+| 102 | Chorus Rate | | 109 | DAC-Filter an |
+| 103 | Chorus Depth | | 110 | Phaser Rate |
+| 104 | Tremolo Rate | | 111 | Phaser Depth |
+
+Voice Mode bleibt ohne CC: der Wert ist eine Aufzaehlung, keine 0..127-Groesse.
+
+**PicoFaceSM**
+
+| CC | Parameter | | CC | Parameter |
+|---|---|---|---|---|
+| 3 | Shaper | | 108 | Bass Volume |
+| 72 | Sustain (Release) | | 109 | Volume |
+| 73 | Crescendo (Attack) | | 110 | Tremolo Rate |
+| 74 | Tone Lowpass | | 111 | Chorus Rate |
+| 92 | Tremolo Depth | | 112 | Chorus Depth |
+| 93 | Ensemble | | 113 | Ensemble Tone |
+| 94 | Tune | | 114 | Ensemble Width |
+| 95 | Phaser | | 115 | Phaser Rate |
+| 102..107 | Register Contrabass, Cello, Viola, Violin, Trumpet, Horn | | 116 | Phaser Color |
+| | | | 117 | Tone Highpass |
+| | | | 118 | Tone Shelf |
+| | | | 119 | Formant |
+
 
 ## 7. Verbliebene Divergenzen
 
@@ -227,4 +265,4 @@ Der Aufschlag gegenueber den Einzelprojekten liegt bei 2 bis 4 KB Flash und rund
 
 1. Umstellung der Frontpanel-Menues von PicoFaceYC und PicoFaceCP auf den InputState, damit auch sie das Standardmodell nutzen.
 2. Rueckfuehrung der Divergenzen aus Abschnitt 7 in den Kern.
-3. CC-Belegung fuer PicoFaceSM und PicoFaceRD festlegen, damit auch sie Panel-Aenderungen senden. Beide haben heute keine Parameter-zu-CC-Tabelle: die Solina-Engine nimmt nur fuenf Standard-CCs entgegen, RD nur CC 64, 92 und 93. Das ist eine Festlegung, keine Portierung, und betrifft auch den Empfang.
+

@@ -1,4 +1,6 @@
 #include "RD_Controller.h"
+#include "rd_cc_map.h"
+#include "midi_serial.h"
 
 // RD_Controller shadow array holds UI units:
 //   - continuous params: percent 0..100
@@ -50,8 +52,22 @@ static uint8_t toWire(uint8_t id, uint8_t v) {
 }
 
 // Send a shadow UI value to the engine, converting to wire format.
+// Transmit channel for the panel mirror, kept in step with midiCh_.
+static uint8_t s_txChannel = 0;
+
 static void sendParam(uint8_t id, uint8_t uiVal) {
     ipc_send_dx_param(id, toWire(id, uiVal));
+
+    // Mirror the edit as a Control Change, the way the reface instruments do.
+    // Only the encoder handlers reach this function; importSettings() sends
+    // directly, so a restore at boot stays silent.
+    if (id >= RD_PARAM_COUNT) return;
+    const uint8_t cc = kRdCc[id];
+    if (cc == RD_CC_NONE) return;
+    // UI units are percent 0..100 for continuous params, 0/1 for toggles.
+    const uint8_t val = isToggleParam(id) ? (uiVal ? 127 : 0)
+                                          : (uint8_t)(((int)uiVal * 127 + 50) / 100);
+    midiSerial().sendControlChange(s_txChannel, cc, val);
 }
 
 // Page name table.
@@ -214,6 +230,8 @@ void RD_Controller::onEncoder3(int delta) {
             if (v > 16) v = 16;
             midiCh_ = (uint8_t)v;
             midi_.setRxChannel(midiCh_); // 0..15, 0x10 = Omni
+            // Omni is a receive setting; transmit falls back to channel 1.
+            s_txChannel = (midiCh_ == RD_MIDI_OMNI) ? 0 : midiCh_;
             break;
         }
         default:
@@ -306,6 +324,10 @@ void RD_Controller::exportSettings(RdSettingsV1& s) const
     s.masterTune  = masterTune_;
 }
 
+// NOTE: this deliberately bypasses sendParam(). That helper mirrors every
+// value as a Control Change, which is right for a panel edit but wrong for
+// a restore at boot - it would blast the whole parameter set down the DIN
+// socket. The other three instruments already restore this way.
 void RD_Controller::importSettings(const RdSettingsV1& s)
 {
     // Defensive clamping -- a corrupted/foreign record must never escape.
@@ -334,23 +356,24 @@ void RD_Controller::importSettings(const RdSettingsV1& s)
     // Push the full restored state to the engine.
     ipc_send_dx_param(RD_PARAM_INSTRUMENT, instrument_);
 
-    sendParam(RD_PARAM_VOLUME,        shadow_[RD_PARAM_VOLUME]);
-    sendParam(RD_PARAM_CHORUS_RATE,   shadow_[RD_PARAM_CHORUS_RATE]);
-    sendParam(RD_PARAM_CHORUS_DEPTH,  shadow_[RD_PARAM_CHORUS_DEPTH]);
-    sendParam(RD_PARAM_TREM_RATE,     shadow_[RD_PARAM_TREM_RATE]);
-    sendParam(RD_PARAM_TREM_DEPTH,    shadow_[RD_PARAM_TREM_DEPTH]);
-    sendParam(RD_PARAM_BASS,          shadow_[RD_PARAM_BASS]);
-    sendParam(RD_PARAM_TREBLE,        shadow_[RD_PARAM_TREBLE]);
-    sendParam(RD_PARAM_PHASER_RATE,   shadow_[RD_PARAM_PHASER_RATE]);
-    sendParam(RD_PARAM_PHASER_DEPTH,  shadow_[RD_PARAM_PHASER_DEPTH]);
+    ipc_send_dx_param(RD_PARAM_VOLUME,        toWire(RD_PARAM_VOLUME, shadow_[RD_PARAM_VOLUME]));
+    ipc_send_dx_param(RD_PARAM_CHORUS_RATE,   toWire(RD_PARAM_CHORUS_RATE, shadow_[RD_PARAM_CHORUS_RATE]));
+    ipc_send_dx_param(RD_PARAM_CHORUS_DEPTH,  toWire(RD_PARAM_CHORUS_DEPTH, shadow_[RD_PARAM_CHORUS_DEPTH]));
+    ipc_send_dx_param(RD_PARAM_TREM_RATE,     toWire(RD_PARAM_TREM_RATE, shadow_[RD_PARAM_TREM_RATE]));
+    ipc_send_dx_param(RD_PARAM_TREM_DEPTH,    toWire(RD_PARAM_TREM_DEPTH, shadow_[RD_PARAM_TREM_DEPTH]));
+    ipc_send_dx_param(RD_PARAM_BASS,          toWire(RD_PARAM_BASS, shadow_[RD_PARAM_BASS]));
+    ipc_send_dx_param(RD_PARAM_TREBLE,        toWire(RD_PARAM_TREBLE, shadow_[RD_PARAM_TREBLE]));
+    ipc_send_dx_param(RD_PARAM_PHASER_RATE,   toWire(RD_PARAM_PHASER_RATE, shadow_[RD_PARAM_PHASER_RATE]));
+    ipc_send_dx_param(RD_PARAM_PHASER_DEPTH,  toWire(RD_PARAM_PHASER_DEPTH, shadow_[RD_PARAM_PHASER_DEPTH]));
 
-    sendParam(RD_PARAM_CHORUS_ON,     shadow_[RD_PARAM_CHORUS_ON]);
-    sendParam(RD_PARAM_TREM_ON,       shadow_[RD_PARAM_TREM_ON]);
-    sendParam(RD_PARAM_PHASER_ON,     shadow_[RD_PARAM_PHASER_ON]);
-    sendParam(RD_PARAM_DAC_FILTER_ON, shadow_[RD_PARAM_DAC_FILTER_ON]);
+    ipc_send_dx_param(RD_PARAM_CHORUS_ON,     toWire(RD_PARAM_CHORUS_ON, shadow_[RD_PARAM_CHORUS_ON]));
+    ipc_send_dx_param(RD_PARAM_TREM_ON,       toWire(RD_PARAM_TREM_ON, shadow_[RD_PARAM_TREM_ON]));
+    ipc_send_dx_param(RD_PARAM_PHASER_ON,     toWire(RD_PARAM_PHASER_ON, shadow_[RD_PARAM_PHASER_ON]));
+    ipc_send_dx_param(RD_PARAM_DAC_FILTER_ON, toWire(RD_PARAM_DAC_FILTER_ON, shadow_[RD_PARAM_DAC_FILTER_ON]));
 
     ipc_send_dx_param(RD_PARAM_VOICE_MODE,   voiceMode_);
     ipc_send_dx_param(RD_PARAM_MASTER_TUNE,  (uint16_t)(masterTune_ + 50));
 
     midi_.setRxChannel(midiCh_);
+    s_txChannel = (midiCh_ == RD_MIDI_OMNI) ? 0 : midiCh_;
 }

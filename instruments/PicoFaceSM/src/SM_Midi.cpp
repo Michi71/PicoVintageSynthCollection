@@ -28,6 +28,7 @@
 // =====================================================================
 
 #include "SM_Midi.h"
+#include "sm_cc_map.h"
 #include "sm_ipc.h"
 #include "solina/solina.h"
 
@@ -103,6 +104,18 @@ void SM_Midi::onControlChange(uint8_t cc, uint8_t val, uint8_t ch)
 
         default:
             break;
+    }
+
+    /* Panel parameters: the same table the front panel sends through, so the
+       assignment can never drift apart between the two directions. Checked
+       last, after the standard controllers above. */
+    const int pid = solinaParamForCc(cc);
+    if (pid >= 0) {
+        const uint16_t perMille = (uint16_t)(((int)val * 1000 + 63) / 127);
+        ipc_send_param((uint8_t) pid, perMille);
+        /* No UI mirror here: unlike MD and J6 the Solina front end has no
+           sink, so the display keeps showing the encoder value until the
+           page is left. Same behaviour as the standard controllers above. */
     }
 }
 

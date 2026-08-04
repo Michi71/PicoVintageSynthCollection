@@ -24,6 +24,7 @@
 // =====================================================================
 
 #include "RD_Midi.h"
+#include "rd_cc_map.h"
 #include "rd_ipc_local.h"
 #include "rd_params.h"
 
@@ -100,9 +101,26 @@ void RD_Midi::onControlChange(uint8_t cc, uint8_t val, uint8_t ch) {
             ipc_send_dx_cc(cc, val);
             break;
 
-        default:
-            // Unrecognized controllers are ignored.
+        default: {
+            // Panel parameters: the same table the front panel sends through,
+            // so the assignment can never drift apart between the two
+            // directions. The explicit cases above win, so the three switches
+            // keep their dedicated handling.
+            const int pid = rdParamForCc(cc);
+            if (pid >= 0) {
+                // Engine wire format is 0..255; toggles are 0 or 255, with the
+                // usual 0..63 OFF / 64..127 ON split.
+                const bool isToggle = (pid == RD_PARAM_CHORUS_ON ||
+                                       pid == RD_PARAM_TREM_ON ||
+                                       pid == RD_PARAM_PHASER_ON ||
+                                       pid == RD_PARAM_DAC_FILTER_ON);
+                const uint8_t wire = isToggle
+                                     ? (val >= 64 ? 255 : 0)
+                                     : (uint8_t)(((int)val * 255 + 63) / 127);
+                ipc_send_dx_param((uint8_t) pid, wire);
+            }
             break;
+        }
     }
 }
 
