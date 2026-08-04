@@ -1,0 +1,41 @@
+# Host tools
+
+Nothing in here is part of a firmware image. These are the host-side tools that
+produced data now baked into the instruments, plus the regression harness for
+PicoFaceRD. They are kept because the generated data is only auditable if the
+generator is around.
+
+Unless stated otherwise, run them from the repository root.
+
+| Tool | Instrument | What it does |
+|---|---|---|
+| [`migrate.sh`](migrate.sh) | - | one-time population of this monorepo from the original single-instrument repositories. Read the header before running it: PicoFaceDX is deliberately not in its list. |
+| [`yc_gen_luts/gen_luts.cpp`](yc_gen_luts/gen_luts.cpp) | YC | generates the drawbar wavetables and the sine LUT for `yc_engine`. Prints C++ to stdout, which is pasted into `yc_lut_data.h` / `yc_sine_lut.h`. |
+| [`dx_syx_to_patches/syx_to_patches.cpp`](dx_syx_to_patches/syx_to_patches.cpp) | DX | converts the 32 reface DX factory-bank `.syx` bulk dumps into the static table in `instruments/PicoFaceDX/src/presets.cpp`. Needs the `.syx` files, which are not part of this repository. |
+| [`rd_extract/`](rd_extract/README.md) | RD | the extraction and verification toolchain of the RD port: register capture from the reference emulator, sample-ROM dumps, `.rdp` pack building, A/B comparison and the stuck-voice stress test. `run_regression.sh` runs the whole matrix and prints one PASS/FAIL. |
+| [`rd_midi/`](rd_midi/) | RD | test MIDI files plus `midi_keyboard_only.py`, which strips a Standard MIDI File down to pure keyboard performance (notes, pedal, bend) so a capture is not polluted by controller traffic. |
+| [`host_tests/`](host_tests/README.md) | YC, CP, J6, MD, SM, core | host builds of the engines - CoreAudio plus PortMidi for the four that make sound, plus the veeprom unit test and the J6 panel harness, which need nothing at all. |
+
+## Build
+
+The C++ tools are single-file, C++17, no dependencies beyond the instrument's
+own headers:
+
+```bash
+c++ -O2 -std=c++17 -o gen_luts tools/yc_gen_luts/gen_luts.cpp
+c++ -O2 -std=c++17 -Iinstruments/PicoFaceDX/include -o syx_to_patches tools/dx_syx_to_patches/syx_to_patches.cpp
+```
+
+The RD tools link against several engine translation units; the command lines
+are in [`rd_extract/README.md`](rd_extract/README.md), and
+`rd_extract/run_regression.sh` builds what it needs itself.
+
+## What is not here
+
+The original repositories also carried complete third-party projects under
+`tools/`: OpenB3/Beatrix (GPL, JUCE), which the YC drawbar engine is derived
+from, and the reface DX reference implementation the FM engine was ported from.
+They are not vendored here - this repository is MIT except for
+`instruments/PicoFaceOB/`, and pulling GPL sources in for reference would blur
+exactly the line that instrument's README draws so carefully. Each instrument's
+README names where its engine came from and links the upstream project.

@@ -1,18 +1,18 @@
-# Ein neues Instrument hinzufuegen
+# Adding a new instrument
 
-Beispiel ist ein fiktives PicoFaceXX. Es sind genau drei Schritte noetig; am Build-System muss nichts geaendert werden.
+The example is a fictional PicoFaceXX. Exactly three steps are needed; nothing in the build system has to change.
 
-## Schritt 1: Verzeichnis anlegen
+## Step 1: create the directory
 
 ```bash
 mkdir -p instruments/PicoFaceXX/{src,include}
 ```
 
-Hinweis: Der Verzeichnisname ist zugleich der Target- und Binaryname.
+Note: the directory name is also the target and binary name.
 
-Eine eigene `project_config.h` braucht das Instrument nicht. Pin-Belegung und Flash-Timing gelten fuer die ganze Plattform und liegen in `core/include/project_config.h`; dasselbe gilt fuer `core/include/pico_hw.h`. Nur wenn ein Instrument tatsaechlich abweichende Hardware voraussetzt, legt es eine eigene Fassung in seinem include-Verzeichnis ab - die gewinnt dann per Include-Reihenfolge.
+The instrument does not need its own `project_config.h`. Pin map and flash timing apply to the whole platform and live in `core/include/project_config.h`; the same goes for `core/include/pico_hw.h`. Only if an instrument really requires different hardware does it place its own version in its include directory - that one then wins by include order.
 
-## Schritt 2: Adapter implementieren
+## Step 2: implement the adapter
 
 `instruments/PicoFaceXX/src/XX_Instrument.cpp`
 
@@ -24,8 +24,8 @@ class XXInstrument final : public picoface::Instrument {
 public:
     const char* name() const override { return "PicoFaceXX"; }
     void init() override { /* engine setup */ }
-    uint32_t sampleRate() const override { return 44100; } // der Kern initialisiert damit den Audio-Pool
-    void render(int32_t* out, uint32_t frames) override { /* ein int32-Wort pro Frame, gepacktes Stereo */ }
+    uint32_t sampleRate() const override { return 44100; } // the core initializes the audio pool with this
+    void render(int32_t* out, uint32_t frames) override { /* one int32 word per frame, packed stereo */ }
     void noteOn(uint8_t ch, uint8_t note, uint8_t vel) override {}
     void noteOff(uint8_t ch, uint8_t note, uint8_t vel) override {}
 };
@@ -34,11 +34,11 @@ public:
 PICOFACE_REGISTER_INSTRUMENT(XXInstrument)
 ```
 
-Hinweis: `name()`, `init()`, `sampleRate()`, `render()`, `noteOn()` und `noteOff()` sind Pflicht, alle uebrigen Methoden haben sinnvolle Standardimplementierungen und koennen bei Bedarf ueberschrieben werden.
+Note: `name()`, `init()`, `sampleRate()`, `render()`, `noteOn()` and `noteOff()` are mandatory; all other methods have sensible default implementations and can be overridden when needed.
 
-Als vollstaendiges Beispiel dient `instruments/PicoFaceMD/src/MD_Instrument.cpp`. Dort ist zu sehen, wie eine bestehende Engine samt Controller, Display und MIDI-Frontend angebunden wird, wie `render()` zuerst den IPC-Ring leert und wie die Persistenz ueber `settingsVersion()`, `settingsSize()`, `settingsSave()` und `settingsLoad()` laeuft.
+`instruments/PicoFaceMD/src/MD_Instrument.cpp` serves as a complete example. It shows how an existing engine is attached together with controller, display and MIDI front end, how `render()` drains the IPC ring first, and how persistence runs through `settingsVersion()`, `settingsSize()`, `settingsSave()` and `settingsLoad()`.
 
-## Schritt 3: instrument.cmake anlegen
+## Step 3: create instrument.cmake
 
 `instruments/PicoFaceXX/instrument.cmake`
 
@@ -55,20 +55,29 @@ picoface_add_instrument(
 )
 ```
 
-Hinweis: Die USB-PID muss eindeutig sein; die bereits vergebenen stehen in `docs/ARCHITECTURE.md`, Abschnitt 6.
+Note: the USB PID has to be unique; the ones already taken are listed in `docs/ARCHITECTURE.md`, section 6.
 
-## Fertig
+## Done
 
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build --target PicoFaceXX
 ```
 
-Das Instrument wird beim naechsten Configure automatisch gefunden, in den Sammel-Build `all_instruments` aufgenommen und erzeugt `PicoFaceXX.uf2`. Fuer die Veroeffentlichung als Release-Binary muss der Name zusaetzlich in die Matrix in `.github/workflows/build.yml` eingetragen werden.
+The instrument is found automatically on the next configure run, included in the aggregate build `all_instruments`, and produces `PicoFaceXX.uf2`. To publish it as a release binary, the name additionally has to be entered in the matrix in `.github/workflows/build.yml`.
 
-## Optionale Bausteine
+## Optional building blocks
 
-| Bedarf | Vorgehen |
+| Need | How |
 |---|---|
-| Menueliste fuer `uiTick()` (`picoface::ui::ListView`) | `CORE_MODULES ui_menu` ergaenzen |
-| Eigene Hardware-Anbindung | eigene `src/pico_hw.cpp` anlegen und `CORE_EXCLUDE pico_hw.cpp` setzen |
-| Eigene .pio-Dateien | ueber `PIO_SOURCES` eintragen |
+| menu list for `uiTick()` (`picoface::ui::ListView`) | add `CORE_MODULES ui_menu` |
+| own hardware access | add your own `src/pico_hw.cpp` and set `CORE_EXCLUDE pico_hw.cpp` |
+| own .pio files | list them under `PIO_SOURCES` |
+
+## Documentation
+
+An instrument brings its own `README.md` and, if there is more to say, a `doc/`
+directory next to it - MIDI implementation chart, persistence format, preset
+table, engineering log. The convention across the repository is English, and
+manufacturer manuals are named rather than shipped (see the README of any of the
+existing instruments). Host-side tools do not belong to the instrument; they go
+into `tools/` and are listed in `tools/README.md`.

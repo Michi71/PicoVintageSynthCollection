@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PicoFaceRD 3U/10HP front panel drilling template.
+     PRINT AT 100% SCALE (no fit-to-page), verify the 10 mm ruler with
+     calipers before drilling. All coordinates in millimetres.
+     Panel origin (0,0) = top-left corner of the panel outline. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm"
+     viewBox="0 0 210 297" font-family="Helvetica, Arial, sans-serif">
+  <style>
+    .outline { fill: none; stroke: #000; stroke-width: 0.25; }
+    .hole    { fill: none; stroke: #000; stroke-width: 0.2; }
+    .cross   { stroke: #000; stroke-width: 0.1; }
+    .verify  { fill: none; stroke: #888; stroke-width: 0.2; stroke-dasharray: 1 1; }
+    .label   { font-size: 2.6px; fill: #000; }
+    .small   { font-size: 2px; fill: #555; }
+  </style>
+
+  <!-- ======================= panel, origin at (40,40) ================== -->
+  <g transform="translate(40,40)">
+    <!-- panel outline 50.8 x 128.5 (10HP x 3U) -->
+    <rect class="outline" x="0" y="0" width="50.8" height="128.5"/>
+
+    <!-- Eurorack rail holes, dia 3.2: x 7.5 / 43.3, y 3.0 / 125.5 (optional) -->
+    <g>
+      <circle class="hole" cx="7.5"  cy="3"     r="1.6"/>
+      <circle class="hole" cx="43.3" cy="3"     r="1.6"/>
+      <circle class="hole" cx="7.5"  cy="125.5" r="1.6"/>
+      <circle class="hole" cx="43.3" cy="125.5" r="1.6"/>
+      <path class="cross" d="M5.5 3H9.5 M7.5 1V5 M41.3 3H45.3 M43.3 1V5
+                             M5.5 125.5H9.5 M7.5 123.5V127.5
+                             M41.3 125.5H45.3 M43.3 123.5V127.5"/>
+    </g>
+
+    <!-- internal standoffs M3 (dia 3.2): x 6.4 / 44.4, y 9.25 / 119.25
+         (matches 117 x 45 boards, corner holes at 3.5 mm inset) -->
+    <g>
+      <circle class="hole" cx="6.4"  cy="9.25"   r="1.6"/>
+      <circle class="hole" cx="44.4" cy="9.25"   r="1.6"/>
+      <circle class="hole" cx="6.4"  cy="119.25" r="1.6"/>
+      <circle class="hole" cx="44.4" cy="119.25" r="1.6"/>
+      <path class="cross" d="M4.4 9.25H8.4 M6.4 7.25V11.25
+                             M42.4 9.25H46.4 M44.4 7.25V11.25
+                             M4.4 119.25H8.4 M6.4 117.25V121.25
+                             M42.4 119.25H46.4 M44.4 117.25V121.25"/>
+    </g>
+
+    <!-- OLED: window 30 x 16 centred at (25.4, 30);
+         module outline + corner holes are typical values - VERIFY -->
+    <rect class="outline" x="10.4" y="22" width="30" height="16"/>
+    <rect class="verify"  x="7.65" y="15" width="35.5" height="33.5"/>
+    <circle class="verify" cx="10.4"  cy="17.75" r="1.6"/>
+    <circle class="verify" cx="40.4"  cy="17.75" r="1.6"/>
+    <circle class="verify" cx="10.4"  cy="45.75" r="1.6"/>
+    <circle class="verify" cx="40.4"  cy="45.75" r="1.6"/>
+    <text class="small" x="9" y="50.6">OLED module + holes: VERIFY against your board</text>
+
+    <!-- encoders, dia 7.0, on the vertical centre line x = 25.4 -->
+    <g>
+      <!-- positions derived from the UI stripboard grid (rows 23/32/41,
+           shaft 7.5 mm right of the pin column) - keep in sync with
+           stripboard_ui.svg -->
+      <circle class="hole" cx="24.4" cy="62.9"   r="3.5"/>
+      <circle class="hole" cx="24.4" cy="85.76"  r="3.5"/>
+      <circle class="hole" cx="24.4" cy="108.62" r="3.5"/>
+      <path class="cross" d="M19.4 62.9H29.4 M24.4 57.9V67.9
+                             M19.4 85.76H29.4 M24.4 80.76V90.76
+                             M19.4 108.62H29.4 M24.4 103.62V113.62"/>
+      <text class="label" x="31" y="63.7">SELECT</text>
+      <text class="label" x="31" y="86.56">A</text>
+      <text class="label" x="31" y="109.42">B</text>
+    </g>
+
+    <text class="label" x="2" y="-2">PicoFaceRD 10HP front panel - drill template (1:1)</text>
+  </g>
+
+  <!-- ======================= calibration ruler ========================= -->
+  <g transform="translate(40,180)">
+    <path class="cross" d="M0 0H50 M0 -2V2 M10 -1.5V1.5 M20 -1.5V1.5
+                           M30 -1.5V1.5 M40 -1.5V1.5 M50 -2V2"/>
+    <text class="label" x="0" y="6">calibration: exactly 50 mm (ticks every 10 mm)</text>
+    <text class="small" x="0" y="10.5">drill sizes: encoders 7.0-7.5 mm - M3 holes 3.2 mm - OLED window 30 x 16 mm</text>
+    <text class="small" x="0" y="14">acrylic: low speed, step up 3-5-7 mm, back with scrap wood</text>
+  </g>
+</svg>

@@ -1,9 +1,9 @@
-# Architektur - PicoVintageSynthCollection
+# Architecture - PicoVintageSynthCollection
 
-## 1. Ziel
-Monorepo, das 7 bisher getrennte RP2350-Synthesizer-Firmwares vereint (PicoFaceYC, PicoFaceCP, PicoFaceRD, PicoFaceJ6, PicoFaceMD, PicoFaceSM, PicoFaceDX); PicoFaceOB ist als achtes im Monorepo selbst entstanden. Eine gemeinsame Basis - Audio-Pipeline, Hardwareanbindung, GUI, USB-MIDI, Persistenz - an die sich Instrumente nur andocken. Alle Instrumente entstehen aus einem Build und werden unter ihrem eigenen Namen als Binary veroeffentlicht.
+## 1. Goal
+A monorepo that unifies 7 previously separate RP2350 synthesizer firmwares (PicoFaceYC, PicoFaceCP, PicoFaceRD, PicoFaceJ6, PicoFaceMD, PicoFaceSM, PicoFaceDX); PicoFaceOB was born as the eighth inside the monorepo itself. One shared base - audio pipeline, hardware access, GUI, USB MIDI, persistence - that instruments merely dock onto. Every instrument comes out of a single build and is published as a binary under its own name.
 
-## 2. Verzeichnisstruktur
+## 2. Directory layout
 ```text
 CMakeLists.txt
 cmake/
@@ -13,17 +13,17 @@ cmake/
 core/
 ├── CMakeLists.txt
 ├── include/
-│   ├── (gemeinsame Header)
+│   ├── (shared headers)
 │   └── picoface/
 │       ├── instrument.h
 │       ├── ui.h
 │       ├── list_view.h
 │       └── midi.h
 └── src/
-    ├── (Basisquellen)
+    ├── (base sources)
     └── ui/
         ├── display.cpp
-        └── (Modul ui_menu)
+        └── (module ui_menu)
 lib/
 ├── audio
 ├── encoder
@@ -37,130 +37,110 @@ instruments/
 ├── PicoFaceSM
 ├── PicoFaceDX
 └── PicoFaceOB
-(je mit instrument.cmake, src/, include/)
+(each with instrument.cmake, src/, include/, doc/, README.md)
 tools/
-└── migrate.sh
+├── migrate.sh
+└── (host tools, see tools/README.md)
 docs/
+img/
 .github/
 └── workflows/
     └── build.yml
 ```
 
-## 3. Eine Hardwareplattform, acht Instrumente
-Die Platine ist fuer alle acht Instrumente dieselbe. Pin-Belegung und Flash-Timing liegen deshalb im Kern: `core/include/project_config.h` und `core/include/pico_hw.h`. In den sieben Ursprungs-Repositories war jede einzelne Pin-Definition bereits identisch; die Dateien unterschieden sich nur in Kommentaren, in einer zusaetzlichen QMI-Timing-Konstante fuer PicoFaceRD und in einem inline-Helfer. Die Kern-Fassungen sind die Vereinigung aller Varianten.
+## 3. One hardware platform, eight instruments
+The board is the same for all eight instruments. Pin map and flash timing therefore live in the core: `core/include/project_config.h` and `core/include/pico_hw.h`. In the seven original repositories every single pin definition was already identical; the files differed only in comments, in one extra QMI timing constant for PicoFaceRD, and in one inline helper. The core versions are the union of all variants.
 
-### Warum der Kern trotzdem keine Bibliothek ist
+### Why the core is still not a library
 
-Der Kern veroeffentlicht weiterhin Listen absoluter Quellpfade statt einer STATIC-Library, jetzt aber aus zwei anderen Gruenden. Erstens ist `core/src/usb_descriptors.c` ueber die Compile-Definitions PICOFACE_INSTRUMENT_NAME und PICOFACE_USB_PID parametriert, die pro Target verschieden sind; die Datei muss also je Target uebersetzt werden. Zweitens ersetzen einzelne Instrumente Kernquellen durch eigene Varianten, und aus einer fertig gebauten Bibliothek laesst sich kein Member pro Target austauschen.
+The core continues to publish lists of absolute source paths instead of a STATIC library, but for two different reasons now. First, `core/src/usb_descriptors.c` is parameterized through the compile definitions PICOFACE_INSTRUMENT_NAME and PICOFACE_USB_PID, which differ per target; the file therefore has to be translated once per target. Second, individual instruments replace core sources with their own variants, and a member of an already-built library cannot be swapped out per target.
 
-Daraus folgt weiterhin die Include-Reihenfolge `instruments/<NAME>/include` vor `core/include`, damit eine instrumenteigene Variante eines Headers gewinnt. Nach der Zusammenfuehrung betrifft das nur noch fuenf Header (siehe Abschnitt 7).
+From that follows the include order `instruments/<NAME>/include` before `core/include`, so that an instrument's own variant of a header wins. After the merge that affects only five headers (see section 7).
 
-Gegenbeispiel: lib/audio, lib/encoder und lib/u8g2 bleiben STATIC und werden einmal fuer alle acht Targets gebaut.
+Counter-example: lib/audio, lib/encoder and lib/u8g2 stay STATIC and are built once for all eight targets.
 
-**Anmerkung zur Audio-Bibliothek:** lib/audio/src/audio_subsystem.cpp inkludierte urspruenglich project_config.h und las daraus PIN_I2S_DOUT und PIN_I2S_BCK. In den Altprojekten fiel das nicht auf, weil ein globales include_directories() den Instrument-Include-Pfad in jedes Target leakte. Die Bibliothek nutzt jetzt die Standardmakros PICO_AUDIO_I2S_DATA_PIN und PICO_AUDIO_I2S_CLOCK_PIN_BASE und kennt die Instrument-Konfiguration nicht mehr.
+**Note on the audio library:** lib/audio/src/audio_subsystem.cpp originally included project_config.h and read PIN_I2S_DOUT and PIN_I2S_BCK from it. In the old projects this went unnoticed because a global `include_directories()` leaked the instrument include path into every target. The library now uses the standard macros PICO_AUDIO_I2S_DATA_PIN and PICO_AUDIO_I2S_CLOCK_PIN_BASE and no longer knows anything about the instrument configuration.
 
-## 4. Der Andock-Contract
-picoface::Instrument in core/include/picoface/instrument.h ist die einzige Schnittstelle zwischen Kern und Instrument.
+## 4. The docking contract
+picoface::Instrument in core/include/picoface/instrument.h is the only interface between core and instrument.
 
-| Gruppe | Methoden | CPU-Kern |
+| Group | Methods | CPU core |
 |---|---|---|
-| Identitaet | name() | core0 |
-| Lebenszyklus | init() / sampleRate() | core0 |
-| Audio | render(int32_t* out, frames) | Producer-Kontext (core0), harte Echtzeit |
-| Audio-Hooks (optional) | consumeSampleRateChange, onAudioUnderrun, settingsSaveAllowed | Producer-Kontext bzw. core0 |
+| Identity | name() | core0 |
+| Lifecycle | init() / sampleRate() | core0 |
+| Audio | render(int32_t* out, frames) | producer context (core0), hard realtime |
+| Audio hooks (optional) | consumeSampleRateChange, onAudioUnderrun, settingsSaveAllowed | producer context resp. core0 |
 | MIDI | noteOn, noteOff, controlChange, programChange, pitchBend, sysEx | core0 |
 | MIDI (optional) | realtime, midiActivity | core0 |
 | GUI | uiInit(display), uiTick(display, input) | core0 |
-| Persistenz | settingsVersion, settingsSize, settingsSave, settingsLoad | core0 |
+| Persistence | settingsVersion, settingsSize, settingsSave, settingsLoad | core0 |
 
-Der Kern ruft init(), fragt danach sampleRate() ab und initialisiert damit den Audio-Pool. render() erhaelt ein int32-Wort pro Frame (gepacktes Stereo), wird blockweise aus der Producer-Schleife aufgerufen und darf nicht blockieren, nicht allokieren und kein printf verwenden; ein Instrument darf intern core1 als Worker nutzen, wie es PicoFaceRD tut. Ein Instrument registriert sich mit PICOFACE_REGISTER_INSTRUMENT(Typ).
+The core calls init(), then queries sampleRate() and initializes the audio pool with it. render() receives one int32 word per frame (packed stereo), is called block-wise from the producer loop, and must not block, must not allocate and must not use printf; an instrument may use core1 internally as a worker, as PicoFaceRD does. An instrument registers itself with PICOFACE_REGISTER_INSTRUMENT(Type).
 
-## 4a. Das Laufzeitmodell
+## 4a. The runtime model
 
-**Alle acht Instrumente laufen im selben Modell:** core0 macht Audio, USB, MIDI und GUI, der Kern pollt die Encoder in einen InputState und ruft `uiTick()`. core1 gehoert dem Instrument - PicoFaceRD nutzt ihn als Voice-Worker, die uebrigen sieben lassen ihn liegen.
+**All eight instruments run in the same model:** core0 does audio, USB, MIDI and GUI, the core polls the encoders into an InputState and calls `uiTick()`. core1 belongs to the instrument - PicoFaceRD uses it as a voice worker, the other seven leave it idle.
 
-Es gab bis zur Umstellung von PicoFaceYC und PicoFaceCP ein zweites Modell, in dem ein Instrument ueber `ownsUserInterface()` die gesamte Bedienoberflaeche auf core1 uebernahm. Der Kern startete core1 dann selbst, initialisierte weder Display noch Encoder und rief `pumpCrossCore()` statt `uiTick()`; fuer den Flash-Zugriff lieferte das Instrument ein Paar Park-Hooks. Mit dem letzten Nutzer sind auch die fuenf Methoden aus `picoface::Instrument` und der zugehoerige Zweig in `picoface_main.cpp` verschwunden. Ein Instrument, das core1 braucht, startet ihn wie PicoFaceRD selbst aus seinem Adapter.
+Until the conversion of PicoFaceYC and PicoFaceCP there was a second model in which an instrument took over the entire user interface on core1 via `ownsUserInterface()`. The core then started core1 itself, initialized neither display nor encoders, and called `pumpCrossCore()` instead of `uiTick()`; for flash access the instrument supplied a pair of park hooks. With the last user gone, the five methods disappeared from `picoface::Instrument` and so did the corresponding branch in `picoface_main.cpp`. An instrument that needs core1 starts it from its own adapter, the way PicoFaceRD does.
 
-### Die Umstellung von PicoFaceYC und PicoFaceCP
+### The conversion of PicoFaceYC and PicoFaceCP
 
-Beide liefen im zweiten Modell. Zwei Dinge daran waren nicht offensichtlich:
+Both ran in the second model. Two things about it were not obvious:
 
-- `pico_UserInterfaceFrontPanel()` enthielt `for(;;)` und kehrte nie zurueck - die Funktion *war* die core1-Schleife, nicht ein Menue, das gelegentlich blockiert. An ihre Stelle treten `YC_Ui` und `CP_Ui`: Zustandsautomaten, die pro `uiTick()` einen Durchlauf machen. Das Listen-Widget dahinter liegt als `picoface::ui::ListView` im Kernmodul ui_menu und wird von beiden genutzt.
-- `ipc.h` schob seine Pakete mit `multicore_fifo_push_blocking` ueber die SIO-FIFO. Laeuft alles auf core0, blockiert dieser Push ohne Konsument fuer immer. Ersatz ist je ein Same-Core-Ring nach dem Vorbild von `instruments/PicoFaceMD/include/md_ipc.h`, den `render()` zu Blockbeginn leert. Ein Zwischenstand war nicht moeglich: ein Ring ohne Speicherbarrieren waere ueber Kerngrenzen hinweg unsicher gewesen, solange die UI noch auf core1 sass. IPC, UI und Adapter mussten zusammen umgestellt werden.
+- `pico_UserInterfaceFrontPanel()` contained `for(;;)` and never returned - the function *was* the core1 loop, not a menu that occasionally blocks. It has been replaced by `YC_Ui` and `CP_Ui`: state machines that do one pass per `uiTick()`. The list widget behind them lives in the core module ui_menu as `picoface::ui::ListView` and is used by both.
+- `ipc.h` pushed its packets across the SIO FIFO with `multicore_fifo_push_blocking`. With everything running on core0, that push blocks forever with no consumer on the other side. The replacement is one same-core ring each, modelled on `instruments/PicoFaceMD/include/md_ipc.h`, which `render()` drains at the start of a block. There was no intermediate state to be had: a ring without memory barriers would have been unsafe across core boundaries as long as the UI still sat on core1. IPC, UI and adapter had to be converted together.
 
-Damit entfallen fuer beide `ownsUserInterface`, `runUserInterface`, `pumpCrossCore`, die Flash-Hooks und der Flash-Park-Handshake; die MIDI-Methoden der Adapter leiten jetzt wirklich weiter, statt leer zu sein. YCs Watchdog bleibt und wird aus `render()` statt aus `pumpCrossCore()` gefuettert; CP hatte nie einen.
+This removes `ownsUserInterface`, `runUserInterface`, `pumpCrossCore`, the flash hooks and the flash park handshake for both; the adapters' MIDI methods now really forward instead of being empty. YC's watchdog stays and is fed from `render()` instead of from `pumpCrossCore()`; CP never had one.
 
-Beide schreiben ihren veeprom-Satz weiterhin selbst und melden daher `settingsSize() == 0` - die Debounce-Logik in `settings_task()` ist feiner als die des Kerns und kennt Werte, die bewusst nicht persistiert werden. Der Schreibvorgang laeuft jetzt wie bei den anderen vier auf core0 zwischen zwei Audiobloecken.
+Both still write their own veeprom record and therefore report `settingsSize() == 0` - the debounce logic in `settings_task()` is finer-grained than the core's and knows about values that are deliberately not persisted. The write now happens on core0 between two audio blocks, like everywhere else.
 
-CP war der haertere Fall: acht Panel-Screens und 22 lokale Variablen in der Schleife. Die Variablen sind Member von `CP_Ui` geworden. Sie bleiben noetig, weil eine Bedienung sofort auf dem Schirm stehen muss, waehrend der Ring die Engine erst zum naechsten Block erreicht; `refresh()` holt umgekehrt ein, was hinter dem Panel vorbei passiert ist - MIDI, ein Preset, ein SysEx-Parameter.
+CP was the harder case: eight panel screens and 22 local variables in the loop. The variables have become members of `CP_Ui`. They are still needed because an edit has to appear on screen immediately, while the ring only reaches the engine at the next block; `refresh()` conversely picks up whatever happened behind the panel's back - MIDI, a preset, a SysEx parameter.
 
-### PicoFaceDX kam nach
+### PicoFaceDX arrived later
 
-PicoFaceDX ist erst nach dieser Umstellung aus seinem eigenen Repository
-hereingekommen und stand dort noch vollstaendig im zweiten Modell: UI, USB und
-MIDI auf core1, IPC ueber die SIO-FIFO, dazu ein Flash-Park-Handshake
-(`IPC_CMD_FLASH_LOCK` plus ein RAM-residenter Spin-Loop auf core0), damit core1
-den Settings-Satz schreiben konnte, waehrend XIP aus war. Umgestellt wurde beim
-Import, nicht danach - der Kern musste das zweite Modell also nicht noch einmal
-zurueckholen. Es war dieselbe Arbeit wie bei YC und CP, nur schon bekannt:
+PicoFaceDX only came in from its own repository after that conversion, and it still sat entirely in the second model: UI, USB and MIDI on core1, IPC across the SIO FIFO, plus a flash park handshake (`IPC_CMD_FLASH_LOCK` and a RAM-resident spin loop on core0) so that core1 could write the settings record while XIP was off. It was converted on the way in, not afterwards - the core did not have to bring the second model back. It was the same work as for YC and CP, only already familiar:
 
-- `pico_UserInterfaceFrontPanel()` und die drei blockierenden Menue-Screens
-  (Presets, System, Master Volume) sind `DX_Ui` geworden, einem Zustandsautomaten
-  ueber `picoface::ui::ListView`. Die Presets-Liste bekommt jetzt ein Array aus
-  32 Namenszeigern statt einer 512 Byte langen, mit `\n` verketteten Zeichenkette.
-- `ipc.h` ist ein Same-Core-Ring nach dem Vorbild von YC. `IPC_CMD_FLASH_LOCK`,
-  `flash_park_core0()` und die beiden veeprom-Hooks entfallen ersatzlos: der
-  Schreibvorgang liegt jetzt wie bei allen anderen auf core0 zwischen zwei
-  Audiobloecken.
-- `settings_boot_restore_core0()` und `settings_boot_restore_core1()` sind zu
-  einem `settings_boot_restore()` zusammengefallen. Die Aufteilung existierte
-  nur, weil Patch und Master Volume vor dem core1-Start gesetzt sein mussten und
-  Oktave und SYSTEM-Block erst danach.
-- Die beiden Zustandswerte, die als core1-Globale in `main.cpp` lagen - UI-Oktave
-  und der Master-Volume-Spiegel -, sind mit ihren vier Zugriffsfunktionen in den
-  Adapter gewandert und behalten deren C-Verknuepfung, weil `midi_reface.cpp`,
-  `settings.cpp` und `DX_Ui.cpp` sie brauchen und keine davon den Adaptertyp
-  kennt.
+- `pico_UserInterfaceFrontPanel()` and the three blocking menu screens (Presets, System, Master Volume) have become `DX_Ui`, a state machine over `picoface::ui::ListView`. The preset list now gets an array of 32 name pointers instead of a 512-byte string joined with `\n`.
+- `ipc.h` is a same-core ring modelled on YC's. `IPC_CMD_FLASH_LOCK`, `flash_park_core0()` and the two veeprom hooks are gone for good: the write now sits on core0 between two audio blocks like everyone else's.
+- `settings_boot_restore_core0()` and `settings_boot_restore_core1()` collapsed into a single `settings_boot_restore()`. The split existed only because patch and master volume had to be set before the core1 launch and octave and SYSTEM block after it.
+- The two pieces of state that were core1 globals in `main.cpp` - the UI octave and the master volume mirror - moved into the adapter together with their four accessors and kept their C linkage, because `midi_reface.cpp`, `settings.cpp` and `DX_Ui.cpp` all need them and none of them knows the adapter type.
 
-Wie YC und CP schreibt DX seinen veeprom-Satz selbst und meldet
-`settingsSize() == 0`; der Satz enthaelt einen vollstaendigen Patch. Zusaetzlich
-schreibt `RefaceMidi::txBytes()` jetzt auch auf den DIN-Ausgang (Abschnitt 6a);
-im Ursprungs-Repository gab es den noch nicht.
+Like YC and CP, DX writes its own veeprom record and reports `settingsSize() == 0`; that record contains a complete patch. In addition, `RefaceMidi::txBytes()` now writes to the DIN output as well (section 6a); the original repository did not have one.
 
-## 5. Build-System
-`picoface_add_instrument()` in `cmake/PicoFaceInstrument.cmake` erzeugt pro Instrument ein vollstaendiges Firmware-Target. Alle Einstellungen sind target-lokal (`target_compile_definitions` / `target_compile_options` statt globaler `add_compile_options`), weil acht Targets mit widersprechenden Defines koexistieren muessen.
+## 5. Build system
+`picoface_add_instrument()` in `cmake/PicoFaceInstrument.cmake` creates a complete firmware target per instrument. All settings are target-local (`target_compile_definitions` / `target_compile_options` instead of a global `add_compile_options`), because eight targets with conflicting defines have to coexist.
 
-| Schluesselwort | Bedeutung |
+| Keyword | Meaning |
 |---|---|
-| NAME | Target- und Dateiname, z.B. PicoFaceMD |
-| PROGRAM_NAME | Programmname im UF2-Header und USB-Produktstring |
-| VERSION | Versionsstring |
-| USB_PID | USB Product ID, pro Instrument eindeutig |
-| DIR | absolutes Instrumentverzeichnis |
-| SOURCES | instrumenteigene Quellen, relativ zu DIR |
-| INCLUDE_DIRS | zusaetzliche Include-Pfade, relativ zu DIR |
-| DEFINES | zusaetzliche Compile-Definitions |
-| LINK_LIBRARIES | zusaetzliche Bibliotheken |
-| PIO_SOURCES | optionale .pio-Dateien |
-| CORE_EXCLUDE | Basisnamen von Kernquellen, die das Instrument durch eine eigene Variante ersetzt |
-| CORE_MODULES | optionale Kernmodule; derzeit nur ui_menu |
+| NAME | target and file name, e.g. PicoFaceMD |
+| PROGRAM_NAME | program name in the UF2 header and USB product string |
+| VERSION | version string |
+| USB_PID | USB product ID, unique per instrument |
+| DIR | absolute instrument directory |
+| SOURCES | instrument sources, relative to DIR |
+| INCLUDE_DIRS | additional include paths, relative to DIR |
+| DEFINES | additional compile definitions |
+| LINK_LIBRARIES | additional libraries |
+| PIO_SOURCES | optional .pio files |
+| CORE_EXCLUDE | base names of core sources that the instrument replaces with its own variant |
+| CORE_MODULES | optional core modules; currently only ui_menu |
 
-ui_menu enthaelt das nicht blockierende Listen-Widget `picoface::ui::ListView` fuer Instrumente, die aus `uiTick()` heraus zeichnen. Sein Vorgaenger ui_panel hielt die blockierenden Widgets, die ihre Encoder selbst pollten, dazu die reface-CP-MIDI-Schicht und deren Persistenz; mit der Umstellung von PicoFaceCP hatte er keinen Nutzer mehr. Die CP-spezifischen Teile liegen jetzt unter `instruments/PicoFaceCP`, der Rest ist geloescht. Seither enthaelt der Kern keinen instrumentspezifischen Code mehr.
+ui_menu contains the non-blocking list widget `picoface::ui::ListView` for instruments that draw from `uiTick()`. Its predecessor ui_panel held the blocking widgets that polled their encoders themselves, plus the reface CP MIDI layer and its persistence; with PicoFaceCP converted it had no users left. The CP-specific parts now live under `instruments/PicoFaceCP`, the rest has been deleted. Since then the core contains no instrument-specific code at all.
 
-Instrumente werden per Auto-Discovery ueber `instruments/*/instrument.cmake` gefunden. Die CMake-Option `PICOFACE_INSTRUMENTS_FILTER` baut nur die genannten Instrumente; leer bedeutet alle. Das Sammel-Target `all_instruments` baut alles. `pico_add_extra_outputs` erzeugt die Dateien bereits unter dem Instrumentnamen, ein Umbenennen entfaellt.
+Instruments are found by auto-discovery over `instruments/*/instrument.cmake`. The CMake option `PICOFACE_INSTRUMENTS_FILTER` builds only the named instruments; empty means all. The aggregate target `all_instruments` builds everything. `pico_add_extra_outputs` already creates the files under the instrument name, so no renaming is needed.
 
 ```bash
-# Alle bauen
+# build everything
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 
-# Nur eines bauen
+# build a single one
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICOFACE_INSTRUMENTS_FILTER=PicoFaceMD
 cmake --build build
 ```
 
-## 6. USB-Identitaet
-| Instrument | USB-PID |
+## 6. USB identity
+| Instrument | USB PID |
 |---|---|
 | PicoFaceYC | 0x1050 |
 | PicoFaceCP | 0x1051 |
@@ -171,201 +151,195 @@ cmake --build build
 | PicoFaceOB | 0x1056 |
 | PicoFaceDX | 0x1057 |
 
-VID bleibt 0x2E8A. Vor der Zusammenfuehrung trugen alle sieben Ursprungs-Firmwares dieselbe PID 0x104C, sodass Hosts sie nicht unterscheiden konnten; PicoFaceYC meldete sich zudem faelschlich als "PicoFaceDX" - was mit dem echten PicoFaceDX am selben Host ein doppeltes Missverstaendnis gewesen waere. `core/src/usb_descriptors.c` ist jetzt ueber die Compile-Definitions `PICOFACE_INSTRUMENT_NAME` und `PICOFACE_USB_PID` parametriert, wodurch beide Fehler entfallen.
+The VID stays 0x2E8A. Before the merge all seven original firmwares carried the same PID 0x104C, so hosts could not tell them apart; PicoFaceYC additionally identified itself as "PicoFaceDX" - which, with the real PicoFaceDX on the same host, would have been a double misunderstanding. `core/src/usb_descriptors.c` is now parameterized through the compile definitions `PICOFACE_INSTRUMENT_NAME` and `PICOFACE_USB_PID`, which removes both faults.
 
-## 6a. MIDI-Transporte
+## 6a. MIDI transports
 
-MIDI kommt ueber zwei Wege herein und geht ueber zwei Wege hinaus: USB und DIN. Die Callback-Signaturen von MIDISerial sind absichtlich identisch mit denen von MIDIInputUSB, sodass beide Transporte in dieselben Dispatch-Funktionen muenden - ein Instrument sieht nicht, auf welchem Draht ein Ereignis ankam.
+MIDI comes in over two paths and goes out over two paths: USB and DIN. The callback signatures of MIDISerial are deliberately identical to those of MIDIInputUSB, so that both transports end up in the same dispatch functions - an instrument does not see which wire an event arrived on.
 
 ### Hardware
 
-| Signal | GPIO | Peripherie |
+| Signal | GPIO | Peripheral |
 |---|---|---|
 | MIDI RX | 5 | uart1 |
 | MIDI TX | 4 | uart1 |
 | stdio | 0 / 1 | uart0 |
 
-31250 Baud, 8N1, Optokoppler auf der Platine. stdio liegt bewusst auf uart0, damit sich beide nie in die Quere kommen.
+31250 baud, 8N1, opto-coupler on the board. stdio deliberately sits on uart0 so the two never get in each other's way.
 
-### Empfang
+### Receive
 
-Der Empfang laeuft interruptgesteuert in einen lock-freien Ring von 256 Byte. Bei 31250 Baud trifft alle 320 Mikrosekunden ein Byte ein; die 32 Byte tiefe Hardware-FIFO gaebe nur rund 10 ms Reserve. Das reichte schon fuer die blockierenden Menues nicht, die es inzwischen nicht mehr gibt, und deckt heute den Flash-Schreibvorgang der Persistenz ab. Der Interrupt ist RAM-resident und bewegt nur Bytes, geparst wird in process(). Die Interruptprioritaet liegt unter der Audio-DMA und ueber USB.
+Reception is interrupt-driven into a lock-free ring of 256 bytes. At 31250 baud a byte arrives every 320 microseconds; the 32-byte deep hardware FIFO would only give about 10 ms of headroom. That was already not enough for the blocking menus, which no longer exist, and today it covers the flash write of the persistence layer. The interrupt is RAM-resident and only moves bytes; parsing happens in process(). The interrupt priority sits below the audio DMA and above USB.
 
-Der Parser beherrscht Running Status, SysEx bis 256 Byte und laesst Realtime-Bytes mitten in einer Nachricht unbeschadet durch. Note-On mit Velocity 0 wird als Note-Off behandelt.
+The parser handles running status, SysEx up to 256 bytes, and lets realtime bytes pass through unharmed in the middle of a message. Note-on with velocity 0 is treated as note-off.
 
-### Einbau
+### Integration
 
-`MIDISerial::process()` laeuft fuer alle acht Instrumente in `picoface_main.cpp`, direkt neben `MIDIInputUSB::process()`.
+`MIDISerial::process()` runs for all eight instruments in `picoface_main.cpp`, right next to `MIDIInputUSB::process()`.
 
-Realtime-Bytes und die reine Empfangsaktivitaet reicht der Kern ueber die optionalen Methoden `realtime()` und `midiActivity()` durch. Beide sind fuer die Active-Sensing-Ueberwachung der reface-Schicht von YC und CP noetig - deren 350-ms-Timeout schaltet bei Ausbleiben von 0xFE alle Stimmen ab. Die Defaults sind leer; die vier uebrigen Instrumente ignorieren beides.
+The core passes realtime bytes and bare receive activity through via the optional methods `realtime()` and `midiActivity()`. Both are needed for the active sensing supervision of the reface layer in YC, CP and DX - their 350 ms timeout silences all voices when 0xFE stops arriving. The defaults are empty; the other instruments ignore both.
 
-### Senden
+### Transmit
 
-| Instrumente | Was gesendet wird |
+| Instruments | What is sent |
 |---|---|
-| YC, CP | Panel-Aenderungen als CC und SysEx-Antworten; laeuft ueber RefaceMidi::txBytes(), das jetzt zusaetzlich auf den UART schreibt |
-| DX | dieselbe Schicht, aber anderer Inhalt: Active Sensing, Program Change beim Preset-Wechsel, SysEx-Antworten (Parameter, Bulk Dump, Identity Reply). Panel-Aenderungen sendet DX nicht - die drei Encoder erreichen nur eine Handvoll der Patch-Parameter, ein CC je bedientem Wert waere ein unvollstaendiges Abbild |
-| MD, J6 | Panel-Aenderungen als CC aus der Parametertabelle; jeder Eintrag traegt seine CC-Nummer, 0xFF bedeutet keine |
-| SM, RD | Panel-Aenderungen als CC aus einer eigens festgelegten Tabelle, siehe unten |
+| YC, CP | panel changes as CC and SysEx replies; goes through RefaceMidi::txBytes(), which now writes to the UART as well |
+| DX | the same layer, different content: active sensing, program change on a preset switch, SysEx replies (parameter, bulk dump, identity reply). DX does not send panel changes - the three encoders only reach a handful of the patch parameters, so one CC per edited value would be an incomplete picture |
+| MD, J6 | panel changes as CC out of the parameter table; every entry carries its CC number, 0xFF meaning none |
+| SM, RD | panel changes as CC out of a table defined for this project, see below |
 
-Gesendet wird nur aus dem Encoder-Pfad. Ein Wert, der ueber MIDI hereinkam, landet in onMidiParam() und nimmt diesen Weg nicht, sodass keine Rueckkopplung entstehen kann. Als Sendekanal dient der Empfangskanal; steht dieser auf Omni, faellt der Sendekanal auf Kanal 1 zurueck.
+Sending only happens from the encoder path. A value that arrived over MIDI lands in onMidiParam() and does not take this route, so no feedback loop can form. The transmit channel is the receive channel; if that is set to omni, the transmit channel falls back to channel 1.
 
-### CC-Belegung fuer PicoFaceSM und PicoFaceRD
+### CC assignment for PicoFaceSM and PicoFaceRD
 
-Anders als MD und J6 brachten diese beiden keine Parameter-zu-CC-Zuordnung mit: die Solina ist im Original rein elektromechanisch, und der RD beantwortet nur Sustain und ein paar Mode-Messages. Die folgenden Tabellen sind deshalb eine Festlegung dieses Projekts. Sie liegen in `instruments/PicoFaceSM/include/sm_cc_map.h` und `instruments/PicoFaceRD/include/rd_cc_map.h` und gelten fuer **beide** Richtungen - Senden und Empfangen greifen auf dieselbe Tabelle zu und koennen daher nicht auseinanderlaufen.
+Unlike MD and J6, these two did not bring a parameter-to-CC mapping with them: the Solina is purely electromechanical in the original, and the RD only answers sustain and a few mode messages. The following tables are therefore a decision of this project. They live in `instruments/PicoFaceSM/include/sm_cc_map.h` and `instruments/PicoFaceRD/include/rd_cc_map.h` and apply to **both** directions - send and receive use the same table and therefore cannot drift apart.
 
-Leitlinien: Standard-Controller dort, wo die Funktion wirklich passt (72 Release, 73 Attack, 74 Brightness); der General-MIDI-Effektblock fuer die Modulationssektionen (92 Tremolo, 93 Chorus, 94 Detune, 95 Phaser); alles Uebrige aus dem undefinierten Bereich. CC 7, 64 und 120/121/123 bleiben bewusst frei - die verarbeiten die Engines bereits auf eigenem Weg, ein zweiter Pfad zum selben Wert waere mehrdeutig.
+Guidelines: standard controllers where the function genuinely fits (72 release, 73 attack, 74 brightness); the General MIDI effect block for the modulation sections (92 tremolo, 93 chorus, 94 detune, 95 phaser); everything else from the undefined range. CC 7, 64 and 120/121/123 are deliberately left free - the engines already handle those on their own path, and a second route to the same value would be ambiguous.
 
 **PicoFaceRD**
 
 | CC | Parameter | | CC | Parameter |
 |---|---|---|---|---|
-| 92 | Tremolo an | | 105 | Tremolo Depth |
-| 93 | Chorus an | | 106 | Bass |
-| 94 | Master Tune | | 107 | Treble |
-| 95 | Phaser an | | 108 | Volume |
-| 102 | Chorus Rate | | 109 | DAC-Filter an |
-| 103 | Chorus Depth | | 110 | Phaser Rate |
-| 104 | Tremolo Rate | | 111 | Phaser Depth |
+| 92 | Tremolo on | | 105 | Tremolo depth |
+| 93 | Chorus on | | 106 | Bass |
+| 94 | Master tune | | 107 | Treble |
+| 95 | Phaser on | | 108 | Volume |
+| 102 | Chorus rate | | 109 | DAC filter on |
+| 103 | Chorus depth | | 110 | Phaser rate |
+| 104 | Tremolo rate | | 111 | Phaser depth |
 
-Voice Mode bleibt ohne CC: der Wert ist eine Aufzaehlung, keine 0..127-Groesse.
+Voice mode has no CC: the value is an enumeration, not a 0..127 quantity.
 
 **PicoFaceSM**
 
 | CC | Parameter | | CC | Parameter |
 |---|---|---|---|---|
-| 3 | Shaper | | 108 | Bass Volume |
-| 72 | Sustain (Release) | | 109 | Volume |
-| 73 | Crescendo (Attack) | | 110 | Tremolo Rate |
-| 74 | Tone Lowpass | | 111 | Chorus Rate |
-| 92 | Tremolo Depth | | 112 | Chorus Depth |
-| 93 | Ensemble | | 113 | Ensemble Tone |
-| 94 | Tune | | 114 | Ensemble Width |
-| 95 | Phaser | | 115 | Phaser Rate |
-| 102..107 | Register Contrabass, Cello, Viola, Violin, Trumpet, Horn | | 116 | Phaser Color |
-| | | | 117 | Tone Highpass |
-| | | | 118 | Tone Shelf |
+| 3 | Shaper | | 108 | Bass volume |
+| 72 | Sustain (release) | | 109 | Volume |
+| 73 | Crescendo (attack) | | 110 | Tremolo rate |
+| 74 | Tone lowpass | | 111 | Chorus rate |
+| 92 | Tremolo depth | | 112 | Chorus depth |
+| 93 | Ensemble | | 113 | Ensemble tone |
+| 94 | Tune | | 114 | Ensemble width |
+| 95 | Phaser | | 115 | Phaser rate |
+| 102..107 | Registers contrabass, cello, viola, violin, trumpet, horn | | 116 | Phaser color |
+| | | | 117 | Tone highpass |
+| | | | 118 | Tone shelf |
 | | | | 119 | Formant |
 
 
-## 6b. PicoFaceOB: portierte Fremd-Engine und abweichende Lizenz
+## 6b. PicoFaceOB: a ported foreign engine and a different license
 
-PicoFaceOB ist das erste Instrument, dessen Klangerzeugung nicht aus diesem
-Projekt stammt: sie ist aus [OB-Xf](https://github.com/surge-synthesizer/OB-Xf)
-portiert. Zwei Dinge unterscheiden es deshalb von den uebrigen sieben.
+PicoFaceOB is the first instrument whose sound generation does not come from
+this project: it is ported from
+[OB-Xf](https://github.com/surge-synthesizer/OB-Xf). Two things therefore set it
+apart from the other seven.
 
-**Lizenz.** OB-Xf steht unter GPL-3.0-or-later. `instruments/PicoFaceOB/` steht
-daher ebenfalls unter GPL-3, und das gebaute `PicoFaceOB.uf2` ist ein
-GPL-3-Werk. Kern und die anderen sieben Instrumente bleiben MIT; MIT ist
-GPL-kompatibel, die Kombination ist zulaessig, und die Trennung laeuft genau
-entlang der Instrumentgrenze, die das Monorepo ohnehin zieht. Einzelheiten in
-`instruments/PicoFaceOB/README.md`.
+**License.** OB-Xf is GPL-3.0-or-later. `instruments/PicoFaceOB/` is therefore
+GPL-3 as well, and the built `PicoFaceOB.uf2` is a GPL-3 work. Per-instrument
+licensing is possible at all because the boundary runs exactly along the
+instrument border the monorepo draws anyway - every instrument is its own
+binary. What the other seven are licensed under is currently unsettled and the
+repository has no root LICENSE file; the facts are collected in the licensing
+section of the root README.
 
-**Was die Portierung ausmacht.** Die Engine ist header-only und war
-erfreulich JUCE-arm; die eigentliche Arbeit lag woanders. Drei Fundstellen
-waren auf dem Desktop unsichtbar und haetten auf dem M33 alles erledigt:
+**What the port consisted of.** The engine is header-only and was pleasantly
+free of JUCE; the actual work was elsewhere. Three findings were invisible on
+the desktop and would have finished off the M33:
 
-1. 19 unsuffixierte Fliesskomma-Literale (`0.5` statt `0.5f`) in den
-   Oszillatoren. Jedes hebt seinen Ausdruck auf Double - in Software emuliert,
-   im Per-Sample-Pfad.
-2. `tan()` und `atan()` im Filter, ebenfalls die Double-Varianten, je einmal
-   pro Sample und Stimme.
-3. `getPitch()` = `440 * exp(ln2/12 * i)`, dreimal pro Sample und Stimme.
+1. 19 unsuffixed floating point literals (`0.5` instead of `0.5f`) in the
+   oscillators. Each one promotes its expression to double - emulated in
+   software, in the per-sample path.
+2. `tan()` and `atan()` in the filter, also the double variants, once per sample
+   and voice each.
+3. `getPitch()` = `440 * exp(ln2/12 * i)`, three times per sample and voice.
 
-Ersetzt durch Float-Approximationen in `include/obxf/ObxfPort.h`, nach dem
-Vorbild von `instruments/PicoFaceCP/effects/dsp_fastmath.h`. Danach ruft kein
-Objekt dieses Instruments mehr die Double-Laufzeitbibliothek. Nicht portiert
-sind Modulationsmatrix, Unisono, MPE, Patch-Bänke und Oversampling; 32 Stimmen
-sind sechs geworden.
+Replaced by float approximations in `include/obxf/ObxfPort.h`, modelled on
+`instruments/PicoFaceCP/effects/dsp_fastmath.h`. After that, no object of this
+instrument calls into the double runtime library any more. Not ported are the
+modulation matrix, unison, MPE, patch banks and oversampling; 32 voices have
+become six.
 
-**Der teuerste Posten war aber keiner davon, sondern der XIP-Cache.**
-`OscillatorBlock::ProcessSample` sind 18 KB Code, die pro Sample sechsmal
-durchlaufen werden - das passt nicht in einen 16 KB grossen Cache. Erst
-`__not_in_flash_func()` auf dieser und `Voice::ProcessSample` brachte den Peak
-von 91 % auf 53 % bei 32 kHz. Die freigewordene Reserve ging in die Samplerate:
-44,1 kHz ist der Auslegungspunkt des Filters (`sqrt(44000 / sampleRate)`) und
-hebt den Cutoff-Deckel von 15,9 auf 22 kHz. Endstand **78 % Peak bei 6 von 6
-Stimmen**, auf der Hardware bestaetigt.
+**The most expensive item, however, was none of those - it was the XIP cache.**
+`OscillatorBlock::ProcessSample` is 18 KB of code that runs six times per
+sample - that does not fit into a 16 KB cache. Only `__not_in_flash_func()` on
+that function and on `Voice::ProcessSample` brought the peak down from 91 % to
+53 % at 32 kHz. The headroom this freed went into the sample rate: 44.1 kHz is
+the filter's design point (`sqrt(44000 / sampleRate)`) and lifts the cutoff
+ceiling from 15.9 to 22 kHz. Final state: **78 % peak with 6 of 6 voices**,
+confirmed on the hardware.
 
-## 7. Verbliebene Divergenzen
+## 7. Remaining divergences
 
-Nach der Zusammenfuehrung von project_config.h, pico_hw.h und pico_hw.cpp in den Kern bleibt Folgendes instrumentspezifisch.
+After merging project_config.h, pico_hw.h and pico_hw.cpp into the core, the following stays instrument-specific.
 
-**Ersetzte Kernquellen**
+**Replaced core sources**
 
-| Datei | Instrumente |
+| File | Instruments |
 |---|---|
 | midi_input_usb.cpp | PicoFaceYC |
 | veeprom.cpp | PicoFaceRD |
 
-YCs `midi_input_usb.cpp` unterscheidet sich in genau einem Punkt: es macht aus einem Note-On mit Velocity 0 ein Note-Off. Der DIN-Parser des Kerns tut das ohnehin, YCs `RefaceMidi::onNoteOn()` nicht - dort gehoert die Behandlung hin, dann kann die Datei entfallen.
+YC's `midi_input_usb.cpp` differs in exactly one point: it turns a note-on with velocity 0 into a note-off. The core's DIN parser does that anyway, YC's `RefaceMidi::onNoteOn()` does not - that is where the handling belongs, and then the file can go.
 
-`settings.cpp`, `midi_reface.cpp` und `pico_frontpanel.cpp` standen hier bis zur Umstellung von YC. Die ersten beiden liegen weiterhin unter `instruments/PicoFaceYC/src/`, ersetzen aber nichts mehr, weil es im Kern keine Quellen dieser Namen mehr gibt. `pico_frontpanel.cpp` ist ersatzlos entfallen.
+`settings.cpp`, `midi_reface.cpp` and `pico_frontpanel.cpp` were listed here until YC was converted. The first two still live under `instruments/PicoFaceYC/src/`, but no longer replace anything, because the core has no sources by those names any more. `pico_frontpanel.cpp` is gone without replacement.
 
-**Verdeckte Header**
+**Shadowed headers**
 
-Keine mehr. `midi_reface.h` und `settings.h` waren CP-Fassungen im Kern, die von den gleichnamigen YC-Dateien verdeckt wurden - beide sind mit der CP-Umstellung nach `instruments/PicoFaceCP/include/` gewandert. `pico_frontpanel.h` und `pico_userinterface.h` sind mit den blockierenden Menues verschwunden. CPs `veeprom.h` unterschied sich von der Kernfassung in genau einer Kommentarzeile und ist geloescht.
+None left. `midi_reface.h` and `settings.h` were CP versions in the core, shadowed by YC's files of the same name - both moved to `instruments/PicoFaceCP/include/` with the CP conversion. `pico_frontpanel.h` and `pico_userinterface.h` disappeared along with the blocking menus. CP's `veeprom.h` differed from the core version in exactly one comment line and has been deleted.
 
-### Per-Instrument-Defines
+### Per-instrument defines
 
-Was frueher als eigene pico_hw.cpp vorlag, ist jetzt eine Handvoll Compile-Definitions in der jeweiligen instrument.cmake.
+What used to be a separate pico_hw.cpp is now a handful of compile definitions in the respective instrument.cmake.
 
-| Define | Instrumente | Wirkung |
+| Define | Instruments | Effect |
 |---|---|---|
-| PICO_USE_SW_SPIN_LOCKS=1 | YC, J6, MD, SM | Software-Spinlocks statt Hardware |
-| PICO_STACK_SIZE, PICO_CORE1_STACK_SIZE = 0x1000 | YC, CP, RD | Stacks in die Scratch-Baenke |
-| TARGET_RP2350=1 | RD, J6, MD, SM | wirkungslos, da das SDK ohnehin PICO_BUILD definiert; nur der Vollstaendigkeit halber uebernommen |
-| RD_CLOCK_504=1 | RD | schaltet den 480-MHz-Zweig frei |
-| PICOFACE_SYS_CLOCK_HZ, PICOFACE_QMI_M0_TIMING_TARGET | RD | Taktziel und passendes Flash-Timing; muessen zusammen geaendert werden |
+| PICO_USE_SW_SPIN_LOCKS=1 | YC, J6, MD, SM | software spin locks instead of hardware ones |
+| PICO_STACK_SIZE, PICO_CORE1_STACK_SIZE = 0x1000 | YC, CP, RD, DX | stacks into the scratch banks |
+| TARGET_RP2350=1 | RD, J6, MD, SM | ineffective, since the SDK defines PICO_BUILD anyway; carried over only for completeness |
+| RD_CLOCK_504=1 | RD | enables the 480 MHz branch |
+| PICOFACE_SYS_CLOCK_HZ, PICOFACE_QMI_M0_TIMING_TARGET | RD | clock target and matching flash timing; must be changed together |
 
-Diese Defines sind bewusst nicht im Helper vereinheitlicht, sondern je Instrument gesetzt wie in den Ursprungsprojekten. Spinlock-Implementierung und Stack-Layout eines Multicore-Audiobuilds ohne Geraet umzustellen waere leichtfertig.
+These defines are deliberately not unified in the helper but set per instrument the way they were in the original projects. Changing the spin lock implementation and the stack layout of a multicore audio build without a device would be careless.
 
-`tools/migrate.sh` meldet abweichende Dateien mit `DIVERGENT, kept locally`; project_config.h, pico_hw.h und usb_descriptors.c entfernt es unbedingt, weil die Kern-Fassung massgeblich ist.
+`tools/migrate.sh` reports differing files as `DIVERGENT, kept locally`; project_config.h, pico_hw.h and usb_descriptors.c it removes unconditionally, because the core version is authoritative.
 
-## 8. Offene Arbeit
-**Erledigt:**
+## 8. Open work
+**Done:**
 
-- `core/src/picoface_main.cpp`: gemeinsames main() fuer beide Laufzeitmodelle.
-- `core/src/ui/display.cpp`: u8g2-Fassade; flush() stoesst nur die zeilenweise Ausgabe an.
-- Alle acht Adapter, alle im Standardmodell. PicoFaceMD ist die Vorlage.
-- Alle acht bauen aus einem gemeinsamen Configure-Lauf und tragen je eine eigene USB-PID.
-- Sechs davon auf der Hardware getestet und lauffaehig, PicoFaceRD einschliesslich der 480-MHz-Taktung. PicoFaceOB (Abschnitt 6b) und PicoFaceDX (Abschnitt 4a) sind dort noch ungetestet.
-- PicoFaceYC und PicoFaceCP auf das Standardmodell umgestellt (Abschnitt 4a) und in dieser Fassung auf der Hardware bestaetigt. Damit ist das zweite Laufzeitmodell ersatzlos aus dem Kern entfernt.
+- `core/src/picoface_main.cpp`: shared main() for both runtime models.
+- `core/src/ui/display.cpp`: u8g2 facade; flush() only arms the row-by-row output.
+- All eight adapters, all in the standard model. PicoFaceMD is the template.
+- All eight build from a single configure run and carry their own USB PID.
+- Six of them tested on the hardware and working, PicoFaceRD including the 480 MHz clocking. PicoFaceOB (section 6b) and PicoFaceDX (section 4a) are not yet tested there.
+- PicoFaceYC and PicoFaceCP converted to the standard model (section 4a) and confirmed on the hardware in that form. With that, the second runtime model has been removed from the core without replacement.
 
-| Instrument | Flash | RAM | PID | Original (Flash/RAM) |
+| Instrument | Flash | RAM | PID | Original (flash/RAM) |
 |---|---|---|---|---|
-| PicoFaceYC | 135.224 | 47.824 | 0x1050 | 130.408 / 44.780 |
-| PicoFaceCP | 4.431.496 | 178.104 | 0x1051 | 4.431.112 / 175.612 |
-| PicoFaceRD | 5.318.096 | 35.420 | 0x1052 | 5.312.968 / 33.928 |
-| PicoFaceJ6 | 104.056 | 19.188 | 0x1053 | 101.644 / 17.688 |
-| PicoFaceMD | 99.168 | 268.624 | 0x1054 | 96.828 / 267.124 |
-| PicoFaceSM | 96.232 | 21.784 | 0x1055 | 91.868 / 20.288 |
-| PicoFaceOB | 131.724 | 42.248 | 0x1056 | - (neu) |
-| PicoFaceDX | 170.052 | 218.508 | 0x1057 | 164.964 / 216.012 |
+| PicoFaceYC | 135,224 | 47,824 | 0x1050 | 130,408 / 44,780 |
+| PicoFaceCP | 4,431,496 | 178,104 | 0x1051 | 4,431,112 / 175,612 |
+| PicoFaceRD | 5,318,096 | 35,420 | 0x1052 | 5,312,968 / 33,928 |
+| PicoFaceJ6 | 104,056 | 19,188 | 0x1053 | 101,644 / 17,688 |
+| PicoFaceMD | 99,168 | 268,624 | 0x1054 | 96,828 / 267,124 |
+| PicoFaceSM | 96,232 | 21,784 | 0x1055 | 91,868 / 20,288 |
+| PicoFaceOB | 131,724 | 42,248 | 0x1056 | - (new) |
+| PicoFaceDX | 170,052 | 218,508 | 0x1057 | 164,964 / 216,012 |
 
-Gemessen mit `arm-none-eabi-size` (text / bss). PicoFaceOBs RAM sind zu 32 KB
-die sechs Stimmen des OB-Xf-Voice-Objekts, gut 5,3 KB je Stimme; dazu kommen
-47,6 KB `.data`, weil dort der RAM-residente Renderpfad und die BLEP-Tabellen
-liegen (Abschnitt 6b).
+Measured with `arm-none-eabi-size` (text / bss). 32 KB of PicoFaceOB's RAM are
+the six voices of the OB-Xf voice object, a good 5.3 KB each; on top of that come
+47.6 KB of `.data`, because that is where the RAM-resident render path and the
+BLEP tables live (section 6b).
 
-Der Aufschlag gegenueber den Einzelprojekten liegt bei 2 bis 4 KB Flash und rund 940 Byte RAM je Instrument - im Wesentlichen die vtable der Instrument-Schnittstelle und die zusaetzliche Indirektion.
+The surcharge compared to the individual projects is 2 to 4 KB of flash and around 940 bytes of RAM per instrument - essentially the vtable of the instrument interface and the extra indirection.
 
-Die Umstellung von YC und CP samt dem Wegfall des zweiten Laufzeitmodells kostet YC 1.300 und CP 5.012 Byte Flash weniger als vorher, bei 552 bzw. 512 Byte mehr RAM: der Same-Core-Ring belegt je 1032 Byte, dafuer entfallen die instrumenteigenen Encoder-, Button-, USB-MIDI- und u8g2-Objekte. J6, MD und SM verlieren rund 500 Byte Flash - der `owns_ui`-Zweig und die fuenf entfallenen virtuellen Methoden wiegen mehr als die zwei neuen MIDI-Methoden; nur RD liegt 528 Byte hoeher, weil hinter seinem grossen Sampleblock das Ausrichtungs-Padding anders faellt.
+Converting YC and CP, together with dropping the second runtime model, costs YC 1,300 and CP 5,012 bytes *less* flash than before, at 552 resp. 512 bytes more RAM: the same-core ring takes 1,032 bytes each, but the instrument's own encoder, button, USB MIDI and u8g2 objects are gone. J6, MD and SM lose around 500 bytes of flash - the `owns_ui` branch and the five removed virtual methods weigh more than the two new MIDI methods; only RD ends up 528 bytes higher, because the alignment padding behind its large sample block falls differently.
 
-DX faellt mit 5.088 Byte Flash und 2.496 Byte RAM aus diesem Rahmen, aber in eine
-andere Richtung als YC und CP: es kam bereits umgestellt herein und vergleicht
-sich deshalb nicht gegen eine frisch entfernte core1-Schleife, sondern gegen ein
-Repository ohne DIN-MIDI und ohne `ListView`. Der Same-Core-Ring belegt wieder 1.032 Byte, der
-DIN-Empfangsring 256 weitere; den Rest tragen die Parser- und Kernobjekte, die es
-im Ursprungs-Repository so nicht gab.
+DX falls outside that range with 5,088 bytes of flash and 2,496 bytes of RAM, but in a different direction than YC and CP: it came in already converted and therefore is not compared against a freshly removed core1 loop, but against a repository without DIN MIDI and without `ListView`. The same-core ring again takes 1,032 bytes, the DIN receive ring another 256; the rest is carried by the parser and core objects that did not exist in the original repository in that form.
 
-**Besonderheiten von PicoFaceRD:** RD nutzt core1 als RAM-residenten Voice-Worker und wechselt die Samplerate zur Laufzeit zwischen 20 und 32 kHz. Beides laeuft ueber die optionalen Hooks: `consumeSampleRateChange` laesst den Kern die Hardware-Rate erst umschalten, wenn die bereits in der DMA-Pipeline liegenden Puffer abgelaufen sind; `onAudioUnderrun` loest den Voice-Governor aus; `settingsSaveAllowed` verhindert einen Flash-Schreibvorgang, solange Stimmen klingen. Fuer die uebrigen Instrumente sind die Defaults dieser Hooks wirkungslos.
+**Special case PicoFaceRD:** RD uses core1 as a RAM-resident voice worker and switches the sample rate between 20 and 32 kHz at runtime. Both run through the optional hooks: `consumeSampleRateChange` lets the core switch the hardware rate only once the buffers already in the DMA pipeline have drained; `onAudioUnderrun` triggers the voice governor; `settingsSaveAllowed` prevents a flash write while voices are still sounding. For the other instruments the defaults of these hooks are ineffective.
 
-**Offen:**
+**Open:**
 
-1. Hardware-Test des DIN-MIDI (Abschnitt 6a).
-2. YCs `midi_input_usb.cpp`, die letzte ersetzte Kernquelle neben RDs `veeprom.cpp` (Abschnitt 7).
-3. Hardware-Test von PicoFaceOB und PicoFaceDX. Bei DX ist besonders die
-   umgestellte Bedienoberflaeche zu pruefen: Preset-Wechsel, Master Volume und
-   der Settings-Schreibvorgang liefen dort vorher auf core1.
-
+1. Hardware test of DIN MIDI (section 6a).
+2. YC's `midi_input_usb.cpp`, the last replaced core source next to RD's `veeprom.cpp` (section 7).
+3. Hardware test of PicoFaceOB and PicoFaceDX. For DX the converted user interface in particular needs checking: preset switching, master volume and the settings write all used to run on core1.
