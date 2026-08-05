@@ -324,8 +324,8 @@ These defines are deliberately not unified in the helper but set per instrument 
 - `core/src/ui/display.cpp`: u8g2 facade; flush() only arms the row-by-row output.
 - All eight adapters, all in the standard model. PicoFaceMD is the template.
 - All eight build from a single configure run and carry their own USB PID.
-- Seven of them tested on the hardware and working, PicoFaceRD including the 480 MHz clocking. PicoFaceOB (section 6b) is not yet tested there.
-- PicoFaceDX (section 4a) confirmed on the hardware on 2026-08-05: audio out, the factory presets sounding as they should, and USB MIDI far enough that Soundmondo connects and loads voices into it. Of the converted user interface that used to run on core1, preset switching is covered by that; master volume and the settings write have not been exercised deliberately.
+- All eight tested on the hardware and working, PicoFaceRD including the 480 MHz clocking.
+- PicoFaceOB (section 6b) confirmed on the hardware on 2026-08-04, PicoFaceDX (section 4a) on 2026-08-05 - the last two. For DX that covers audio out, the factory presets sounding as they should, the whole of the user interface that used to run on core1 (preset switching, master volume, the settings write), and USB MIDI far enough that Soundmondo connects and loads voices into it.
 - PicoFaceYC and PicoFaceCP converted to the standard model (section 4a) and confirmed on the hardware in that form. With that, the second runtime model has been removed from the core without replacement.
 
 | Instrument | Flash | RAM | PID | Original (flash/RAM) |
@@ -356,4 +356,3 @@ DX falls outside that range with 5,088 bytes of flash and 2,496 bytes of RAM, bu
 
 1. Hardware test of DIN MIDI (section 6a).
 2. YC's `midi_input_usb.cpp`, the last replaced core source next to RD's `veeprom.cpp` (section 7).
-3. Hardware test of PicoFaceOB.

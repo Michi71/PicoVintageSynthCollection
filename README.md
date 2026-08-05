@@ -91,8 +91,7 @@ instrument's README names the document so it can be obtained separately.
 ## Status
 
 **All eight instruments build from a single configure run, each with its own
-USB PID. Seven of them run on the hardware; PicoFaceOB is not yet tested
-there.** Open points are listed in
+USB PID, and all eight run on the hardware.** Open points are listed in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), section 8.
 
 ## License
