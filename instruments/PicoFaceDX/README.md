@@ -108,6 +108,33 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICOFACE_INSTRUMENTS_F
 cmake --build build
 ```
 
+### Editor compatibility: the reface DX USB identity
+
+Yamaha's [Soundmondo](https://soundmondo.yamahasynth.com/) voice library filters
+MIDI ports by USB descriptor, not by the SysEx Identity Reply - it does not see
+the device while it enumerates as `PicoFaceDX`. An opt-in build option makes the
+DX enumerate as the real thing (VID `0x0499`, PID `0x1624`, "Yamaha Corp." /
+"reface DX"):
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICOFACE_DX_REFACE_USB_IDENTITY=ON
+cmake --build build
+```
+
+Confirmed working: with it, Soundmondo connects and loads voices directly.
+
+It is **off by default** and meant for a session with such an editor, not for
+distribution: it borrows Yamaha's vendor ID, and it gives up the per-instrument
+PID that lets a host tell the eight images of this collection apart. The option
+is cached, so switching it back off needs a reconfigure *and* a rebuild:
+
+```bash
+cmake -S . -B build -DPICOFACE_DX_REFACE_USB_IDENTITY=OFF
+```
+
+The PID `0x1624` is not verified - it is the value the ESP32 reference uses,
+derived there from the reface identity range `0x51..0x54`.
+
 Footprint in the collection build: 170,052 bytes of flash, 218,508 bytes of RAM.
 The RAM figure is dominated by the effect chain's fixed scratch buffers (2 slots
 x 96 KB, sized for the largest single effect, `FxReverb`) - budgeted

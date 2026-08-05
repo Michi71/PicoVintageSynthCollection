@@ -144,6 +144,12 @@ Note the model ID bytes `41 53 06` (the reface CP used `41 52 06`; byte 0x53 vs 
 
 Byte 10 is the firmware version, read by the host as `1.0 + n/10`. We report `03` (1.3, the last reface DX firmware), matching the ESP32 reference; editors may refuse a device that reports an older version. Earlier revisions of this firmware sent `00` here.
 
+### USB identity
+
+The Identity Reply is not the whole story for editor compatibility. Yamaha's Soundmondo filters MIDI ports by **USB descriptor** and never gets as far as an Identity Request, so it does not see the device in the default build, which enumerates as VID `0x2E8A` (Raspberry Pi) / PID `0x1057` / "MIDICompany" / "PicoFaceDX".
+
+The build option `PICOFACE_DX_REFACE_USB_IDENTITY` (off by default, see `instrument.cmake`) switches the descriptor to VID `0x0499` / PID `0x1624` / "Yamaha Corp." / "reface DX"; with it, Soundmondo connects and loads voices. `TUD_MIDI_DESCRIPTOR` uses string index 2, the product string, so the port name follows along and there is no separate interface string to change.
+
 ### Parameter Change (RX)
 
 `F0 43 1n 7F 1C 05 <AddrH> <AddrM> <AddrL> <Data> F7` — ein Byte pro Parameter; adressiert System/Common/Operator-Blöcke (siehe Tabellen in den Abschnitten 4–6).

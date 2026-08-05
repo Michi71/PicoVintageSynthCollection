@@ -51,6 +51,23 @@
 #define PICOFACE_USB_PID 0x104C
 #endif
 
+/* Vendor ID and the two descriptor strings. An instrument may override these to
+ * present the USB identity of the device it emulates, which editors that filter
+ * MIDI ports by descriptor rather than by SysEx Identity Reply need in order to
+ * see it at all - see PICOFACE_DX_REFACE_USB_IDENTITY in
+ * instruments/PicoFaceDX/instrument.cmake. Nothing does so by default. */
+#ifndef PICOFACE_USB_VID
+#define PICOFACE_USB_VID 0x2E8A     /* Raspberry Pi */
+#endif
+
+#ifndef PICOFACE_USB_MANUFACTURER
+#define PICOFACE_USB_MANUFACTURER "MIDICompany"
+#endif
+
+#ifndef PICOFACE_USB_PRODUCT
+#define PICOFACE_USB_PRODUCT PICOFACE_INSTRUMENT_NAME
+#endif
+
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
@@ -64,7 +81,7 @@ tusb_desc_device_t const desc_device =
     .bDeviceProtocol    = 0x00,
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
-    .idVendor           = 0x2E8A,
+    .idVendor           = PICOFACE_USB_VID,
     .idProduct          = PICOFACE_USB_PID,
     .bcdDevice          = 0x0101,
 
@@ -148,8 +165,8 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 char const* string_desc_arr [] =
 {
   (const char[]) { 0x09, 0x04 }, 	// 0: is supported language is English (0x0409)
-  "MIDICompany",                 	// 1: Manufacturer
-  PICOFACE_INSTRUMENT_NAME,      // 2: Product
+  PICOFACE_USB_MANUFACTURER,     // 1: Manufacturer
+  PICOFACE_USB_PRODUCT,          // 2: Product
   usb_serial,                 		// 3: Serials, should use chip ID
 };
 
