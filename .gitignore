@@ -19,3 +19,8 @@ __pycache__/
 # host test binaries and rendered WAVs (tools/host_tests/README.md)
 tools/host_tests/**/*_test
 tools/host_tests/**/*.wav
+
+# local test material for tools/rd_midi. Named individually on purpose: the
+# other .mid files in that folder are tracked and belong to the repository.
+tools/rd_midi/DieTaenzerin.mid
+tools/rd_midi/DieTaenzerin_keys.mid
