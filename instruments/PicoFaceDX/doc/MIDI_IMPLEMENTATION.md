@@ -138,9 +138,11 @@ Yamaha SysEx header: ID `43H`, group `7F 1C`, model ID `05H` (reface DX; the old
 ### Identity Request / Reply
 
 Identity Request (RX): `F0 7E 0n 06 01 F7`
-Identity Reply (TX): `F0 7E 7F 06 02 43 00 41 53 06 00 00 00 7F F7`
+Identity Reply (TX): `F0 7E 7F 06 02 43 00 41 53 06 03 00 00 7F F7`
 
 Note the model ID bytes `41 53 06` (the reface CP used `41 52 06`; byte 0x53 vs 0x52 is the only difference, confirmed against the real reface DX and the ESP32 reference implementation).
+
+Byte 10 is the firmware version, read by the host as `1.0 + n/10`. We report `03` (1.3, the last reface DX firmware), matching the ESP32 reference; editors may refuse a device that reports an older version. Earlier revisions of this firmware sent `00` here.
 
 ### Parameter Change (RX)
 
@@ -166,7 +168,16 @@ RX writes into a staging patch (`include/dx_patch_stage.h`) instead of into the 
 
 ### Parameter Request (RX) → TX-Antwort
 
-Same addressing as the dump request; the reply is the single current byte at that address, read live from the engine (a read of `DX_Synth_Bridge::patch()` from the control side is an accepted convention in this codebase).
+Same addressing as the dump request, with two reply shapes:
+
+| Adresse | Antwort |
+|---|---|
+| `0E 0F 00` | full patch dump — header + common + 4 operators + footer |
+| `30 00 00` | the common block (38 bytes) |
+| `31 <op> 00` | a single operator block (28 bytes) |
+| anything else | the single current byte at that address |
+
+The Yamaha convention answers a parameter request with a single Parameter Change, and that is what a non-zero address offset still gets. Editors, however, also use this command with a block base address to read a whole voice back, and the ESP32 reference (`RDX_Midi.h`, `case 0x3`) answers those with full bulk blocks — so a block base address returns the block. Values are read live from the engine (a read of `DX_Synth_Bridge::patch()` from the control side is an accepted convention in this codebase).
 
 ### Bulk-Dump-Blockübersicht
 

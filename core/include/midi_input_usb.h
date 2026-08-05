@@ -47,7 +47,10 @@ private:
     SysExCallback        MIDISysExCallback        = nullptr;
     ActivityCallback     MIDIActivityCallback     = nullptr;
 
-    uint8_t  _syx[64]      = {0};
+    // 256 bytes: the largest message any instrument expects is a reface DX
+    // common-block bulk dump at 51 bytes, but an oversized message is dropped
+    // silently in sysexFinish(), so keep headroom rather than lose it unseen.
+    uint8_t  _syx[256]     = {0};
     uint16_t _syxLen       = 0;
     bool     _syxActive    = false;
     bool     _syxOverflow  = false;

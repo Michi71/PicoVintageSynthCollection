@@ -212,7 +212,7 @@ void RefaceMidi::handleYamahaSysEx(const uint8_t* d, uint16_t len)
     }
     case 0x30: {
         if (len < 10 || d[5] != 0x05) return;
-        txParamChange(d[6], d[7], d[8]);
+        handleParamRequest(d[6], d[7], d[8]);
         break;
     }
     case 0x20: {
@@ -289,10 +289,13 @@ uint8_t RefaceMidi::readOperatorParam(uint8_t opNum, uint8_t addr) const {
 
 void RefaceMidi::txIdentityReply()
 {
+    // Byte 10 is the firmware version, read by the host as 1.0 + n/10. The
+    // ESP32 reference reports 0x03 (1.3), the last reface DX firmware; editors
+    // may gate on a minimum version, so report the same rather than 1.0.
     static const uint8_t r[15] = {
         0xF0, 0x7E, 0x7F, 0x06, 0x02,
         0x43, 0x00, 0x41, 0x53, 0x06,
-        0x00, 0x00, 0x00, 0x7F, 0xF7
+        0x03, 0x00, 0x00, 0x7F, 0xF7
     };
     txBytes(r, sizeof(r));
 }
@@ -360,29 +363,57 @@ void RefaceMidi::handleBulkDump(const uint8_t* d, uint16_t len)
     }
 }
 
+void RefaceMidi::txCommonBlock()
+{
+    uint8_t common[COMMON_BLOCK_SIZE];
+    for (uint8_t i = 0; i < COMMON_BLOCK_SIZE; i++) common[i] = readCommonParam(i);
+    txBulkBlock(COMMON_ADDR_H, 0x00, 0x00, common, COMMON_BLOCK_SIZE);
+}
+
+void RefaceMidi::txOperatorBlock(uint8_t opNum)
+{
+    if (opNum >= 4) return;
+    uint8_t opBuf[OPERATOR_BLOCK_SIZE];
+    for (uint8_t i = 0; i < OPERATOR_BLOCK_SIZE; i++) opBuf[i] = readOperatorParam(opNum, i);
+    txBulkBlock(OPERATOR_ADDR_H, opNum, 0x00, opBuf, OPERATOR_BLOCK_SIZE);
+}
+
+void RefaceMidi::txVoiceBulk()
+{
+    txBulkBlock(0x0E, 0x0F, 0x00, nullptr, 0);   // bulk header
+    txCommonBlock();
+    for (uint8_t op = 0; op < 4; op++) txOperatorBlock(op);
+    txBulkBlock(0x0F, 0x0F, 0x00, nullptr, 0);   // bulk footer
+}
+
 void RefaceMidi::handleDumpRequest(uint8_t ah, uint8_t am, uint8_t al)
 {
     if (ah == 0x00 && am == 0x00 && al == 0x00) {
         txBulkBlock(0x00, 0x00, 0x00, _sys, SYS_BLOCK_SIZE);
     } else if (ah == 0x0E && am == 0x0F && al == 0x00) {
-        txBulkBlock(0x0E, 0x0F, 0x00, nullptr, 0);
-        uint8_t common[COMMON_BLOCK_SIZE];
-        for (uint8_t i = 0; i < COMMON_BLOCK_SIZE; i++) common[i] = readCommonParam(i);
-        txBulkBlock(COMMON_ADDR_H, 0x00, 0x00, common, COMMON_BLOCK_SIZE);
-        for (uint8_t op = 0; op < 4; op++) {
-            uint8_t opBuf[OPERATOR_BLOCK_SIZE];
-            for (uint8_t i = 0; i < OPERATOR_BLOCK_SIZE; i++) opBuf[i] = readOperatorParam(op, i);
-            txBulkBlock(OPERATOR_ADDR_H, op, 0x00, opBuf, OPERATOR_BLOCK_SIZE);
-        }
-        txBulkBlock(0x0F, 0x0F, 0x00, nullptr, 0);
+        txVoiceBulk();
     } else if (ah == COMMON_ADDR_H && am == 0x00 && al == 0x00) {
-        uint8_t common[COMMON_BLOCK_SIZE];
-        for (uint8_t i = 0; i < COMMON_BLOCK_SIZE; i++) common[i] = readCommonParam(i);
-        txBulkBlock(COMMON_ADDR_H, 0x00, 0x00, common, COMMON_BLOCK_SIZE);
+        txCommonBlock();
     } else if (ah == OPERATOR_ADDR_H && am < 4 && al == 0x00) {
-        uint8_t opBuf[OPERATOR_BLOCK_SIZE];
-        for (uint8_t i = 0; i < OPERATOR_BLOCK_SIZE; i++) opBuf[i] = readOperatorParam(am, i);
-        txBulkBlock(OPERATOR_ADDR_H, am, 0x00, opBuf, OPERATOR_BLOCK_SIZE);
+        txOperatorBlock(am);
+    }
+}
+
+// Parameter Request. The Yamaha convention answers a parameter address with a
+// single Parameter Change, but editors also use this command with a block base
+// address to read back a whole voice, and the ESP32 reference (RDX_Midi.h,
+// case 0x3) replies to those with full bulk blocks. Serve both: offset 0 of a
+// block address returns the block, every other address the single value.
+void RefaceMidi::handleParamRequest(uint8_t ah, uint8_t am, uint8_t al)
+{
+    if (ah == 0x0E && am == 0x0F && al == 0x00) {
+        txVoiceBulk();
+    } else if (ah == COMMON_ADDR_H && am == 0x00 && al == 0x00) {
+        txCommonBlock();
+    } else if (ah == OPERATOR_ADDR_H && am < 4 && al == 0x00) {
+        txOperatorBlock(am);
+    } else {
+        txParamChange(ah, am, al);
     }
 }
 

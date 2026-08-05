@@ -98,9 +98,13 @@ private:
     void     txIdentityReply();
     void     txParamChange(uint8_t ah, uint8_t am, uint8_t al);     // current value(s)
     void     txBulkBlock(uint8_t ah, uint8_t am, uint8_t al, const uint8_t* data, uint8_t len);
+    void     txCommonBlock();                                       // 30 00 00 as one bulk block
+    void     txOperatorBlock(uint8_t opNum);                        // 31 <op> 00 as one bulk block
+    void     txVoiceBulk();                                         // header + common + 4 operators + footer
     void     handleYamahaSysEx(const uint8_t* d, uint16_t len);
     void     handleBulkDump(const uint8_t* d, uint16_t len);
     void     handleDumpRequest(uint8_t ah, uint8_t am, uint8_t al);
+    void     handleParamRequest(uint8_t ah, uint8_t am, uint8_t al); // block base address -> block, else single value
 
     DX_Synth_Bridge* _dx = nullptr;
     uint8_t  _sys[SYS_BLOCK_SIZE] = {};          // SYSTEM common image; defaults set in init()
