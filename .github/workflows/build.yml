@@ -72,7 +72,7 @@ jobs:
              artifacts/
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.instrument }}-firmware
           path: artifacts/*
@@ -89,13 +89,13 @@ jobs:
     steps:
       # Collect all instrument artifacts into a single directory.
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: PicoVintageSynthCollection ${{ github.ref_name }}
           generate_release_notes: true
