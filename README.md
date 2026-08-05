@@ -7,6 +7,16 @@ codebase. Same board, same core, one firmware image per instrument.
   <img src="img/picofacedx.png" alt="PicoFace prototype hardware running PicoFaceDX" width="800">
 </p>
 
+## Demo
+
+<p align="center">
+  <a href="https://youtu.be/cG6gyhaqCxE">
+    <img src="https://img.youtube.com/vi/cG6gyhaqCxE/maxresdefault.jpg" alt="PicoVintageSynthCollection demo video" width="800">
+  </a>
+  <br>
+  <a href="https://youtu.be/cG6gyhaqCxE">&#9654; Demo video on YouTube</a>
+</p>
+
 ## Instruments
 
 | Folder | Instrument | Binary |
