@@ -74,9 +74,14 @@ public:
 
 private:
     // Segment shape is direction-dependent, as measured: rising segments ramp
-    // linearly in amplitude, falling ones decay linearly in dB.
+    // linearly in amplitude, falling ones decay linearly in dB. The time is the
+    // segment's DURATION, not a rate -- at T1=80 the attack takes ~3.4 s whether
+    // the target is level 64, 96 or 127. Treating it as a rate made every
+    // segment whose target equals the current level collapse to nothing, which
+    // is what made held pads stutter.
     struct Env {
         float level, target, slope, decay;
+        float remaining;    // samples left in the current segment
         int   stage;        // 0..2 attack chain, 3 sustain, 4 release, 5 idle
         bool  rising;
         bool  segmentValid;

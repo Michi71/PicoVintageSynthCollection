@@ -138,6 +138,22 @@ static const float JV_LFO_PITCH_DEPTH_CENTS[9] = {
     0.0f, 52.6f, 112.3f, 215.2f, 350.9f, 518.6f, 722.9f, 961.6f, 1195.1f,
 };
 // The TVF depth (+32/+35) is NOT calibrated; the engine scales it by analogy.
+
+// tvfEnvDepth (+58) -> cutoff parameter units, measured with the TVF envelope
+// held wide open and a base cutoff of 8: depth 8/16/24 moved the corner by
+// 19.1/37.5/60.5 parameter units, so about 2.4 each. Above 24 the corner leaves
+// the noise sample's bandwidth and the measurement, not the synth, saturates.
+// The field is signed like the LFO depths; negative depths close the filter.
+#define JV_TVF_ENV_DEPTH_PER_UNIT 2.4f
+
+// tvaVelocity (+72) is a positive magnitude, NOT a bipolar field centred on 64:
+// values 8/16/32 gave +2.7/+5.6/+10.8 dB at velocity 110 and -1.8/-4.3/-10.6 dB
+// at velocity 30, both against velocity 64. Reading it as (v - 64) inverted the
+// sense and attenuated where the machine boosts. Level in dB is therefore
+//     value * ((velocity - 64) / 64) * JV_TVA_VELO_DB_PER_UNIT
+// with the usual 64..127 inert. The downward side runs slightly steeper than
+// this fit near the extremes.
+#define JV_TVA_VELO_DB_PER_UNIT 0.47f
 //
 // Flags bit 6 is KEY SYNC. Measured by shifting the note-on in time (JV_WARM)
 // and timing the first square-wave edge: with the bit clear the edge moves so

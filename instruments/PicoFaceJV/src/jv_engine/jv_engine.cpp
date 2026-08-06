@@ -71,12 +71,24 @@ float modLevelDb(float sens) {
 // LFO depth tables are sampled every 8 units, with the last entry at 63 rather
 // than 64, so the top interval spans 7 units. Values above 63 disable the
 // modulation outright -- measured, they reproduce the unmodulated signal exactly.
-float lfoDepth(const float* tbl, uint8_t d) {
-    if (d > JV_LFO_DEPTH_MAX) return 0.0f;
-    if (d >= 56) return tbl[7] + (tbl[8] - tbl[7]) * ((float)(d - 56) / 7.0f);
-    float x = d * 0.125f;
-    int i = (int)x;
-    return tbl[i] + (tbl[i + 1] - tbl[i]) * (x - (float)i);
+// Depth is SIGNED: the sign flips the direction of the modulation, it does not
+// disable it. Values 64..127 really are inert, but 128..255 are -128..-1 and
+// modulate the other way -- measured on pitch, where -20 gives 133 cents of
+// swing around a mean 11 Hz ABOVE the carrier while +20 gives 136 cents around
+// a mean 10 Hz below. An earlier sweep only covered 0..127 and concluded that
+// everything from 64 up was off.
+float lfoDepth(const float* tbl, uint8_t raw) {
+    const int sv = (int8_t)raw;
+    int d = sv < 0 ? -sv : sv;
+    if (d > JV_LFO_DEPTH_MAX) return 0.0f;      // 64..127 is genuinely inert
+    float mag;
+    if (d >= 56) mag = tbl[7] + (tbl[8] - tbl[7]) * ((float)(d - 56) / 7.0f);
+    else {
+        float x = d * 0.125f;
+        int i = (int)x;
+        mag = tbl[i] + (tbl[i + 1] - tbl[i]) * (x - (float)i);
+    }
+    return sv < 0 ? -mag : mag;
 }
 
 // The machine sits a fixed 9.4 cents below equal temperament: measured constant
@@ -98,6 +110,7 @@ void Engine::Env::begin(const uint8_t* t, const uint8_t* l, uint32_t sampleRate)
     decay = 1.0f;
     stage = 0;
     rising = true;
+    remaining = 0.0f;
     segmentValid = false;
 }
 
@@ -115,30 +128,34 @@ float Engine::Env::tick() {
         const int tv = times[stage < 3 ? stage : 3];
         target = (stage == 4) ? 0.0f : levelToLinear(levels[stage]);
         rising = target > level;
+        const float secs = rising ? envRiseSeconds(tv) : envFallSeconds(tv);
+        remaining = secs * (float)sr;
+        if (remaining < 1.0f) remaining = 1.0f;
         if (rising) {
-            // Linear in amplitude: the slope is 1/riseTime regardless of span,
-            // because riseTime is calibrated for a full 0..1 segment.
-            float t = envRiseSeconds(tv);
-            slope = (t > 1e-6f) ? 1.0f / (t * (float)sr) : 1.0f;
+            slope = (target - level) / remaining;          // linear in amplitude
+        } else if (target > 1e-6f && level > 1e-6f) {
+            decay = powf(target / level, 1.0f / remaining); // linear in dB, to target
         } else {
-            // Linear in dB: fallTime is calibrated over a 40 dB drop.
-            float t = envFallSeconds(tv);
-            float dbPerSample = (t > 1e-6f) ? 40.0f / (t * (float)sr) : 200.0f;
-            decay = powf(10.0f, -dbPerSample * (1.0f / 20.0f));
+            // Falling to silence: the calibration is a 40 dB drop per fall time.
+            decay = powf(10.0f, -40.0f / (20.0f * remaining));
         }
         segmentValid = true;
     }
 
     if (rising) {
         level += slope;
-        if (level >= target) { level = target; stage++; segmentValid = false; }
+        if (level > target) level = target;
     } else {
         level *= decay;
-        if (level <= target || level < 1e-6f) {
-            level = target;
-            stage++;
-            segmentValid = false;
-        }
+        if (level < target) level = target;
+    }
+    // The segment ends on its duration, not on reaching the target. A stage
+    // whose target equals the current level is a hold and must still take its
+    // time.
+    if ((remaining -= 1.0f) <= 0.0f) {
+        if (rising || target > 1e-6f) level = target;
+        stage++;
+        segmentValid = false;
     }
     if (stage == 3 && level <= 1e-6f) stage = 5;   // decayed away before note-off
     if (stage >= 5) level = 0.0f;
@@ -305,7 +322,8 @@ int Engine::allocVoice() {
 void Engine::updateFilterCoeffs(Voice& v) {
     // Cutoff moves with the TVF envelope, scaled by the bipolar depth. The depth
     // scaling is NOT calibrated -- see tools/jv_extract/README.md.
-    float cv = v.cutoffBase + v.envDepth * v.tvf.level * 2.0f + v.cutoffMod;
+    float cv = v.cutoffBase +
+               v.envDepth * v.tvf.level * JV_TVF_ENV_DEPTH_PER_UNIT + v.cutoffMod;
     float hz = cutoffToHz(cv);
     const float nyq = (float)sr_ * 0.49f;
     if (hz > nyq) hz = nyq;
@@ -369,7 +387,12 @@ void Engine::updateModulation(Voice& v) {
     // Both signs matter: LFO modulation is negative, but a matrix level
     // destination is positive. An earlier version only applied the negative
     // branch, which silently dropped the whole level destination.
-    v.lfoGain = (fabsf(tvaDb) > 0.001f) ? powf(10.0f, tvaDb * (1.0f / 20.0f)) : 1.0f;
+    // A negative TVA depth asks for modulation ABOVE the set level, which the
+    // machine has no headroom for at full level -- measured as no modulation at
+    // all there. Clamping the boost away reproduces that and degrades sensibly
+    // at lower levels, where it has not been measured.
+    if (tvaDb > 0.0f) tvaDb = 0.0f;
+    v.lfoGain = (tvaDb < -0.001f) ? powf(10.0f, tvaDb * (1.0f / 20.0f)) : 1.0f;
     v.cutoffMod = cutoff;
 }
 
@@ -408,13 +431,26 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
     v.baseInc = (uint32_t)(ratio * 65536.0f);
     v.inc = v.baseInc;
 
-    // TVA: tone level, sample level, velocity sensitivity and pan.
-    float lvl = levelToLinear(t[67]) * levelToLinear(s.level);
-    float velScale = 1.0f + (bipolar(t[72]) / 64.0f) * (((float)vel - 64.0f) / 64.0f);
-    if (velScale < 0.0f) velScale = 0.0f;
-    lvl *= velScale;
+    // TVA: patch level, tone level, sample level, velocity sensitivity and pan.
+    // The patch-common level at +21 was missing entirely, which showed up as a
+    // level error that ran in both directions depending on the patch -- "Wire
+    // Strings" carries 74 there while most carry 117..127.
+    float lvl = levelToLinear(patch_[21]) * levelToLinear(t[67]) *
+                levelToLinear(s.level);
+    {
+        const int8_t vs = (int8_t)t[72];
+        const int vmag = vs < 0 ? -vs : vs;
+        if (vmag <= JV_LFO_DEPTH_MAX && vmag != 0) {
+            float db = (float)vs * (((float)vel - 64.0f) / 64.0f) *
+                       JV_TVA_VELO_DB_PER_UNIT;
+            if (db < -60.0f) db = -60.0f;
+            lvl *= powf(10.0f, db * (1.0f / 20.0f));
+        }
+    }
 
-    int pan = t[68];
+    // Patch pan at +22 offsets the tone's own, both centred at 64.
+    int pan = t[68] + ((int)patch_[22] - 64);
+    if (pan < 0) pan = 0; else if (pan > 127) pan = 127;
     float atten = powf(10.0f, lookup(JV_TVA_PAN_ATTEN_DB, 32, pan) * (1.0f / 20.0f));
     if (pan <= 64) { v.gainL = lvl;         v.gainR = lvl * atten; }
     else           { v.gainL = lvl * atten; v.gainR = lvl; }
@@ -427,10 +463,13 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
     // TVF: only engaged when the mode bits select a filter.
     v.filtMode = t[55] & 0x18;
     v.cutoffBase = (float)t[52];
-    // Same convention as the LFO depths and the matrix sensitivities: 0..63 is
-    // the magnitude and 64..127 disables. Reading it as bipolar around 64 turned
-    // a patch's "no envelope depth" into full negative depth.
-    v.envDepth = (t[58] > JV_LFO_DEPTH_MAX) ? 0.0f : (float)t[58];
+    // Signed like the LFO depths: magnitude 0..63, 64..127 inert, and negative
+    // values close the filter instead of opening it.
+    {
+        const int8_t ed = (int8_t)t[58];
+        const int emag = ed < 0 ? -ed : ed;
+        v.envDepth = (emag > JV_LFO_DEPTH_MAX) ? 0.0f : (float)ed;
+    }
     v.resonance = (float)(t[53] & 0x7F);
     v.filt.reset();
     v.tvfT[0] = t[59]; v.tvfT[1] = t[61]; v.tvfT[2] = t[63]; v.tvfT[3] = t[65];
@@ -451,8 +490,10 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
         v.lfoTvaDepth[i]   = lfoDepth(JV_LFO_TVA_DEPTH_DB,      t[33 + i * 3]) * off;
         // TVF depth is uncalibrated; scaled by analogy with the others so that a
         // full depth moves the cutoff by roughly the range the envelope covers.
-        uint8_t d = t[32 + i * 3];
-        v.lfoTvfDepth[i] = (d > JV_LFO_DEPTH_MAX) ? 0.0f : (float)d * off;
+        const int8_t td = (int8_t)t[32 + i * 3];
+        const int tmag = td < 0 ? -td : td;
+        v.lfoTvfDepth[i] = (tmag > JV_LFO_DEPTH_MAX) ? 0.0f
+                                                     : (float)td * off;
     }
     // Matrix: three source blocks of six bytes at +05, +11, +17. Each is
     // DestAB, DestCD, then SensA..D. Destination A is the LOW nibble of DestAB.
@@ -519,11 +560,11 @@ void Engine::render(float* left, float* right, int frames) {
             while (steps-- > 0) { v.s0 = v.s1; v.s1 = decodeStep(v); }
 
             float frac = (float)v.phase * (1.0f / 65536.0f);
-            // 2^19 would be the accumulator's full scale, but the ROM samples
-            // only reach 13 % of it (median 7.7 %), so normalising to that
-            // throws away 12 dB. Scale to 2^17 instead: one voice then peaks
-            // near -6 dBFS and chords are caught by the bridge's soft clip.
-            float s = ((float)v.s0 + ((float)v.s1 - (float)v.s0) * frac) * (1.0f / 131072.0f);
+            // 2^19 is the accumulator's full scale, but the ROM samples only
+            // reach 13 % of it (median 7.7 %), so normalising to that throws
+            // away 12 dB. This factor is what lines the engine up with the
+            // reference: across 24 patches it leaves a mean error near zero.
+            float s = ((float)v.s0 + ((float)v.s1 - (float)v.s0) * frac) * (1.0f / 330000.0f);
 
             if (--v.ctlPhase <= 0) {
                 updateModulation(v);

@@ -32,6 +32,7 @@ tooling that produced them.
 | Pan, tone level, velocity sensitivity | works, calibrated |
 | Voice allocation with oldest-voice stealing | works |
 | Pitch accuracy | 0.2-0.7 cents on single tones, 5 cents mean on layered patches |
+| Output level vs the reference | mean 0 dB over 24 patches, but 5.3 dB spread |
 | LFO 1 and 2 (pitch, TVF, TVA) | works; rate, depth and waveform matched to the reference |
 | LFO key sync, free-run, offset | works; bit 5 of the flags ignored |
 | Modulation matrix | works for the identified destinations; see below |

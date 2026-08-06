@@ -97,8 +97,15 @@ int main(int argc, char** argv) {
     descramble(w1raw, w1);
     descramble(w2raw, w2);
 
+    // JV_BANK selects the patch bank: 0 User, 1 A (default), 2 B. The three
+    // are not a whole number of patches apart, so an index alone cannot reach
+    // bank B -- offsetting into it lands in the rhythm sets instead.
+    static const uint32_t kBankOffset[3] = {0x008CE0, 0x010CE0, 0x018CE0};
+    const char* envBank = getenv("JV_BANK");
+    int bank = envBank ? atoi(envBank) : 1;
+    if (bank < 0 || bank > 2) bank = 1;
     uint8_t base[PATCH_SZ];
-    memcpy(base, rom2.data() + 0x010CE0 + basePatch * PATCH_SZ, PATCH_SZ);
+    memcpy(base, rom2.data() + kBankOffset[bank] + basePatch * PATCH_SZ, PATCH_SZ);
 
     std::vector<Probe> probes, baseMods;
     std::vector<MidiEvent> midi;

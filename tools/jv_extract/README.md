@@ -147,6 +147,13 @@ rising segments ramp *linearly in amplitude*, falling segments decay *linearly
 in dB*. Both were measured at ten equal time points across several rates; the
 rising shape is identical at every rate.
 
+**The time is the segment's DURATION, not a rate.** At T1 = 80 the attack takes
+about 3.4 s whether its target level is 64, 96 or 127 — a constant rate would
+have given 1.7 / 2.6 / 3.5 s. This matters far beyond the timing: a stage whose
+target equals the current level is a *hold*, and reading the time as a rate
+collapses it to nothing. Several factory pads (B19 "Beauty Vox", B21 "Pvox
+Oooze") have L1 = L2 = 127 and stuttered because of it.
+
 ### The measurement setup is the hard part
 
 Two things silently ruined earlier runs, both worth repeating:
@@ -168,8 +175,21 @@ under test is the only thing moving.
   bandwidth of the white-noise sample used as excitation. A wider excitation
   (or a swept sine) would extend it.
 * **Flags bit 5** of either LFO (see "Key sync and offset" above).
-* **Resonance, TVF envelope depth and the velocity curves** are identified but
-  not calibrated.
+* **tvfEnvDepth (+58)** moves the cutoff by 2.4 parameter units per depth unit
+  (measured 19.1 / 37.5 / 60.5 at depth 8 / 16 / 24, with the envelope held
+  open); above 24 the measurement saturates, not the synth. The field is signed.
+* **tvaVelocity (+72)** is a positive magnitude, not a bipolar field centred on
+  64: values 8 / 16 / 32 give +2.7 / +5.6 / +10.8 dB at velocity 110 and
+  -1.8 / -4.3 / -10.6 dB at velocity 30, both against velocity 64. About
+  0.47 dB per unit at full velocity travel.
+* **LFO depths are signed over the whole byte.** 64..127 really is inert, but
+  128..255 is -128..-1 and modulates the *other way*: pitch depth -20 gives
+  133 cents of swing around a mean above the carrier, +20 gives 136 cents around
+  a mean below it. An earlier sweep only covered 0..127 and wrongly concluded
+  that everything from 64 up was off. On the TVA the negative side is inaudible
+  at full level, because there is no headroom to modulate upward into.
+* **Resonance** is calibrated (see the matrix section); the LFO's TVF depth
+  is not.
 
 ## Pitch: the sample table, resolved
 
@@ -370,8 +390,21 @@ octaves is no longer spectrally flat, but it is still unambiguously not the sine
 ### Still open
 
 * **Cutoff above v≈84** and the **LFO below v≈48** (see Calibration above).
-* **Resonance, TVF envelope depth and the velocity curves** are identified but
-  not calibrated.
+* **tvfEnvDepth (+58)** moves the cutoff by 2.4 parameter units per depth unit
+  (measured 19.1 / 37.5 / 60.5 at depth 8 / 16 / 24, with the envelope held
+  open); above 24 the measurement saturates, not the synth. The field is signed.
+* **tvaVelocity (+72)** is a positive magnitude, not a bipolar field centred on
+  64: values 8 / 16 / 32 give +2.7 / +5.6 / +10.8 dB at velocity 110 and
+  -1.8 / -4.3 / -10.6 dB at velocity 30, both against velocity 64. About
+  0.47 dB per unit at full velocity travel.
+* **LFO depths are signed over the whole byte.** 64..127 really is inert, but
+  128..255 is -128..-1 and modulates the *other way*: pitch depth -20 gives
+  133 cents of swing around a mean above the carrier, +20 gives 136 cents around
+  a mean below it. An earlier sweep only covered 0..127 and wrongly concluded
+  that everything from 64 up was off. On the TVA the negative side is inaudible
+  at full level, because there is no headroom to modulate upward into.
+* **Resonance** is calibrated (see the matrix section); the LFO's TVF depth
+  is not.
 
 ## Credit
 
