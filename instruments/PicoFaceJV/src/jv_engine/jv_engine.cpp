@@ -49,7 +49,20 @@ float tvfEnvLevel(int v) {
            (JV_TVF_ENV_LEVEL[i + 1] - JV_TVF_ENV_LEVEL[i]) * (x - (float)i);
 }
 
-// Tone, patch and sample levels share the measured tvaLevel law.
+// The patch-common level has its own curve again, between the other two.
+float patchLevelToLinear(int v) {
+    if (v <= 0) return 0.0f;
+    if (v > 127) v = 127;
+    const float x = v * (1.0f / 16.0f);
+    const int i = (int)x;
+    const float db = (i >= 8) ? JV_PATCH_LEVEL_DB[8]
+                              : JV_PATCH_LEVEL_DB[i] +
+                                (JV_PATCH_LEVEL_DB[i + 1] - JV_PATCH_LEVEL_DB[i]) * (x - (float)i);
+    if (db <= -200.0f) return 0.0f;
+    return powf(10.0f, db * (1.0f / 20.0f));
+}
+
+// Tone levels follow the measured tvaLevel law.
 float levelToLinear(int v) {
     if (v <= 0) return 0.0f;
     float db = lookup(JV_TVA_LEVEL_DB, 32, v);
@@ -455,12 +468,11 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
     v.baseInc = (uint32_t)(ratio * 65536.0f);
     v.inc = v.baseInc;
 
-    // TVA: patch level, tone level, sample level, velocity sensitivity and pan.
-    // The patch-common level at +21 was missing entirely, which showed up as a
-    // level error that ran in both directions depending on the patch -- "Wire
-    // Strings" carries 74 there while most carry 117..127.
-    float lvl = levelToLinear(patch_[21]) * levelToLinear(t[67]) *
-                levelToLinear(s.level);
+    // TVA: patch level, tone level, velocity sensitivity and pan. The sample
+    // record's byte +17 is deliberately NOT in here -- patching it across its
+    // range moves the machine's output by 0.00 dB, so it is not a level, and
+    // multiplying by it wrongly attenuated 233 of the 577 samples.
+    float lvl = patchLevelToLinear(patch_[21]) * levelToLinear(t[67]);
     {
         const int8_t vs = (int8_t)t[72];
         const int vmag = vs < 0 ? -vs : vs;

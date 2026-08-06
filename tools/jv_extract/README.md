@@ -182,9 +182,23 @@ excursion and are **near-linear in the parameter**, not logarithmic. Normalised
 to L=127 they run 0 / 0.09 / 0.20 / 0.28 / 0.46 / 0.56 / 0.72 / 0.83 / 1.0 at
 L=0…127, where the dB curve would give 0.09 at L=32 instead of 0.20.
 
-Three level-shaped curves, then, and they are all different: `JV_TVA_LEVEL_DB`
-for tone/patch/sample levels, `JV_TVA_ENV_LEVEL_DB` for TVA envelope targets,
-`JV_TVF_ENV_LEVEL` for TVF envelope targets.
+**Four** level-shaped quantities, and no two share a curve:
+`JV_TVA_LEVEL_DB` for tone levels, `JV_PATCH_LEVEL_DB` for the patch-common
+level, `JV_TVA_ENV_LEVEL_DB` for TVA envelope targets, `JV_TVF_ENV_LEVEL` for
+TVF envelope targets. Assuming one curve for all of them was wrong four times
+over; each was settled by patching the byte and reading the sustained level.
+
+And a fifth candidate that turned out not to be one: **byte +17 of a sample
+record is not a level**. Patched across its whole range, including 0, it moved
+the output by 0.00 dB. The engine had been multiplying by it, which wrongly
+attenuated the 233 of 577 samples carrying anything other than 127 -- by up to
+6.4 dB, and one of them to silence.
+
+### Tone summing
+
+Not a factor. Enabling the four tones of "Pipe Organ 1" one at a time, the
+machine gains +2.3 / +0.3 / +1.2 dB and the engine +2.8 / +0.5 / +0.4 dB, so
+there is no hidden per-tone attenuation; only a constant offset separated them.
 
 ### Filter chain, measured against the reference
 

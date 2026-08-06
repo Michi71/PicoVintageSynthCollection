@@ -54,6 +54,18 @@ static const float JV_TVA_ENV_LEVEL_DB[33] = {
         0.00f,
 };
 
+// The PATCH-common level (+21) is a third distinct curve, sitting between the
+// tone-level and envelope-level ones. Measured by patching the byte and reading
+// the sustained level; index = value/16.
+static const float JV_PATCH_LEVEL_DB[9] = {
+    -240.00f, -35.42f, -25.87f, -19.85f, -14.99f, -10.81f, -7.12f, -3.38f, 0.00f,
+};
+
+// Byte +17 of a sample record is NOT a level: patched across its whole range it
+// moved the output by 0.00 dB. The engine used to multiply by it through the
+// tone-level curve, which wrongly attenuated the 233 of 577 samples that carry
+// something other than 127 -- by up to 6.4 dB, and one of them to silence.
+
 // The TVF envelope's levels are a different animal: they scale the cutoff
 // excursion and are near-LINEAR in the parameter, not logarithmic. Measured
 // with envDepth 24 over a base cutoff of 8, normalised to L=127. Feeding these
