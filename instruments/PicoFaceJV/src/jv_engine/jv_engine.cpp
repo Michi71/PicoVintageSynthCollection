@@ -84,8 +84,11 @@ float cutoffToHz(float v) {
     return 431.3f * powf(2.0f, v / 17.93f);
 }
 
-// Roland stores several parameters bipolar with the swing at 64.
-inline int bipolar(uint8_t v) { return (int)v - 64; }
+// There is deliberately no "subtract 64" helper here. The manual's SysEx view
+// centres the signed fields at 64, which is tempting to copy, but the ROM bytes
+// are plain two's complement -- pitch coarse, the LFO depths, the matrix
+// sensitivities and the velocity senses all read correctly as int8_t and all
+// have their neutral value at 0. The offset only exists in the MIDI encoding.
 
 // Velocity attenuation: zero at velocity 127, growing as the note gets softer,
 // scaled by the tone's sensitivity. Driven by the product of the two.
@@ -151,11 +154,12 @@ constexpr float kMasterTuneCents = -9.4f;
 // ------------------------------------------------------------------ envelope
 
 void Engine::Env::begin(const uint8_t* t, const uint8_t* l, uint32_t sampleRate,
-                        bool logLev) {
+                        bool logLev, float releaseTo) {
     times = t;
     levels = l;
     sr = sampleRate;
     logLevels = logLev;
+    releaseLevel = releaseTo;
     level = 0.0f;
     target = 0.0f;
     slope = 0.0f;
@@ -178,7 +182,7 @@ float Engine::Env::tick() {
 
     if (!segmentValid) {
         const int tv = times[stage < 3 ? stage : 3];
-        target = (stage == 4) ? 0.0f
+        target = (stage == 4) ? releaseLevel
                               : (logLevels ? envLevelToLinear(levels[stage])
                                            : tvfEnvLevel(levels[stage]));
         rising = target > level;
@@ -211,8 +215,67 @@ float Engine::Env::tick() {
         stage++;
         segmentValid = false;
     }
-    if (stage == 3 && level <= 1e-6f) stage = 5;   // decayed away before note-off
-    if (stage >= 5) level = 0.0f;
+    // Running out of level ends the envelope -- but only for the TVA, where the
+    // level IS the gate. The TVF envelope controls a cutoff: a sustain of zero
+    // is a legitimate setting there, and forcing the stage past it would slam
+    // the filter shut while the note is still sounding. Same for the release
+    // target, which the TVF may deliberately land above zero.
+    if (logLevels) {
+        if (stage == 3 && level <= 1e-6f) stage = 5;   // decayed away before note-off
+        if (stage >= 5) level = 0.0f;
+    } else if (stage >= 5) {
+        level = releaseLevel;
+        stage = 5;
+    }
+    return level;
+}
+
+// ------------------------------------------------------------ pitch envelope
+
+// Four segments to four signed levels, then a release to L4. Unlike the TVA and
+// TVF envelopes this one ramps linearly in both directions -- the dB decay the
+// others use is a property of amplitude, not of pitch -- so the rise timing law
+// applies throughout. `used` short-circuits the whole thing for the 471 of 539
+// factory tones whose depth is zero.
+void Engine::PEnv::begin(const uint8_t* t, const int8_t* l, float controlRate) {
+    times = t;
+    levels = l;
+    ctlRate = controlRate;
+    level = 0.0f;
+    target = 0.0f;
+    slope = 0.0f;
+    remaining = 0.0f;
+    stage = 0;
+    segmentValid = false;
+    used = true;
+}
+
+void Engine::PEnv::release() {
+    if (stage >= 4) return;
+    stage = 4;
+    segmentValid = false;
+}
+
+float Engine::PEnv::tick() {
+    if (stage >= 5) return level;
+    if (stage == 3) return level;   // hold at L3 until note-off
+
+    if (!segmentValid) {
+        const int tv = times[stage < 3 ? stage : 3];
+        target = (float)levels[stage < 3 ? stage : 3] * (1.0f / 63.0f);
+        if (target < -1.0f) target = -1.0f; else if (target > 1.0f) target = 1.0f;
+        remaining = envRiseSeconds(tv) * ctlRate;
+        if (remaining < 1.0f) remaining = 1.0f;
+        slope = (target - level) / remaining;
+        segmentValid = true;
+    }
+
+    level += slope;
+    if ((remaining -= 1.0f) <= 0.0f) {
+        level = target;
+        stage++;
+        segmentValid = false;
+    }
     return level;
 }
 
@@ -227,10 +290,13 @@ void Engine::Lfo::begin(const uint8_t* p, uint32_t sr, int ctlDiv, uint32_t seed
     delayTicks = JV_LFO_DELAY_S((float)p[2]) * ctlHz;
     float fadeT = JV_LFO_FADE_S((float)p[3]) * ctlHz;
     fadeInc = (fadeT > 1.0f) ? 1.0f / fadeT : 1.0f;
+    // Fade OUT starts at full depth and ramps away; fade IN is the other way
+    // round. Two factory tones use OUT.
+    fadeOut = (p[0] & JV_LFO_FADEOUT_BIT) != 0;
     // Key sync restarts at phase 0, which is the unmodulated end; otherwise the
     // voice picks up the free-running phase.
     phase = (p[0] & JV_LFO_KEYSYNC_BIT) ? 0.0f : freePhase;
-    ramp = 0.0f;
+    ramp = fadeOut ? 1.0f : 0.0f;
     rng = seed | 1u;
     held = 1.0f;
     out = 1.0f;
@@ -238,7 +304,8 @@ void Engine::Lfo::begin(const uint8_t* p, uint32_t sr, int ctlDiv, uint32_t seed
 
 void Engine::Lfo::tick() {
     if (delayTicks > 0.0f) { delayTicks -= 1.0f; out = 1.0f; return; }
-    if (ramp < 1.0f) { ramp += fadeInc; if (ramp > 1.0f) ramp = 1.0f; }
+    if (fadeOut) { if (ramp > 0.0f) { ramp -= fadeInc; if (ramp < 0.0f) ramp = 0.0f; } }
+    else if (ramp < 1.0f)  { ramp += fadeInc; if (ramp > 1.0f) ramp = 1.0f; }
 
     float prev = phase;
     phase += inc;
@@ -389,7 +456,7 @@ void Engine::updateFilterCoeffs(Voice& v) {
     if (v.coefQ < 0.08f) v.coefQ = 0.08f;
 }
 
-void Engine::updateModulation(Voice& v) {
+void Engine::updateModulation(Voice& v, uint32_t clock) {
     // --- modulation matrix -------------------------------------------------
     // Twelve slots, each a signed sensitivity scaled by its source's travel.
     // Destinations 7-10 feed the LFO depths, so they are resolved before the
@@ -420,7 +487,10 @@ void Engine::updateModulation(Voice& v) {
     v.lfo[0].tick();
     v.lfo[1].tick();
 
+    // The pitch envelope runs at control rate and adds straight onto the cents.
+    // Skipped entirely when the depth is zero, which is 471 of 539 tones.
     float cents = matPitch, tvaDb = matLevelDb, cutoff = 0.0f;
+    if (v.penv.used) cents += v.penv.tick() * v.penvDepthSemis * 100.0f;
     // The matrix moves the cutoff in cents; the filter wants parameter units.
     const float cutoffParamsFromMatrix = matCutoff / 67.0f;
     for (int i = 0; i < 2; i++) {
@@ -437,7 +507,17 @@ void Engine::updateModulation(Voice& v) {
     }
     cutoff += cutoffParamsFromMatrix;
     v.resMod = matReso;
-    v.inc = (uint32_t)((float)v.baseInc * powf(2.0f, cents * (1.0f / 1200.0f)));
+    float rate = powf(2.0f, cents * (1.0f / 1200.0f));
+    // FXM: a fixed 125 Hz square on the playback rate. Measured as frequency
+    // modulation -- the fractional deviation is what stays constant across the
+    // keyboard, not the modulation index -- and the modulator is the sample
+    // clock divided down, so it is phased off the global counter rather than
+    // restarted per note. Half a period is sr/250 samples.
+    if (v.fxmK > 0.0f) {
+        const uint32_t half = sr_ / 250u;
+        rate *= ((clock / half) & 1u) ? (1.0f - v.fxmK) : (1.0f + v.fxmK);
+    }
+    v.inc = (uint32_t)((float)v.baseInc * rate);
     // Both signs matter: LFO modulation is negative, but a matrix level
     // destination is positive. An earlier version only applied the negative
     // branch, which silently dropped the whole level destination.
@@ -474,10 +554,40 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
     // measuring the reference emulator (0.098-0.100 cents per unit over the low
     // byte, 0.1005 over the high byte). The root byte is exact semitones
     // (-200.0 cents per +2, measured the same way).
-    float semis = (float)note - (float)s.rootKey;
+    // Pitch keyfollow scales how far the keyboard moves the pitch, about C4:
+    // +100 % is the normal semitone per key, 0 % pins every key to the pitch C4
+    // would sound. The multisample zone is still picked by the key actually
+    // played -- only the playback rate is scaled. 507 of the 539 factory tones
+    // sit at +100 %, so this changes nothing for most of them.
+    const float pkf = jv_kf16(t[40] & 15) * 0.01f;
+    const float effNote = 60.0f + ((float)note - 60.0f) * pkf;
+    float semis = effNote - (float)s.rootKey;
     semis += (float)(int8_t)t[37];              // pitchCoarse
     semis += (float)(int8_t)t[38] * 0.01f;      // pitchFine, cents
     float cents = ((float)s.tune - 1024.0f) * 0.1f + kMasterTuneCents;
+
+    // Random pitch, redrawn per note, and the patch-common analog feel. Both
+    // exist to stop tones of the same patch phase-locking into a fixed beat;
+    // without them a multi-tone pad sits at exactly the same interval every
+    // note and throbs. The random-pitch amounts are the manual's table and the
+    // spread is taken as symmetric about the nominal pitch. Analog feel has no
+    // documented magnitude -- the values in jv_calibration.h are a guess -- but
+    // Roland's own notes say it varies "pitch AND LEVEL", so it does both here.
+    float analogLevel = 1.0f;
+    {
+        uint32_t r = (v.age * 2654435761u) ^ (note * 40503u) ^ 0x9E3779B9u;
+        r ^= r >> 15; r *= 2246822519u; r ^= r >> 13;
+        const float u = (float)((r >> 8) & 0xFFFF) * (1.0f / 32767.5f) - 1.0f;  // -1..+1
+        cents += u * JV_RANDOM_PITCH_CENTS[t[39] & 15] * 0.5f;
+        const float feel = (float)patch_[20] * (1.0f / 127.0f);
+        r ^= r >> 16; r *= 3266489917u; r ^= r >> 16;
+        const float u2 = (float)((r >> 8) & 0xFFFF) * (1.0f / 32767.5f) - 1.0f;
+        cents += u2 * feel * JV_ANALOG_FEEL_CENTS;
+        r ^= r >> 15; r *= 2654435761u; r ^= r >> 13;
+        const float u3 = (float)((r >> 8) & 0xFFFF) * (1.0f / 32767.5f) - 1.0f;
+        analogLevel = powf(10.0f, u3 * feel * JV_ANALOG_FEEL_DB * (1.0f / 20.0f));
+    }
+
     float ratio = powf(2.0f, semis * (1.0f / 12.0f) + cents * (1.0f / 1200.0f));
     ratio *= 32000.0f / (float)sr_ * pitchTrim_;
     if (ratio < 0.0f) ratio = 0.0f;
@@ -489,12 +599,42 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
     // record's byte +17 is deliberately NOT in here -- patching it across its
     // range moves the machine's output by 0.00 dB, so it is not a level, and
     // multiplying by it wrongly attenuated 233 of the 577 samples.
-    float lvl = patchLevelToLinear(patch_[21]) * levelToLinear(t[67]);
+    float lvl = patchLevelToLinear(patch_[21]) * levelToLinear(t[67]) * analogLevel;
+
+    // The output dry level scales the direct path on its own, separately from
+    // the sends. 31 of 539 factory tones set it below 127 and six of those sit
+    // at or near zero: on the hardware those tones are heard only through the
+    // chorus or reverb. With no effects yet they simply drop out, which is what
+    // the dry path does -- no patch loses all four tones this way.
+    lvl *= levelToLinear(t[81]);
+
+    // Velocity: the curve warps velocity first, then the sensitivity law acts
+    // on the warped value. Curve 1 (stored 0) is the straight line the whole
+    // velocity calibration was measured on, so it stays an exact identity.
+    const int velA = (int)(jv_velocity_curve(t[71] & 7, vel) + 0.5f);
     {
+        // Signed, magnitude up to 63; the ROM byte is two's complement where
+        // the SysEx view adds 64. Positive makes soft notes quieter, negative
+        // does the reverse -- only one factory tone uses the negative side, but
+        // it costs nothing to get right.
         const int8_t vs = (int8_t)t[72];
-        const int vmag = vs < 0 ? -vs : vs;
-        if (vmag <= JV_LFO_DEPTH_MAX && vmag != 0)
-            lvl *= powf(10.0f, -velocityAttenDb(vmag, vel) * (1.0f / 20.0f));
+        if (vs > 0 && vs <= JV_MOD_SENS_LIMIT)
+            lvl *= powf(10.0f, -velocityAttenDb(vs, velA) * (1.0f / 20.0f));
+        else if (vs < 0 && vs >= -JV_MOD_SENS_LIMIT)
+            lvl *= powf(10.0f, -velocityAttenDb(-vs, 127 - velA) * (1.0f / 20.0f));
+    }
+
+    // Level keyfollow, the low nibble of +70. Which nibble holds which is not
+    // measured; the high one is taken as the TVA envelope's time keyfollow
+    // because +40 and +54 both pack a time keyfollow high and the main
+    // keyfollow low. Both nibbles are neutral at 7 on the great majority of
+    // tones, so a wrong guess would show up on few of them either way.
+    {
+        const float lkf = jv_kf15(t[70] & 15) * 0.01f;
+        if (lkf != 0.0f) {
+            const float db = lkf * ((float)note - 60.0f) * JV_LEVEL_KF_DB_PER_SEMITONE;
+            lvl *= powf(10.0f, db * (1.0f / 20.0f));
+        }
     }
 
     // Pan: 128 alternates left/right from note to note, above that is centre,
@@ -504,6 +644,11 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
     if (t[68] == JV_PAN_ALTERNATING)      pan = (panAlt_ & 1) ? JV_PAN_ALT_B : JV_PAN_ALT_A;
     else if (t[68] > JV_PAN_ALTERNATING)  pan = 64;
     else                                  pan = t[68];
+    // Panning keyfollow walks the image across the keyboard about C4 -- the
+    // trick that gives a piano patch its stereo spread. High nibble of +39,
+    // measured; the per-semitone amount is not.
+    pan += (int)(jv_kf15(t[39] >> 4) * 0.01f * ((float)note - 60.0f) *
+                 JV_PAN_KF_UNITS_PER_SEMITONE);
     pan += (int)patch_[22] - 64;
     if (pan < 0) pan = 0; else if (pan > 127) pan = 127;
     float atten = powf(10.0f, lookup(JV_TVA_PAN_ATTEN_DB, 32, pan) * (1.0f / 20.0f));
@@ -513,11 +658,18 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
     // TVA envelope: times at +74/+76/+78/+80, levels at +75/+77/+79.
     v.tvaT[0] = t[74]; v.tvaT[1] = t[76]; v.tvaT[2] = t[78]; v.tvaT[3] = t[80];
     v.tvaL[0] = t[75]; v.tvaL[1] = t[77]; v.tvaL[2] = t[79];
-    v.tva.begin(v.tvaT, v.tvaL, sr_, true);
+    v.tva.begin(v.tvaT, v.tvaL, sr_, true, 0.0f);   // the TVA always ends at silence
 
     // TVF: only engaged when the mode bits select a filter.
     v.filtMode = t[55] & 0x18;
-    v.cutoffBase = (float)t[52];
+    // Cutoff keyfollow, low nibble of +54. At +100 % the corner tracks the
+    // keyboard one for one about C4; the conversion falls straight out of the
+    // measured cutoff law, which is 17.93 parameter units per octave. 185 of
+    // 539 tones set this away from zero, and without it every one of them
+    // filters at the same absolute frequency whatever key is played.
+    v.cutoffBase = (float)t[52] +
+                   jv_kf16(t[54] & 15) * 0.01f * ((float)note - 60.0f) *
+                       JV_CUTOFF_UNITS_PER_SEMITONE;
     // Signed like the LFO depths: magnitude 0..63, 64..127 inert, and negative
     // values close the filter instead of opening it.
     {
@@ -525,11 +677,37 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
         const int emag = ed < 0 ? -ed : ed;
         v.envDepth = (emag > JV_LFO_DEPTH_MAX) ? 0.0f : (float)ed;
     }
+    // TVF envelope velocity sensitivity (+56), the most widely used of the
+    // parameters that were missing: 336 of 539 tones set it. Positive means a
+    // harder note opens the filter further, negative inverts that. Measured --
+    // see jv_calibration.h, and note that the sensitivity that takes the depth
+    // to zero is 32, not the 63 the other bipolar fields use.
+    {
+        const int8_t fvs = (int8_t)t[56];
+        if (fvs != 0 && fvs >= -JV_MOD_SENS_LIMIT && fvs <= JV_MOD_SENS_LIMIT)
+            v.envDepth *= jv_tvf_velocity_scale(fvs, jv_velocity_curve(t[55] & 7, vel));
+    }
     v.resonance = (float)(t[53] & 0x7F);
     v.filt.reset();
     v.tvfT[0] = t[59]; v.tvfT[1] = t[61]; v.tvfT[2] = t[63]; v.tvfT[3] = t[65];
     v.tvfL[0] = t[60]; v.tvfL[1] = t[62]; v.tvfL[2] = t[64];
-    v.tvf.begin(v.tvfT, v.tvfL, sr_, false);
+    // ... and the TVF envelope releases to its own fourth level (+66), not to
+    // zero. 95 tones set it non-zero, and releasing those to zero shut the
+    // filter on note-off while the TVA tail was still sounding.
+    v.tvf.begin(v.tvfT, v.tvfL, sr_, false, tvfEnvLevel(t[66]));
+
+    // Pitch envelope. Depth is signed semitones, +-12 at the limit; 68 of 539
+    // tones use it, 33 of them at full depth.
+    {
+        int pd = (int8_t)t[43];
+        if (pd < -12) pd = -12; else if (pd > 12) pd = 12;
+        v.penvDepthSemis = (float)pd;
+        v.penvT[0] = t[44]; v.penvT[1] = t[46]; v.penvT[2] = t[48]; v.penvT[3] = t[50];
+        v.penvL[0] = (int8_t)t[45]; v.penvL[1] = (int8_t)t[47];
+        v.penvL[2] = (int8_t)t[49]; v.penvL[3] = (int8_t)t[51];
+        v.penv.begin(v.penvT, v.penvL, (float)sr_ / (float)kControlDiv);
+        v.penv.used = (pd != 0);
+    }
 
     // LFO1 is bytes +23..+26 with depths at +31/+32/+33; LFO2 is +27..+30 with
     // +34/+35/+36. Seeding per voice keeps the sample-and-hold waveforms from
@@ -538,9 +716,10 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
     v.lfo[1].begin(t + 27, sr_, kControlDiv, (uint32_t)(v.age * 40503u + 12345u), freePhase_[1]);
     for (int i = 0; i < 2; i++) {
         freeInc_[i] = v.lfo[i].inc;
-        // Bits 3-4 shrink the swing from the bottom; bit 5 is unresolved and
-        // deliberately ignored (see jv_calibration.h).
-        const float off = JV_LFO_OFFSET_SCALE[(t[23 + i * 4] >> 3) & 3];
+        // Bits 3-5 are the offset, neutral at 2 rather than 0 -- see
+        // jv_calibration.h for why the depth tables and this scale cancel
+        // there, and why index 4 silences the modulation.
+        const float off = JV_LFO_OFFSET_SCALE[(t[23 + i * 4] >> 3) & 7];
         v.lfoPitchDepth[i] = lfoDepth(JV_LFO_PITCH_DEPTH_CENTS, t[31 + i * 3]) * off;
         v.lfoTvaDepth[i]   = lfoDepth(JV_LFO_TVA_DEPTH_DB,      t[33 + i * 3]) * off;
         // TVF depth is uncalibrated; scaled by analogy with the others so that a
@@ -562,10 +741,17 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
             v.matSens[src * 4 + slot] = (sn > JV_MOD_SENS_LIMIT) ? 0 : sn;
         }
     }
+    // FXM (+02): bit 7 switches it on, bits 0-3 are the depth. The panel shows
+    // the depth one higher than it is stored, and the measured deviation is
+    // proportional to that displayed value.
+    v.fxmK = (t[2] & JV_FXM_SWITCH_BIT)
+                 ? JV_FXM_K_PER_STEP * (float)((t[2] & JV_FXM_DEPTH_MASK) + 1)
+                 : 0.0f;
+
     v.lfoGain = 1.0f;
     v.cutoffMod = 0.0f;
     v.resMod = 0.0f;
-    updateModulation(v);
+    updateModulation(v, clock_);
     updateFilterCoeffs(v);
 }
 
@@ -582,7 +768,7 @@ void Engine::noteOn(uint8_t note, uint8_t velocity) {
 
 void Engine::noteOff(uint8_t note) {
     for (auto& v : voices_)
-        if (v.active && v.note == note) { v.tva.release(); v.tvf.release(); }
+        if (v.active && v.note == note) { v.tva.release(); v.tvf.release(); v.penv.release(); }
 }
 
 void Engine::allNotesOff() {
@@ -619,13 +805,18 @@ void Engine::render(float* left, float* right, int frames) {
             // 2^19 is the accumulator's full scale, but the ROM samples only
             // reach 13 % of it (median 7.7 %), so normalising to that throws
             // away 12 dB. This factor is what lines the engine up with the
-            // reference across 24 patches. It had to move by 10.5 dB once the
-            // velocity law was corrected: the old law boosted where the machine
-            // attenuates, which had been standing in for this offset.
-            float s = ((float)v.s0 + ((float)v.s1 - (float)v.s0) * frac) * (1.0f / 99000.0f);
+            // reference. It has now moved twice for the same reason: an error
+            // in the velocity law is indistinguishable from a level offset
+            // unless the comparison is made at more than one velocity. It first
+            // moved 10.5 dB when the law's direction was corrected, and 1.0 dB
+            // again when the velocity CURVES were measured -- the residual
+            // error is now 0.6 dB at velocity 127 and 1.1 dB at velocity 100,
+            // where before the curves it was flat at one and 4-5 dB out at the
+            // other. Fitted over all 128 factory patches at both velocities.
+            float s = ((float)v.s0 + ((float)v.s1 - (float)v.s0) * frac) * (1.0f / 88234.0f);
 
             if (--v.ctlPhase <= 0) {
-                updateModulation(v);
+                updateModulation(v, clock_ + (uint32_t)i);
                 if (filtered) updateFilterCoeffs(v);
                 v.ctlPhase = kControlDiv;
             }
@@ -640,6 +831,7 @@ void Engine::render(float* left, float* right, int frames) {
         }
         if (v.tva.idle()) v.active = false;
     }
+    clock_ += (uint32_t)frames;
 }
 
 } // namespace jv

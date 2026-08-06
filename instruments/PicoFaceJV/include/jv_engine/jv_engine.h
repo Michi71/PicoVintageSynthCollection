@@ -68,6 +68,13 @@ public:
     int  voiceLimit() const { return voiceLimit_; }
     const char* patchName() const { return reinterpret_cast<const char*>(patch_); }
 
+    // Bend range of the selected patch, in semitones. Up is 0..+12 and lives in
+    // the low nibble of the patch-common flags; down is a signed byte reaching
+    // -48. The two are independent, and 24 of the 192 factory patches bend down
+    // further than they bend up -- the guitar and lead patches, mostly.
+    int bendUpSemis() const { return patch_ ? (patch_[24] & 15) : 2; }
+    int bendDownSemis() const { return patch_ ? (int)(int8_t)patch_[23] : -2; }
+
     // Pitch trim, applied to every voice. Used by the host A/B harness to
     // calibrate against the reference emulator; 1.0 = no correction.
     void setPitchTrim(float ratio) { pitchTrim_ = ratio; }
@@ -86,13 +93,39 @@ private:
         bool  rising;
         bool  segmentValid;
         const uint8_t* times;    // 4 bytes: T1 T2 T3 T4
-        const uint8_t* levels;   // 3 bytes: L1 L2 L3 (the release target is 0)
+        const uint8_t* levels;   // 3 bytes: L1 L2 L3
         uint32_t sr;
         bool  logLevels;   // TVA maps levels in dB, TVF near-linearly
-        void  begin(const uint8_t* t, const uint8_t* l, uint32_t sampleRate, bool logLevels);
+        // Where the release segment lands. Zero for the TVA -- the manual is
+        // explicit that its level after note-off becomes 0 -- but the TVF
+        // envelope has a fourth LEVEL as well as a fourth time, and 95 of the
+        // 539 factory tones set it non-zero. Releasing those to 0 slammed the
+        // filter shut on note-off instead of letting it settle where the patch
+        // asks.
+        float releaseLevel;
+        void  begin(const uint8_t* t, const uint8_t* l, uint32_t sampleRate,
+                    bool logLevels, float releaseTo);
         void  release();
         float tick();
         bool  idle() const { return stage >= 5; }
+    };
+
+    // The pitch envelope. Separate from Env because it is bipolar (levels run
+    // -63..+63 about zero, where the TVA and TVF levels are unsigned), because
+    // it ramps linearly in cents in both directions rather than switching to a
+    // dB decay when falling, and because it has a fourth level to release to
+    // rather than returning to zero. It runs at control rate: nothing reads it
+    // per sample.
+    struct PEnv {
+        float level, target, slope, remaining;
+        int   stage;
+        bool  segmentValid, used;
+        const uint8_t* times;    // 4 bytes: T1 T2 T3 T4
+        const int8_t*  levels;   // 4 bytes: L1 L2 L3 L4, signed
+        float ctlRate;           // control ticks per second
+        void  begin(const uint8_t* t, const int8_t* l, float controlRate);
+        void  release();
+        float tick();            // -1 .. +1
     };
 
     // Topology-preserving 2-pole state-variable filter. The obvious Chamberlin
@@ -118,6 +151,7 @@ private:
         float    ramp;        // delay/fade envelope, 0..1
         float    delayTicks;  // remaining delay, in control ticks
         float    fadeInc;     // ramp increment per control tick
+        bool     fadeOut;     // ramp away from full depth instead of towards it
         float    out;
         void begin(const uint8_t* p, uint32_t sr, int ctlDiv, uint32_t seed, float freePhase);
         void tick();
@@ -136,8 +170,12 @@ private:
         int32_t  s0, s1;      // last two decoded samples, for interpolation
         Sample   smp;
         Env      tva, tvf;
+        PEnv     penv;
         Filter   filt;
         uint8_t  tvaT[4], tvaL[3], tvfT[4], tvfL[3];
+        uint8_t  penvT[4];
+        int8_t   penvL[4];
+        float    penvDepthSemis;   // bipolar, +-12 semitones at full depth
         float    gainL, gainR;
         float    cutoffBase;  // parameter units, 0..127
         float    envDepth;    // bipolar TVF envelope depth, parameter units
@@ -154,6 +192,7 @@ private:
         float    lfoPitchDepth[2], lfoTvfDepth[2], lfoTvaDepth[2];  // cents / params / dB
         float    lfoGain;      // TVA modulation, linear, refreshed at control rate
         float    cutoffMod;    // TVF modulation, parameter units
+        float    fxmK;         // FXM depth as a fraction of the playback rate, 0 = off
         uint32_t age;
     };
 
@@ -162,7 +201,7 @@ private:
     bool sampleFor(int waveNumber, uint8_t note, Sample& out) const;
     int32_t decodeStep(Voice& v) const;
     void updateFilterCoeffs(Voice& v);
-    void updateModulation(Voice& v);
+    void updateModulation(Voice& v, uint32_t clock);
 
     // Free-running LFO phases, advanced whenever any voice sounds. A voice
     // whose key-sync bit is clear adopts these at note-on instead of zero.
@@ -176,6 +215,11 @@ private:
     uint8_t  patchCopy_[362]{};
     Voice    voices_[kMaxVoices]{};
     uint32_t ageCounter_ = 0;
+    // Free-running sample counter. FXM's modulator is a fixed 125 Hz square
+    // derived from the sample clock, so it is one oscillator for the whole
+    // machine, not one per voice -- voices sounding together must stay in step
+    // with each other the way a hardware divider makes them.
+    uint32_t clock_ = 0;
     uint32_t panAlt_ = 0;      // toggles for tones set to alternating pan
     int      voiceLimit_ = kMaxVoices;
 };

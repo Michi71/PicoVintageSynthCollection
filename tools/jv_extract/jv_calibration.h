@@ -225,17 +225,211 @@ static const float JV_TVA_VELO_ATTEN_DB[10] = {
 // 32.3 ms floor of the delay law, which is a useful cross-check on both.
 #define JV_LFO_KEYSYNC_BIT 0x40
 
-// Flags bits 3-4 are an OFFSET that shrinks the downward swing from the bottom;
-// the peak stays put (-15.1..-15.2 dBFS across all four) and the phase does not
-// move (first edge 237.6-239.0 ms, duty 49-50 %). Measured swing at TVA depth
-// 63: 48.7 / 30.6 / 19.4 / 9.9 dB for offsets 0..3, and the triangle agrees
-// (48.1 / 29.5 / 18.5 / 9.0). Stored as a scale on the depth.
-static const float JV_LFO_OFFSET_SCALE[4] = { 1.00f, 0.63f, 0.40f, 0.20f };
+// Flags bits 3-5 are the OFFSET, a five-valued field the manual gives as
+// -100/-50/0/+50/+100. Bit 5 is its top bit, which is why sweeping that bit
+// alone never made sense on its own. Measured swing at TVA depth 63:
+// 48.7 / 30.6 / 19.4 / 9.9 dB for indices 0..3, the triangle agreeing
+// (48.1 / 29.5 / 18.5 / 9.0), and index 4 silencing the modulation outright.
+// The peak stays put across all of them (-15.1..-15.2 dBFS) and the phase does
+// not move (first edge 237.6-239.0 ms, duty 49-50 %).
+//
+// What the manual explains is why those numbers fall the way they do. The
+// offset shifts the whole waveform rather than resizing it: at -100 it sits
+// wholly below the set value, at +100 wholly above. The engine's LFO is
+// unipolar DOWNWARD -- 1.0 is the unmodulated value, 0.0 is full modulation --
+// so it represents only the half of the swing that goes down. Index 0 (-100)
+// is therefore the full excursion, index 4 (+100) has nothing left below the
+// carrier and goes silent, and the centred index 2 keeps roughly half. That is
+// the 0.40 measured, and it is what the depth tables above are divided by:
+// they were measured at index 0, while 536 of the 539 factory tones sit at
+// index 2. The two cancel, which is why the depths came out right before this
+// field was understood.
+//
+// Indices 5-7 are not valid settings; they measured as index 2 and are mapped
+// there. Only five factory tones use anything but the neutral index 2 at all.
+static const float JV_LFO_OFFSET_SCALE[8] = {
+    1.00f, 0.63f, 0.40f, 0.20f, 0.00f, 0.40f, 0.40f, 0.40f,
+};
+#define JV_LFO_OFFSET_NEUTRAL 2
 
-// Bit 5 is NOT resolved. On its own it silences the modulation entirely, but
-// combined with either of bits 3-4 the swing collapses to a fixed 19.4 dB
-// regardless of which -- which no plain offset field explains. The engine
-// ignores it and treats bits 3-4 as the offset.
+// Bit 7 is the fade POLARITY: clear is fade IN (the LFO ramps up over the fade
+// time after the delay), set is fade OUT (it starts at full depth and ramps
+// away). Two factory tones use OUT. Bit 6 is key sync, above.
+#define JV_LFO_FADEOUT_BIT 0x80
+
+// -------------------------------------------------------------- keyfollows
+// Keyfollow fields are packed nibbles that index one of two tables of fixed
+// percentages. Which nibble holds which field was settled from the factory
+// banks rather than by probing, using the fact that the two tables have
+// different lengths and different neutral indices:
+//
+//   field                  nibble    neutral index   evidence
+//   pan keyfollow          +39 high  7  (= 0 %)      446/539 at 7, never 15
+//   random pitch           +39 low   0  (= 0 cents)  521/539 at 0
+//   pitch keyfollow        +40 low   12 (= +100 %)   507/539 at 12 -- the normal
+//                                                    octave per twelve keys, and
+//                                                    only the 16-entry table has
+//                                                    +100 at index 12
+//   P-ENV time keyfollow   +40 high  7                534/539 at 7
+//   TVF-ENV time keyfollow +54 high  7                391/539 at 7
+//   cutoff keyfollow       +54 low   5  (= 0 %)      354/539 at 5, and 15 occurs
+//                                                    (only the 16-entry table
+//                                                    reaches that far)
+//   TVA level / time KF    +70       7                both nibbles neutral at 7
+//
+// The two tables are printed in the manual; the indices above are what makes
+// them fall into place.
+static const float JV_KF15[15] = {   // 0..14, neutral at index 7
+    -100.0f, -70.0f, -50.0f, -40.0f, -30.0f, -20.0f, -10.0f, 0.0f,
+      10.0f,  20.0f,  30.0f,  40.0f,  50.0f,  70.0f, 100.0f,
+};
+static const float JV_KF16[16] = {   // 0..15, neutral at index 5
+    -100.0f, -70.0f, -50.0f, -30.0f, -10.0f, 0.0f, 10.0f, 20.0f,
+      30.0f,  40.0f,  50.0f,  70.0f, 100.0f, 120.0f, 150.0f, 200.0f,
+};
+static inline float jv_kf15(int nib) { return JV_KF15[nib > 14 ? 14 : (nib < 0 ? 0 : nib)]; }
+static inline float jv_kf16(int nib) { return JV_KF16[nib & 15]; }
+
+// Cutoff keyfollow at +100 % means the corner tracks the keyboard one for one.
+// The cutoff law is 431.3 Hz * 2^(v/17.93), i.e. 17.93 parameter units per
+// octave, so a semitone is 17.93/12 units. This one needs no measurement: it
+// falls out of the calibration that is already here.
+#define JV_CUTOFF_UNITS_PER_SEMITONE (17.93f / 12.0f)
+
+// Pitch keyfollow at +100 % is the normal semitone per key; the table's other
+// entries scale that directly.
+// Random pitch (+39 low nibble) in cents, redrawn per note.
+static const float JV_RANDOM_PITCH_CENTS[16] = {
+    0.0f, 5.0f, 10.0f, 20.0f, 30.0f, 40.0f, 50.0f, 70.0f,
+  100.0f, 200.0f, 300.0f, 400.0f, 500.0f, 600.0f, 800.0f, 1200.0f,
+};
+
+// PROVISIONAL, not measured. The manual draws both of these as fans over
+// roughly C2..C7 about C4, reaching the full excursion at +-100 % at the edges
+// of that span -- about 30 semitones each way. Level keyfollow is given the
+// same 30-semitone span in dB, sized so that +-100 % spans the same range the
+// tone-level control does over its top half. Both are marked so a later sweep
+// can replace them; they affect 93 and roughly 100 tones respectively.
+#define JV_PAN_KF_UNITS_PER_SEMITONE   (64.0f / 30.0f)
+#define JV_LEVEL_KF_DB_PER_SEMITONE    (12.0f / 30.0f)
+
+// PROVISIONAL. Patch-common analog feel (+20), the drift that keeps tones of
+// one patch from phase-locking. Neither manual gives a magnitude; 119 of the
+// 192 factory patches set it non-zero, most of them low. Ten cents of per-note
+// detune at the maximum is enough to break a fixed beat without audibly
+// detuning anything. Roland's JV Master Class notes describe it as "irregular
+// variations in pitch AND level", so a matching level jitter goes with it.
+#define JV_ANALOG_FEEL_CENTS 10.0f
+#define JV_ANALOG_FEEL_DB     0.8f
+
+// ------------------------------------------------------------ velocity curves
+// TVF (+55 bits 0-2) and TVA (+71 bits 0-2) each pick one of seven shapes that
+// warp velocity before the sensitivity law sees it. MEASURED, by forcing a tone
+// to a flat sustain with velocity sensitivity 32 and reading its level at nine
+// velocities for each of the seven settings.
+//
+// Two things the sweep settled that guesswork had got wrong. All seven curves
+// give exactly the same level at velocity 127 -- that is the anchor, as it is
+// for the sensitivity law itself. And stored curve 0 came out as the straight
+// line: expressing every curve as "the velocity that curve 0 would need to
+// produce the same level" makes curve 0 the exact identity, which is the right
+// footing because JV_TVA_VELO_ATTEN_DB above was itself measured on curve 0.
+// An earlier version read the shapes off the icons the manual prints and put an
+// x^2 law on stored curve 0, which quietly took 3 dB off half the factory
+// patches.
+//
+// Rows are the seven settings, columns the velocities 0, 16, 32, 48, 64, 80,
+// 96, 112, 127. Values are effective velocity in curve-0 units. Curves 0-2 are
+// the only ones the factory banks use on the TVA (371 / 153 / 15 tones) and
+// 0-3 on the TVF; 5 is an S that crosses the diagonal near velocity 64 and 6
+// stays nearly flat until the very top.
+static const float JV_VELO_CURVE[7][9] = {
+    {    0.0f,   16.0f,   32.0f,   48.0f,   64.0f,   80.0f,   96.0f,  112.0f,  127.0f },
+    {    0.0f,    8.5f,   13.6f,   19.3f,   30.4f,   46.6f,   65.1f,   92.8f,  127.0f },
+    {    0.0f,    0.0f,    8.5f,    8.5f,   11.7f,   16.0f,   30.4f,   65.1f,  127.0f },
+    {    0.0f,   42.0f,   66.2f,   82.9f,   95.0f,  105.2f,  113.5f,  121.2f,  127.0f },
+    {    0.0f,   81.5f,   96.0f,  105.2f,  112.0f,  116.7f,  120.3f,  124.8f,  127.0f },
+    {    0.0f,    8.5f,   11.7f,   19.3f,   65.1f,  109.7f,  120.3f,  124.8f,  127.0f },
+    {    0.0f,   46.6f,   55.1f,   59.8f,   64.0f,   68.2f,   72.8f,   82.9f,  127.0f },
+};
+// The breakpoints are even 16 apart except the last, which spans 112..127.
+static inline float jv_velocity_curve(int curve, int vel) {
+    if (curve < 0) curve = 0; else if (curve > 6) curve = 6;
+    if (vel <= 0) return 0.0f;
+    if (vel >= 127) return 127.0f;
+    const float* r = JV_VELO_CURVE[curve];
+    if (vel >= 112) return r[7] + (r[8] - r[7]) * ((float)(vel - 112) / 15.0f);
+    const int i = vel >> 4;
+    return r[i] + (r[i + 1] - r[i]) * ((float)(vel - (i << 4)) / 16.0f);
+}
+// The TVF curve field is assumed to select the same seven shapes -- the manual
+// prints the identical set of icons for both -- but only the TVA side has been
+// swept.
+
+// --------------------------------------------------- TVF envelope velocity
+// tvfVelocity (+56) scales the TVF envelope's depth with velocity. MEASURED by
+// holding the envelope wide open over a base cutoff of 8 and reading the
+// brightness back as an effective depth, for thirteen sensitivities across
+// eight velocities.
+//
+// The law is linear and simple once the readings are converted back to depth:
+//
+//     positive sensitivity   f = 1 - (s/32) * (127 - v)/127
+//     negative sensitivity   f = 1 - (|s|/32) *  v /127
+//
+// clamped to 0..1. Fitted over all 96 points to a mean error of 0.010 and a
+// worst case of 0.067, and the three worst are all points where the reading
+// had already floored while the model still predicts a few percent.
+//
+// The scale constant is 32, NOT 63. Sensitivity 32 takes the depth to exactly
+// zero at velocity 0 and the factory banks go up to 63, i.e. half the range
+// saturates within the velocity span. An earlier version divided by 63 by
+// analogy with the other bipolar fields and was consequently half as strong as
+// the machine everywhere.
+//
+// Velocity 127 is the pivot for positive sensitivity -- every setting gives the
+// full nominal depth there, exactly as the TVA sensitivity law does -- while
+// negative sensitivity pivots at velocity 0 instead.
+//
+// The sweep was run with TVF velocity curve 0, so the velocity handed to this
+// must already be warped through jv_velocity_curve.
+#define JV_TVF_VELO_FULL_SENS 32.0f
+static inline float jv_tvf_velocity_scale(int sens, float vel) {
+    if (sens == 0) return 1.0f;
+    const float mag = (float)(sens < 0 ? -sens : sens) / JV_TVF_VELO_FULL_SENS;
+    const float t = (sens > 0) ? (127.0f - vel) / 127.0f : vel / 127.0f;
+    const float f = 1.0f - mag * t;
+    return f < 0.0f ? 0.0f : (f > 1.0f ? 1.0f : f);
+}
+
+// ---------------------------------------------------------------------- FXM
+// Frequency cross modulation (+02: bit 7 switch, bits 0-3 depth 0..15, shown on
+// the panel as 1..16). MEASURED by playing the ROM's own sine wave (multisample
+// 72) with the filter off and taking the spectrum with FXM off and at ten
+// depths, at C3, C4 and C5.
+//
+// The modulator is a SQUARE WAVE AT A FIXED 125 Hz. The sidebands sit at
+// +-125, +-250, +-375, +-500 Hz around the carrier and the spacing does not
+// move when the note does -- 125.0 Hz at all three octaves. 125 Hz is the
+// sample rate over 256, so this is a plain hardware divider, not something
+// derived from the played pitch. (Roland's own JV Master Class notes say FXM
+// "uses a square wave to modulate the selected waveform", which is what sent
+// the measurement in this direction.)
+//
+// It modulates FREQUENCY, not phase: the implied modulation index doubles when
+// the carrier doubles (0.205 / 0.429 at C3 / C4 for depth 8), so what is
+// constant is the FRACTIONAL pitch deviation. That fraction is proportional to
+// the panel value:
+//
+//     k = 0.02167 * (depth + 1)          depth stored 0..15, panel 1..16
+//
+// i.e. 2.17 % of the playback rate per panel step, alternating sign at 125 Hz.
+// Fitted to the ten measured depths within 0.003 (worst case at depth 0, where
+// the sidebands are 30 dB down and the reading is noisiest).
+#define JV_FXM_RATE_HZ      125.0f
+#define JV_FXM_K_PER_STEP   0.02167f
+#define JV_FXM_SWITCH_BIT   0x80
+#define JV_FXM_DEPTH_MASK   0x0F
 
 // ------------------------------------------------------------------- matrix
 // Modulation matrix. Sensitivity is signed with an effective range of +-63;

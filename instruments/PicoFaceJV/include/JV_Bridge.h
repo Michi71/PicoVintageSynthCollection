@@ -39,7 +39,7 @@ public:
     void setVoiceLimit(int n)                 { engine_.setVoiceLimit(n); }
     int  voiceLimit() const                   { return engine_.voiceLimit(); }
     void setMasterTune(int cents);            // -50..+50
-    void setPitchBend(int16_t bend);          // -8192..8191, +-2 semitones
+    void setPitchBend(int16_t bend);          // -8192..8191, range from the patch
 
     int  activeVoices() const { return engine_.activeVoices(); }
     uint32_t sampleRate() const { return kSampleRate; }
@@ -49,10 +49,12 @@ private:
     static constexpr int kBlock = 64;
 
     void updatePitch();
+    void updateBend();
 
     jv::Engine engine_;
     float gain_ = 0.8f;
     int   tuneCents_ = 0;
+    int16_t bend_ = 0;
     float bendRatio_ = 1.0f;
     float bufL_[kBlock]{}, bufR_[kBlock]{};
 };

@@ -458,6 +458,52 @@ separation is absolute:
 The low readings are not weak detections: the noise sample transposed down two
 octaves is no longer spectrally flat, but it is still unambiguously not the sine.
 
+### Velocity curves, and a trap worth naming
+
+The seven velocity curves (+55 bits 0-2 for the TVF, +71 bits 0-2 for the TVA)
+were first implemented from the icons the manual prints, which put an `x^2` law
+on stored curve 0. That quietly took 3 dB off half the factory patches. The
+sweep that replaced it -- a tone forced to a flat sustain at velocity
+sensitivity 32, read at nine velocities for each of the seven settings -- gives
+`JV_VELO_CURVE` in jv_calibration.h and settles three things:
+
+* All seven curves produce **exactly the same level at velocity 127**. That is
+  the anchor, the same one the sensitivity law itself uses.
+* **Stored curve 0 is the straight line.** Expressing each curve as "the
+  velocity curve 0 would need to reach the same level" makes curve 0 an exact
+  identity, which is the right footing because `JV_TVA_VELO_ATTEN_DB` was itself
+  measured on curve 0.
+* The reparameterisation holds across sensitivities. Repeating the sweep at
+  sensitivity 16 reproduced curve 1's effective velocities to within 1.5 units
+  wherever both are well conditioned, so the curve warps velocity *before* the
+  sensitivity law rather than acting on the result.
+
+Checked against the reference on real patches, the drop from velocity 127 to
+100 is 8.76 / 8.22 / 13.71 dB on A37, B06 and B50 against 8.98 / 8.18 / 14.14
+predicted with the curve and 4.28 / 3.87 / 7.03 without it. A11 lands between
+the two, which is right: it is the one of those patches that mixes curve 0 and
+curve 1 across its tones.
+
+**The trap.** Fixing this made the aggregate level error look *worse* -- and it
+was the third time in this work that a wrong law and the output normalisation
+had silently absorbed each other. A velocity-law error is indistinguishable
+from a level offset unless the comparison is made at more than one velocity.
+Two habits catch it:
+
+* Always compare at both velocity 127 and something well below it. Before the
+  curves the engine was flat at one velocity and 4-5 dB out at the other; the
+  single-velocity summary showed neither.
+* Match the measurement windows. `jv_probe` reports rms over the HELD portion
+  only (`N = nHold`), while `jv_engine_test` reports it over hold plus release.
+  Comparing the two directly puts a patch-dependent 3 dB bias on every reading,
+  which is enough to hide or invent an error of exactly the size being chased.
+
+With the curves in and the normalisation re-trimmed by 1.0 dB (99000 ->
+88234), the level error over all 128 factory patches at velocities 127 and 100
+is mean +0.15 dB, spread 3.0 dB, mean absolute 2.32 dB -- and the velocity
+TRACKING error, which is what the curves actually fix, falls from a mean of
+1.22 dB to 0.72 dB with the worst case down from 6.7 to 5.0 dB.
+
 ### Still open
 
 * **Cutoff above v≈84** and the **LFO below v≈48** (see Calibration above).
@@ -487,6 +533,175 @@ octaves is no longer spectrally flat, but it is still unambiguously not the sine
   at full level, because there is no headroom to modulate upward into.
 * **Resonance** is calibrated (see the matrix section); the LFO's TVF depth
   is not.
+* **tvfVelocity (+56)** is calibrated. Measured with the TVF envelope held wide
+  open over a base cutoff of 8, reading brightness back as an effective depth:
+
+      positive sensitivity   f = 1 - (s/32) * (127 - v)/127
+      negative sensitivity   f = 1 - (|s|/32) *  v /127
+
+  clamped to 0..1, fitted over 96 points to a mean error of 0.010. The constant
+  is **32, not 63** -- sensitivity 32 already takes the depth to zero at
+  velocity 0, so the upper half of the field saturates inside the velocity span.
+  Assuming 63 by analogy with the other bipolar fields made the effect half as
+  strong as the machine everywhere. Positive sensitivity pivots at velocity 127
+  like the TVA law; negative pivots at velocity 0.
+
+  Note the measurement trap: brightness stops resolving above envelope depth 32,
+  so the first sweep -- run at depth 40 -- read a flat 0.0187 across the whole
+  useful range and looked like no effect at all. Depth 28 keeps every reading on
+  the curve.
+
+## What the owner's manual adds
+
+The JV-880 owner's manual (Roland, 244 pages, scanned -- no text layer, so it
+has to be read as images) turned out to carry two things the probe could not
+produce on its own. Section 10's **parameter address map** (printed 10-38 f.)
+lists the SysEx view of a tone: 116 addresses, `0x00`..`0x73`, five of them
+nibble pairs, which is the same parameter set as the 84 packed bytes here. That
+names every field and gives its range. Section 6 then explains what each one
+actually does.
+
+The manual is documentation, not measurement: where the two collide the
+measurement wins. Its value here was in saying where to point the probe next,
+and most of the list below has since been implemented and checked against the
+reference. What that pass achieved, over all 128 factory patches:
+
+| metric (vs reference)                  | before | after |
+|----------------------------------------|--------|-------|
+| level, mean absolute error              | 2.45 dB | 2.33 dB |
+| velocity tracking error, 127 -> 100     | 1.22 dB | 0.72 dB |
+| brightness at velocity 64, mean abs err | 10.19 dB | 4.93 dB |
+
+**Resolved outright.**
+
+* **The modulation matrix destination table is complete at 13 entries**, 0..12:
+  OFF, PITCH, CUTOFF, RESONANCE, LEVEL, PITCH LFO1, PITCH LFO2, TVF LFO1,
+  TVF LFO2, TVA LFO1, TVA LFO2, LFO1 RATE, LFO2 RATE. Codes 13..15 do not
+  exist, so the sweep that found nothing there was right. Dest 6 and 11/12 read
+  as dead for a duller reason: the base patch had LFO2 pitch depth at zero and
+  no LFO running, so there was nothing for them to scale.
+* **LFO offset has five settings, not four** (-100/-50/0/+50/+100), so it needs
+  three bits and **bit 5 of the LFO flags byte is its top bit** -- which is
+  exactly why sweeping bit 5 on its own looked inert. That also means the
+  remaining flag is fade polarity IN/OUT.
+* **Offset is a shift, not a scale.** `JV_LFO_OFFSET_SCALE` shrinks the swing;
+  the manual shows the waveform being pushed until it sits wholly above (+100)
+  or wholly below (-100) the centre, at full amplitude. Applied to pitch with a
+  square wave that is a one-sided trill, not a weaker vibrato.
+* **Fade OUT** runs the LFO at full depth from note-on and fades it away over
+  the fade time -- the engine only implements fade IN.
+* **LFO delay and tone delay both have a KEY-OFF setting past 127**, holding the
+  LFO (or the whole tone) until the key is released.
+* **+54 and +40 are keyfollow pairs.** +54 packs cutoff keyfollow (0..15,
+  -100..+200 about C4) with the TVF envelope's time keyfollow; +40 packs pitch
+  keyfollow (0..15, +100 = the normal octave per twelve keys) with a TVA time
+  keyfollow. Cutoff keyfollow is the consequential one: without it every tone
+  filters at the same absolute frequency across the whole keyboard.
+* **+71 is tone delay mode plus the TVA velocity curve.** NORMAL delays the tone
+  and still lets it sound after release, HOLD drops it if the key goes up first,
+  PLAY-MATE uses the gap between the last two note-ons as the delay time.
+* **+72's upper half is probably the negative side.** The manual gives TVA
+  velocity sensitivity as -63..+63, where negative makes *harder* playing
+  quieter. The measurement covered only the positive half and called the rest
+  inert -- the same shape the LFO depths had before the signed sweep found
+  128..255 modulating the other way. Worth the same sweep.
+
+**Since implemented.** How many of the 539 active factory tones each one
+actually reaches is what decided the order:
+
+1. **TVF envelope velocity (+56)** -- 336 tones. Measured; see "Still open"
+   above for the law. This is what moved the brightness error.
+2. **Velocity curves** (+55 and +71, bits 0-2) -- 204 tones on the TVF, 168 on
+   the TVA. Measured; see the section above.
+3. **Cutoff keyfollow** (+54 low nibble) -- 185 tones. At +100 % the corner
+   tracks the keyboard one for one about C4, which falls straight out of the
+   already-measured cutoff law: 17.93 parameter units per octave.
+4. **TVF envelope release level (+66)** -- 95 tones. The TVF envelope releases
+   to its own fourth level, not to zero; releasing to zero shut the filter on
+   note-off while the TVA tail was still sounding.
+5. **Level and panning keyfollow** (+70 low, +39 high) -- roughly 95 tones
+   each. Per-semitone amounts are NOT measured, only the table indices.
+6. **The pitch envelope (+40..+51)** -- 68 tones, 33 of them at full depth.
+   Depth is signed semitones clamped to ±12; the four levels are bipolar where
+   the TVA and TVF levels are unsigned. Runs at control rate.
+7. **Pitch keyfollow** (+40 low) -- 32 tones. 507 sit at +100 %, the normal
+   octave per twelve keys.
+8. **Output dry level (+81)** -- 31 tones, six at or near zero. Those are heard
+   only through the effects on the hardware, so with no effects yet they drop
+   out; no patch loses all four tones that way.
+9. **Random pitch (+39 low)** -- 18 tones -- and **analog feel** (patch common,
+   119 of 192 patches). Both exist to stop tones phase-locking; the analog-feel
+   magnitude is a guess, flagged in jv_calibration.h.
+10. **Per-patch bend range** -- 24 patches bend down further than they bend up.
+11. **LFO offset as a three-bit field** and **fade polarity** -- five tones and
+    two tones respectively, but see the offset note in jv_calibration.h: the
+    neutral index is 2, not 0, which is why the depth tables and the offset
+    scale had been cancelling each other unnoticed.
+
+12. **FXM (+02)** -- 24 tones. Measured; see jv_calibration.h. The engine's
+    sidebands now sit within 0.3 dB of the reference across the depth range
+    (-30.8 / -16.8 / -11.5 / -5.9 dB at depth 0 / 4 / 8 / 15 against
+    -30.8 / -16.8 / -11.5 / -6.2).
+
+**Still not implemented.**
+
+* **POLY/SOLO and portamento** (11 and 6 patches). Needs a note stack and a
+  glide; the engine is poly-only.
+* **Resonance mode SOFT/HARD** (+53 bit 7, 58 tones).
+* **Tone delay** (+69/+71) including the HOLD and PLAY-MATE modes.
+* **Envelope time keyfollow and the T1/T4 velocity fields** (+42, +57, +73,
+  plus the high nibbles of +40/+54/+70). Almost all neutral in the factory
+  banks: +42 is (7,7) on 537 of 539 tones.
+
+**Confirmed, no change needed.** The TVA envelope's shape (T1→L1, T2→L2,
+T3→L3, hold, then T4→0 with no L4, while the TVF envelope does carry L4);
+velocity range lower/upper as a per-tone window; pan L64..63R with 128 as the
+setting the panel calls RND; patch level, tone level and the sends all being
+independent 0..127 controls.
+
+## Two more sources, and what they were each good for
+
+**Roland's "JV Master Class" supplemental notes** (SN08, 1996, a Keyboard
+Magazine article, 7 pages with a text layer) is a tutorial, not a
+specification, but it contains two facts nothing else stated:
+
+* **FXM "uses a square wave to modulate the selected waveform".** That one
+  sentence turned FXM from unmeasurable into a targeted experiment -- knowing
+  the modulator is a square wave says to go looking for evenly spaced sidebands,
+  and they are there at a fixed 125 Hz.
+* **Analog feel "produces irregular variations in pitch and level"**, not pitch
+  alone.
+
+It also independently confirms the matrix destination count ("level ... and 11
+other parameters"), pan RND as a per-note random position, and that release
+velocity drives the T4 time of all three envelopes.
+
+**[charlesvestal/schwung-jv880](https://github.com/charlesvestal/schwung-jv880)**
+wraps the same Nuked-derived emulator for the Ableton Move, so its DSP is the
+reference this harness already drives. Its value is a hand-built table in
+`src/dsp/jv880_plugin.cpp` giving a byte offset, bit shift and mask for 89 tone
+parameters. As an independent check it confirms exactly the inferences that had
+been least certain here:
+
+* `lfo1offset` at +23 **shift 3, mask 0x07** -- the three-bit offset field
+* `lfo1fadepolarity` at +23 **bit 7**
+* `levelkeyfollow` at +70 **low** nibble, `tvaenvtimekeyfollow` **high**
+* `panningkeyfollow` at +39 high, `randompitchdepth` low
+* `tvfenvvelocitycurve` at +55 **bits 0-2**, `tvfenvvelocitylevelsense` at +56
+* `tvfenvlevel4` at +66, and the pitch envelope's four levels as signed
+
+It disagrees on three nibble assignments, and in all three the factory data or
+a measurement decides against it:
+
+| byte | that table | here | what decides it |
+|------|-----------|------|-----------------|
+| +40 | pitch keyfollow = high nibble | low nibble | The low nibble is 12 on 507 of 539 tones, and index 12 is +100 %, the normal octave per twelve keys. The high nibble is 7 on 534 tones, which in the same table is +20 % -- nothing would play in tune. |
+| +71 | TVA velocity curve = high nibble | bits 0-2 | The high nibble is 12 or 13 on every one of the 539 tones, outside the valid 0-6 range. Sweeping bits 0-2 produces a clean seven-member family of velocity responses. |
+| +54 | cutoff KF and TVF-env time KF both listed as the whole byte | low / high nibble | They cannot both be the whole byte. The low nibble reaches 15, which only the 16-entry cutoff table allows, and is 0 % at its mode; the high nibble stops at 14 and is 0 % at its mode in the 15-entry table. |
+
+Neither source changed a measured number. Both were worth reading anyway: one
+supplied the missing premise for an experiment, the other independently
+corroborated six inferences that had rested on argument alone.
 
 ## Credit
 

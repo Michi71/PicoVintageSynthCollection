@@ -29,7 +29,9 @@ bool JV_Bridge::selectPatch(int bank, int index) {
     // tone bytes, which the engine copies at note-on -- so they are safe, but a
     // patch change on the JV silences the keyboard anyway.
     engine_.allNotesOff();
-    return engine_.selectPatch(bank, index);
+    const bool ok = engine_.selectPatch(bank, index);
+    updateBend();   // the new patch may bend by a different amount
+    return ok;
 }
 
 void JV_Bridge::setVolume(uint8_t percent) {
@@ -47,8 +49,17 @@ void JV_Bridge::setMasterTune(int cents) {
 }
 
 void JV_Bridge::setPitchBend(int16_t bend) {
-    // +-2 semitones, the JV-880's default bend range.
-    bendRatio_ = powf(2.0f, (bend / 8192.0f) * 2.0f / 12.0f);
+    bend_ = bend;
+    updateBend();
+}
+
+// The range comes from the patch, and up and down are separate: +-2 is only the
+// common case. Re-derived on every patch change as well, since the wheel may
+// already be off centre when the patch switches.
+void JV_Bridge::updateBend() {
+    const float semis = (bend_ >= 0) ? (float)engine_.bendUpSemis()
+                                     : -(float)engine_.bendDownSemis();
+    bendRatio_ = powf(2.0f, (bend_ / 8192.0f) * semis / 12.0f);
     updatePitch();
 }
 
