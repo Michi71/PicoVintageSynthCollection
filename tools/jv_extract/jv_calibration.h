@@ -192,24 +192,29 @@ static const float JV_LFO_PITCH_DEPTH_CENTS[9] = {
 // The field is signed like the LFO depths; negative depths close the filter.
 #define JV_TVF_ENV_DEPTH_PER_UNIT 2.4f
 
-// tvaVelocity (+72) is a positive magnitude, NOT a bipolar field centred on 64:
-// values 8/16/32 gave +2.7/+5.6/+10.8 dB at velocity 110 and -1.8/-4.3/-10.6 dB
-// at velocity 30, both against velocity 64. Reading it as (v - 64) inverted the
-// sense and attenuated where the machine boosts. Level in dB is therefore
-//     value * ((velocity - 64) / 64) * JV_TVA_VELO_DB_PER_UNIT
-// with the usual 64..127 inert. The downward side runs slightly steeper than
-// this fit near the extremes.
-#define JV_TVA_VELO_DB_PER_UNIT 0.47f
-
-// ... and the effect scales with the TONE's level. At sensitivity 34 the span
-// from velocity 40 to 127 measures 23.7 / 20.1 / 17.7 / 14.4 dB at tone level
-// 127 / 100 / 75 / 50 -- a square root of the level ratio fits all four to
-// under a decibel. Without it a quiet layer in a multi-tone patch gains too much
-// at high velocity and pushes forward: "Pop Piano 2" has a level-75 electric
-// piano over a level-127 acoustic, and their balance drifted 6 dB across the
-// velocity range where the machine holds it within 1.6 dB.
-// This is a fit, not a derived law.
-#define JV_TVA_VELO_LEVEL_REF 127.0f
+// tvaVelocity (+72) only ever ATTENUATES, and it attenuates below velocity 127.
+// Measured against velocity sensitivity 0 at the SAME velocity -- a comparison
+// the first calibration never made:
+//
+//        velo:      8      16      25      34      48      63
+//   at vel 127:  +0.00   +0.00   +0.00   +0.00   +0.00   +0.00
+//   at vel 100:  -1.56   -3.10   -4.91   -6.26   -9.07  -11.99
+//   at vel  64:  -3.59   -7.52  -11.62  -15.71  -24.42  -45.25
+//
+// So the loudest note is the same whatever the sensitivity, and the setting
+// decides how much quieter softer notes get. The earlier model boosted above
+// velocity 64 instead, which was wrong in direction and, because factory
+// patches carry sensitivities of 13..42, masked a ~10 dB base level error.
+//
+// The attenuation tracks the product velo * (127 - velocity) closely: about
+// 0.0072 dB per unit up to ~2100, steepening beyond. Table below is that
+// product against decibels.
+static const float JV_TVA_VELO_PRODUCT[10] = {
+    0.0f, 216.0f, 432.0f, 504.0f, 675.0f, 1008.0f, 1575.0f, 2142.0f, 3024.0f, 3969.0f,
+};
+static const float JV_TVA_VELO_ATTEN_DB[10] = {
+    0.0f,   1.56f,  3.10f,  3.59f,  4.91f,   7.52f,  11.62f,  15.71f,  24.42f,  45.25f,
+};
 //
 // Flags bit 6 is KEY SYNC. Measured by shifting the note-on in time (JV_WARM)
 // and timing the first square-wave edge: with the bit clear the edge moves so

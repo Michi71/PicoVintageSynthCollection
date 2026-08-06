@@ -87,6 +87,23 @@ float cutoffToHz(float v) {
 // Roland stores several parameters bipolar with the swing at 64.
 inline int bipolar(uint8_t v) { return (int)v - 64; }
 
+// Velocity attenuation: zero at velocity 127, growing as the note gets softer,
+// scaled by the tone's sensitivity. Driven by the product of the two.
+float velocityAttenDb(int sens, int vel) {
+    if (sens <= 0) return 0.0f;
+    const float prod = (float)sens * (float)(127 - vel);
+    if (prod <= 0.0f) return 0.0f;
+    for (int i = 0; i < 9; i++) {
+        if (prod <= JV_TVA_VELO_PRODUCT[i + 1]) {
+            const float t = (prod - JV_TVA_VELO_PRODUCT[i]) /
+                            (JV_TVA_VELO_PRODUCT[i + 1] - JV_TVA_VELO_PRODUCT[i]);
+            return JV_TVA_VELO_ATTEN_DB[i] +
+                   (JV_TVA_VELO_ATTEN_DB[i + 1] - JV_TVA_VELO_ATTEN_DB[i]) * t;
+        }
+    }
+    return JV_TVA_VELO_ATTEN_DB[9];
+}
+
 // Level modulation is the one destination that is not linear in sensitivity.
 float modLevelDb(float sens) {
     float a = fabsf(sens);
@@ -476,13 +493,8 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
     {
         const int8_t vs = (int8_t)t[72];
         const int vmag = vs < 0 ? -vs : vs;
-        if (vmag <= JV_LFO_DEPTH_MAX && vmag != 0) {
-            float db = (float)vs * (((float)vel - 64.0f) / 64.0f) *
-                       JV_TVA_VELO_DB_PER_UNIT *
-                       sqrtf((float)t[67] / JV_TVA_VELO_LEVEL_REF);
-            if (db < -60.0f) db = -60.0f;
-            lvl *= powf(10.0f, db * (1.0f / 20.0f));
-        }
+        if (vmag <= JV_LFO_DEPTH_MAX && vmag != 0)
+            lvl *= powf(10.0f, -velocityAttenDb(vmag, vel) * (1.0f / 20.0f));
     }
 
     // Pan: 128 alternates left/right from note to note, above that is centre,
@@ -607,8 +619,10 @@ void Engine::render(float* left, float* right, int frames) {
             // 2^19 is the accumulator's full scale, but the ROM samples only
             // reach 13 % of it (median 7.7 %), so normalising to that throws
             // away 12 dB. This factor is what lines the engine up with the
-            // reference: across 24 patches it leaves a mean error near zero.
-            float s = ((float)v.s0 + ((float)v.s1 - (float)v.s0) * frac) * (1.0f / 330000.0f);
+            // reference across 24 patches. It had to move by 10.5 dB once the
+            // velocity law was corrected: the old law boosted where the machine
+            // attenuates, which had been standing in for this offset.
+            float s = ((float)v.s0 + ((float)v.s1 - (float)v.s0) * frac) * (1.0f / 99000.0f);
 
             if (--v.ctlPhase <= 0) {
                 updateModulation(v);

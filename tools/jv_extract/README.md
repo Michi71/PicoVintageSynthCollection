@@ -238,10 +238,21 @@ linear interpolation, which is a real but much smaller difference.
 * **tvfEnvDepth (+58)** moves the cutoff by 2.4 parameter units per depth unit
   (measured 19.1 / 37.5 / 60.5 at depth 8 / 16 / 24, with the envelope held
   open); above 24 the measurement saturates, not the synth. The field is signed.
-* **tvaVelocity (+72)** is a positive magnitude, not a bipolar field centred on
-  64: values 8 / 16 / 32 give +2.7 / +5.6 / +10.8 dB at velocity 110 and
-  -1.8 / -4.3 / -10.6 dB at velocity 30, both against velocity 64. About
-  0.47 dB per unit at full velocity travel.
+* **tvaVelocity (+72) only ATTENUATES.** Measured against sensitivity 0 at the
+  *same* velocity -- a comparison the first calibration never made -- every
+  setting gives an identical level at velocity 127, and softer notes get quieter
+  in proportion: -1.56 / -3.10 / -4.91 dB at velocity 100 for sensitivities
+  8 / 16 / 25, and -3.59 / -7.52 / -11.62 dB at velocity 64. The attenuation
+  tracks the product `sensitivity * (127 - velocity)`.
+
+  The first model boosted above velocity 64 instead. Because factory patches
+  carry sensitivities of 13..42, that spurious boost had been standing in for a
+  10.5 dB base offset in the output normalisation, and the two together looked
+  acceptable in aggregate while scattering wildly per patch. Fixing the law and
+  moving the normalisation cut the spread across 24 patches from 5.1 dB to
+  2.7 dB. The lesson is in the comparison that was missing: every velocity
+  measurement had been relative to velocity 64 at the same sensitivity, so a
+  term that shifts the whole curve was invisible.
 * **LFO depths are signed over the whole byte.** 64..127 really is inert, but
   128..255 is -128..-1 and modulates the *other way*: pitch depth -20 gives
   133 cents of swing around a mean above the carrier, +20 gives 136 cents around
@@ -453,10 +464,21 @@ octaves is no longer spectrally flat, but it is still unambiguously not the sine
 * **tvfEnvDepth (+58)** moves the cutoff by 2.4 parameter units per depth unit
   (measured 19.1 / 37.5 / 60.5 at depth 8 / 16 / 24, with the envelope held
   open); above 24 the measurement saturates, not the synth. The field is signed.
-* **tvaVelocity (+72)** is a positive magnitude, not a bipolar field centred on
-  64: values 8 / 16 / 32 give +2.7 / +5.6 / +10.8 dB at velocity 110 and
-  -1.8 / -4.3 / -10.6 dB at velocity 30, both against velocity 64. About
-  0.47 dB per unit at full velocity travel.
+* **tvaVelocity (+72) only ATTENUATES.** Measured against sensitivity 0 at the
+  *same* velocity -- a comparison the first calibration never made -- every
+  setting gives an identical level at velocity 127, and softer notes get quieter
+  in proportion: -1.56 / -3.10 / -4.91 dB at velocity 100 for sensitivities
+  8 / 16 / 25, and -3.59 / -7.52 / -11.62 dB at velocity 64. The attenuation
+  tracks the product `sensitivity * (127 - velocity)`.
+
+  The first model boosted above velocity 64 instead. Because factory patches
+  carry sensitivities of 13..42, that spurious boost had been standing in for a
+  10.5 dB base offset in the output normalisation, and the two together looked
+  acceptable in aggregate while scattering wildly per patch. Fixing the law and
+  moving the normalisation cut the spread across 24 patches from 5.1 dB to
+  2.7 dB. The lesson is in the comparison that was missing: every velocity
+  measurement had been relative to velocity 64 at the same sensitivity, so a
+  term that shifts the whole curve was invisible.
 * **LFO depths are signed over the whole byte.** 64..127 really is inert, but
   128..255 is -128..-1 and modulates the *other way*: pitch depth -20 gives
   133 cents of swing around a mean above the carrier, +20 gives 136 cents around
