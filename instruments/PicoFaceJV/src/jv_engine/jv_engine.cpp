@@ -144,10 +144,19 @@ float lfoDepth(const float* tbl, uint8_t raw) {
     return sv < 0 ? -mag : mag;
 }
 
-// The machine sits a fixed 9.4 cents below equal temperament: measured constant
-// to within 1 cent across 2.5 octaves, and it is exactly the residual left over
-// when the sample tune words are referenced to their neutral value of 1024.
-constexpr float kMasterTuneCents = -9.4f;
+// The machine is at equal temperament. Measured on the reference playing the
+// ROM's own sine (multisample 72) at C3, C4 and C5: +0.11, +0.18 and +0.08
+// cents. There is no global detune.
+//
+// This used to carry -9.4 cents, described as a measured property of the
+// machine. It was not: 9.4 cents is the residual left over when the sample
+// tune words are referenced to a neutral of 1024, which is a statement about
+// the tune-word model, and applying it again here counted it twice and left
+// the whole instrument 9.65 cents flat. Removing it lands within 0.3 cents of
+// the reference. The same shape as the velocity traps below -- a constant that
+// belongs to one part of the chain quietly standing in for an error somewhere
+// else, invisible until something outside the chain is measured against.
+constexpr float kMasterTuneCents = 0.0f;
 
 } // namespace
 

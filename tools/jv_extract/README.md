@@ -504,6 +504,67 @@ is mean +0.15 dB, spread 3.0 dB, mean absolute 2.32 dB -- and the velocity
 TRACKING error, which is what the curves actually fix, falls from a mean of
 1.22 dB to 0.72 dB with the worst case down from 6.7 to 5.0 dB.
 
+### The machine is at equal temperament, and the 9.4 cents were counted twice
+
+The engine carried a global `kMasterTuneCents = -9.4`, documented here as a
+measured property of the machine. It is not one. The reference playing the
+ROM's own sine (multisample 72) sits at **+0.11 / +0.18 / +0.08 cents** against
+equal temperament at C3, C4 and C5 -- dead in tune. The engine was 9.65 cents
+flat, and removing the constant lands it at +0.12 / +0.19 / +0.13.
+
+9.4 cents is real, but it belongs to the tune-word model: it is the residual
+left over when the sample tune words are referenced to a neutral of 1024.
+Applying it again as a global detune counted it a second time. The whole
+instrument played ten cents flat, which is inaudible on its own and obvious
+against anything else.
+
+That is the same shape as the two velocity traps below, and the third instance
+in this work: a constant belonging to one part of the chain quietly standing in
+for an error elsewhere, invisible until something *outside* the chain is
+measured. Here the outside reference was equal temperament itself.
+
+### The loop throb: what it is not
+
+Sustained pad patches (B15, B16, B19, B21) throb at a few hertz in the engine
+and not on the reference. B16 is the clean test case: one tone, every LFO depth
+zero, no random pitch, no analog feel, no FXM, pan centre -- a single
+unmodulated sample.
+
+The throb rate is exactly the sample's loop repeat rate. For B16 the loop is
+12779 samples at a playback ratio of 0.9693, which is 412 ms, or 2.43 Hz.
+
+Measured on the envelope and on the waveform itself:
+
+| | one loop pass | two passes |
+|---|---|---|
+| engine, waveform correlation | **+0.997** at 412 ms | +0.990 |
+| reference, waveform correlation | +0.626 at 409 ms | **+0.921** at 831 ms |
+
+So the engine's playback is essentially *perfectly* periodic with the loop while
+the reference's evolves and only half-repeats after two passes. It is that
+regularity that is audible, not the amplitude variation -- the reference in fact
+varies MORE (envelope sd/mean 0.53 against 0.31).
+
+Ruled out, each by measurement:
+
+* **The chorus.** These patches are built around a deep slow chorus that the
+  engine does not have, which was the obvious suspect. But switching the chorus
+  off on the reference leaves it just as non-periodic (r at the loop period goes
+  from -0.34 to -0.30).
+* **Ping-pong looping.** Sample 287 has bit 0 of the record's flag byte (+11)
+  set, and the samples that throb are exactly the ones that do -- but the
+  reference's second pass is not the first reversed (r = +0.08).
+* **The DPCM accumulator, and the decode rule.** The loops are authored exactly
+  balanced: the drift over one pass is precisely zero for all three samples
+  involved, under every plausible variant of the decode step (`s>>1`, `s`,
+  truncate-toward-zero, round-half-up). The `refAtLoop` snapshot the engine
+  restores on each wrap is therefore a no-op for these samples, and removing it
+  would change nothing.
+* **A different waveform.** The spectra agree partial for partial.
+
+What remains is that something in the chip's playback makes each pass through
+the loop differ, with the sample data itself perfectly periodic. Unresolved.
+
 ### Still open
 
 * **Cutoff above v≈84** and the **LFO below v≈48** (see Calibration above).
