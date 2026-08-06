@@ -532,28 +532,40 @@ sustained ones -- median loop length 8998 against 152 for the rest. Playing
 those as forward loops makes the sound repeat exactly once per loop, which is
 audible as a throb at the loop rate: 2.43 Hz for the sample under B16.
 
-Since the format is differential, retracing means undoing each step -- `v(a-1)`
-is `v(a)` minus the delta stored at `a` -- which is exactly reversible because
-the clamp never fires on a factory loop (they peak near 32k against a limit of
-512k). The endpoints are played once per half cycle, so the period is
-`2*(end-loop)` and nothing repeats within a traverse.
+**The return pass is NEGATED.** The chip does not undo the differential steps
+on the way back. It keeps integrating in the same direction while the address
+walks backwards, so what comes out is `2*v(end) - v(mirrored)`. The loop
+endpoints sit on zero crossings -- `v(end)` is exactly 0 for every sample
+checked -- so that is the negated mirror of the forward pass.
+
+Retracing the arithmetically "correct" way, `v(a-1) = v(a) - delta(a)`, gives
+the un-negated mirror. Against the reference that reads **r = -0.995** through
+the whole return pass: perfectly shaped, exactly the wrong sign. It is audible
+as a tick at each turn-around, since the waveform jumps to its own negative
+there. Adding the delta instead of subtracting it takes the same comparison to
+**+0.99**.
+
+With that, the engine tracks the reference sample for sample: aligning on a
+window at 200 ms and then measuring 50 ms windows out to 1.8 s gives r = 0.92
+to 1.00 throughout, across four turn-arounds, with the alignment drifting only
+from +86 to +90 samples (about a cent of rate difference).
 
 The measured signature, engine against reference, envelope correlation at one
 loop period across the seven notes of one multisample zone:
 
-| note | reference | engine, forward loop | engine, alternating |
-|------|-----------|---------------------|---------------------|
-| 55 | -0.369 | +0.434 | -0.317 |
-| 57 | -0.388 | +0.544 | -0.348 |
-| 59 | -0.333 | +0.692 | -0.481 |
-| 60 | -0.441 | +0.705 | -0.406 |
-| 62 | -0.512 | +0.595 | -0.513 |
-| 64 | -0.591 | +0.627 | -0.564 |
-| 66 | -0.572 | +0.753 | -0.566 |
+| note | reference | forward loop | alternating |
+|------|-----------|--------------|-------------|
+| 55 | -0.369 | +0.434 | -0.302 |
+| 57 | -0.388 | +0.544 | -0.342 |
+| 59 | -0.333 | +0.692 | -0.453 |
+| 60 | -0.441 | +0.705 | -0.382 |
+| 62 | -0.512 | +0.595 | -0.466 |
+| 64 | -0.591 | +0.627 | -0.537 |
+| 66 | -0.572 | +0.753 | -0.519 |
 
 And directly: comparing one loop pass against the next, the reference matches
-its own **reverse** at +0.899 while matching forward at -0.046. The engine now
-gives -0.058 forward and +0.800 reversed; before, it gave +0.871 forward.
+its own **reverse** at +0.899 while matching forward at -0.046. The engine gave
++0.871 forward before this and now shows the reference's signature instead.
 
 **The test that lied.** Alternating looping was the second hypothesis tried and
 was wrongly discarded, because the first version of the test correlated one

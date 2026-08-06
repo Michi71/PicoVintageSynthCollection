@@ -414,12 +414,17 @@ int32_t Engine::decodeStep(Voice& v) const {
     const int32_t delta = (((int32_t)d << 11) >> ((10 - nib) & 15)) >> 1;
 
     if (v.dir < 0) {
-        // Retracing an alternating loop. The format is differential, so going
-        // backwards means undoing the step that brought us here: v(a-1) is
-        // v(a) minus the delta stored AT a. Exactly reversible as long as the
-        // clamp never fired on the way out, which it does not for any factory
-        // sample -- their loops peak around 32k against a limit of 512k.
-        v.ref -= delta;
+        // Retracing an alternating loop. The chip does NOT undo the steps: it
+        // keeps integrating in the same direction while the address walks
+        // backwards, so what comes out is 2*v(end) - v(mirrored) rather than
+        // v(mirrored). Since the loop endpoints sit on zero crossings -- v(end)
+        // is exactly 0 for the samples checked -- that is the negated mirror.
+        //
+        // Subtracting instead, which is the arithmetically "correct" way to
+        // retrace a differential stream, gives the un-negated mirror: it
+        // matched the reference at r = -0.995 through the whole return pass,
+        // perfectly shaped and exactly the wrong sign.
+        v.ref += delta;
         if (v.ref > 0x7FFFF) v.ref = 0x7FFFF;
         if (v.ref < -0x80000) v.ref = -0x80000;
         --v.addr;
