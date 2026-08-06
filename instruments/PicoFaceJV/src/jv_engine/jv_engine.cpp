@@ -287,11 +287,17 @@ int32_t Engine::decodeStep(Voice& v) const {
     return v.ref;
 }
 
+void Engine::setVoiceLimit(int n) {
+    if (n < 1) n = 1;
+    if (n > kMaxVoices) n = kMaxVoices;
+    voiceLimit_ = n;
+}
+
 int Engine::allocVoice() {
-    for (int i = 0; i < kMaxVoices; i++)
+    for (int i = 0; i < voiceLimit_; i++)
         if (!voices_[i].active) return i;
     int oldest = 0;
-    for (int i = 1; i < kMaxVoices; i++)
+    for (int i = 1; i < voiceLimit_; i++)
         if (voices_[i].age < voices_[oldest].age) oldest = i;
     return oldest;
 }

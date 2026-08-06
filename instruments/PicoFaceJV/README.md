@@ -1,9 +1,9 @@
 # PicoFaceJV (work in progress)
 
-A Roland **JV-880** for the collection. Unlike the other instruments in this
-repository, **this one does not build a firmware image yet** — what exists is
-the sound engine and a host harness for it. There is no `instrument.cmake`, no
-adapter, no controller or display, and no UF2.
+A Roland **JV-880** for the collection. It builds a firmware image, but only on
+a machine that has a JV-880 ROM set: the ROMs are not distributable, so without
+them the instrument removes itself from the build and the other eight are
+unaffected. It has not been tried on hardware.
 
 ## What this is, and is not
 
@@ -36,8 +36,8 @@ tooling that produced them.
 | LFO key sync, free-run, offset | works; bit 5 of the flags ignored |
 | Modulation matrix | works for the identified destinations; see below |
 | FXM, portamento | not implemented |
+| Firmware adapter, panel UI, MIDI, persistence | built, untested on hardware |
 | Reverb / chorus | not implemented |
-| Firmware adapter, UI, MIDI, persistence | not started |
 
 Pitch is resolved. Two things had to be right together, and getting one wrong
 made the other look unexplainable: `end` in the sample table is **inclusive**
@@ -68,6 +68,52 @@ does not return to the same value after a loop pass. Sample 504's loop drifts by
 it. The original chip integrates without correction; a native engine does not
 have to, so the engine snapshots the accumulator at the loop point and restores
 it on every wrap.
+
+## Hardware and load
+
+The board is the collection's standard one; the pin map lives in
+[core/include/project_config.h](../../core/include/project_config.h).
+
+Unlike PicoFaceRD this instrument stays on **core0 at the standard 444 MHz**.
+The engine costs roughly 55 M cycles/s at full polyphony and decodes each voice
+sequentially, so neither the core1 worker nor the raised clock RD needs applies
+here. Firmware image is 4.53 MB, of which 4.25 MB is the ROM blob.
+
+| Page | Encoder A | Encoder B |
+|---|---|---|
+| PATCH | patch, walking all 192 as one list | bank (User / A / B) |
+| VOL | master volume | — |
+| VOICES | polyphony cap 1–24 | line B shows live `Act <n>` |
+| TUNE | master tune ±50 cents | line B shows the resulting A4 |
+| SYS | MIDI receive channel 1–16 / Omni | — |
+
+The footer shows `U<underruns> A<active>/<limit>`. On an underrun the instrument
+drops two voices from the cap; the VOICES page raises it again.
+
+MIDI: note on/off, sustain (CC 64), modulation (CC 1), expression (CC 11),
+channel aftertouch, pitch bend ±2 semitones, program change within the current
+bank, and the panic controllers 120/121/123. CC 1, CC 11 and aftertouch are the
+modulation matrix's three sources.
+
+## Building the firmware
+
+The ROM set is not part of this repository. Put these three files in
+`instruments/PicoFaceJV/roms/` (gitignored) and configure as usual:
+
+```text
+jv880_rom2.bin        256 KB   tables and patches
+jv880_waverom1.bin      2 MB   wave data
+jv880_waverom2.bin      2 MB   wave data
+```
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICOFACE_INSTRUMENTS_FILTER=PicoFaceJV
+cmake --build build
+```
+
+Configure converts the ROMs once into a descrambled blob under the build tree
+and embeds it with `.incbin`. Without the ROMs the configure step prints a note
+and skips the instrument, so a plain checkout still builds the other eight.
 
 ## Building the host harness
 

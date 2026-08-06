@@ -30,6 +30,12 @@ codebase. Same board, same core, one firmware image per instrument.
 | [instruments/PicoFaceSM](instruments/PicoFaceSM/README.md) | ARP/Eminent Solina String Ensemble | PicoFaceSM.uf2 |
 | [instruments/PicoFaceOB](instruments/PicoFaceOB/README.md) | Oberheim OB-X (engine ported from OB-Xf) | PicoFaceOB.uf2 |
 
+A ninth is in progress: [instruments/PicoFaceJV](instruments/PicoFaceJV/README.md)
+(Roland JV-880). It is not in the release binaries and not yet confirmed on the
+hardware, and it only builds where a JV-880 ROM set is present — the ROMs are
+not distributable. Without them the configure step skips it, so the eight above
+are unaffected.
+
 ## Hardware
 
 - RP2350

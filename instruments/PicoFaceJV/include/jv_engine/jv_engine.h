@@ -60,7 +60,12 @@ public:
     // Overwrites the buffers; does not accumulate.
     void render(float* left, float* right, int frames);
 
-    int activeVoices() const;
+    int  activeVoices() const;
+
+    // Runtime polyphony cap, 1..kMaxVoices. Lowering it does not cut sounding
+    // voices; the allocator steals the oldest once the cap is reached.
+    void setVoiceLimit(int n);
+    int  voiceLimit() const { return voiceLimit_; }
     const char* patchName() const { return reinterpret_cast<const char*>(patch_); }
 
     // Pitch trim, applied to every voice. Used by the host A/B harness to
@@ -165,6 +170,7 @@ private:
     uint8_t  patchCopy_[362]{};
     Voice    voices_[kMaxVoices]{};
     uint32_t ageCounter_ = 0;
+    int      voiceLimit_ = kMaxVoices;
 };
 
 } // namespace jv

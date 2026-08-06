@@ -34,3 +34,6 @@ tools/jv_extract/roms/
 tools/jv_extract/*.bin
 tools/jv_extract/*.csv
 tools/jv_extract/jv_probe
+
+# PicoFaceJV needs a local JV-880 ROM set; it is not distributable.
+instruments/PicoFaceJV/roms/
