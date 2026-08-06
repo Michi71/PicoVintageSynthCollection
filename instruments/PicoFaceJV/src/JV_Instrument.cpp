@@ -110,6 +110,12 @@ private:
                  (unsigned long)g_i2s_underrun_count,
                  bridge_.activeVoices(), bridge_.voiceLimit());
         jv_display_page(d, m);
+        // Arms the incremental push. Painting the buffer is not enough: the main
+        // loop only streams it out while picoface_ui_flush_row < 16, and flush()
+        // is what resets that counter. Without this the display keeps showing
+        // whatever was pushed last -- the boot splash -- while everything else
+        // runs normally.
+        d.flush();
     }
 
     JV_Bridge bridge_;
