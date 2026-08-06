@@ -29,7 +29,27 @@ float lookup(const float* tbl, int n, int v) {
 float envRiseSeconds(int v) { return lookup(JV_ENV_RISE_S, JV_ENV_RISE_N, v); }
 float envFallSeconds(int v) { return lookup(JV_ENV_FALL_S, JV_ENV_FALL_N, v); }
 
-// Envelope and tone levels share the measured TVA level law.
+// A TVA envelope target, on its own measured curve rather than the tone-level
+// one -- the two are up to 9.4 dB apart.
+float envLevelToLinear(int v) {
+    if (v <= 0) return 0.0f;
+    const float db = lookup(JV_TVA_ENV_LEVEL_DB, 33, v);
+    if (db <= -200.0f) return 0.0f;
+    return powf(10.0f, db * (1.0f / 20.0f));
+}
+
+// A TVF envelope target scales the cutoff excursion and is near-linear.
+float tvfEnvLevel(int v) {
+    if (v <= 0) return 0.0f;
+    if (v > 127) v = 127;
+    const float x = v * (1.0f / 16.0f);
+    const int i = (int)x;
+    if (i >= 8) return JV_TVF_ENV_LEVEL[8];
+    return JV_TVF_ENV_LEVEL[i] +
+           (JV_TVF_ENV_LEVEL[i + 1] - JV_TVF_ENV_LEVEL[i]) * (x - (float)i);
+}
+
+// Tone, patch and sample levels share the measured tvaLevel law.
 float levelToLinear(int v) {
     if (v <= 0) return 0.0f;
     float db = lookup(JV_TVA_LEVEL_DB, 32, v);
@@ -100,10 +120,12 @@ constexpr float kMasterTuneCents = -9.4f;
 
 // ------------------------------------------------------------------ envelope
 
-void Engine::Env::begin(const uint8_t* t, const uint8_t* l, uint32_t sampleRate) {
+void Engine::Env::begin(const uint8_t* t, const uint8_t* l, uint32_t sampleRate,
+                        bool logLev) {
     times = t;
     levels = l;
     sr = sampleRate;
+    logLevels = logLev;
     level = 0.0f;
     target = 0.0f;
     slope = 0.0f;
@@ -126,7 +148,9 @@ float Engine::Env::tick() {
 
     if (!segmentValid) {
         const int tv = times[stage < 3 ? stage : 3];
-        target = (stage == 4) ? 0.0f : levelToLinear(levels[stage]);
+        target = (stage == 4) ? 0.0f
+                              : (logLevels ? envLevelToLinear(levels[stage])
+                                           : tvfEnvLevel(levels[stage]));
         rising = target > level;
         const float secs = rising ? envRiseSeconds(tv) : envFallSeconds(tv);
         remaining = secs * (float)sr;
@@ -459,7 +483,7 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
     // TVA envelope: times at +74/+76/+78/+80, levels at +75/+77/+79.
     v.tvaT[0] = t[74]; v.tvaT[1] = t[76]; v.tvaT[2] = t[78]; v.tvaT[3] = t[80];
     v.tvaL[0] = t[75]; v.tvaL[1] = t[77]; v.tvaL[2] = t[79];
-    v.tva.begin(v.tvaT, v.tvaL, sr_);
+    v.tva.begin(v.tvaT, v.tvaL, sr_, true);
 
     // TVF: only engaged when the mode bits select a filter.
     v.filtMode = t[55] & 0x18;
@@ -475,7 +499,7 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
     v.filt.reset();
     v.tvfT[0] = t[59]; v.tvfT[1] = t[61]; v.tvfT[2] = t[63]; v.tvfT[3] = t[65];
     v.tvfL[0] = t[60]; v.tvfL[1] = t[62]; v.tvfL[2] = t[64];
-    v.tvf.begin(v.tvfT, v.tvfL, sr_);
+    v.tvf.begin(v.tvfT, v.tvfL, sr_, false);
 
     // LFO1 is bytes +23..+26 with depths at +31/+32/+33; LFO2 is +27..+30 with
     // +34/+35/+36. Seeding per voice keeps the sample-and-hold waveforms from

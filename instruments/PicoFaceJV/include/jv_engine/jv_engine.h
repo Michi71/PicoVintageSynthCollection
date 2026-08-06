@@ -88,7 +88,8 @@ private:
         const uint8_t* times;    // 4 bytes: T1 T2 T3 T4
         const uint8_t* levels;   // 3 bytes: L1 L2 L3 (the release target is 0)
         uint32_t sr;
-        void  begin(const uint8_t* t, const uint8_t* l, uint32_t sampleRate);
+        bool  logLevels;   // TVA maps levels in dB, TVF near-linearly
+        void  begin(const uint8_t* t, const uint8_t* l, uint32_t sampleRate, bool logLevels);
         void  release();
         float tick();
         bool  idle() const { return stage >= 5; }

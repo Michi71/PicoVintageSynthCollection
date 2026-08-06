@@ -40,6 +40,28 @@ static const float JV_ENV_RISE_S[] = {  // index = value/4
 static const int JV_ENV_RISE_N = 32;
 
 // -------------------------------------------------------------------- TVA
+// Envelope TARGET levels (+75/+77/+79) do NOT follow the tvaLevel curve, which
+// the engine assumed at first: the two differ by up to 9.4 dB at low levels.
+// Measured by setting every segment time to 0 and every target to the same
+// value, so the envelope holds there, then reading the sustained level.
+// Above roughly L=32 it is linear at 0.30 dB per unit. Index = value/4, with
+// the last entry for 127.
+static const float JV_TVA_ENV_LEVEL_DB[33] = {
+     -240.00f,   -48.13f,   -42.11f,   -42.11f,   -38.59f,   -36.09f,   -34.15f,   -32.57f,
+      -30.07f,   -29.05f,   -27.30f,   -25.85f,   -24.05f,   -23.03f,   -21.28f,   -20.17f,
+      -18.88f,   -17.50f,   -16.31f,   -15.07f,   -13.81f,   -12.71f,   -11.48f,   -10.29f,
+       -9.05f,    -7.87f,    -6.69f,    -5.52f,    -4.32f,    -3.17f,    -2.02f,    -0.86f,
+        0.00f,
+};
+
+// The TVF envelope's levels are a different animal: they scale the cutoff
+// excursion and are near-LINEAR in the parameter, not logarithmic. Measured
+// with envDepth 24 over a base cutoff of 8, normalised to L=127. Feeding these
+// through the dB curve gave 0.09 where the machine gives 0.20 at L=32.
+// Index = value/16.
+static const float JV_TVF_ENV_LEVEL[9] = {
+    0.000f, 0.089f, 0.204f, 0.278f, 0.460f, 0.560f, 0.722f, 0.828f, 1.000f,
+};
 // tvaLevel (+67) -> dB relative to the maximum.
 static const float JV_TVA_LEVEL_DB[] = {  // index = value/4
       -240.00f,    -38.69f,    -32.67f,    -32.67f,    -29.15f,    -26.65f,    -24.71f,    -21.79f,

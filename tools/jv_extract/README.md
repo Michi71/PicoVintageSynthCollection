@@ -169,6 +169,36 @@ The base used for all of it is a sine wave (multisample 72), single tone, LFOs
 off, sends dry, filter open, envelope levels at maximum — so that the one byte
 under test is the only thing moving.
 
+### Envelope target levels
+
+The TVA envelope's target levels (+75/+77/+79) do **not** follow the tvaLevel
+curve, which the engine assumed at first. Measured by setting every segment time
+to 0 and every target to the same value -- the envelope then holds there -- the
+two curves differ by up to **9.4 dB** at low levels. Above roughly L=32 the
+envelope curve is linear at 0.30 dB per unit.
+
+The TVF envelope's levels are a different quantity again: they scale the cutoff
+excursion and are **near-linear in the parameter**, not logarithmic. Normalised
+to L=127 they run 0 / 0.09 / 0.20 / 0.28 / 0.46 / 0.56 / 0.72 / 0.83 / 1.0 at
+L=0…127, where the dB curve would give 0.09 at L=32 instead of 0.20.
+
+Three level-shaped curves, then, and they are all different: `JV_TVA_LEVEL_DB`
+for tone/patch/sample levels, `JV_TVA_ENV_LEVEL_DB` for TVA envelope targets,
+`JV_TVF_ENV_LEVEL` for TVF envelope targets.
+
+### Filter chain, measured against the reference
+
+The low-pass slope is **−10 to −12 dB/octave**, so the two-pole assumption is
+right, and the transfer function tracks the reference to 1–4 dB across four
+cutoff settings. The filter is not where the remaining timbre error lives.
+
+Worth recording as a method note: an earlier comparison normalised each spectrum
+to its own maximum and read single FFT bins, which suggested a 26 dB error at
+1 kHz. Measured absolutely and in third-octave bands, the same patch is within
+1.8 dB up to 4 kHz and only +3.5/+7.4 dB at 8/12 kHz -- consistent with the
+chip's three-coefficient interpolation over the deltas against the engine's
+linear interpolation, which is a real but much smaller difference.
+
 ### Where it is incomplete
 
 * **Cutoff above v≈84** cannot be measured this way: the corner moves past the
