@@ -194,6 +194,22 @@ the output by 0.00 dB. The engine had been multiplying by it, which wrongly
 attenuated the 233 of 577 samples carrying anything other than 127 -- by up to
 6.4 dB, and one of them to silence.
 
+### Pan does not stop at 127
+
+`tvaPan` (+68) has three regimes, found by sweeping the whole byte rather than
+the 0..127 the field looks like:
+
+| value | behaviour |
+|---|---|
+| 0…127 | the continuous law: 0 left, 64 centre, 127 right |
+| **128** | **alternating** -- the balance jumps between 0.119 and 0.768 from one note to the next |
+| 129…255 | centre |
+
+**139 of the 539 active factory tones carry 128.** Clamping it to 127, as the
+engine did, threw all of them hard right with the left channel 39 dB down.
+"Whistle" has 128 on all four of its tones, which is why it measured 14 dB quiet
+-- the mono sum had lost a whole channel.
+
 ### Tone summing
 
 Not a factor. Enabling the four tones of "Pipe Organ 1" one at a time, the

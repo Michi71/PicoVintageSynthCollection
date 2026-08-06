@@ -485,8 +485,14 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
         }
     }
 
-    // Patch pan at +22 offsets the tone's own, both centred at 64.
-    int pan = t[68] + ((int)patch_[22] - 64);
+    // Pan: 128 alternates left/right from note to note, above that is centre,
+    // and only 0..127 is the continuous law. Clamping everything to 127 sent a
+    // quarter of the factory tones hard right.
+    int pan;
+    if (t[68] == JV_PAN_ALTERNATING)      pan = (panAlt_ & 1) ? JV_PAN_ALT_B : JV_PAN_ALT_A;
+    else if (t[68] > JV_PAN_ALTERNATING)  pan = 64;
+    else                                  pan = t[68];
+    pan += (int)patch_[22] - 64;
     if (pan < 0) pan = 0; else if (pan > 127) pan = 127;
     float atten = powf(10.0f, lookup(JV_TVA_PAN_ATTEN_DB, 32, pan) * (1.0f / 20.0f));
     if (pan <= 64) { v.gainL = lvl;         v.gainR = lvl * atten; }
@@ -553,6 +559,7 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
 
 void Engine::noteOn(uint8_t note, uint8_t velocity) {
     if (!patch_) return;
+    ++panAlt_;   // one step per note, so alternating tones swap sides
     for (int tone = 0; tone < 4; tone++) {
         const uint8_t* t = patch_ + JV_TONE_OFFSET + tone * JV_TONE_SIZE;
         if (!(t[0] & 0x80)) continue;                        // tone switched off

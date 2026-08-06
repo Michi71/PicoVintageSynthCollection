@@ -54,6 +54,18 @@ static const float JV_TVA_ENV_LEVEL_DB[33] = {
         0.00f,
 };
 
+// tvaPan (+68) does not stop at 127. Swept over the whole byte:
+//   0..127   the pan law below
+//   128      ALTERNATING -- the balance jumps between 0.119 and 0.768 from one
+//            note to the next, which is Roland's "ALT L/R"
+//   129..255 centre
+// 139 of the 539 active factory tones carry 128, and clamping it to 127 threw
+// them hard right with the left channel 39 dB down. "Whistle" has it on all
+// four tones, which is why it measured 14 dB quiet.
+#define JV_PAN_ALTERNATING 128
+#define JV_PAN_ALT_A        15   // pan-equivalent of balance 0.119
+#define JV_PAN_ALT_B        98   // ... and of 0.768
+
 // The PATCH-common level (+21) is a third distinct curve, sitting between the
 // tone-level and envelope-level ones. Measured by patching the byte and reading
 // the sustained level; index = value/16.

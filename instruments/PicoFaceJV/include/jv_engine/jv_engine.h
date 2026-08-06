@@ -176,6 +176,7 @@ private:
     uint8_t  patchCopy_[362]{};
     Voice    voices_[kMaxVoices]{};
     uint32_t ageCounter_ = 0;
+    uint32_t panAlt_ = 0;      // toggles for tones set to alternating pan
     int      voiceLimit_ = kMaxVoices;
 };
 
