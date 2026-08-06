@@ -41,11 +41,14 @@ public:
         bridge_.fillBufferI32(out, (int)frames);
     }
 
-    // An underrun means polyphony outran the CPU. Shed two voices; the user can
-    // raise the cap again on the VOICES page.
+    // An underrun means polyphony outran the CPU, so shed voices -- but the cut
+    // has to be temporary. An earlier version only ever lowered the cap, so a
+    // brief overload ratcheted it down to the floor and left it there: every
+    // note after that stole a voice, which chops the sound in a way that is
+    // easy to mistake for bad loop points. Recovery happens in uiTick().
     void onAudioUnderrun() override {
         const int n = bridge_.voiceLimit();
-        if (n > 4) bridge_.setVoiceLimit(n - 2);
+        if (n > kVoiceFloor) bridge_.setVoiceLimit(n - 2);
     }
 
     // A flash write stalls the CPU for milliseconds, which is audible.
@@ -68,6 +71,19 @@ public:
         const int8_t ds = in.delta(Encoder::Sel);
         const int8_t da = in.delta(Encoder::ParamA);
         const int8_t db = in.delta(Encoder::ParamB);
+        // Voice governor recovery: one voice back per second of quiet, so a
+        // passing overload does not cost polyphony for the rest of the session.
+        // Deliberately slower than the cut, to avoid pumping around the limit.
+        if (g_i2s_underrun_count != lastUnderrun_) {
+            lastUnderrun_ = g_i2s_underrun_count;
+            lastUnderrunMs_ = in.nowMs;
+        } else if (bridge_.voiceLimit() < jv::kMaxVoices &&
+                   (in.nowMs - lastUnderrunMs_) > 1000u) {
+            bridge_.setVoiceLimit(bridge_.voiceLimit() + 1);
+            lastUnderrunMs_ = in.nowMs;
+            dirty_ = true;
+        }
+
         if (ds) { controller_.onEncoderSel(ds); dirty_ = true; }
         if (da) { controller_.onEncoderA(da); dirty_ = true; }
         if (db) { controller_.onEncoderB(db); dirty_ = true; }
@@ -118,11 +134,15 @@ private:
         d.flush();
     }
 
+    static constexpr int kVoiceFloor = 4;
+
     JV_Bridge bridge_;
     JV_Controller controller_;
     JV_Midi midi_;
     bool dirty_ = true;
     uint32_t lastDrawMs_ = 0;
+    uint32_t lastUnderrun_ = 0;
+    uint32_t lastUnderrunMs_ = 0;
 };
 
 } // namespace
