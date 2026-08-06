@@ -523,56 +523,63 @@ in this work: a constant belonging to one part of the chain quietly standing in
 for an error elsewhere, invisible until something *outside* the chain is
 measured. Here the outside reference was equal temperament itself.
 
-### The loop throb: what it is not
+### The loop throb: alternating loops, and a test that lied
 
-Sustained pad patches (B15, B16, B19, B21) throb at a few hertz in the engine
-and not on the reference. B16 is the clean test case: one tone, every LFO depth
-zero, no random pitch, no analog feel, no FXM, pan centre -- a single
-unmodulated sample.
+**Resolved.** Bit 0 of a sample record's flag byte (+11) marks an **alternating
+loop**: playback turns around at the end and retraces the loop backwards rather
+than jumping to the start. 85 of the 577 samples set it, and they are the long
+sustained ones -- median loop length 8998 against 152 for the rest. Playing
+those as forward loops makes the sound repeat exactly once per loop, which is
+audible as a throb at the loop rate: 2.43 Hz for the sample under B16.
 
-The throb rate is exactly the sample's loop repeat rate. For B16 the loop is
-12779 samples at a playback ratio of 0.9693, which is 412 ms, or 2.43 Hz.
+Since the format is differential, retracing means undoing each step -- `v(a-1)`
+is `v(a)` minus the delta stored at `a` -- which is exactly reversible because
+the clamp never fires on a factory loop (they peak near 32k against a limit of
+512k). The endpoints are played once per half cycle, so the period is
+`2*(end-loop)` and nothing repeats within a traverse.
 
-Measured on the envelope and on the waveform itself:
+The measured signature, engine against reference, envelope correlation at one
+loop period across the seven notes of one multisample zone:
 
-| | one loop pass | two passes |
-|---|---|---|
-| engine, waveform correlation | **+0.997** at 412 ms | +0.990 |
-| reference, waveform correlation | +0.626 at 409 ms | **+0.921** at 831 ms |
+| note | reference | engine, forward loop | engine, alternating |
+|------|-----------|---------------------|---------------------|
+| 55 | -0.369 | +0.434 | -0.317 |
+| 57 | -0.388 | +0.544 | -0.348 |
+| 59 | -0.333 | +0.692 | -0.481 |
+| 60 | -0.441 | +0.705 | -0.406 |
+| 62 | -0.512 | +0.595 | -0.513 |
+| 64 | -0.591 | +0.627 | -0.564 |
+| 66 | -0.572 | +0.753 | -0.566 |
 
-So the engine's playback is essentially *perfectly* periodic with the loop while
-the reference's evolves and only half-repeats after two passes. It is that
-regularity that is audible, not the amplitude variation -- the reference in fact
-varies MORE (envelope sd/mean 0.53 against 0.31).
+And directly: comparing one loop pass against the next, the reference matches
+its own **reverse** at +0.899 while matching forward at -0.046. The engine now
+gives -0.058 forward and +0.800 reversed; before, it gave +0.871 forward.
 
-The reference is not merely less periodic -- it is consistently ANTI-correlated
-at one loop period, at every note of the zone, while the engine is positively
-correlated:
+**The test that lied.** Alternating looping was the second hypothesis tried and
+was wrongly discarded, because the first version of the test correlated one
+half-period against the reversed next half-period from an *arbitrary* window
+start. The turn-around point sits at the loop boundary, so an unaligned window
+straddles a reversal and the correlation collapses -- it read +0.076 and sent
+the search off for six other explanations. Scanning the window offset instead
+of assuming one makes the peak obvious. When a structural hypothesis is
+rejected, check whether the test could see it at all before believing the
+result.
 
-| note | loop period | reference | engine |
-|------|------------|-----------|--------|
-| 55 | 546.9 ms | -0.369 | +0.434 |
-| 57 | 487.3 ms | -0.388 | +0.544 |
-| 59 | 434.1 ms | -0.333 | +0.692 |
-| 60 | 409.7 ms | -0.441 | +0.705 |
-| 62 | 365.0 ms | -0.512 | +0.595 |
-| 64 | 325.2 ms | -0.591 | +0.627 |
-| 66 | 289.7 ms | -0.572 | +0.753 |
+Bit 1 of the same byte marks a one-shot: all 42 samples carrying it have
+`loop == end`, so the forward path already holds on the last value. Bit 2 is
+still unidentified, on 15 samples.
 
-All seven notes are in zone 1 of multisample 46, so they are the same sample at
-different rates. Anti-correlation at one period means a component at TWO loop
-periods: something in the chip alternates from pass to pass, and it tracks the
-loop rather than sitting at a fixed frequency.
+### What it was not
 
-Ruled out, each by measurement:
+B16 was the clean test case: one tone, every LFO depth zero, no random pitch,
+no analog feel, no FXM, pan centre -- a single unmodulated sample, so anything
+periodic had to come from the playback. These were eliminated on the way, and
+each elimination is still worth having:
 
 * **The chorus.** These patches are built around a deep slow chorus that the
   engine does not have, which was the obvious suspect. But switching the chorus
   off on the reference leaves it just as non-periodic (r at the loop period goes
   from -0.34 to -0.30).
-* **Ping-pong looping.** Sample 287 has bit 0 of the record's flag byte (+11)
-  set, and the samples that throb are exactly the ones that do -- but the
-  reference's second pass is not the first reversed (r = +0.08).
 * **The DPCM accumulator, and the decode rule.** The loops are authored exactly
   balanced: the drift over one pass is precisely zero for all three samples
   involved, under every plausible variant of the decode step (`s>>1`, `s`,
@@ -598,12 +605,9 @@ Ruled out, each by measurement:
   samples per pass depending on note, and its correlation shows no relation to
   that fraction; neither does the reference's.
 
-What remains is that something in the chip's playback makes each pass through
-the loop differ, with the sample data itself provably periodic and the address
-returning to exactly the same place. The next candidates are the chip's
-interpolator carrying state across the loop point, and the fact that the PCM
-chip time-multiplexes 28 voices, so a voice's position may not advance at
-exactly the audio sample rate. Unresolved.
+Each of these was a real elimination, and the sample data being provably
+periodic while the address returns to exactly the same place is what finally
+pointed at the traversal itself rather than the data.
 
 ### Still open
 

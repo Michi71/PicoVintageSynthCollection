@@ -394,6 +394,11 @@ bool Engine::sampleFor(int waveNumber, uint8_t note, Sample& out) const {
     out.rootKey = s[12];
     out.tune = be16(s + 13);
     out.level = s[17];
+    // Flag byte +11. Bit 0 marks an alternating loop; bit 1 marks a one-shot
+    // (all 42 samples carrying it have loop == end, so the forward path already
+    // holds on the last value). An alternating loop needs at least two samples
+    // to turn around in.
+    out.bidir = (s[11] & 1) != 0 && out.end > out.loop + 1;
     return out.start < out.loop && out.loop <= out.end && out.end <= 0x400000;
 }
 
@@ -406,18 +411,33 @@ int32_t Engine::decodeStep(Voice& v) const {
     uint32_t page = a & 0xF00000;
     uint8_t nb = w[page | ((a & 0xFFFFF) >> 5)];
     int nib = (a & 0x10) ? ((nb >> 4) & 15) : (nb & 15);
-    int32_t shifted = ((int32_t)d << 11) >> ((10 - nib) & 15);
+    const int32_t delta = (((int32_t)d << 11) >> ((10 - nib) & 15)) >> 1;
 
-    v.ref += shifted >> 1;
+    if (v.dir < 0) {
+        // Retracing an alternating loop. The format is differential, so going
+        // backwards means undoing the step that brought us here: v(a-1) is
+        // v(a) minus the delta stored AT a. Exactly reversible as long as the
+        // clamp never fired on the way out, which it does not for any factory
+        // sample -- their loops peak around 32k against a limit of 512k.
+        v.ref -= delta;
+        if (v.ref > 0x7FFFF) v.ref = 0x7FFFF;
+        if (v.ref < -0x80000) v.ref = -0x80000;
+        --v.addr;
+        if (v.addr <= v.smp.loop) {   // just produced the value at `loop`
+            v.addr = v.smp.loop + 1;
+            v.dir = 1;
+        }
+        return v.ref;
+    }
+
+    v.ref += delta;
     if (v.ref > 0x7FFFF) v.ref = 0x7FFFF;
     if (v.ref < -0x80000) v.ref = -0x80000;
 
-    // A pure DPCM integrator does not return to the same value after a loop
-    // pass: sample 504's loop drifts by -728 per turn, which walks a sustained
-    // tone into the clamp. The chip integrates without correction; a native
-    // engine does not have to. Snapshot the accumulator the first time the loop
-    // point is passed and restore it on every wrap, which makes the looped
-    // waveform exactly periodic.
+    // A pure DPCM integrator need not return to the same value after a loop
+    // pass. In practice the factory loops are authored exactly balanced -- the
+    // drift is precisely zero for every sample checked -- but the snapshot
+    // costs nothing and keeps a forward loop from walking into the clamp.
     ++v.addr;
     if (v.addr == v.smp.loop && !v.loopSeen) {
         v.refAtLoop = v.ref;
@@ -428,8 +448,16 @@ int32_t Engine::decodeStep(Voice& v) const {
     // a 193-sample loop and 54 on a 32-sample one -- it was what made the tune
     // field look inconsistent across zones.
     if (v.addr > v.smp.end) {
-        v.addr = v.smp.loop;
-        if (v.loopSeen) v.ref = v.refAtLoop;
+        if (v.smp.bidir) {
+            // Turn around rather than jump back. The endpoints are played once
+            // per half cycle, so the period is 2*(end-loop) and the waveform
+            // never repeats within one traverse.
+            v.addr = v.smp.end;
+            v.dir = -1;
+        } else {
+            v.addr = v.smp.loop;
+            if (v.loopSeen) v.ref = v.refAtLoop;
+        }
     }
     return v.ref;
 }
@@ -554,6 +582,7 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
     v.ref = 0;
     v.refAtLoop = 0;
     v.loopSeen = false;
+    v.dir = 1;
     v.s0 = v.s1 = 0;
     v.age = ++ageCounter_;
     v.ctlPhase = 0;

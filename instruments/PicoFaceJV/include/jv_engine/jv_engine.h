@@ -32,6 +32,12 @@ struct Sample {
     uint8_t  rootKey;
     uint16_t tune;               // 0x400 = neutral
     uint8_t  level;
+    // Bit 0 of the record's flag byte: the loop ALTERNATES direction rather
+    // than jumping back to the start. 85 of the 577 samples set it and they are
+    // the long sustained ones -- median loop length 8998 against 152 for the
+    // rest. Playing those as forward loops makes the sound repeat exactly once
+    // per loop, which is audible as a throb at the loop rate.
+    bool     bidir;
 };
 
 enum : int {
@@ -167,6 +173,7 @@ private:
         int32_t  ref;         // DPCM accumulator (20 bit)
         int32_t  refAtLoop;   // accumulator when the loop point was first passed
         bool     loopSeen;    // ... and whether that has happened yet
+        int8_t   dir;         // +1 forward, -1 retracing an alternating loop
         int32_t  s0, s1;      // last two decoded samples, for interpolation
         Sample   smp;
         Env      tva, tvf;
