@@ -120,7 +120,13 @@ int main(int argc, char** argv) {
         static const uint32_t bankOff[3] = {0x008CE0, 0x010CE0, 0x018CE0};
         uint8_t p[362];
         memcpy(p, rom2.data() + bankOff[bank] + (size_t)pidx * 362, 362);
-        for (const Mod& m : mods) p[26 + m.tone * 84 + m.off] = (uint8_t)m.val;
+        for (const Mod& m : mods) {
+            // A negative tone index addresses the patch bytes directly, the same
+            // convention jv_probe uses. Without this the index arithmetic ran off
+            // the front of the buffer.
+            const int idx = (m.tone >= 0) ? 26 + m.tone * 84 + m.off : m.off;
+            if (idx >= 0 && idx < 362) p[idx] = (uint8_t)m.val;
+        }
         eng.setPatch(p);
     }
 
