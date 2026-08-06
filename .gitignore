@@ -16,11 +16,21 @@ compile_commands.json
 *.hex
 __pycache__/
 
-# host test binaries and rendered WAVs (tools/host_tests/README.md)
+# host test binaries and rendered WAVs (tools/host_tests/README.md). The first
+# pattern matches directories as well as files, so harness sources living in a
+# directory named *_test would be dropped silently; the negation keeps them.
 tools/host_tests/**/*_test
+!tools/host_tests/**/*_test/
 tools/host_tests/**/*.wav
 
 # local test material for tools/rd_midi. Named individually on purpose: the
 # other .mid files in that folder are tracked and belong to the repository.
 tools/rd_midi/DieTaenzerin.mid
 tools/rd_midi/DieTaenzerin_keys.mid
+
+# JV-880 ROM images and anything derived from them never enter the repository
+# (tools/jv_extract/README.md). Sweep CSVs and the built probe are local too.
+tools/jv_extract/roms/
+tools/jv_extract/*.bin
+tools/jv_extract/*.csv
+tools/jv_extract/jv_probe
