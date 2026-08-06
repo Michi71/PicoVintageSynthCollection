@@ -80,8 +80,12 @@ void JV_Bridge::fillBufferI32(int32_t* out, int frames) {
             if (dl >  32767) dl =  32767; else if (dl < -32768) dl = -32768;
             if (dr >  32767) dr =  32767; else if (dr < -32768) dr = -32768;
 
-            out[done + i] = (int32_t)(((uint32_t)(dr & 0xFFFF) << 16) |
-                                       (uint32_t)(dl & 0xFFFF));
+            // TWO int32 words per frame, one per channel, sample in the upper
+            // half. The interface comment calls this "one int32 word per frame
+            // (packed stereo)", which is wrong -- every instrument in the tree
+            // writes it this way and the PIO expects it.
+            out[2 * (done + i)]     = dl << 16;
+            out[2 * (done + i) + 1] = dr << 16;
         }
         done += chunk;
     }

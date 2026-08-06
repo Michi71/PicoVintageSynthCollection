@@ -519,7 +519,11 @@ void Engine::render(float* left, float* right, int frames) {
             while (steps-- > 0) { v.s0 = v.s1; v.s1 = decodeStep(v); }
 
             float frac = (float)v.phase * (1.0f / 65536.0f);
-            float s = ((float)v.s0 + ((float)v.s1 - (float)v.s0) * frac) * (1.0f / 524288.0f);
+            // 2^19 would be the accumulator's full scale, but the ROM samples
+            // only reach 13 % of it (median 7.7 %), so normalising to that
+            // throws away 12 dB. Scale to 2^17 instead: one voice then peaks
+            // near -6 dBFS and chords are caught by the bridge's soft clip.
+            float s = ((float)v.s0 + ((float)v.s1 - (float)v.s0) * frac) * (1.0f / 131072.0f);
 
             if (--v.ctlPhase <= 0) {
                 updateModulation(v);

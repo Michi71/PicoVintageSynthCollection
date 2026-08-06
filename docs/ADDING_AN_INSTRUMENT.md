@@ -25,7 +25,7 @@ public:
     const char* name() const override { return "PicoFaceXX"; }
     void init() override { /* engine setup */ }
     uint32_t sampleRate() const override { return 44100; } // the core initializes the audio pool with this
-    void render(int32_t* out, uint32_t frames) override { /* one int32 word per frame, packed stereo */ }
+    void render(int32_t* out, uint32_t frames) override { /* 2*frames words: L,R per frame, each sample << 16 */ }
     void noteOn(uint8_t ch, uint8_t note, uint8_t vel) override {}
     void noteOff(uint8_t ch, uint8_t note, uint8_t vel) override {}
 };
