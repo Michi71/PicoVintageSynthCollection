@@ -154,6 +154,16 @@ static const float JV_LFO_PITCH_DEPTH_CENTS[9] = {
 // with the usual 64..127 inert. The downward side runs slightly steeper than
 // this fit near the extremes.
 #define JV_TVA_VELO_DB_PER_UNIT 0.47f
+
+// ... and the effect scales with the TONE's level. At sensitivity 34 the span
+// from velocity 40 to 127 measures 23.7 / 20.1 / 17.7 / 14.4 dB at tone level
+// 127 / 100 / 75 / 50 -- a square root of the level ratio fits all four to
+// under a decibel. Without it a quiet layer in a multi-tone patch gains too much
+// at high velocity and pushes forward: "Pop Piano 2" has a level-75 electric
+// piano over a level-127 acoustic, and their balance drifted 6 dB across the
+// velocity range where the machine holds it within 1.6 dB.
+// This is a fit, not a derived law.
+#define JV_TVA_VELO_LEVEL_REF 127.0f
 //
 // Flags bit 6 is KEY SYNC. Measured by shifting the note-on in time (JV_WARM)
 // and timing the first square-wave edge: with the bit clear the edge moves so

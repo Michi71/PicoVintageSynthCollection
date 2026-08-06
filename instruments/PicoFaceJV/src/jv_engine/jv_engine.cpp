@@ -442,7 +442,8 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
         const int vmag = vs < 0 ? -vs : vs;
         if (vmag <= JV_LFO_DEPTH_MAX && vmag != 0) {
             float db = (float)vs * (((float)vel - 64.0f) / 64.0f) *
-                       JV_TVA_VELO_DB_PER_UNIT;
+                       JV_TVA_VELO_DB_PER_UNIT *
+                       sqrtf((float)t[67] / JV_TVA_VELO_LEVEL_REF);
             if (db < -60.0f) db = -60.0f;
             lvl *= powf(10.0f, db * (1.0f / 20.0f));
         }
