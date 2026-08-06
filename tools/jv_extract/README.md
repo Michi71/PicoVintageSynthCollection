@@ -545,6 +545,25 @@ the reference's evolves and only half-repeats after two passes. It is that
 regularity that is audible, not the amplitude variation -- the reference in fact
 varies MORE (envelope sd/mean 0.53 against 0.31).
 
+The reference is not merely less periodic -- it is consistently ANTI-correlated
+at one loop period, at every note of the zone, while the engine is positively
+correlated:
+
+| note | loop period | reference | engine |
+|------|------------|-----------|--------|
+| 55 | 546.9 ms | -0.369 | +0.434 |
+| 57 | 487.3 ms | -0.388 | +0.544 |
+| 59 | 434.1 ms | -0.333 | +0.692 |
+| 60 | 409.7 ms | -0.441 | +0.705 |
+| 62 | 365.0 ms | -0.512 | +0.595 |
+| 64 | 325.2 ms | -0.591 | +0.627 |
+| 66 | 289.7 ms | -0.572 | +0.753 |
+
+All seven notes are in zone 1 of multisample 46, so they are the same sample at
+different rates. Anti-correlation at one period means a component at TWO loop
+periods: something in the chip alternates from pass to pass, and it tracks the
+loop rather than sitting at a fixed frequency.
+
 Ruled out, each by measurement:
 
 * **The chorus.** These patches are built around a deep slow chorus that the
@@ -560,10 +579,31 @@ Ruled out, each by measurement:
   truncate-toward-zero, round-half-up). The `refAtLoop` snapshot the engine
   restores on each wrap is therefore a no-op for these samples, and removing it
   would change nothing.
-* **A different waveform.** The spectra agree partial for partial.
+* **A loop-length parity effect.** An odd loop length would flip the alignment
+  of the DPCM exponent nibbles every pass, which would explain a two-pass cycle.
+  Patching sample 287's `end` in rom2 to make the length even (12779 -> 12778)
+  moves the reference's r only from -0.44 to -0.28. Not it.
+* **A discontinuity in the engine.** There is none. Replaying the engine's own
+  decode and loop logic step by step across the wrap gives
+  `... -872, 0, +888, +1768 ...` -- perfectly smooth -- and the rendered
+  waveform either side of the boundary is continuous sample for sample. What
+  looked like a step in a 10 ms envelope is a fast but continuous swell that
+  sits at the boundary because the sample's own amplitude pattern restarts
+  there. That is the whole point: it restarts EXACTLY.
+* **The loop being twice as long as read.** The reference's best repeat is at
+  831 ms, twice the period, which would fit `end` being misread. It is not:
+  the next sample record starts 5 bytes after sample 287 ends, so there is no
+  data for a longer loop.
+* **A fractional-phase effect.** The engine advances only 0.1 to 0.8 output
+  samples per pass depending on note, and its correlation shows no relation to
+  that fraction; neither does the reference's.
 
 What remains is that something in the chip's playback makes each pass through
-the loop differ, with the sample data itself perfectly periodic. Unresolved.
+the loop differ, with the sample data itself provably periodic and the address
+returning to exactly the same place. The next candidates are the chip's
+interpolator carrying state across the loop point, and the fact that the PCM
+chip time-multiplexes 28 voices, so a voice's position may not advance at
+exactly the audio sample rate. Unresolved.
 
 ### Still open
 
