@@ -8,6 +8,20 @@
 
 #include "jv_calibration.h"
 
+// Same timing source the RD bridge uses, so the two instruments' load figures
+// mean the same thing.
+#if defined(TARGET_RP2350) || defined(PICO_BUILD)
+#  include "pico/time.h"
+static inline uint32_t jv_time_us_32() { return time_us_32(); }
+#else
+#  include <chrono>
+static inline uint32_t jv_time_us_32() {
+    static auto epoch = std::chrono::steady_clock::now();
+    return (uint32_t)std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - epoch).count();
+}
+#endif
+
 // The ROM blob is produced at configure time by tools/jv_extract/jv_make_blob.py
 // and pulled in with .incbin; see instrument.cmake. Nothing ROM-derived is in
 // the repository.
@@ -104,6 +118,7 @@ void JV_Bridge::updatePitch() {
 }
 
 void JV_Bridge::fillBufferI32(int32_t* out, int frames) {
+    const uint32_t t0 = jv_time_us_32();
     int done = 0;
     while (done < frames) {
         int chunk = frames - done;
@@ -135,5 +150,18 @@ void JV_Bridge::fillBufferI32(int32_t* out, int frames) {
             out[2 * (done + i) + 1] = dr << 16;
         }
         done += chunk;
+    }
+
+    // The block had `frames` samples' worth of time to be produced in; whatever
+    // fraction of that the work took is the load.
+    const float budget = (float)frames * 1.0e6f / (float)kSampleRate;
+    if (budget > 0.0f) {
+        cpuLoad_ = (float)(jv_time_us_32() - t0) / budget * 100.0f;
+        // Peak hold with a slow release, so a single spike stays readable for a
+        // second or two and then lets go. A peak that only ever rises latches
+        // on the first outlier -- often the block right after a patch change --
+        // and stops telling you anything about how the instrument is running.
+        cpuPeak_ *= 0.999f;
+        if (cpuLoad_ > cpuPeak_) cpuPeak_ = cpuLoad_;
     }
 }

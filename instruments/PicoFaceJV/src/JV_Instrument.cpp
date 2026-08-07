@@ -130,7 +130,10 @@ private:
         snprintf(m.page, sizeof m.page, "%s", controller_.pageName());
         controller_.lineA(m.lineA, sizeof m.lineA);
         controller_.lineB(m.lineB, sizeof m.lineB);
-        snprintf(m.footer, sizeof m.footer, "U%lu A%d/%d",
+        // Peak load first: it is the number that says how much headroom is
+        // left, and it is the one that moves before an underrun happens.
+        snprintf(m.footer, sizeof m.footer, "P%d%% U%lu A%d/%d",
+                 (int)bridge_.cpuLoadPeakPercent(),
                  (unsigned long)g_i2s_underrun_count,
                  bridge_.activeVoices(), bridge_.voiceLimit());
         jv_display_page(d, m);

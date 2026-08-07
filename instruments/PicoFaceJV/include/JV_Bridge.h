@@ -72,6 +72,14 @@ public:
     void setPitchBend(int16_t bend);          // -8192..8191, range from the patch
 
     int  activeVoices() const { return engine_.activeVoices(); }
+
+    // Share of the audio budget the last render block actually consumed, and
+    // the worst block since the counter was last cleared. The peak is what
+    // matters for headroom: the mean sits far below it because most blocks
+    // carry fewer voices than the worst one.
+    float cpuLoadPercent() const     { return cpuLoad_; }
+    float cpuLoadPeakPercent() const { return cpuPeak_; }
+    void  clearCpuPeak()             { cpuPeak_ = 0.0f; }
     uint32_t sampleRate() const { return kSampleRate; }
 
 private:
@@ -89,6 +97,7 @@ private:
     float rpnCents_ = 0.0f;
     float bendRatio_ = 1.0f;
     uint8_t veloScale_ = 100;
+    float cpuLoad_ = 0.0f, cpuPeak_ = 0.0f;
     float midiGain_ = 1.0f;
     float panL_ = 1.0f, panR_ = 1.0f;
     float bufL_[kBlock]{}, bufR_[kBlock]{};
