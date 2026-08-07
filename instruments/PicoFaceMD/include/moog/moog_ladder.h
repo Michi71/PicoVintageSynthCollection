@@ -54,13 +54,25 @@ public:
      * pole sections, which keeps the cutoff where it is asked for instead of
      * flattening out towards Nyquist the way a plain bilinear transform does.
      *
-     * Clamped to 0.49 of the sample rate: the fit is only valid below
-     * Nyquist, and beyond it the loop goes unstable rather than simply
-     * sounding wrong.
+     * Clamped so that wc stays at or below one radian per sample. Both fits
+     * are only good for about that far, and the resonance one does not merely
+     * lose accuracy past it -- it crosses zero at wc = 1.085 and goes
+     * negative, which turns the feedback around the loop from negative into
+     * positive. The tanh at the input keeps that bounded, so nothing ever
+     * overflows, but the stage sits pinned against its own saturation and
+     * what comes out is a crushed square rather than a filtered note. The
+     * tuning fit goes past 1.0 shortly after, at which point the one pole
+     * sections overshoot on every step as well.
+     *
+     * Nothing musical is lost by stopping here: one radian per sample is
+     * sr/2pi, which at the oversampled rate this filter runs at is a little
+     * over 14 kHz, and the decimation filter downstream is a 6th order
+     * Butterworth at 15 kHz. The cutoff could not be heard above the clamp
+     * even if the model stayed well behaved up there.
      */
     void setCutoff(float hz)
     {
-        hz = moogClamp(hz, 5.0f, sr_ * 0.49f);
+        hz = moogClamp(hz, 5.0f, sr_ * MOOG_LADDER_WC_MAX_OVER_2PI);
         wc_ = 2.0f * (float) M_PI * hz / sr_;
 
         const float w2 = wc_ * wc_;
