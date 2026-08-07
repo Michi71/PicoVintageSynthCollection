@@ -14,6 +14,8 @@ Unless stated otherwise, run them from the repository root.
 | [`dx_syx_to_patches/syx_to_patches.cpp`](dx_syx_to_patches/syx_to_patches.cpp) | DX | converts the 32 reface DX factory-bank `.syx` bulk dumps into the static table in `instruments/PicoFaceDX/src/presets.cpp`. Needs the `.syx` files, which are not part of this repository. |
 | [`rd_extract/`](rd_extract/README.md) | RD | the extraction and verification toolchain of the RD port: register capture from the reference emulator, sample-ROM dumps, `.rdp` pack building, A/B comparison and the stuck-voice stress test. `run_regression.sh` runs the whole matrix and prints one PASS/FAIL. |
 | [`rd_midi/`](rd_midi/) | RD | test MIDI files plus `midi_keyboard_only.py`, which strips a Standard MIDI File down to pure keyboard performance (notes, pedal, bend) so a capture is not polluted by controller traffic. |
+| [`jv_extract/`](jv_extract/README.md) | JV (planned) | JV-880 ROM extraction and parameter analysis: wave-ROM descrambling, DPCM decoding, the multisample/sample/patch tables, and a differential probe harness that identifies patch parameters by measuring the reference emulator. Needs ROMs and an emulator checkout, neither of which is in this repository. |
+| [`host_tests/jv_engine_test/`](host_tests/jv_engine_test/) | JV (planned) | host harness for the PicoFaceJV engine: loads a ROM set, renders a patch to WAV, and can be driven with the same tone-byte modifications as `jv_extract/jv_probe` for A/B against the reference emulator. |
 | [`host_tests/`](host_tests/README.md) | YC, CP, J6, MD, SM, core | host builds of the engines - CoreAudio plus PortMidi for the four that make sound, plus the veeprom unit test and the J6 panel harness, which need nothing at all. |
 
 ## Build

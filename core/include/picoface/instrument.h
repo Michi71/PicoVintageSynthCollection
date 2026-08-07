@@ -66,9 +66,13 @@ public:
     // ------------------------------------------------------------------
 
     // Renders one block of audio into 'out'.
-    // 'out' holds one int32 word per frame (packed stereo), matching the
-    // buffer layout of the pico-extras audio pool and the existing engine
-    // method fill_buffer_i32().
+    // 'out' holds TWO int32 words per frame - left then right - each carrying
+    // its 16-bit sample in the upper half (value << 16), matching the buffer
+    // layout of the pico-extras audio pool and the existing engine method
+    // fill_buffer_i32(). 'frames' is the frame count, so the callee writes
+    // 2 * frames words. (This comment used to say "one int32 word per frame,
+    // packed stereo", which is not what any instrument does or what the PIO
+    // reads.)
     // Called BLOCK-WISE from the core's producer loop - currently on
     // core0; an instrument may internally use core1 as a worker.
     // Hard realtime constraints: must not block, must not allocate,
