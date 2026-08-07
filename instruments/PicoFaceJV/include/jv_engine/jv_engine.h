@@ -212,6 +212,8 @@ private:
         // measured.
         float    portaCents;
         float    portaStep;    // cents per control tick, always toward zero
+        int      delayRemaining;  // tone delay, samples still to wait
+        bool     resoHard;        // resonance mode from +53 bit 7
         uint32_t age;
     };
 
@@ -314,6 +316,10 @@ private:
     uint8_t  held_[16]{};
     int      heldN_ = 0;
     int      soloNote_ = -1;   // what the sounding voices are tuned to
+    // When the previous note-on happened, for PLAY-MATE tone delay: the gap
+    // between the last two note-ons becomes the delay.
+    uint32_t lastNoteOn_ = 0;
+    bool     haveLastNoteOn_ = false;
     uint32_t panAlt_ = 0;      // toggles for tones set to alternating pan
     int      voiceLimit_ = kMaxVoices;
     Chorus   chorus_;

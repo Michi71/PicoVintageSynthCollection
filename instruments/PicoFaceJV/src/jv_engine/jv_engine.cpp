@@ -726,7 +726,9 @@ void Engine::updateFilterCoeffs(Voice& v) {
     v.coefF = tanf(3.14159265f * hz / (float)sr_);          // g
     float res = v.resonance + v.resMod;
     if (res < 0.0f) res = 0.0f; else if (res > 127.0f) res = 127.0f;
-    v.coefQ = JV_TVF_DAMPING(res);                          // k = 1/Q
+    // HARD mode doubles the exponent of the damping law, which is what the
+    // measured 0 / 2.8 / 5.1 / 8.3 / 12.1 dB of extra peak comes to.
+    v.coefQ = JV_TVF_DAMPING(res * (v.resoHard ? JV_TVF_RESO_HARD_MUL : 1.0f));
     if (v.coefQ < 0.08f) v.coefQ = 0.08f;
 }
 
@@ -974,6 +976,7 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel,
             v.envDepth *= jv_tvf_velocity_scale(fvs, jv_velocity_curve(t[55] & 7, vel));
     }
     v.resonance = (float)(t[53] & 0x7F);
+    v.resoHard = (t[53] & JV_RESO_MODE_HARD_BIT) != 0;
     v.filt.reset();
     v.tvfT[0] = t[59]; v.tvfT[1] = t[61]; v.tvfT[2] = t[63]; v.tvfT[3] = t[65];
     v.tvfL[0] = t[60]; v.tvfL[1] = t[62]; v.tvfL[2] = t[64];
@@ -1037,6 +1040,22 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel,
     v.lfoGain = 1.0f;
     v.cutoffMod = 0.0f;
     v.resMod = 0.0f;
+    // Tone delay. NORMAL and the unused HOLD both just wait; PLAY-MATE takes
+    // the gap since the previous note-on instead, scaled so that a parameter of
+    // 64 reproduces it and 127 roughly doubles it, as the manual describes.
+    {
+        int dv = t[69];
+        if (dv > JV_TONE_DELAY_MAX) dv = JV_TONE_DELAY_MAX;   // KEY-OFF, see header
+        float ms = JV_TONE_DELAY_MS(dv);
+        if (((t[71] >> 3) & 3) == JV_TONE_DELAY_PLAYMATE) {
+            const float gapMs = haveLastNoteOn_
+                ? (float)(clock_ - lastNoteOn_) * 1000.0f / (float)sr_ : 0.0f;
+            ms = gapMs * ((float)dv / 64.0f);
+            if (ms > 2000.0f) ms = 2000.0f;
+        }
+        v.delayRemaining = (int)(ms * 0.001f * (float)sr_ + 0.5f);
+    }
+
     beginGlide(v, fromNote, note);
     updateModulation(v, clock_);
     updateFilterCoeffs(v);
@@ -1120,6 +1139,8 @@ void Engine::noteOn(uint8_t note, uint8_t velocity) {
         if (velocity < t[3] || velocity > t[4]) continue;    // velocity window
         startVoice(voices_[allocVoice()], tone, note, velocity, glideFrom);
     }
+    lastNoteOn_ = clock_;
+    haveLastNoteOn_ = true;
 }
 
 void Engine::noteOff(uint8_t note) {
@@ -1161,6 +1182,7 @@ void Engine::allNotesOff() {
     for (auto& v : voices_) v.active = false;
     heldN_ = 0;
     soloNote_ = -1;
+    haveLastNoteOn_ = false;
 }
 
 int Engine::activeVoices() const {
@@ -1197,9 +1219,18 @@ void Engine::renderBlock(float* left, float* right, int frames) {
 
     for (auto& v : voices_) {
         if (!v.active) continue;
+        // A tone delay holds the whole voice off -- sample pointer, envelopes
+        // and all -- rather than just muting it, so the sound starts from its
+        // beginning when the wait is over.
+        int first = 0;
+        if (v.delayRemaining > 0) {
+            if (v.delayRemaining >= frames) { v.delayRemaining -= frames; continue; }
+            first = v.delayRemaining;
+            v.delayRemaining = 0;
+        }
         const bool filtered = (v.filtMode == JV_TVF_MODE_LPF || v.filtMode == JV_TVF_MODE_HPF);
 
-        for (int i = 0; i < frames; i++) {
+        for (int i = first; i < frames; i++) {
             v.phase += v.inc;
             int steps = (int)(v.phase >> 16);
             v.phase &= 0xFFFFu;

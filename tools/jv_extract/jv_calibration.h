@@ -645,6 +645,35 @@ static inline float jv_reverb_level(int type, int time) {
 #define JV_PORTA_MODE_LEGATO_BIT 0x10
 #define JV_PORTA_TYPE_RATE_BIT  0x80
 
+// --------------------------------------------- resonance mode / tone delay
+// Bit 7 of tvfResonance (+53) is the resonance MODE: clear is SOFT, set is
+// HARD. 58 of the 539 active tones set it, though 44 of those sit at resonance
+// 9 or below where it barely matters.
+//
+// MEASURED with white noise through the low-pass at cutoff 48, comparing the
+// spectral peak against the passband. HARD sits above SOFT by
+// 0.0 / 2.8 / 5.1 / 8.3 / 12.1 dB at resonance 0 / 30 / 60 / 90 / 127, which is
+// exactly what doubling the exponent of the damping law gives: the ratio
+// exp(-0.0104 * res * (R-1)) reproduces all five points at R = 2.05.
+#define JV_RESO_MODE_HARD_BIT   0x80
+#define JV_TVF_RESO_HARD_MUL    2.05f
+
+// tvaDelayTime (+69) -> milliseconds before the tone starts. MEASURED as
+// exactly linear: 0 / 130 / 260 / 380 / 510 / 770 / 1020 / 1280 / 1540 / 1790 /
+// 2030 ms at value 0 / 8 / 16 / 24 / 32 / 48 / 64 / 80 / 96 / 112 / 127, which
+// is 16.0 ms per unit throughout. 34 tones use it.
+#define JV_TONE_DELAY_MS(v)     (16.0f * (float)(v))
+// Delay mode, bits 3-4 of +71. The factory banks use NORMAL on 535 tones and
+// PLAY-MATE on 4; HOLD does not occur at all.
+#define JV_TONE_DELAY_NORMAL    0
+#define JV_TONE_DELAY_HOLD      1
+#define JV_TONE_DELAY_PLAYMATE  2
+// Past 127 the panel shows KEY-OFF, which starts the tone when the key is
+// released. One tone carries it; the engine clamps to the longest delay rather
+// than modelling it, since a voice that starts on note-off has no note-off left
+// to end it.
+#define JV_TONE_DELAY_MAX       127
+
 // ------------------------------------------------------------------- matrix
 // Modulation matrix. Sensitivity is signed with an effective range of +-63;
 // 64..127 disables the slot, the same convention as the LFO depths.
@@ -689,7 +718,11 @@ static const float JV_MOD_LEVEL_DB[5]   = { 1.29f, 2.37f, 4.31f, 6.28f, 6.28f };
 // reference with white noise through the low-pass: +1.0 / +3.5 / +6.2 / +9.0 /
 // +12.5 dB at resonance 0 / 30 / 60 / 90 / 127. A 2-pole section's peak is
 // about 20*log10(Q), so this fixes the damping the engine's filter needs.
-#define JV_TVF_DAMPING(res) (0.893f * expf(-0.0104f * (res)))
+// The leading constant was re-fitted when the resonance MODE was measured: with
+// engine and reference compared by the same method -- white noise through the
+// low-pass at cutoff 48, peak against the 300-600 Hz passband -- the engine sat
+// a consistent 1.2 to 2.4 dB high across the range. 0.893 -> 1.125 closes it.
+#define JV_TVF_DAMPING(res) (1.125f * expf(-0.0104f * (res)))
 
 // The matrix's contribution to an LFO's PITCH depth is linear in cents, not in
 // depth-parameter units: the swing runs 55 and 122 cents at sensitivity 4 and 8,

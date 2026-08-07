@@ -915,6 +915,35 @@ Two things worth carrying forward:
   exactly like PAN-DLY putting both taps on both channels, which sent the
   implementation off after a bug that was not there.
 
+## Resonance mode and tone delay
+
+**Resonance mode** is bit 7 of +53: clear SOFT, set HARD. 58 of the 539 active
+tones set it, though 44 of those sit at resonance 9 or below where it barely
+matters. Measured with white noise through the low-pass at cutoff 48, peak
+against the 300-600 Hz passband: HARD sits above SOFT by 0.0 / 2.8 / 5.1 / 8.3 /
+12.1 dB at resonance 0 / 30 / 60 / 90 / 127. That is what doubling the exponent
+of the damping law gives -- `exp(-0.0104 * res * (R-1))` reproduces all five
+points at R = 2.05.
+
+Measuring it also showed the damping law's leading constant was 1.2 to 2.4 dB
+loose, engine against reference by the same method. Re-fitting 0.893 to 1.125
+brings the mean absolute error over both modes and five resonance settings from
+2.4 dB to **0.44 dB**, and the brightness error over 128 factory patches from
+4.95 to **4.68 dB**.
+
+**Tone delay** (+69) is exactly linear at 16.0 ms per unit: 0 / 130 / 260 / 380
+/ 510 / 770 / 1020 / 1280 / 1540 / 1790 / 2030 ms at value 0 / 8 / 16 / 24 / 32
+/ 48 / 64 / 80 / 96 / 112 / 127. The engine reproduces it to within one 10 ms
+analysis frame. 34 tones use it.
+
+The mode lives in bits 3-4 of +71 and the factory banks use NORMAL on 535 tones
+and PLAY-MATE on 4; HOLD does not occur at all. PLAY-MATE takes the gap between
+the last two note-ons instead of the parameter, scaled so that a parameter of 64
+reproduces the gap and 127 roughly doubles it. Past 127 the panel shows KEY-OFF,
+which starts the tone when the key is released; one tone carries it and the
+engine clamps to the longest delay rather than modelling it, since a voice that
+starts on note-off has no note-off left to end it.
+
 ## Key assign and portamento
 
 Patch common +24 holds the voice-assignment flags -- key assign SOLO in bit 7
