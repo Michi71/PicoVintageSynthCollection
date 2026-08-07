@@ -19,6 +19,7 @@
 #include "veeprom.h"
 #include "get_serial.h"
 #include "midi_input_usb.h"
+#include "midi_output_usb.h"
 #include "midi_serial.h"
 #include "audio_subsystem.h"
 #include "u8g2.h"
@@ -289,7 +290,12 @@ int main(void)
         }
 
         // 3. USB and DIN MIDI
+        // Drain the transmit queue right after tud_task(): that is the point at
+        // which the completion callback has freed the endpoint, so the TinyUSB
+        // FIFO has room again. A reface DX voice dump is several USB frames
+        // long and leaves over as many iterations as it needs.
         tud_task();
+        usbMidiOut().process();
         g_usbmidi.process();
         midiSerial().process();
 
