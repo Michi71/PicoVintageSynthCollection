@@ -866,6 +866,23 @@ decay, where the reference's level falls away faster than a Schroeder network's
 does. Reverb time in the factory banks has a median of 80 and only 12 of 125
 patches sit below 32, so the fit is good where it is used.
 
+**The reverb type is bits 0-2, not the low nibble.** The manual gives the range
+as 0-7 and bit 3 of patch-common +12 is something else, set on 40 of the 192
+factory patches. Masking with `0x0F` handed 67 of them a type of 6 or 7 -- DELAY
+or PAN-DLY -- so a third of the bank played a hard echo where it should have had
+a room or a hall. It sounded exactly like that, and it survived every level and
+decay measurement because those were all made by setting the type byte
+explicitly to 0..5.
+
+**The tail level is right in isolation and low on real patches.** With the level
+table fitted, the isolated reverb matches the reference to 0.0 dB across every
+type and time. On A04, whose piano samples decay through the note, the engine's
+tail sits about 13 dB low. The reverb is linear, so this is not a gain error: a
+comb bank driven by a decaying input accumulates less than the chip's network
+does. Same root cause as the burst measurement being 12-41 dB quiet while a
+flat-sustain note was 5.7 dB loud -- the build-up differs, and no single gain
+fixes both. Open.
+
 Two things worth carrying forward:
 
 * **The two channels need genuinely different comb sets, not a stereo spread.**

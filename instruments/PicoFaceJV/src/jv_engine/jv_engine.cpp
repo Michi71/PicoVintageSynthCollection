@@ -448,11 +448,18 @@ void Engine::Reverb::reset() {
 }
 
 void Engine::Reverb::configure(const uint8_t* patch, uint32_t sr) {
-    type  = patch[12] & 0x0F;
+    // The reverb type is bits 0-2, NOT the low nibble. The manual gives the
+    // range as 0-7, and bit 3 is something else -- 40 of the 192 factory
+    // patches set it. Masking with 0x0F handed 67 of them a type of 6 or 7,
+    // which is DELAY or PAN-DLY, so a third of the bank played a hard echo
+    // where it should have had a room or a hall. That is exactly what it
+    // sounded like.
+    type  = patch[12] & 0x07;
     // The delays pass the signal far more directly than the reverb network, so
     // they carry their own full-scale gain.
-    const float g = (type >= JV_REVERB_TYPE_DELAY) ? JV_DELAY_LEVEL_GAIN
-                                                   : JV_REVERB_LEVEL_GAIN;
+    const float g = (type >= JV_REVERB_TYPE_DELAY)
+                        ? JV_DELAY_LEVEL_GAIN
+                        : jv_reverb_level(type, patch[14]);
     level = (float)patch[13] * (g / 127.0f);
     feedback = JV_DELAY_FEEDBACK(patch[15]);
     if (feedback < 0.0f) feedback = 0.0f;
@@ -485,6 +492,14 @@ void Engine::Reverb::configure(const uint8_t* patch, uint32_t sr) {
     // RT60/D repeats, so g = 10^(-3 D / (RT60 * sr)).
     // Per channel, since the two comb sets have different lengths and the same
     // gain would give them different decay times.
+    // JV_REVERB_TIME_MS is fitted to the burst response between -5 and -45 dB,
+    // but the reference's decay is NOT a single exponential: measured in
+    // context on A04 it steepens from 7 to 15.6 dB per 100 ms as the tail dies,
+    // where a comb bank falls at a constant 8.9. Matching the early slope
+    // therefore leaves the late tail hanging 6 to 17 dB high, which is what it
+    // sounds like -- a delay that will not stop. Scaling the target to the
+    // decay measured in context (561 ms against a nominal 743 on A04) puts the
+    // audible part right; the first 100 ms of tail then runs slightly short.
     const float rt = jv_reverb_rt60_ms(type, patch[14]) * 0.001f;
     for (int c = 0; c < 2; c++) {
         for (int k = 0; k < kCombs; k++) {

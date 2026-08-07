@@ -550,12 +550,39 @@ static inline float jv_reverb_rt60_ms(int type, int time) {
 // decay, the stereo decorrelation and the output level. The engine runs a
 // Schroeder network sized to hit the measured RT60; it is not the chip's
 // topology, and the early-reflection pattern will differ.
-// Fitted against the reference on the four commonest types (HALL1, PAN-DLY,
-// STAGE2, HALL2 = 139 of 192 patches), which cluster at +27.5 dB before the
-// trim. The room types come out a few dB loud: the reference's output level
-// falls faster with decay time than a Schroeder network's does, which is one
-// more sign that the topology differs.
-#define JV_REVERB_LEVEL_GAIN 0.042f
+// Output gain per type, at reverb time 0 / 64 / 127. A single constant does not
+// work: a Schroeder comb bank gets louder with decay time roughly as
+// sqrt(sum 1/(1-g^2)), which is about 14 dB across the range, while the
+// reference's tail level rises only 2 to 8 dB depending on type. Fitting one
+// number left the room types 6 to 15 dB loud at short decay times, which is
+// audible as a tail that hangs on far too long -- on A04 the engine sat 5.7 dB
+// above the reference 300 ms after note-off.
+//
+// So this is a fitted table, not a measured law: it is the correction that
+// makes the engine's tail level match the reference's, and it exists because
+// the topology underneath is not the chip's. Interpolated on the same three
+// time points it was fitted at.
+static const float JV_REVERB_LEVEL[6][3] = {
+    { 1.0692f, 0.5345f, 0.3664f },   // ROOM1
+    { 1.5784f, 0.5614f, 0.4208f },   // ROOM2
+    { 1.4834f, 0.6126f, 0.3914f },   // STAGE1
+    { 1.3828f, 0.3573f, 0.1507f },   // STAGE2
+    { 0.8936f, 0.4178f, 0.2055f },   // HALL1
+    { 1.0594f, 0.3642f, 0.1377f },   // HALL2
+};
+static inline float jv_reverb_level(int type, int time) {
+    if (type < 0) type = 0; else if (type > 5) type = 5;
+    if (time <= 0)   return JV_REVERB_LEVEL[type][0];
+    if (time >= 127) return JV_REVERB_LEVEL[type][2];
+    if (time <= 64) {
+        const float f = (float)time / 64.0f;
+        return JV_REVERB_LEVEL[type][0] +
+               (JV_REVERB_LEVEL[type][1] - JV_REVERB_LEVEL[type][0]) * f;
+    }
+    const float f = (float)(time - 64) / 63.0f;
+    return JV_REVERB_LEVEL[type][1] +
+           (JV_REVERB_LEVEL[type][2] - JV_REVERB_LEVEL[type][1]) * f;
+}
 
 // ------------------------------------------------------------------- matrix
 // Modulation matrix. Sensitivity is signed with an effective range of +-63;
