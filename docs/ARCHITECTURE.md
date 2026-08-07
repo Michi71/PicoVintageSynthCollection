@@ -48,8 +48,8 @@ img/
     └── build.yml
 ```
 
-## 3. One hardware platform, eight instruments
-The board is the same for all eight instruments. Pin map and flash timing therefore live in the core: `core/include/project_config.h` and `core/include/pico_hw.h`. In the seven original repositories every single pin definition was already identical; the files differed only in comments, in one extra QMI timing constant for PicoFaceRD, and in one inline helper. The core versions are the union of all variants.
+## 3. One hardware platform, nine instruments
+The board is the same for all nine instruments. Pin map and flash timing therefore live in the core: `core/include/project_config.h` and `core/include/pico_hw.h`. In the seven original repositories every single pin definition was already identical; the files differed only in comments, in one extra QMI timing constant for PicoFaceRD, and in one inline helper. The core versions are the union of all variants.
 
 ### Why the core is still not a library
 
@@ -57,7 +57,7 @@ The core continues to publish lists of absolute source paths instead of a STATIC
 
 From that follows the include order `instruments/<NAME>/include` before `core/include`, so that an instrument's own variant of a header wins. After the merge that affects only five headers (see section 7).
 
-Counter-example: lib/audio, lib/encoder and lib/u8g2 stay STATIC and are built once for all eight targets.
+Counter-example: lib/audio, lib/encoder and lib/u8g2 stay STATIC and are built once for all nine targets.
 
 **Note on the audio library:** lib/audio/src/audio_subsystem.cpp originally included project_config.h and read PIN_I2S_DOUT and PIN_I2S_BCK from it. In the old projects this went unnoticed because a global `include_directories()` leaked the instrument include path into every target. The library now uses the standard macros PICO_AUDIO_I2S_DATA_PIN and PICO_AUDIO_I2S_CLOCK_PIN_BASE and no longer knows anything about the instrument configuration.
 
@@ -79,7 +79,7 @@ The core calls init(), then queries sampleRate() and initializes the audio pool 
 
 ## 4a. The runtime model
 
-**All eight instruments run in the same model:** core0 does audio, USB, MIDI and GUI, the core polls the encoders into an InputState and calls `uiTick()`. core1 belongs to the instrument - PicoFaceRD uses it as a voice worker, the other seven leave it idle.
+**All nine instruments run in the same model:** core0 does audio, USB, MIDI and GUI, the core polls the encoders into an InputState and calls `uiTick()`. core1 belongs to the instrument - PicoFaceRD uses it as a voice worker, the other eight leave it idle.
 
 Until the conversion of PicoFaceYC and PicoFaceCP there was a second model in which an instrument took over the entire user interface on core1 via `ownsUserInterface()`. The core then started core1 itself, initialized neither display nor encoders, and called `pumpCrossCore()` instead of `uiTick()`; for flash access the instrument supplied a pair of park hooks. With the last user gone, the five methods disappeared from `picoface::Instrument` and so did the corresponding branch in `picoface_main.cpp`. An instrument that needs core1 starts it from its own adapter, the way PicoFaceRD does.
 
@@ -108,7 +108,7 @@ PicoFaceDX only came in from its own repository after that conversion, and it st
 Like YC and CP, DX writes its own veeprom record and reports `settingsSize() == 0`; that record contains a complete patch. In addition, `RefaceMidi::txBytes()` now writes to the DIN output as well (section 6a); the original repository did not have one.
 
 ## 5. Build system
-`picoface_add_instrument()` in `cmake/PicoFaceInstrument.cmake` creates a complete firmware target per instrument. All settings are target-local (`target_compile_definitions` / `target_compile_options` instead of a global `add_compile_options`), because eight targets with conflicting defines have to coexist.
+`picoface_add_instrument()` in `cmake/PicoFaceInstrument.cmake` creates a complete firmware target per instrument. All settings are target-local (`target_compile_definitions` / `target_compile_options` instead of a global `add_compile_options`), because nine targets with conflicting defines have to coexist.
 
 | Keyword | Meaning |
 |---|---|
@@ -177,7 +177,7 @@ The parser handles running status, SysEx up to 256 bytes, and lets realtime byte
 
 ### Integration
 
-`MIDISerial::process()` runs for all eight instruments in `picoface_main.cpp`, right next to `MIDIInputUSB::process()`.
+`MIDISerial::process()` runs for all nine instruments in `picoface_main.cpp`, right next to `MIDIInputUSB::process()`.
 
 The core passes realtime bytes and bare receive activity through via the optional methods `realtime()` and `midiActivity()`. Both are needed for the active sensing supervision of the reface layer in YC, CP and DX - their 350 ms timeout silences all voices when 0xFE stops arriving. The defaults are empty; the other instruments ignore both.
 
@@ -323,10 +323,17 @@ These defines are deliberately not unified in the helper but set per instrument 
 
 - `core/src/picoface_main.cpp`: shared main() for both runtime models.
 - `core/src/ui/display.cpp`: u8g2 facade; flush() only arms the row-by-row output.
-- All eight adapters, all in the standard model. PicoFaceMD is the template.
-- All eight build from a single configure run and carry their own USB PID.
-- All eight tested on the hardware and working, PicoFaceRD including the 480 MHz clocking.
+- All nine adapters, all in the standard model. PicoFaceMD is the template.
+- All nine build from a single configure run and carry their own USB PID.
+- All nine tested on the hardware and working, PicoFaceRD including the 480 MHz clocking.
 - PicoFaceOB (section 6b) confirmed on the hardware on 2026-08-04, PicoFaceDX (section 4a) on 2026-08-05 - the last two. For DX that covers audio out, the factory presets sounding as they should, the whole of the user interface that used to run on core1 (preset switching, master volume, the settings write), and USB MIDI far enough that Soundmondo connects and loads voices into it.
+- PicoFaceJV added as the ninth instrument: a native JV-880 engine over the
+  machine's own PCM data, every law measured differentially against a
+  host-side reference. Confirmed on the hardware, 69 % peak load at 24
+  voices. It is the only instrument that needs a local ROM set, so it is
+  not in the release binaries; without the ROMs its configure step skips it
+  and the other eight are unaffected. `-DPICOFACEJV_4MB=ON` fits it on a
+  base 4 MB Pico 2 by shipping banks A and B only.
 - PicoFaceYC and PicoFaceCP converted to the standard model (section 4a) and confirmed on the hardware in that form. With that, the second runtime model has been removed from the core without replacement.
 
 | Instrument | Flash | RAM | PID | Original (flash/RAM) |
@@ -339,6 +346,7 @@ These defines are deliberately not unified in the helper but set per instrument 
 | PicoFaceSM | 96,232 | 21,784 | 0x1055 | 91,868 / 20,288 |
 | PicoFaceOB | 131,724 | 42,248 | 0x1056 | - (new) |
 | PicoFaceDX | 170,052 | 218,508 | 0x1057 | 164,964 / 216,012 |
+| PicoFaceJV | 4,549,088 | 146,808 | 0x1058 | - (new) |
 
 Measured with `arm-none-eabi-size` (text / bss). 32 KB of PicoFaceOB's RAM are
 the six voices of the OB-Xf voice object, a good 5.3 KB each; on top of that come

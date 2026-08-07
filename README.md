@@ -1,6 +1,6 @@
 # PicoVintageSynthCollection
 
-Eight vintage synthesizer emulations for the RP2350, built from one shared
+Nine vintage synthesizer emulations for the RP2350, built from one shared
 codebase. Same board, same core, one firmware image per instrument.
 
 <p align="center">
@@ -29,12 +29,13 @@ codebase. Same board, same core, one firmware image per instrument.
 | [instruments/PicoFaceMD](instruments/PicoFaceMD/README.md) | Minimoog Model D | PicoFaceMD.uf2 |
 | [instruments/PicoFaceSM](instruments/PicoFaceSM/README.md) | ARP/Eminent Solina String Ensemble | PicoFaceSM.uf2 |
 | [instruments/PicoFaceOB](instruments/PicoFaceOB/README.md) | Oberheim OB-X (engine ported from OB-Xf) | PicoFaceOB.uf2 |
+| [instruments/PicoFaceJV](instruments/PicoFaceJV/README.md) | Roland JV-880 (native engine over the original PCM data) | local build only |
 
-A ninth is in progress: [instruments/PicoFaceJV](instruments/PicoFaceJV/README.md)
-(Roland JV-880). It is not in the release binaries and not yet confirmed on the
-hardware, and it only builds where a JV-880 ROM set is present — the ROMs are
-not distributable. Without them the configure step skips it, so the eight above
-are unaffected.
+The JV-880 is the one exception to "download and flash": it only builds where a
+JV-880 ROM set is present, and the ROMs are not distributable, so it is not in
+the release binaries. Without them the configure step skips it and the eight
+above are unaffected. It runs on the hardware, and `-DPICOFACEJV_4MB=ON` fits it
+on a base 4 MB Pico 2.
 
 ## Hardware
 
@@ -96,8 +97,9 @@ instrument's README names the document so it can be obtained separately.
 
 ## Status
 
-**All eight instruments build from a single configure run, each with its own
-USB PID, and all eight run on the hardware.** Open points are listed in
+**All nine instruments build from a single configure run, each with its own
+USB PID, and all nine run on the hardware.** Eight are in the release binaries;
+the JV-880 needs a local ROM set, as above. Open points are listed in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), section 8.
 
 ## License
