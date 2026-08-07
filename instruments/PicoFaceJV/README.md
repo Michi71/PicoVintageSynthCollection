@@ -1,9 +1,9 @@
-# PicoFaceJV (work in progress)
+# PicoFaceJV
 
 A Roland **JV-880** for the collection. It builds a firmware image, but only on
 a machine that has a JV-880 ROM set: the ROMs are not distributable, so without
 them the instrument removes itself from the build and the other eight are
-unaffected. It has not been tried on hardware.
+unaffected. Both the full and the 4 MB build run on hardware.
 
 ## What this is, and is not
 
@@ -36,9 +36,18 @@ tooling that produced them.
 | LFO 1 and 2 (pitch, TVF, TVA) | works; rate, depth and waveform matched to the reference |
 | LFO key sync, free-run, offset | works; bit 5 of the flags ignored |
 | Modulation matrix | works for the identified destinations; see below |
-| FXM, portamento | not implemented |
-| Firmware adapter, panel UI, MIDI, persistence | built, untested on hardware |
-| Reverb / chorus | not implemented |
+| Velocity curves, TVF velocity | works, all seven curves measured |
+| FXM, alternating loops, tone delay, resonance mode | works, calibrated |
+| Poly / Solo, portamento, legato | works, calibrated |
+| Chorus (both types) and the two delay types | works, calibrated |
+| Reverb | matched, not reproduced: the type, time and level laws are measured, the topology is a Schroeder network of my own. Tails on material that decays run ~13 dB low |
+| Firmware adapter, panel UI, MIDI, persistence | works on hardware |
+
+Open, and documented as such: per-patch velocity steepness still scatters about
+1 dB, most likely because TVF velocity takes level with it and that was never
+measured for level; the per-tone Volume Switch and Hold-1 Switch bits are
+unresolved; the envelope time keyfollows and the T1/T4 velocity fields sit
+near-neutral throughout the factory banks and were never exercised.
 
 Pitch is resolved. Two things had to be right together, and getting one wrong
 made the other look unexplainable: `end` in the sample table is **inclusive**
@@ -75,10 +84,23 @@ it on every wrap.
 The board is the collection's standard one; the pin map lives in
 [core/include/project_config.h](../../core/include/project_config.h).
 
-Unlike PicoFaceRD this instrument stays on **core0 at the standard 444 MHz**.
-The engine costs roughly 55 M cycles/s at full polyphony and decodes each voice
-sequentially, so neither the core1 worker nor the raised clock RD needs applies
-here. Firmware image is 4.53 MB, of which 4.25 MB is the ROM blob.
+Unlike PicoFaceRD this instrument stays on **core0 at the standard 444 MHz**,
+and decodes each voice sequentially, so neither the core1 worker nor the raised
+clock RD needs applies here. Firmware image is 4.33 MB, of which 4.25 MB is the
+ROM blob.
+
+Measured on hardware with B33 Brass Combo at full polyphony: **69 % peak at 24
+voices**. Splitting that against the host profile puts the fixed cost — chorus,
+reverb, block overhead, all of which run once per block regardless of how many
+voices sound — at about 5 %, and each voice at about 2.7 %. The effects are
+cheap; it is the voices.
+
+The cap stays at 24 rather than the machine's 28. 28 would land near 80 % in the
+middle of the keyboard, but per-voice cost varies about 15 % with register — a
+high note decodes more DPCM steps per output sample — so the bottom of the
+keyboard would reach ~92 %, and the display, encoders and MIDI parsing draw on
+the same core0 time that this figure does not include. The 31 % is not spare
+capacity, it is the margin that keeps the underrun count at zero.
 
 | Page | Encoder A | Encoder B |
 |---|---|---|
@@ -86,15 +108,26 @@ here. Firmware image is 4.53 MB, of which 4.25 MB is the ROM blob.
 | VOL | master volume | — |
 | VOICES | polyphony cap 1–24 | line B shows live `Act <n>` |
 | TUNE | master tune ±50 cents | line B shows the resulting A4 |
+| VELO | incoming-velocity scaling, 0–100 % | line B shows where velocity 64 lands |
 | SYS | MIDI receive channel 1–16 / Omni | — |
 
-The footer shows `U<underruns> A<active>/<limit>`. On an underrun the instrument
-drops two voices from the cap; the VOICES page raises it again.
+VELO exists because the machine is faithful and sequencer files are not written
+for it: a typical patch drops about 11 dB from velocity 127 to 64. 100 % passes
+velocity through untouched; lower values pull it toward 127. Worth knowing that
+it acts before the engine sees anything, so compressing upward will also bring
+in tone layers a patch reserves for hard playing.
 
-MIDI: note on/off, sustain (CC 64), modulation (CC 1), expression (CC 11),
-channel aftertouch, pitch bend ±2 semitones, program change within the current
-bank, and the panic controllers 120/121/123. CC 1, CC 11 and aftertouch are the
-modulation matrix's three sources.
+The footer shows `P<load>% U<underruns> A<active>/<limit>` — the load is the
+worst render block since the last decay, measured the same way PicoFaceRD
+measures its own. On an underrun the instrument drops two voices from the cap;
+the VOICES page raises it again.
+
+MIDI: note on/off, pitch bend with the **patch's own** up and down ranges, and
+CC 0 (bank select: 80 selects the user bank, 81 the presets), 1 modulation,
+5 portamento time, 6/38 and 100/101 for RPN 0-2 (bend range, fine and coarse
+tune), 7 volume, 10 pan, 11 expression, 64 sustain, 65 portamento switch,
+91 reverb send, 93 chorus send, plus 120/121/123-127. CC 1, CC 11 and channel
+aftertouch are the modulation matrix's three sources.
 
 ## Building the firmware
 
