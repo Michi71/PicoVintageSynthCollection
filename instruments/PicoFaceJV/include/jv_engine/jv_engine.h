@@ -190,6 +190,7 @@ private:
         float    gainL, gainR;   // level and pan, BEFORE the output section
         float    dryGain;        // output dry level
         float    choGain;        // output chorus send
+        float    revGain;        // output reverb send
         float    cutoffBase;  // parameter units, 0..127
         float    envDepth;    // bipolar TVF envelope depth, parameter units
         float    resonance;   // 0..127
@@ -229,6 +230,42 @@ private:
                      float* left, float* right, int n);
     };
 
+    // Patch-common reverb. Two quite different things share the slot: six
+    // algorithmic reverbs and two delays.
+    //
+    // The delays are exact -- time and feedback are both measured laws, and
+    // PAN-DLY is the same line tapped at half the interval with the taps
+    // alternating channels. The reverbs are not: what is measured is the decay
+    // time, that the two channels come out decorrelated, and the level. The
+    // network below is a Schroeder comb/allpass bank tuned to hit the measured
+    // RT60. It is not the chip's topology and its early reflections will differ.
+    struct Reverb {
+        static constexpr int kCombs = 4;
+        static constexpr int kCombMax = 1408;
+        static constexpr int kApMax = 384;
+        static constexpr int kDelayMax = 15872;   // 496 ms at 32 kHz
+
+        float comb[2][kCombs][kCombMax]{};
+        float ap[2][2][kApMax]{};
+        float line[kDelayMax]{};           // for DELAY / PAN-DLY
+        int   combPos[2][kCombs]{};
+        int   apPos[2][2]{};
+        int   linePos = 0;
+        float combG[2][kCombs]{};
+        int   combLen[2][kCombs]{};
+        int   apLen[2][2]{};
+        int   type = 0;
+        int   delaySamples = 0;
+        float feedback = 0.0f;
+        float level = 0.0f;
+        int   panTap = 0;                  // which side the next PAN-DLY tap hits
+        int   panCount = 0;
+        void configure(const uint8_t* patch, uint32_t sr);
+        void reset();
+        void process(const float* inL, const float* inR,
+                     float* left, float* right, int n);
+    };
+
     void renderBlock(float* left, float* right, int frames);
     int  allocVoice();
     void startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel);
@@ -257,7 +294,9 @@ private:
     uint32_t panAlt_ = 0;      // toggles for tones set to alternating pan
     int      voiceLimit_ = kMaxVoices;
     Chorus   chorus_;
-    float    choL_[kRenderBlock]{}, choR_[kRenderBlock]{};   // the send bus
+    Reverb   reverb_;
+    float    choL_[kRenderBlock]{}, choR_[kRenderBlock]{};   // the send buses
+    float    revL_[kRenderBlock]{}, revR_[kRenderBlock]{};
 };
 
 } // namespace jv

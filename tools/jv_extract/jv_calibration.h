@@ -479,6 +479,84 @@ static inline float jv_tvf_velocity_scale(int sens, float vel) {
 #define JV_CHORUS_TYPE1 0
 #define JV_CHORUS_TYPE2 1
 
+// ------------------------------------------------------------------- reverb
+// Patch common byte +12 holds the reverb type in bits 0-3, +13 the level, +14
+// the time, +15 the feedback (the manual calls it "delay feedback", and it does
+// nothing for the six reverb algorithms).
+//
+//   0 ROOM1   1 ROOM2   2 STAGE1   3 STAGE2   4 HALL1   5 HALL2
+//   6 DELAY   7 PAN-DLY
+//
+// Factory use: HALL1 53, PAN-DLY 32, STAGE2 30, HALL2 24, ROOM2 22, STAGE1 13,
+// ROOM1 11, DELAY 7.
+//
+// MEASURED the same way as the chorus -- dry level 0, reverb send 127, chorus
+// off -- with a 50 ms burst and a 5 s tail, so the render is essentially the
+// impulse response. The reverb output is decorrelated across the channels for
+// all six reverb types (|L/R correlation| < 0.04 over the tail).
+//
+// THE TWO DELAY TYPES ARE EXACT.
+//   delay time  = 2.0 + 3.843 * time  ms, measured 2 / 63 / 124 / 185 / 250 /
+//                 311 / 372 / 433 / 490 ms at time 0..127 in steps of 16
+//   feedback    = fb/128 - 1/64, from the measured per-repeat ratios
+//                 0.234 / 0.484 / 0.734 / 0.984 at fb 32 / 64 / 96 / 127
+//   PAN-DLY taps at HALF that interval and alternates channels: at time 32 the
+//   echoes land at 62 ms left, 124 right, 184 left, 246 right, with the
+//   feedback law applying once per pair.
+#define JV_REVERB_TYPE_ROOM1   0
+#define JV_REVERB_TYPE_ROOM2   1
+#define JV_REVERB_TYPE_STAGE1  2
+#define JV_REVERB_TYPE_STAGE2  3
+#define JV_REVERB_TYPE_HALL1   4
+#define JV_REVERB_TYPE_HALL2   5
+#define JV_REVERB_TYPE_DELAY   6
+#define JV_REVERB_TYPE_PANDLY  7
+#define JV_DELAY_MS(time)      (2.0f + 3.843f * (float)(time))
+#define JV_DELAY_FEEDBACK(fb)  ((float)(fb) / 128.0f - 1.0f / 64.0f)
+#define JV_DELAY_MAX_MS        492.0f
+// The delay types pass the signal through, so their full-scale level is much
+// higher than the reverb network's: fitted at 0.47 against the reference.
+#define JV_DELAY_LEVEL_GAIN    0.609f
+
+// RT60 in milliseconds for the six reverb algorithms, at reverb time 0, 32, 64,
+// 96 and 127. Measured by fitting a line to the log decay of the tail between
+// -5 and -45 dB. The shapes differ enough that a single law does not fit: the
+// room types are close to linear in the parameter while STAGE2 and the halls
+// climb steeply at the top, so these are tables and the engine interpolates.
+static const float JV_REVERB_TIME_MS[6][5] = {
+    {  276.0f,  416.0f,  614.0f,  840.0f, 1124.0f },   // ROOM1
+    {  158.0f,  396.0f,  604.0f,  890.0f, 1304.0f },   // ROOM2
+    {  237.0f,  429.0f,  652.0f,  918.0f, 1364.0f },   // STAGE1
+    {  318.0f,  836.0f, 1354.0f, 2424.0f, 5420.0f },   // STAGE2
+    {  524.0f,  800.0f, 1196.0f, 1912.0f, 3583.0f },   // HALL1
+    {  404.0f,  761.0f, 1296.0f, 2294.0f, 6572.0f },   // HALL2
+};
+static const uint8_t JV_REVERB_TIME_POINTS[5] = { 0, 32, 64, 96, 127 };
+static inline float jv_reverb_rt60_ms(int type, int time) {
+    if (type < 0) type = 0; else if (type > 5) type = 5;
+    if (time <= 0) return JV_REVERB_TIME_MS[type][0];
+    if (time >= 127) return JV_REVERB_TIME_MS[type][4];
+    for (int i = 0; i < 4; i++) {
+        const int a = JV_REVERB_TIME_POINTS[i], b = JV_REVERB_TIME_POINTS[i + 1];
+        if (time <= b) {
+            const float f = (float)(time - a) / (float)(b - a);
+            return JV_REVERB_TIME_MS[type][i] +
+                   (JV_REVERB_TIME_MS[type][i + 1] - JV_REVERB_TIME_MS[type][i]) * f;
+        }
+    }
+    return JV_REVERB_TIME_MS[type][4];
+}
+// The algorithm itself is NOT reverse engineered -- what is measured is the
+// decay, the stereo decorrelation and the output level. The engine runs a
+// Schroeder network sized to hit the measured RT60; it is not the chip's
+// topology, and the early-reflection pattern will differ.
+// Fitted against the reference on the four commonest types (HALL1, PAN-DLY,
+// STAGE2, HALL2 = 139 of 192 patches), which cluster at +27.5 dB before the
+// trim. The room types come out a few dB loud: the reference's output level
+// falls faster with decay time than a Schroeder network's does, which is one
+// more sign that the topology differs.
+#define JV_REVERB_LEVEL_GAIN 0.042f
+
 // ------------------------------------------------------------------- matrix
 // Modulation matrix. Sensitivity is signed with an effective range of +-63;
 // 64..127 disables the slot, the same convention as the LFO depths.

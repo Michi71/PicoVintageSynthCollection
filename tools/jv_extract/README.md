@@ -826,6 +826,59 @@ fraction and makes the interpolator extrapolate backwards. With the write
 pointer cycling 0..767 and the delay at 578..761 it happened three quarters of
 the time. Biasing the read position up by a whole buffer length fixes it.
 
+## The reverb, and the two delays hiding in it
+
+Same isolation as the chorus -- dry level 0, reverb send 127, chorus off -- but
+with a 50 ms burst and a five second tail, so the render is essentially an
+impulse response. All six reverb algorithms come out with the two channels
+DECORRELATED: |L/R correlation| < 0.04 over the tail, every type.
+
+**The two delay types are exact.** Measured, not modelled:
+
+    delay time = 2.0 + 3.843 * time ms    (2 / 63 / 124 / 185 / 250 / 311 /
+                                           372 / 433 / 490 at time 0..127)
+    feedback   = fb/128 - 1/64            (per-repeat ratios 0.234 / 0.484 /
+                                           0.734 / 0.984 at fb 32/64/96/127)
+
+PAN-DLY is **two taps on one line, not one tap that alternates sides**. At
+feedback 0 the reference already produces two echoes -- 62 ms left and 124 ms
+right at time 32 -- so the half-period tap feeds the left channel and the
+full-period tap the right, with the feedback going round the full period. That
+is why the levels arrive in equal pairs. The engine now reproduces the whole
+train: 64 / 126 / 188 / 250 / 316 / 378 ms alternating sides against the
+reference's 62 / 124 / 184 / 246 / 306 / 368, decay ratio 0.484 against 0.485,
+and peak level 0.1660 against 0.1659.
+
+**The six reverbs are matched, not reproduced.** RT60 is measured per type at
+five time settings (`JV_REVERB_TIME_MS`) and the engine runs a Schroeder
+comb/allpass network sized to hit it, landing within 1 % everywhere:
+
+| type | t=0 | t=64 | t=127 |
+|------|-----|------|-------|
+| ROOM1 | 281 [276] | 618 [614] | 1130 [1124] |
+| STAGE2 | 322 [318] | 1362 [1354] | 5460 [5420] |
+| HALL1 | 527 [524] | 1203 [1196] | 3603 [3583] |
+| HALL2 | 407 [404] | 1303 [1296] | 6625 [6572] |
+
+The topology is not the chip's, and it shows in the residual: tail level is
+2.4 dB out on average (3.4 dB absolute), worst on the room types at very short
+decay, where the reference's level falls away faster than a Schroeder network's
+does. Reverb time in the factory banks has a median of 80 and only 12 of 125
+patches sit below 32, so the fit is good where it is used.
+
+Two things worth carrying forward:
+
+* **The two channels need genuinely different comb sets, not a stereo spread.**
+  Nudging the right channel's combs by a dozen samples (809/823, 877/887, ...)
+  left the engine at +0.85 correlation, because both sides see the same input
+  and nearly the same delays. Separate sets -- 809..1049 against 1123..1381 --
+  bring it to +0.01.
+* **`jv_engine_test` renders whatever hold you ask for now** (`--hold`,
+  `--tail`). It used to be fixed at 2 s + 2 s, and comparing that against a
+  50 ms burst on the reference smeared every echo into one blob. It looked
+  exactly like PAN-DLY putting both taps on both channels, which sent the
+  implementation off after a bug that was not there.
+
 ## Two more sources, and what they were each good for
 
 **Roland's "JV Master Class" supplemental notes** (SN08, 1996, a Keyboard

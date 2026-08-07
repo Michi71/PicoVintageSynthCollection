@@ -72,6 +72,7 @@ static void writeWav(const char* path, const std::vector<float>& l, const std::v
 int main(int argc, char** argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: jv_engine_test <romdir> [bank 0-2] [patch 0-63] "
+                "[--hold s] [--tail s] "
                         "[note] [vel] [out.wav]\n");
         return 1;
     }
@@ -87,6 +88,10 @@ int main(int argc, char** argv) {
     struct Mod { int tone, off, val; };
     std::vector<Mod> mods;
     float trim = 1.0f;
+    // Hold and tail in seconds, so a short burst can be rendered for effect
+    // work -- an impulse response needs a note far shorter than the tail, and
+    // jv_probe's JV_HOLD / JV_REL are the matching knobs on the other side.
+    float holdS = 2.0f, tailS = 2.0f;
     int modWheel = -1, aftertouch = -1, expression = -1;   // applied at 1.0 s
     for (int i = 7; i < argc; i++) {
         Mod m{};
@@ -95,6 +100,10 @@ int main(int argc, char** argv) {
             mods.push_back(m);
         else if (!strcmp(argv[i], "--trim") && i + 1 < argc)
             trim = (float)atof(argv[++i]);
+        else if (!strcmp(argv[i], "--hold") && i + 1 < argc)
+            holdS = (float)atof(argv[++i]);
+        else if (!strcmp(argv[i], "--tail") && i + 1 < argc)
+            tailS = (float)atof(argv[++i]);
         else if (!strcmp(argv[i], "--mod") && i + 1 < argc) modWheel = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--aft") && i + 1 < argc) aftertouch = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--expr") && i + 1 < argc) expression = atoi(argv[++i]);
@@ -134,12 +143,13 @@ int main(int argc, char** argv) {
     memcpy(name, eng.patchName(), 12);
     printf("patch \"%s\"  note %d vel %d\n", name, note, vel);
 
-    const int hold = SR * 2, tail = SR * 2;
+    const int hold = (int)(SR * holdS), tail = (int)(SR * tailS);
     std::vector<float> L(hold + tail), R(hold + tail);
     eng.noteOn((uint8_t)note, (uint8_t)vel);
     // Controllers land 1.0 s in, matching jv_probe's "#midi 1.0 ..." convention
     // so both sides can be compared window for window.
-    const int ctlAt = SR;
+    int ctlAt = SR;
+    if (ctlAt > hold) ctlAt = hold;
     eng.render(L.data(), R.data(), ctlAt);
     if (modWheel   >= 0) eng.modWheel((uint8_t)modWheel);
     if (aftertouch >= 0) eng.aftertouch((uint8_t)aftertouch);

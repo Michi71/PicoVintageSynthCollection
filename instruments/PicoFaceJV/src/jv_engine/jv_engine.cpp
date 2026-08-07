@@ -423,12 +423,135 @@ void Engine::Chorus::process(const float* inL, const float* inR,
         bufR[pos] = inR[i] + outR * feedback;
         if (++pos >= JV_CHORUS_MAX_DELAY) pos = 0;
 
-        // toReverb routes the chorus into the reverb instead of the mix. There
-        // is no reverb yet, and dropping the chorus entirely for the ten
-        // factory patches that ask for it would lose more than it gains, so it
-        // is mixed in regardless for now.
         left[i]  += outL * level;
         right[i] += outR * level;
+    }
+}
+
+// -------------------------------------------------------------------- reverb
+
+void Engine::Reverb::reset() {
+    for (int c = 0; c < 2; c++) {
+        for (int k = 0; k < kCombs; k++) {
+            for (int i = 0; i < kCombMax; i++) comb[c][k][i] = 0.0f;
+            combPos[c][k] = 0;
+        }
+        for (int k = 0; k < 2; k++) {
+            for (int i = 0; i < kApMax; i++) ap[c][k][i] = 0.0f;
+            apPos[c][k] = 0;
+        }
+    }
+    for (int i = 0; i < kDelayMax; i++) line[i] = 0.0f;
+    linePos = 0;
+    panTap = 0;
+    panCount = 0;
+}
+
+void Engine::Reverb::configure(const uint8_t* patch, uint32_t sr) {
+    type  = patch[12] & 0x0F;
+    // The delays pass the signal far more directly than the reverb network, so
+    // they carry their own full-scale gain.
+    const float g = (type >= JV_REVERB_TYPE_DELAY) ? JV_DELAY_LEVEL_GAIN
+                                                   : JV_REVERB_LEVEL_GAIN;
+    level = (float)patch[13] * (g / 127.0f);
+    feedback = JV_DELAY_FEEDBACK(patch[15]);
+    if (feedback < 0.0f) feedback = 0.0f;
+
+    if (type >= JV_REVERB_TYPE_DELAY) {
+        const float ms = JV_DELAY_MS(patch[14]);
+        delaySamples = (int)(ms * 0.001f * (float)sr + 0.5f);
+        if (delaySamples < 1) delaySamples = 1;
+        if (delaySamples > kDelayMax - 1) delaySamples = kDelayMax - 1;
+        return;
+    }
+
+    // The two channels run quite DIFFERENT comb sets, not the same set nudged
+    // by a few samples. The reference's tail measures |L/R correlation| < 0.04;
+    // a small stereo spread (809/823, 877/887, ...) left the engine at +0.85,
+    // because both sides see the same input and nearly the same delays.
+    static const int kCombL[kCombs] = {  809,  877,  937, 1049 };
+    static const int kCombR[kCombs] = { 1123, 1187, 1259, 1381 };
+    static const int kApL[2] = { 337, 113 };
+    static const int kApR[2] = { 241, 173 };
+    for (int k = 0; k < kCombs; k++) {
+        combLen[0][k] = kCombL[k];
+        combLen[1][k] = kCombR[k];
+    }
+    apLen[0][0] = kApL[0]; apLen[0][1] = kApL[1];
+    apLen[1][0] = kApR[0]; apLen[1][1] = kApR[1];
+
+    // Set each comb's feedback so the network decays to -60 dB in the measured
+    // time: a comb of length D repeating with gain g reaches -60 dB after
+    // RT60/D repeats, so g = 10^(-3 D / (RT60 * sr)).
+    // Per channel, since the two comb sets have different lengths and the same
+    // gain would give them different decay times.
+    const float rt = jv_reverb_rt60_ms(type, patch[14]) * 0.001f;
+    for (int c = 0; c < 2; c++) {
+        for (int k = 0; k < kCombs; k++) {
+            const float d = (float)combLen[c][k] / (float)sr;
+            float g = powf(10.0f, -3.0f * d / (rt > 0.001f ? rt : 0.001f));
+            if (g > 0.985f) g = 0.985f;
+            combG[c][k] = g;
+        }
+    }
+}
+
+void Engine::Reverb::process(const float* inL, const float* inR,
+                             float* left, float* right, int n) {
+    if (level <= 0.0f) return;
+
+    if (type >= JV_REVERB_TYPE_DELAY) {
+        // PAN-DLY is TWO taps on one line, not one tap that alternates sides:
+        // at feedback 0 the reference already produces two echoes, 62 ms left
+        // and 124 ms right at time 32. So the half-period tap feeds the left
+        // channel, the full-period tap the right, and the feedback goes round
+        // the full period -- which is why the levels come in equal pairs
+        // (0.166, 0.166, 0.080, 0.080, 0.039, 0.039 at feedback 64).
+        const bool pan = (type == JV_REVERB_TYPE_PANDLY);
+        const int half = delaySamples / 2;
+        for (int i = 0; i < n; i++) {
+            int r = linePos - delaySamples;
+            if (r < 0) r += kDelayMax;
+            const float out = line[r];
+            line[linePos] = 0.5f * (inL[i] + inR[i]) + out * feedback;
+            if (pan) {
+                int rh = linePos - half;
+                if (rh < 0) rh += kDelayMax;
+                left[i]  += line[rh] * level;
+                right[i] += out * level;
+            } else {
+                left[i]  += out * level;
+                right[i] += out * level;
+            }
+            if (++linePos >= kDelayMax) linePos = 0;
+        }
+        return;
+    }
+
+    for (int i = 0; i < n; i++) {
+        const float in[2] = { inL[i], inR[i] };
+        for (int c = 0; c < 2; c++) {
+            float acc = 0.0f;
+            for (int k = 0; k < kCombs; k++) {
+                const int len = combLen[c][k];
+                int& p = combPos[c][k];
+                const float y = comb[c][k][p];
+                comb[c][k][p] = in[c] + y * combG[c][k];
+                if (++p >= len) p = 0;
+                acc += y;
+            }
+            acc *= 0.25f;
+            for (int k = 0; k < 2; k++) {
+                const int len = apLen[c][k];
+                int& p = apPos[c][k];
+                const float y = ap[c][k][p];
+                const float v = acc + y * 0.5f;
+                ap[c][k][p] = v;
+                if (++p >= len) p = 0;
+                acc = y - v * 0.5f;
+            }
+            (c == 0 ? left : right)[i] += acc * level;
+        }
     }
 }
 
@@ -450,6 +573,8 @@ bool Engine::selectPatch(int bank, int index) {
     patch_ = rom_.rom2 + banks[bank] + (size_t)index * JV_PATCH_SIZE;
     chorus_.configure(patch_, sr_);
     chorus_.reset();
+    reverb_.configure(patch_, sr_);
+    reverb_.reset();
     return true;
 }
 
@@ -458,6 +583,8 @@ void Engine::setPatch(const uint8_t* patch362) {
     patch_ = patchCopy_;
     chorus_.configure(patch_, sr_);
     chorus_.reset();
+    reverb_.configure(patch_, sr_);
+    reverb_.reset();
 }
 
 bool Engine::sampleFor(int waveNumber, uint8_t note, Sample& out) const {
@@ -783,6 +910,7 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
     // the output section.
     v.dryGain = levelToLinear(t[81]);
     v.choGain = levelToLinear(t[83]);
+    v.revGain = levelToLinear(t[82]);
 
     // TVA envelope: times at +74/+76/+78/+80, levels at +75/+77/+79.
     v.tvaT[0] = t[74]; v.tvaT[1] = t[76]; v.tvaT[2] = t[78]; v.tvaT[3] = t[80];
@@ -927,6 +1055,8 @@ void Engine::renderBlock(float* left, float* right, int frames) {
     memset(right, 0, sizeof(float) * (size_t)frames);
     memset(choL_, 0, sizeof(float) * (size_t)frames);
     memset(choR_, 0, sizeof(float) * (size_t)frames);
+    memset(revL_, 0, sizeof(float) * (size_t)frames);
+    memset(revR_, 0, sizeof(float) * (size_t)frames);
 
     // The free-running phases run whether or not a voice is using them.
     for (int i = 0; i < 2; i++) {
@@ -951,12 +1081,12 @@ void Engine::renderBlock(float* left, float* right, int frames) {
             // reference. It has now moved twice for the same reason: an error
             // in the velocity law is indistinguishable from a level offset
             // unless the comparison is made at more than one velocity. It first
-            // moved 10.5 dB when the law's direction was corrected, and 1.0 dB
-            // again when the velocity CURVES were measured -- the residual
-            // error is now 0.6 dB at velocity 127 and 1.1 dB at velocity 100,
-            // where before the curves it was flat at one and 4-5 dB out at the
-            // other. Fitted over all 128 factory patches at both velocities.
-            float s = ((float)v.s0 + ((float)v.s1 - (float)v.s0) * frac) * (1.0f / 88234.0f);
+            // moved 10.5 dB when the law's direction was corrected, 1.0 dB
+            // again when the velocity CURVES were measured, and 0.9 dB back the
+            // other way once the chorus and reverb existed -- until then it had
+            // been carrying their missing energy too. Fitted over all 128
+            // factory patches at both velocities.
+            float s = ((float)v.s0 + ((float)v.s1 - (float)v.s0) * frac) * (1.0f / 97867.0f);
 
             if (--v.ctlPhase <= 0) {
                 updateModulation(v, clock_ + (uint32_t)i);
@@ -974,10 +1104,16 @@ void Engine::renderBlock(float* left, float* right, int frames) {
             right[i] += sr * v.dryGain;
             choL_[i] += sl * v.choGain;
             choR_[i] += sr * v.choGain;
+            revL_[i] += sl * v.revGain;
+            revR_[i] += sr * v.revGain;
         }
         if (v.tva.idle()) v.active = false;
     }
-    chorus_.process(choL_, choR_, left, right, frames);
+    // The chorus either joins the mix or feeds the reverb, which is what bit 7
+    // of its level byte selects. Ten factory patches route it that way.
+    if (chorus_.toReverb) chorus_.process(choL_, choR_, revL_, revR_, frames);
+    else                  chorus_.process(choL_, choR_, left, right, frames);
+    reverb_.process(revL_, revR_, left, right, frames);
     clock_ += (uint32_t)frames;
 }
 
