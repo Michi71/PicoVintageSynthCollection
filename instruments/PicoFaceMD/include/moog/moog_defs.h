@@ -165,6 +165,15 @@
 #define MOOG_CUTOFF_MIN_HZ    16.0f
 #define MOOG_CUTOFF_MAX_HZ 16000.0f
 
+/* Ceiling on the cutoff the ladder itself will accept, as a fraction of the
+ * rate it runs at: one radian per sample, 1/2pi. Everything above the panel
+ * range -- Contour, keyboard tracking, the modulation mix -- adds octaves on
+ * top of the panel setting, so the filter is asked for cutoffs far past
+ * MOOG_CUTOFF_MAX_HZ in ordinary playing, and past this point the Huovilainen
+ * fits in moog_ladder.h stop being fits and start being wrong. See the note
+ * on setCutoff(). */
+#define MOOG_LADDER_WC_MAX_OVER_2PI 0.15915f
+
 /* Emphasis 0..10. The manual: "When the EMPHASIS control is set to 10, the
  * filter breaks into oscillation, and produces a pure sine wave tone." The
  * model self-oscillates just above 1.0, so the top of the control has to
