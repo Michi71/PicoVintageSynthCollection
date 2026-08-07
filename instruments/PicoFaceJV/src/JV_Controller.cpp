@@ -13,6 +13,13 @@ int clampInt(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
 const char* kBankName[3] = {"User", "A", "B"};
 
+// The order the panel walks, which is not the order the banks are numbered in:
+// the two preset banks first, the user bank last. Numbered order would put User
+// below A, so stepping down from A 01 enters the user bank backwards at 64.
+// Behind B it is entered at 01, the way you would expect to arrive at it.
+const uint8_t kBankOrder[3] = {1, 2, 0};   // list position -> bank id
+const uint8_t kBankSlot[3]  = {2, 0, 1};   // bank id -> list position
+
 } // namespace
 
 JV_Controller::JV_Controller(JV_Bridge& bridge) : bridge_(bridge) {}
@@ -35,8 +42,9 @@ void JV_Controller::onEncoderA(int delta) {
         case JvPage::PATCH:
             // A walks the 192 patches as one list; the bank follows along.
             {
-                int idx = clampInt(bank_ * 64 + patch_ + delta, 0, 191);
-                bank_ = (uint8_t)(idx / 64);
+                const int here = kBankSlot[bank_ <= 2 ? bank_ : 0] * 64 + patch_;
+                const int idx = clampInt(here + delta, 0, 191);
+                bank_ = kBankOrder[idx / 64];
                 patch_ = (uint8_t)(idx % 64);
                 applyPatch();
             }
@@ -68,8 +76,11 @@ void JV_Controller::onEncoderA(int delta) {
 void JV_Controller::onEncoderB(int delta) {
     if (!delta) return;
     // Only PATCH has a second parameter: B steps the bank, keeping the number.
+    // Same order as the flat walk, so the two encoders agree about which bank
+    // comes next.
     if (page_ == JvPage::PATCH) {
-        bank_ = (uint8_t)clampInt(bank_ + delta, 0, 2);
+        const int slot = clampInt(kBankSlot[bank_ <= 2 ? bank_ : 0] + delta, 0, 2);
+        bank_ = kBankOrder[slot];
         applyPatch();
     }
 }
