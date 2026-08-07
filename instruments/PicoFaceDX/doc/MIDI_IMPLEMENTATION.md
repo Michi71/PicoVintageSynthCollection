@@ -180,6 +180,16 @@ truncated SysEx leaves TinyUSB's stream state inside a message, so the next
 bytes written - active sensing - would be packed as SysEx continuation and the
 outgoing stream would stay corrupted until an `F0` resynchronised it.
 
+The DIN side of `txBytes()` had the opposite failure. `MIDISerial::write()`
+called `uart_putc_raw()` in a loop, which busy-waits whenever the 32-byte TX
+FIFO is full - harmless for the three-byte channel messages it was written for,
+ruinous for a dump. At 31250 baud a byte takes 320 us, so 241 bytes held the
+main loop for about 77 ms against an audio pool of six 64-sample buffers, 8.7 ms
+at 44.1 kHz. The pool ran dry and the I2S DMA repeated it, heard as a low tone
+of roughly a quarter second whenever an editor asked for a voice - on connect as
+well as on sync, and regardless of whether anything was plugged into the DIN
+socket. `MIDISerial` now queues too and tops up the FIFO from `process()`.
+
 ### Dump Request (RX) → TX-Antwort
 
 | Adresse | Antwort |

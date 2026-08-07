@@ -30,6 +30,12 @@ public:
     void process();  // drain the ring and dispatch; call from the same place as MIDIInputUSB::process()
 
     // --- transmit ---
+    // Queued, never blocking. At 31250 baud a byte takes 320 us, so writing a
+    // reface DX voice dump (241 bytes) straight to the UART busy-waited for
+    // about 77 ms - against an audio pool of six 64-sample buffers, 8.7 ms at
+    // 44.1 kHz. The pool ran dry and the I2S DMA repeated it, which is heard as
+    // a low tone rather than a gap. A message that does not fit the queue is
+    // dropped whole, never in part. process() moves it out.
     void write(const uint8_t* data, uint16_t len);   // raw bytes, e.g. a SysEx reply
     void sendNoteOn(uint8_t ch, uint8_t note, uint8_t vel);
     void sendNoteOff(uint8_t ch, uint8_t note, uint8_t vel);
@@ -48,6 +54,7 @@ public:
 
 private:
     void dispatch();   // act on a complete channel message in status_/data_
+    void txPump();     // move queued bytes into the UART FIFO, never waiting
 
     static constexpr uint16_t kSysExMax = 256;
 
