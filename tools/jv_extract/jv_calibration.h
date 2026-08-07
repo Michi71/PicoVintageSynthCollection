@@ -610,6 +610,41 @@ static inline float jv_reverb_level(int type, int time) {
            (JV_REVERB_LEVEL[type][2] - JV_REVERB_LEVEL[type][1]) * f;
 }
 
+// -------------------------------------------------- key assign / portamento
+// Patch common +24 carries the voice-assignment flags and +25 the portamento
+// time, with its type in the top bit:
+//
+//   +24 bit 7  key assign   0 POLY, 1 SOLO          (11 of 192 patches)
+//   +24 bit 6  portamento switch                    (6 patches)
+//   +24 bit 5  solo legato                          (16 patches)
+//   +24 bit 4  portamento mode  0 NORMAL, 1 LEGATO
+//   +25 bit 7  portamento type  0 TIME, 1 RATE      (1 patch uses RATE)
+//   +25 bits 0-6  portamento time
+//
+// MEASURED with a sine tone in SOLO, a second note-on an octave up one second
+// in, and the pitch tracked through the glide.
+//
+// The glide is LINEAR IN CENTS -- at time 50 it covers 193 / 251 / 248 / 254 /
+// 230 cents in successive 50 ms windows, which is constant to the resolution of
+// the tracker. Duration for a one-octave glide:
+//
+//     t = 12.7 ms * 2^(value / 12.3)
+//
+// fitted to 190 / 300 / 470 / 740 / 1150 ms measured at value 48 / 56 / 64 /
+// 72 / 80, and reproducing 70 and 110 ms at 32 and 40.
+//
+// TIME and RATE differ exactly as the names say. At time 56, a glide of 5, 12
+// and 19 semitones took 300 / 300 / 290 ms in TIME mode -- the same duration
+// whatever the interval -- and 120 / 300 / 490 ms in RATE mode, which is the
+// same 25 ms per semitone throughout. So one law serves both: the fit above is
+// the duration of an OCTAVE, and RATE scales it by the interval.
+#define JV_PORTA_OCTAVE_MS(v)   (13.6f * powf(2.0f, (float)(v) / 12.3f))
+#define JV_KEY_ASSIGN_SOLO_BIT  0x80
+#define JV_PORTA_SWITCH_BIT     0x40
+#define JV_SOLO_LEGATO_BIT      0x20
+#define JV_PORTA_MODE_LEGATO_BIT 0x10
+#define JV_PORTA_TYPE_RATE_BIT  0x80
+
 // ------------------------------------------------------------------- matrix
 // Modulation matrix. Sensitivity is signed with an effective range of +-63;
 // 64..127 disables the slot, the same convention as the LFO depths.

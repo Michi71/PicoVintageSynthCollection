@@ -92,6 +92,9 @@ int main(int argc, char** argv) {
     // work -- an impulse response needs a note far shorter than the tail, and
     // jv_probe's JV_HOLD / JV_REL are the matching knobs on the other side.
     float holdS = 2.0f, tailS = 2.0f;
+    // A second note-on part way through, which is what portamento and SOLO
+    // legato need to show anything at all. Matches jv_probe's "#midi <s> 0x90".
+    int note2 = -1; float note2At = 1.0f;
     int modWheel = -1, aftertouch = -1, expression = -1;   // applied at 1.0 s
     for (int i = 7; i < argc; i++) {
         Mod m{};
@@ -104,6 +107,10 @@ int main(int argc, char** argv) {
             holdS = (float)atof(argv[++i]);
         else if (!strcmp(argv[i], "--tail") && i + 1 < argc)
             tailS = (float)atof(argv[++i]);
+        else if (!strcmp(argv[i], "--note2") && i + 1 < argc)
+            note2 = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--note2at") && i + 1 < argc)
+            note2At = (float)atof(argv[++i]);
         else if (!strcmp(argv[i], "--mod") && i + 1 < argc) modWheel = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--aft") && i + 1 < argc) aftertouch = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--expr") && i + 1 < argc) expression = atoi(argv[++i]);
@@ -154,7 +161,18 @@ int main(int argc, char** argv) {
     if (modWheel   >= 0) eng.modWheel((uint8_t)modWheel);
     if (aftertouch >= 0) eng.aftertouch((uint8_t)aftertouch);
     if (expression >= 0) eng.expression((uint8_t)expression);
-    eng.render(L.data() + ctlAt, R.data() + ctlAt, hold - ctlAt);
+    if (note2 >= 0) {
+        const int at = (int)(SR * note2At);
+        if (at >= ctlAt && at < hold) {
+            eng.render(L.data() + ctlAt, R.data() + ctlAt, at - ctlAt);
+            eng.noteOn((uint8_t)note2, (uint8_t)vel);
+            eng.render(L.data() + at, R.data() + at, hold - at);
+        } else {
+            eng.render(L.data() + ctlAt, R.data() + ctlAt, hold - ctlAt);
+        }
+    } else {
+        eng.render(L.data() + ctlAt, R.data() + ctlAt, hold - ctlAt);
+    }
     printf("  voices after note-on: %d\n", eng.activeVoices());
     eng.noteOff((uint8_t)note);
     eng.render(L.data() + hold, R.data() + hold, tail);

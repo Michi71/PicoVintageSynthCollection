@@ -765,6 +765,13 @@ void Engine::updateModulation(Voice& v, uint32_t clock) {
     // Skipped entirely when the depth is zero, which is 471 of 539 tones.
     float cents = matPitch, tvaDb = matLevelDb, cutoff = 0.0f;
     if (v.penv.used) cents += v.penv.tick() * v.penvDepthSemis * 100.0f;
+    if (v.portaCents != 0.0f) {
+        cents += v.portaCents;
+        v.portaCents -= v.portaStep;
+        // Stop exactly on zero rather than overshooting into a detune.
+        if ((v.portaStep > 0.0f && v.portaCents < 0.0f) ||
+            (v.portaStep < 0.0f && v.portaCents > 0.0f)) v.portaCents = 0.0f;
+    }
     // The matrix moves the cutoff in cents; the filter wants parameter units.
     const float cutoffParamsFromMatrix = matCutoff / 67.0f;
     for (int i = 0; i < 2; i++) {
@@ -804,7 +811,8 @@ void Engine::updateModulation(Voice& v, uint32_t clock) {
     v.cutoffMod = cutoff;
 }
 
-void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
+void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel,
+                        int fromNote) {
     const uint8_t* t = patch_ + JV_TONE_OFFSET + toneIndex * JV_TONE_SIZE;
     Sample s;
     if (!sampleFor(t[1], note, s)) { v.active = false; return; }
@@ -1029,28 +1037,130 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
     v.lfoGain = 1.0f;
     v.cutoffMod = 0.0f;
     v.resMod = 0.0f;
+    beginGlide(v, fromNote, note);
     updateModulation(v, clock_);
     updateFilterCoeffs(v);
 }
 
+// Sets up the portamento ramp for a voice that has just been tuned to `toNote`.
+// The offset starts at the interval from the note being left and walks to zero,
+// linearly in cents. TIME holds the duration constant whatever the interval;
+// RATE holds the speed constant, so the duration scales with it.
+void Engine::beginGlide(Voice& v, int fromNote, uint8_t toNote) {
+    v.portaCents = 0.0f;
+    v.portaStep = 0.0f;
+    if (!portaOn() || fromNote < 0 || fromNote == (int)toNote) return;
+
+    const float semis = (float)fromNote - (float)toNote;
+    const float octMs = JV_PORTA_OCTAVE_MS(patch_[25] & 0x7F);
+    float ms = octMs;
+    if (patch_[25] & JV_PORTA_TYPE_RATE_BIT) ms *= fabsf(semis) / 12.0f;
+    if (ms < 1.0f) return;
+
+    const float ticks = ms * 0.001f * (float)sr_ / (float)kControlDiv;
+    v.portaCents = semis * 100.0f;
+    v.portaStep = v.portaCents / (ticks > 1.0f ? ticks : 1.0f);
+}
+
+// Retunes whatever is sounding to a new note without restarting it, which is
+// what SOLO legato does: the sample keeps running and only the rate changes.
+// The multisample zone is deliberately NOT re-selected -- that is the point of
+// legato, and re-picking it would restart the sample.
+bool Engine::retuneVoices(uint8_t note, int fromNote) {
+    bool any = false;
+    for (auto& v : voices_) {
+        if (!v.active || v.tva.idle()) continue;
+        const uint8_t* t = patch_ + JV_TONE_OFFSET + v.tone * JV_TONE_SIZE;
+        const float pkf = jv_kf16(t[40] & 15) * 0.01f;
+        const float effNote = 60.0f + ((float)note - 60.0f) * pkf;
+        float semis = effNote - (float)v.smp.rootKey;
+        semis += (float)(int8_t)t[37];
+        semis += (float)(int8_t)t[38] * 0.01f;
+        float cents = ((float)v.smp.tune - 1024.0f) * 0.1f + kMasterTuneCents;
+        float ratio = powf(2.0f, semis * (1.0f / 12.0f) + cents * (1.0f / 1200.0f));
+        ratio *= 32000.0f / (float)sr_ * pitchTrim_;
+        if (ratio < 0.0f) ratio = 0.0f;
+        if (ratio > 8.0f) ratio = 8.0f;
+        v.baseInc = (uint32_t)(ratio * 65536.0f);
+        v.note = note;
+        beginGlide(v, fromNote, note);
+        any = true;
+    }
+    return any;
+}
+
 void Engine::noteOn(uint8_t note, uint8_t velocity) {
     if (!patch_) return;
+
+    // Track held keys regardless of mode; SOLO needs the stack and POLY costs
+    // nothing for it.
+    if (heldN_ < (int)(sizeof held_)) held_[heldN_++] = note;
+
+    const int from = soloNote_;
+    const bool legato = soloMode() && heldN_ > 1 && from >= 0;
+
+    if (soloMode()) {
+        // Legato under SOLO keeps the sample running and only retunes, but only
+        // when the patch asks for it. Portamento in LEGATO mode likewise glides
+        // only when a key was already down.
+        if (legato && soloLegato() && retuneVoices(note, from)) {
+            soloNote_ = note;
+            return;
+        }
+        for (auto& v : voices_) if (v.active) { v.tva.release(); v.tvf.release(); v.penv.release(); }
+    }
+
+    const int glideFrom = (!portaOn() || (portaLegatoOnly() && !legato)) ? -1 : from;
+    soloNote_ = note;
+
     ++panAlt_;   // one step per note, so alternating tones swap sides
     for (int tone = 0; tone < 4; tone++) {
         const uint8_t* t = patch_ + JV_TONE_OFFSET + tone * JV_TONE_SIZE;
         if (!(t[0] & 0x80)) continue;                        // tone switched off
         if (velocity < t[3] || velocity > t[4]) continue;    // velocity window
-        startVoice(voices_[allocVoice()], tone, note, velocity);
+        startVoice(voices_[allocVoice()], tone, note, velocity, glideFrom);
     }
 }
 
 void Engine::noteOff(uint8_t note) {
+    // Drop it from the held stack wherever it sits -- keys are not always
+    // released in the order they were pressed.
+    for (int i = 0; i < heldN_; i++) {
+        if (held_[i] == note) {
+            for (int j = i; j + 1 < heldN_; j++) held_[j] = held_[j + 1];
+            --heldN_;
+            break;
+        }
+    }
+
+    // Under SOLO, releasing the sounding note falls back to whatever is still
+    // held rather than stopping -- that is what makes a trill under one finger
+    // work. Only when nothing is left does the voice release.
+    if (soloMode() && (int)note == soloNote_ && heldN_ > 0) {
+        const uint8_t back = held_[heldN_ - 1];
+        const int from = soloNote_;
+        if (soloLegato() && retuneVoices(back, from)) { soloNote_ = back; return; }
+        for (auto& v : voices_) if (v.active) { v.tva.release(); v.tvf.release(); v.penv.release(); }
+        const int glideFrom = portaOn() ? from : -1;
+        soloNote_ = back;
+        ++panAlt_;
+        for (int tone = 0; tone < 4; tone++) {
+            const uint8_t* t = patch_ + JV_TONE_OFFSET + tone * JV_TONE_SIZE;
+            if (!(t[0] & 0x80)) continue;
+            startVoice(voices_[allocVoice()], tone, back, 100, glideFrom);
+        }
+        return;
+    }
+
+    if ((int)note == soloNote_) soloNote_ = -1;
     for (auto& v : voices_)
         if (v.active && v.note == note) { v.tva.release(); v.tvf.release(); v.penv.release(); }
 }
 
 void Engine::allNotesOff() {
     for (auto& v : voices_) v.active = false;
+    heldN_ = 0;
+    soloNote_ = -1;
 }
 
 int Engine::activeVoices() const {

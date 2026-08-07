@@ -207,6 +207,11 @@ private:
         float    lfoGain;      // TVA modulation, linear, refreshed at control rate
         float    cutoffMod;    // TVF modulation, parameter units
         float    fxmK;         // FXM depth as a fraction of the playback rate, 0 = off
+        // Portamento: an offset in cents that starts at the interval from the
+        // previous note and ramps to zero. The glide is linear in cents, as
+        // measured.
+        float    portaCents;
+        float    portaStep;    // cents per control tick, always toward zero
         uint32_t age;
     };
 
@@ -268,7 +273,19 @@ private:
 
     void renderBlock(float* left, float* right, int frames);
     int  allocVoice();
-    void startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel);
+    void startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel,
+                    int fromNote);
+    // Retunes the sounding voices to a new note without retriggering, which is
+    // what SOLO legato does. Returns false if nothing was sounding.
+    bool retuneVoices(uint8_t note, int fromNote);
+    void beginGlide(Voice& v, int fromNote, uint8_t toNote);
+
+    bool soloMode() const   { return patch_ && (patch_[24] & JV_KEY_ASSIGN_SOLO_BIT); }
+    bool portaOn() const    { return patch_ && (patch_[24] & JV_PORTA_SWITCH_BIT); }
+    bool soloLegato() const { return patch_ && (patch_[24] & JV_SOLO_LEGATO_BIT); }
+    bool portaLegatoOnly() const {
+        return patch_ && (patch_[24] & JV_PORTA_MODE_LEGATO_BIT);
+    }
     bool sampleFor(int waveNumber, uint8_t note, Sample& out) const;
     int32_t decodeStep(Voice& v) const;
     void updateFilterCoeffs(Voice& v);
@@ -291,6 +308,12 @@ private:
     // machine, not one per voice -- voices sounding together must stay in step
     // with each other the way a hardware divider makes them.
     uint32_t clock_ = 0;
+    // Notes currently held, most recent last. SOLO plays the last of them and
+    // falls back to the one before when a key is released, which is what makes
+    // a trill under one finger work.
+    uint8_t  held_[16]{};
+    int      heldN_ = 0;
+    int      soloNote_ = -1;   // what the sounding voices are tuned to
     uint32_t panAlt_ = 0;      // toggles for tones set to alternating pan
     int      voiceLimit_ = kMaxVoices;
     Chorus   chorus_;

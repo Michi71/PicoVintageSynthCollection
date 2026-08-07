@@ -915,6 +915,43 @@ Two things worth carrying forward:
   exactly like PAN-DLY putting both taps on both channels, which sent the
   implementation off after a bug that was not there.
 
+## Key assign and portamento
+
+Patch common +24 holds the voice-assignment flags -- key assign SOLO in bit 7
+(11 of 192 patches), portamento switch in bit 6 (6 patches), solo legato in bit
+5 (16 patches), portamento mode in bit 4 -- and +25 the portamento time with its
+type in the top bit.
+
+Measured by playing a sine in SOLO and sending a second note-on an octave up one
+second in, then tracking the pitch through the glide. **The glide is linear in
+cents**: at time 50 it covers 193 / 251 / 248 / 254 / 230 cents in successive
+50 ms windows, constant to the resolution of the tracker. Duration for one
+octave:
+
+    t = 13.6 ms * 2^(value / 12.3)
+
+**TIME and RATE differ exactly as the names say.** At time 56 a glide of 5, 12
+and 19 semitones took 300 / 300 / 290 ms in TIME mode -- the same duration
+whatever the interval -- and 120 / 300 / 490 ms in RATE mode, the same 25 ms per
+semitone throughout. One law serves both: the fit above is the duration of an
+octave, and RATE scales it by the interval.
+
+The engine reproduces both within 4 %: 30 / 110 / 290 / 750 / 1200 ms against
+30 / 110 / 300 / 740 / 1150 at time 24 / 40 / 56 / 72 / 80, and the interval
+behaviour of each mode exactly.
+
+SOLO keeps a stack of held keys and plays the last of them, falling back to the
+one before when a key is released -- which is what makes a trill under one
+finger work. Solo legato retunes the sounding voices in place instead of
+retriggering; the multisample zone is deliberately not re-selected, since
+re-picking it would restart the sample, and not restarting is the whole point.
+
+One harness note: `jv_engine_test` grew `--note2` and `--note2at`, because
+nothing about portamento or legato is visible with a single note. The first
+version placed the second note-on with `at > ctlAt`, and the obvious test value
+of 1.0 s is exactly `ctlAt` -- so the note never sounded and the engine appeared
+to have no portamento at all.
+
 ## Two more sources, and what they were each good for
 
 **Roland's "JV Master Class" supplemental notes** (SN08, 1996, a Keyboard
