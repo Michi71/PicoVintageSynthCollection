@@ -431,6 +431,54 @@ static inline float jv_tvf_velocity_scale(int sens, float vel) {
 #define JV_FXM_SWITCH_BIT   0x80
 #define JV_FXM_DEPTH_MASK   0x0F
 
+// ------------------------------------------------------------------- chorus
+// MEASURED by playing the ROM's own white noise (multisample 72 is the sine,
+// 74 the noise) with the tone's dry level at 0 and its chorus send at 127, so
+// the output IS the chorus, and cross-correlating against a dry render of the
+// same note to recover the delay as a function of time.
+//
+// It is a STEREO MODULATED DELAY. Base delay 578 samples (18.06 ms); the two
+// channels modulate in ANTIPHASE, and the minimum sits at 578 for both -- the
+// modulation only ever lengthens.
+//
+//   depth sets the delay SLOPE:  1.738 * (depth + 18) samples per second,
+//                                252 at full depth, about 13.6 cents of pitch
+//   rate  sets the LFO period:   f = 126 / (183 - 1.344 * rate) Hz,
+//                                0.69 Hz at rate 0, 10.2 Hz at 127
+//   excursion follows as slope / (2f)
+//
+// Checked against all sixteen measured rate points and four depth points: the
+// model reproduces every excursion to about 2 % (e.g. depth 127 rate 8 gives
+// 172 against 172 measured, rate 64 gives 97 against 96, rate 127 gives 12.3
+// against 12) and the period is independent of depth, as measured (760 ms at
+// rate 64 for every depth).
+//
+// Level is exactly linear in the parameter: rms/level came out 0.0002464,
+// 0.0002464, 0.0002462, 0.0002462, 0.0002448 at level 16..127. Full scale is
+// 1.30, not 1.0 -- fitted from a constant 2.26 dB offset against the reference
+// that was the same at every depth.
+//
+// Feedback is a comb: the output rises by 1.000 / 1.014 / 1.055 / 1.145 /
+// 1.436 at feedback 0 / 32 / 64 / 96 / 127, which is 1/sqrt(1-g^2) for
+// g = 0.72 * fb/127.
+#define JV_CHORUS_BASE_DELAY   578.0f
+#define JV_CHORUS_SLOPE(depth) (1.738f * ((float)(depth) + 18.0f))
+#define JV_CHORUS_RATE_HZ(r)   (126.0f / (183.0f - 1.344f * (float)(r)))
+#define JV_CHORUS_FEEDBACK(fb) (0.72f * (float)(fb) / 127.0f)
+#define JV_CHORUS_LEVEL_GAIN   1.30f
+#define JV_CHORUS_MAX_DELAY    768   // base + the largest excursion, 183 at rate 0
+// Bit 7 of the chorus level byte routes the chorus into the REVERB instead of
+// the mix; with the reverb level at zero that measured as exact silence.
+#define JV_CHORUS_TO_REVERB_BIT 0x80
+// Chorus type lives in bits 4-5 of the patch-common reverb/chorus byte. The
+// factory banks use CHORUS1 on 170 patches and CHORUS2 on 22; CHORUS3 does not
+// occur and measured identical to CHORUS1. CHORUS2 is NOT characterised: its
+// output does not correlate with any single delayed copy of the input at any
+// lag from 0.3 to 125 ms, so it is not a plain modulated delay. It is given
+// CHORUS1's structure here.
+#define JV_CHORUS_TYPE1 0
+#define JV_CHORUS_TYPE2 1
+
 // ------------------------------------------------------------------- matrix
 // Modulation matrix. Sensitivity is signed with an effective range of +-63;
 // 64..127 disables the slot, the same convention as the LFO depths.

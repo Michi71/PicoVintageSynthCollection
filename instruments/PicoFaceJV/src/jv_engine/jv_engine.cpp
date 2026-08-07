@@ -352,6 +352,86 @@ float Engine::Filter::run(float in, float g, float k, int mode) {
     return (mode == JV_TVF_MODE_HPF) ? (in - k * v1 - v2) : v2;
 }
 
+// -------------------------------------------------------------------- chorus
+
+void Engine::Chorus::reset() {
+    for (int i = 0; i < JV_CHORUS_MAX_DELAY; i++) bufL[i] = bufR[i] = 0.0f;
+    pos = 0;
+    phase = 0.0f;
+}
+
+// p points at the 14 patch-common bytes; the chorus fields are +4 (type, in
+// bits 4-5 of the shared reverb/chorus byte), +16 level, +17 depth, +18 rate,
+// +19 feedback -- indices here are relative to the patch, not the block.
+void Engine::Chorus::configure(const uint8_t* patch, uint32_t sr) {
+    const int lvlByte = patch[16];
+    level    = (float)(lvlByte & 0x7F) * (JV_CHORUS_LEVEL_GAIN / 127.0f);
+    toReverb = (lvlByte & JV_CHORUS_TO_REVERB_BIT) != 0;
+    feedback = JV_CHORUS_FEEDBACK(patch[19]);
+
+    const float hz = JV_CHORUS_RATE_HZ(patch[18]);
+    const float slope = JV_CHORUS_SLOPE(patch[17]);   // samples per second
+    inc = hz / (float)sr;
+    // The excursion is what the slope and the turn-around rate imply: the delay
+    // slides at `slope` and reverses twice per cycle.
+    excursion = slope / (2.0f * hz);
+    const float room = (float)JV_CHORUS_MAX_DELAY - JV_CHORUS_BASE_DELAY - 2.0f;
+    if (excursion > room) excursion = room;
+}
+
+void Engine::Chorus::process(const float* inL, const float* inR,
+                             float* left, float* right, int n) {
+    if (level <= 0.0f) return;
+    for (int i = 0; i < n; i++) {
+        phase += inc;
+        if (phase >= 1.0f) phase -= 1.0f;
+        // Triangle, 0..1, and the right channel half a cycle behind it. The two
+        // channels measured as exact antiphase with a common minimum.
+        const float tl = phase < 0.5f ? phase * 2.0f : 2.0f - phase * 2.0f;
+        const float tr = 1.0f - tl;
+
+        const float dl = JV_CHORUS_BASE_DELAY + tl * excursion;
+        const float dr = JV_CHORUS_BASE_DELAY + tr * excursion;
+
+        // Bias the read position up by a whole buffer so it can never go
+        // negative: truncation toward zero on a negative value yields a
+        // NEGATIVE fraction, which makes the interpolator extrapolate backwards
+        // instead of between the two samples. With the write pointer cycling
+        // 0..767 and the delay sitting at 578..761 that happened three quarters
+        // of the time, and the output stopped resembling a delayed copy at all
+        // -- correlation against the dry signal fell to 0.13.
+        const float bias = (float)JV_CHORUS_MAX_DELAY;
+        float outL, outR;
+        {
+            const float fp = (float)pos - dl + bias;
+            const int   ip = (int)fp;
+            const float fr = fp - (float)ip;
+            const int   a = ip % JV_CHORUS_MAX_DELAY;
+            const int   b = (a + 1) % JV_CHORUS_MAX_DELAY;
+            outL = bufL[a] + (bufL[b] - bufL[a]) * fr;
+        }
+        {
+            const float fp = (float)pos - dr + bias;
+            const int   ip = (int)fp;
+            const float fr = fp - (float)ip;
+            const int   a = ip % JV_CHORUS_MAX_DELAY;
+            const int   b = (a + 1) % JV_CHORUS_MAX_DELAY;
+            outR = bufR[a] + (bufR[b] - bufR[a]) * fr;
+        }
+
+        bufL[pos] = inL[i] + outL * feedback;
+        bufR[pos] = inR[i] + outR * feedback;
+        if (++pos >= JV_CHORUS_MAX_DELAY) pos = 0;
+
+        // toReverb routes the chorus into the reverb instead of the mix. There
+        // is no reverb yet, and dropping the chorus entirely for the ten
+        // factory patches that ask for it would lose more than it gains, so it
+        // is mixed in regardless for now.
+        left[i]  += outL * level;
+        right[i] += outR * level;
+    }
+}
+
 // -------------------------------------------------------------------- engine
 
 bool Engine::init(const RomView& rom, uint32_t sampleRate) {
@@ -368,12 +448,16 @@ bool Engine::selectPatch(int bank, int index) {
     static const uint32_t banks[3] = {JV_BANK_USER, JV_BANK_A, JV_BANK_B};
     if (bank < 0 || bank > 2 || index < 0 || index >= 64) return false;
     patch_ = rom_.rom2 + banks[bank] + (size_t)index * JV_PATCH_SIZE;
+    chorus_.configure(patch_, sr_);
+    chorus_.reset();
     return true;
 }
 
 void Engine::setPatch(const uint8_t* patch362) {
     memcpy(patchCopy_, patch362, JV_PATCH_SIZE);
     patch_ = patchCopy_;
+    chorus_.configure(patch_, sr_);
+    chorus_.reset();
 }
 
 bool Engine::sampleFor(int waveNumber, uint8_t note, Sample& out) const {
@@ -644,13 +728,6 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
     // multiplying by it wrongly attenuated 233 of the 577 samples.
     float lvl = patchLevelToLinear(patch_[21]) * levelToLinear(t[67]) * analogLevel;
 
-    // The output dry level scales the direct path on its own, separately from
-    // the sends. 31 of 539 factory tones set it below 127 and six of those sit
-    // at or near zero: on the hardware those tones are heard only through the
-    // chorus or reverb. With no effects yet they simply drop out, which is what
-    // the dry path does -- no patch loses all four tones this way.
-    lvl *= levelToLinear(t[81]);
-
     // Velocity: the curve warps velocity first, then the sensitivity law acts
     // on the warped value. Curve 1 (stored 0) is the straight line the whole
     // velocity calibration was measured on, so it stays an exact identity.
@@ -697,6 +774,15 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel) {
     float atten = powf(10.0f, lookup(JV_TVA_PAN_ATTEN_DB, 32, pan) * (1.0f / 20.0f));
     if (pan <= 64) { v.gainL = lvl;         v.gainR = lvl * atten; }
     else           { v.gainL = lvl * atten; v.gainR = lvl; }
+
+    // The output section splits the panned signal three ways. Dry level scales
+    // the direct path on its own; 31 of 539 factory tones set it below 127 and
+    // six sit at or near zero, which on the hardware means they are heard only
+    // through the effects. The sends are taken after the pan, as the manual's
+    // block diagram has it -- level and panning sit inside the TVA, ahead of
+    // the output section.
+    v.dryGain = levelToLinear(t[81]);
+    v.choGain = levelToLinear(t[83]);
 
     // TVA envelope: times at +74/+76/+78/+80, levels at +75/+77/+79.
     v.tvaT[0] = t[74]; v.tvaT[1] = t[76]; v.tvaT[2] = t[78]; v.tvaT[3] = t[80];
@@ -824,9 +910,23 @@ int Engine::activeVoices() const {
     return n;
 }
 
+// Chunked so the effect send buses can be fixed-size scratch rather than
+// something sized by whatever the caller asks for.
 void Engine::render(float* left, float* right, int frames) {
+    int done = 0;
+    while (done < frames) {
+        int n = frames - done;
+        if (n > kRenderBlock) n = kRenderBlock;
+        renderBlock(left + done, right + done, n);
+        done += n;
+    }
+}
+
+void Engine::renderBlock(float* left, float* right, int frames) {
     memset(left, 0, sizeof(float) * (size_t)frames);
     memset(right, 0, sizeof(float) * (size_t)frames);
+    memset(choL_, 0, sizeof(float) * (size_t)frames);
+    memset(choR_, 0, sizeof(float) * (size_t)frames);
 
     // The free-running phases run whether or not a voice is using them.
     for (int i = 0; i < 2; i++) {
@@ -868,12 +968,16 @@ void Engine::render(float* left, float* right, int frames) {
                 s = v.filt.run(s, v.coefF, v.coefQ, v.filtMode);
             }
 
-            float a = v.tva.tick() * v.lfoGain;
-            left[i] += s * a * v.gainL;
-            right[i] += s * a * v.gainR;
+            const float a = v.tva.tick() * v.lfoGain;
+            const float sl = s * a * v.gainL, sr = s * a * v.gainR;
+            left[i]  += sl * v.dryGain;
+            right[i] += sr * v.dryGain;
+            choL_[i] += sl * v.choGain;
+            choR_[i] += sr * v.choGain;
         }
         if (v.tva.idle()) v.active = false;
     }
+    chorus_.process(choL_, choR_, left, right, frames);
     clock_ += (uint32_t)frames;
 }
 

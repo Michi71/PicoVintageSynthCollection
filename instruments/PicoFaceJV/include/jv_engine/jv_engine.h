@@ -17,6 +17,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "jv_calibration.h"   // JV_CHORUS_MAX_DELAY sizes the effect buffers
+
 namespace jv {
 
 // Descrambled 4 MiB wave ROM plus the 256 KiB firmware ROM holding the tables.
@@ -43,6 +45,8 @@ struct Sample {
 enum : int {
     kMaxVoices  = 24,   // the original is 28; this is the Pico budget
     kControlDiv = 32,   // filter coefficients update at this rate, like the chip
+    kRenderBlock = 64,  // render() chunks to this internally, so the effect
+                        // buses can live in fixed-size scratch
 };
 
 class Engine {
@@ -183,7 +187,9 @@ private:
         uint8_t  penvT[4];
         int8_t   penvL[4];
         float    penvDepthSemis;   // bipolar, +-12 semitones at full depth
-        float    gainL, gainR;
+        float    gainL, gainR;   // level and pan, BEFORE the output section
+        float    dryGain;        // output dry level
+        float    choGain;        // output chorus send
         float    cutoffBase;  // parameter units, 0..127
         float    envDepth;    // bipolar TVF envelope depth, parameter units
         float    resonance;   // 0..127
@@ -203,6 +209,27 @@ private:
         uint32_t age;
     };
 
+    // Patch-common chorus: a stereo modulated delay whose two channels sweep in
+    // antiphase. Depth sets how fast the delay slides (a constant pitch offset),
+    // rate sets how often it turns around; see jv_calibration.h. 170 of the 192
+    // factory patches use it.
+    struct Chorus {
+        float bufL[JV_CHORUS_MAX_DELAY]{}, bufR[JV_CHORUS_MAX_DELAY]{};
+        int   pos = 0;
+        float phase = 0.0f;      // 0..1 triangle
+        float inc = 0.0f;        // phase per sample
+        float excursion = 0.0f;  // samples
+        float feedback = 0.0f;
+        float level = 0.0f;      // 0 when the chorus is off
+        bool  toReverb = false;
+        void configure(const uint8_t* patchCommon, uint32_t sr);
+        void reset();
+        // Reads the send bus and adds its output to left/right.
+        void process(const float* inL, const float* inR,
+                     float* left, float* right, int n);
+    };
+
+    void renderBlock(float* left, float* right, int frames);
     int  allocVoice();
     void startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel);
     bool sampleFor(int waveNumber, uint8_t note, Sample& out) const;
@@ -229,6 +256,8 @@ private:
     uint32_t clock_ = 0;
     uint32_t panAlt_ = 0;      // toggles for tones set to alternating pan
     int      voiceLimit_ = kMaxVoices;
+    Chorus   chorus_;
+    float    choL_[kRenderBlock]{}, choR_[kRenderBlock]{};   // the send bus
 };
 
 } // namespace jv

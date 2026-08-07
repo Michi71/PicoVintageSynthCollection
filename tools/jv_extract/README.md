@@ -776,6 +776,56 @@ velocity range lower/upper as a per-tone window; pan L64..63R with 128 as the
 setting the panel calls RND; patch level, tone level and the sends all being
 independent 0..127 controls.
 
+## The chorus
+
+Measured by isolating it: the tone's dry level at 0 and its chorus send at 127
+makes the output nothing BUT the chorus, and cross-correlating that against a
+dry render of the same note recovers the delay as a function of time. The ROM's
+own white noise (multisample 74) is the source; the sine (72) is better for
+anything to do with pitch.
+
+It is a **stereo modulated delay**, base delay 578 samples (18.06 ms), the two
+channels sweeping in **antiphase** with a common minimum -- the modulation only
+ever lengthens. Depth sets the delay SLOPE, rate sets the LFO period, and the
+excursion follows:
+
+    slope     = 1.738 * (depth + 18) samples/s   (252 at full depth)
+    f         = 126 / (183 - 1.344 * rate) Hz    (0.69 Hz at 0, 10.2 at 127)
+    excursion = slope / (2f)
+
+That reproduces all sixteen measured rate points and four depth points to about
+2 %, and correctly predicts that the period does not depend on depth (760 ms at
+rate 64 for every depth, measured). Level is exactly linear in the parameter
+with a full scale of 1.30; feedback is a comb with `g = 0.72 * fb/127`; bit 7 of
+the level byte routes the chorus into the reverb instead of the mix, which
+measured as exact silence with the reverb turned down.
+
+Verified against the reference on a sine carrier: peak-to-peak pitch deviation
+13.6 / 20.7 / 32.3 cents at depth 32 / 64 / 127 against 13.5 / 20.9 / 32.5, and
+level within 0.07 dB.
+
+Three traps, all of which cost time here:
+
+* **The reference's effects DSP needs about 1.5 s from reset.** With the usual
+  1 s warm-up the chorus appears to start 454 ms after note-on; with
+  `JV_WARM=4` it starts after 20. Every effect measurement needs the longer
+  warm-up.
+* **Counting zero crossings is a bad period estimator.** It gave alternating
+  values that read as a depth-independent constant slope, which is wrong.
+  Autocorrelation with proper peak finding -- first local maximum after the
+  correlation goes negative -- gives a clean answer.
+* **Correlating white noise needs a lag step of 1 and a NORMALISED score.**
+  Stepping the lag by 4 misses the peak entirely, and maximising the
+  unnormalised correlation tracks the local energy of the dry signal instead of
+  the delay. Both produced "no peak anywhere" against a chorus that was in fact
+  correct.
+
+And one real bug it exposed: reading the delay line at `pos - delay` truncates
+toward zero when that goes negative, which yields a NEGATIVE interpolation
+fraction and makes the interpolator extrapolate backwards. With the write
+pointer cycling 0..767 and the delay at 578..761 it happened three quarters of
+the time. Biasing the read position up by a whole buffer length fixes it.
+
 ## Two more sources, and what they were each good for
 
 **Roland's "JV Master Class" supplemental notes** (SN08, 1996, a Keyboard
