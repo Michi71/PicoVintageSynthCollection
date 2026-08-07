@@ -12,7 +12,7 @@
  * veeprom discards records whose version field does not match.
  */
 
-#define JV_SETTINGS_VERSION 1u
+#define JV_SETTINGS_VERSION 2u
 
 struct __attribute__((packed)) JvSettingsV1 {
     uint8_t bank;        // 0 = User, 1 = A, 2 = B
@@ -21,6 +21,7 @@ struct __attribute__((packed)) JvSettingsV1 {
     uint8_t voices;      // polyphony cap, 1..24
     uint8_t midiCh;      // 0..15, 16 = Omni
     int8_t  masterTune;  // -50..+50 cents
+    uint8_t veloScale;   // 0..100 %, 100 = the machine's own response
 };
 
-static_assert(sizeof(JvSettingsV1) == 6, "JvSettingsV1 layout drifted");
+static_assert(sizeof(JvSettingsV1) == 7, "JvSettingsV1 layout drifted");

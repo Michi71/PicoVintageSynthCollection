@@ -955,6 +955,30 @@ Two things worth carrying forward:
   exactly like PAN-DLY putting both taps on both channels, which sent the
   implementation off after a bug that was not there.
 
+## Playing material that was not written for the JV
+
+The machine's velocity response is steep -- across 25 factory patches the median
+drop from velocity 127 to 64 is 11.7 dB, and A43 Syn Strat drops 19.6. That is
+faithful, and it is also awkward: a sequencer file whose velocities sit between
+60 and 100 comes out thin.
+
+The firmware therefore has a VELO page. It scales the incoming velocity toward
+127 before the engine sees anything, so 100 % passes it through untouched, 50 %
+halves the distance to 127 and 0 % makes every note full strength:
+
+| setting | v=48 | v=64 | v=80 | v=100 | level at v=64 |
+|---------|------|------|------|-------|---------------|
+| Orig | 48 | 64 | 80 | 100 | -- |
+| 75 % | 68 | 80 | 92 | 107 | +3 to +4 dB |
+| 50 % | 87 | 95 | 103 | 113 | +6 to +8 dB |
+| 25 % | 107 | 111 | 115 | 120 | +11 dB |
+| 0 % | 127 | 127 | 127 | 127 | +15 to +17 dB |
+
+The mapping happens before the engine, so the velocity curves, both velocity
+sensitivities and the per-tone velocity windows all act on the same value.
+That last one is the side effect to know about: compressing upward will also
+bring in tone layers a patch reserves for hard playing.
+
 ## MIDI: what the machine receives
 
 The manual's MIDI implementation (printed 10-32 f.) lists exactly what the

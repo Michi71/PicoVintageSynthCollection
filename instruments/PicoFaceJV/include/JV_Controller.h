@@ -19,6 +19,7 @@ enum class JvPage : uint8_t {
     VOLUME,
     VOICES,
     TUNE,
+    VELO,
     SYS,
     COUNT
 };
@@ -53,6 +54,7 @@ private:
     uint8_t voices_ = 16;     // 1..jv::kMaxVoices
     uint8_t midiCh_ = 16;     // 16 = Omni
     int8_t  tune_ = 0;        // cents
+    uint8_t veloScale_ = 100; // 0..100 %, 100 = untouched
 };
 
 #endif // JV_CONTROLLER_H

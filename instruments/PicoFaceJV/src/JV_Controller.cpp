@@ -53,6 +53,10 @@ void JV_Controller::onEncoderA(int delta) {
             tune_ = (int8_t)clampInt(tune_ + delta, -50, 50);
             bridge_.setMasterTune(tune_);
             break;
+        case JvPage::VELO:
+            veloScale_ = (uint8_t)clampInt(veloScale_ + delta * 5, 0, 100);
+            bridge_.setVelocityScale(veloScale_);
+            break;
         case JvPage::SYS:
             midiCh_ = (uint8_t)clampInt(midiCh_ + delta, 0, 16);
             break;
@@ -78,6 +82,7 @@ const char* JV_Controller::pageName() const {
         case JvPage::VOLUME: return "VOL";
         case JvPage::VOICES: return "VOICES";
         case JvPage::TUNE:   return "TUNE";
+        case JvPage::VELO:   return "VELO";
         case JvPage::SYS:    return "SYS";
         default:             return "";
     }
@@ -95,6 +100,10 @@ const char* JV_Controller::lineA(char* buf, size_t n) const {
         case JvPage::VOLUME: snprintf(buf, n, "Volume %u%%", volume_); break;
         case JvPage::VOICES: snprintf(buf, n, "Max %u", voices_); break;
         case JvPage::TUNE:   snprintf(buf, n, "Tune %+d ct", tune_); break;
+        case JvPage::VELO:
+            if (veloScale_ >= 100) snprintf(buf, n, "Velo Orig");
+            else                   snprintf(buf, n, "Velo %u%%", veloScale_);
+            break;
         case JvPage::SYS:
             if (midiCh_ >= 16) snprintf(buf, n, "MIDI Omni");
             else               snprintf(buf, n, "MIDI Ch %u", (unsigned)(midiCh_ + 1));
@@ -116,6 +125,11 @@ const char* JV_Controller::lineB(char* buf, size_t n) const {
         case JvPage::TUNE:
             snprintf(buf, n, "A4 %.1f Hz", 440.0 * pow(2.0, tune_ / 1200.0));
             break;
+        case JvPage::VELO:
+            // Show where a middle-strength note lands, which is the number that
+            // actually tells you what the setting is doing.
+            snprintf(buf, n, "64 -> %u", (unsigned)bridge_.mapVelocity(64));
+            break;
         default: buf[0] = 0; break;
     }
     return buf;
@@ -128,6 +142,7 @@ void JV_Controller::exportSettings(JvSettingsV1& s) const {
     s.voices = voices_;
     s.midiCh = midiCh_;
     s.masterTune = tune_;
+    s.veloScale = veloScale_;
 }
 
 void JV_Controller::importSettings(const JvSettingsV1& s) {
@@ -137,7 +152,9 @@ void JV_Controller::importSettings(const JvSettingsV1& s) {
     voices_ = (uint8_t)clampInt(s.voices, 1, jv::kMaxVoices);
     midiCh_ = (uint8_t)clampInt(s.midiCh, 0, 16);
     tune_   = (int8_t)clampInt(s.masterTune, -50, 50);
+    veloScale_ = (uint8_t)clampInt(s.veloScale, 0, 100);
 
+    bridge_.setVelocityScale(veloScale_);
     bridge_.setVolume(volume_);
     bridge_.setVoiceLimit(voices_);
     bridge_.setMasterTune(tune_);

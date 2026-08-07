@@ -14,7 +14,7 @@ void JV_Midi::onNoteOn(uint8_t ch, uint8_t note, uint8_t vel) {
     if (!accepts(ch) || note > 127) return;
     if (vel == 0) { onNoteOff(ch, note); return; }
     pedalHeld_[note >> 5] &= ~(1u << (note & 31));
-    bridge_.noteOn(note, vel);
+    bridge_.noteOn(note, bridge_.mapVelocity(vel));
 }
 
 void JV_Midi::onNoteOff(uint8_t ch, uint8_t note) {

@@ -48,6 +48,24 @@ public:
     void setPortaTimeOverride(int t)        { engine_.setPortaTimeOverride(t); }
     void setPortaSwitchOverride(int s)      { engine_.setPortaSwitchOverride(s); }
     void setMonoOverride(int m)             { engine_.setMonoOverride(m); }
+
+    // Incoming-velocity scaling, for playing back material that was not written
+    // for the JV. The machine drops about 11 dB from velocity 127 to 64 on a
+    // typical patch -- faithful, but it leaves a sequencer file sounding thin.
+    // 100 % passes velocity through untouched; lower values pull it toward 127,
+    // so 50 % halves the distance and 0 % makes every note full strength.
+    //
+    // The mapping happens before the engine sees anything, so the velocity
+    // curves, the TVA and TVF sensitivities and the per-tone velocity windows
+    // all act on the same value. That last one is worth knowing: compressing
+    // upward will also bring in tone layers a patch reserves for hard playing.
+    void    setVelocityScale(uint8_t pct) { veloScale_ = pct > 100 ? 100 : pct; }
+    uint8_t velocityScale() const { return veloScale_; }
+    uint8_t mapVelocity(uint8_t v) const {
+        if (veloScale_ >= 100 || v >= 127) return v;
+        const int m = 127 - ((127 - (int)v) * (int)veloScale_ + 50) / 100;
+        return (uint8_t)(m < 1 ? 1 : m);
+    }
     void setVoiceLimit(int n)                 { engine_.setVoiceLimit(n); }
     int  voiceLimit() const                   { return engine_.voiceLimit(); }
     void setMasterTune(int cents);            // -50..+50
@@ -70,6 +88,7 @@ private:
     int   bendOverride_ = -1;
     float rpnCents_ = 0.0f;
     float bendRatio_ = 1.0f;
+    uint8_t veloScale_ = 100;
     float midiGain_ = 1.0f;
     float panL_ = 1.0f, panR_ = 1.0f;
     float bufL_[kBlock]{}, bufR_[kBlock]{};
