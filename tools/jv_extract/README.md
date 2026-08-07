@@ -245,6 +245,26 @@ linear interpolation, which is a real but much smaller difference.
   8 / 16 / 25, and -3.59 / -7.52 / -11.62 dB at velocity 64. The attenuation
   tracks the product `sensitivity * (127 - velocity)`.
 
+  RE-MEASURED on a full grid -- nine sensitivities against eight velocities,
+  63 usable points -- after a listening report that middle velocities came out
+  too quiet. The product model itself holds: three independent settings near
+  product 1500 give 9.82 / 10.33 / 10.51 dB and near 2000 give 13.01 / 13.01 /
+  13.51. What was wrong was the curve through them. The old table was built
+  from just two velocities, 100 and 64, and ran 1 to 3 dB too steep through the
+  middle of the range -- exactly where MIDI files live -- and badly steep at the
+  top: 45.25 dB against the machine's 37.78 at product 3969.
+
+  With the new table the engine reproduces the grid to a mean absolute error of
+  **0.33 dB** over all 63 points, against roughly 1 dB before.
+
+  Worth being clear about what this did NOT fix. Measured per patch, the drop
+  from velocity 127 to 64 is now right on ten patches and slightly too shallow
+  on eleven; before it was uniformly a little too steep. The isolated law being
+  accurate to 0.33 dB while whole patches still scatter by about a decibel says
+  a second mechanism is involved -- most likely the TVF velocity sensitivity,
+  which darkens the tone at lower velocity and takes level with it. That is the
+  next thing to measure.
+
   The first model boosted above velocity 64 instead. Because factory patches
   carry sensitivities of 13..42, that spurious boost had been standing in for a
   10.5 dB base offset in the output normalisation, and the two together looked
@@ -633,6 +653,26 @@ pointed at the traversal itself rather than the data.
   in proportion: -1.56 / -3.10 / -4.91 dB at velocity 100 for sensitivities
   8 / 16 / 25, and -3.59 / -7.52 / -11.62 dB at velocity 64. The attenuation
   tracks the product `sensitivity * (127 - velocity)`.
+
+  RE-MEASURED on a full grid -- nine sensitivities against eight velocities,
+  63 usable points -- after a listening report that middle velocities came out
+  too quiet. The product model itself holds: three independent settings near
+  product 1500 give 9.82 / 10.33 / 10.51 dB and near 2000 give 13.01 / 13.01 /
+  13.51. What was wrong was the curve through them. The old table was built
+  from just two velocities, 100 and 64, and ran 1 to 3 dB too steep through the
+  middle of the range -- exactly where MIDI files live -- and badly steep at the
+  top: 45.25 dB against the machine's 37.78 at product 3969.
+
+  With the new table the engine reproduces the grid to a mean absolute error of
+  **0.33 dB** over all 63 points, against roughly 1 dB before.
+
+  Worth being clear about what this did NOT fix. Measured per patch, the drop
+  from velocity 127 to 64 is now right on ten patches and slightly too shallow
+  on eleven; before it was uniformly a little too steep. The isolated law being
+  accurate to 0.33 dB while whole patches still scatter by about a decibel says
+  a second mechanism is involved -- most likely the TVF velocity sensitivity,
+  which darkens the tone at lower velocity and takes level with it. That is the
+  next thing to measure.
 
   The first model boosted above velocity 64 instead. Because factory patches
   carry sensitivities of 13..42, that spurious boost had been standing in for a

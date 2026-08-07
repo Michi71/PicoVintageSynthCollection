@@ -206,15 +206,28 @@ static const float JV_LFO_PITCH_DEPTH_CENTS[9] = {
 // velocity 64 instead, which was wrong in direction and, because factory
 // patches carry sensitivities of 13..42, masked a ~10 dB base level error.
 //
-// The attenuation tracks the product velo * (127 - velocity) closely: about
-// 0.0072 dB per unit up to ~2100, steepening beyond. Table below is that
-// product against decibels.
-static const float JV_TVA_VELO_PRODUCT[10] = {
-    0.0f, 216.0f, 432.0f, 504.0f, 675.0f, 1008.0f, 1575.0f, 2142.0f, 3024.0f, 3969.0f,
+// The attenuation tracks the product velo * (127 - velocity). RE-MEASURED on a
+// full grid -- nine sensitivities against eight velocities, 63 usable points --
+// after the first table turned out to be built from just two velocities (100
+// and 64) and to run 1 to 3 dB too steep through the middle of the range, which
+// is exactly where MIDI files live.
+//
+// The product model itself holds well: three independent settings landing near
+// product 1500 give 9.82, 10.33 and 10.51 dB, and near 2000 give 13.01, 13.01
+// and 13.51. What was wrong was the curve through those points, not the idea.
+//
+// The old table read 6.39 / 9.60 / 15.89 / 21.22 dB at product 864 / 1296 /
+// 2160 / 2700 where the machine gives 5.21 / 8.09 / 14.96 / 18.27, and it ran
+// away badly at the top: 45.25 against 37.78 at 3969.
+static const float JV_TVA_VELO_PRODUCT[16] = {
+    0.0f, 216.0f, 432.0f, 648.0f, 864.0f, 1080.0f, 1296.0f, 1512.0f,
+    1728.0f, 1944.0f, 2160.0f, 2400.0f, 2700.0f, 3000.0f, 3400.0f, 3969.0f,
 };
-static const float JV_TVA_VELO_ATTEN_DB[10] = {
-    0.0f,   1.56f,  3.10f,  3.59f,  4.91f,   7.52f,  11.62f,  15.71f,  24.42f,  45.25f,
+static const float JV_TVA_VELO_ATTEN_DB[16] = {
+    0.00f, 1.29f, 2.80f, 4.42f, 5.21f, 6.84f, 8.09f, 10.04f,
+    11.89f, 12.79f, 14.96f, 16.59f, 18.27f, 22.78f, 27.62f, 37.78f,
 };
+#define JV_TVA_VELO_POINTS 16
 //
 // Flags bit 6 is KEY SYNC. Measured by shifting the note-on in time (JV_WARM)
 // and timing the first square-wave edge: with the bit clear the edge moves so

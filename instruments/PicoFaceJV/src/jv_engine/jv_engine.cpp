@@ -96,7 +96,7 @@ float velocityAttenDb(int sens, int vel) {
     if (sens <= 0) return 0.0f;
     const float prod = (float)sens * (float)(127 - vel);
     if (prod <= 0.0f) return 0.0f;
-    for (int i = 0; i < 9; i++) {
+    for (int i = 0; i < JV_TVA_VELO_POINTS - 1; i++) {
         if (prod <= JV_TVA_VELO_PRODUCT[i + 1]) {
             const float t = (prod - JV_TVA_VELO_PRODUCT[i]) /
                             (JV_TVA_VELO_PRODUCT[i + 1] - JV_TVA_VELO_PRODUCT[i]);
@@ -104,7 +104,7 @@ float velocityAttenDb(int sens, int vel) {
                    (JV_TVA_VELO_ATTEN_DB[i + 1] - JV_TVA_VELO_ATTEN_DB[i]) * t;
         }
     }
-    return JV_TVA_VELO_ATTEN_DB[9];
+    return JV_TVA_VELO_ATTEN_DB[JV_TVA_VELO_POINTS - 1];
 }
 
 // Level modulation is the one destination that is not linear in sensitivity.
