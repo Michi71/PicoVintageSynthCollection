@@ -820,6 +820,25 @@ Three traps, all of which cost time here:
   the delay. Both produced "no peak anywhere" against a chorus that was in fact
   correct.
 
+**CHORUS2 is the same delay, deeper and faster.** It was written off earlier as
+"not a plain modulated delay" because cross-correlation against the dry signal
+found no peak at any lag from 0.3 to 125 ms. That was the measurement, not the
+effect: at these slopes the delay moves 24 samples inside a 16 ms analysis
+window, which smears the peak away entirely. A sine carrier settles it, because
+it does not care how fast the delay sweeps -- only where the pitch ends up.
+Measured at depth 127: 195.6 cents of peak-to-peak deviation against CHORUS1's
+32.5 at every rate, and a period of 576 / 416 / 224 ms against 1120 / 768 / 448
+at rate 32 / 64 / 96 -- half, to within 4 %.
+
+Two notes on getting the engine to match it. The slope multiplier that works is
+8, not the 6 the cents ratio implies, judged by energy-weighted spectral spread:
+10.14 and 15.80 Hz against the reference's 9.27 and 14.79 at depth 64 and 127.
+Spread is the measure to trust here -- it needs no peak tracking and reproduces
+CHORUS1 to within 8 %, where the pitch tracker gave answers that changed with
+the analysis window. And the delay buffer had to grow from 768 to 1280 samples:
+CHORUS2 sweeps three times as far as CHORUS1, so the excursion clamp was biting
+silently and costing it a third of its deviation.
+
 And one real bug it exposed: reading the delay line at `pos - delay` truncates
 toward zero when that goes negative, which yields a NEGATIVE interpolation
 fraction and makes the interpolator extrapolate backwards. With the write

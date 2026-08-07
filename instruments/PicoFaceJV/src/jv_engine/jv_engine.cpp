@@ -369,8 +369,14 @@ void Engine::Chorus::configure(const uint8_t* patch, uint32_t sr) {
     toReverb = (lvlByte & JV_CHORUS_TO_REVERB_BIT) != 0;
     feedback = JV_CHORUS_FEEDBACK(patch[19]);
 
-    const float hz = JV_CHORUS_RATE_HZ(patch[18]);
-    const float slope = JV_CHORUS_SLOPE(patch[17]);   // samples per second
+    float hz = JV_CHORUS_RATE_HZ(patch[18]);
+    float slope = JV_CHORUS_SLOPE(patch[17]);   // samples per second
+    // CHORUS2 is the same delay six times deeper and twice as fast; 22 of the
+    // 192 factory patches use it. See jv_calibration.h.
+    if (((patch[12] >> 4) & 3) == JV_CHORUS_TYPE2) {
+        slope *= JV_CHORUS2_SLOPE_MUL;
+        hz    *= JV_CHORUS2_RATE_MUL;
+    }
     inc = hz / (float)sr;
     // The excursion is what the slope and the turn-around rate imply: the delay
     // slides at `slope` and reverses twice per cycle.

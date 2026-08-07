@@ -466,18 +466,44 @@ static inline float jv_tvf_velocity_scale(int sens, float vel) {
 #define JV_CHORUS_RATE_HZ(r)   (126.0f / (183.0f - 1.344f * (float)(r)))
 #define JV_CHORUS_FEEDBACK(fb) (0.72f * (float)(fb) / 127.0f)
 #define JV_CHORUS_LEVEL_GAIN   1.30f
-#define JV_CHORUS_MAX_DELAY    768   // base + the largest excursion, 183 at rate 0
+// Base delay plus the largest excursion any setting can ask for. CHORUS1 tops
+// out at 183 samples of swing (rate 0, full depth); CHORUS2 sweeps three times
+// as far, so the buffer has to hold 578 + 549. Sizing it for CHORUS1 alone let
+// the excursion clamp bite silently on CHORUS2 and cost it a third of its pitch
+// deviation.
+#define JV_CHORUS_MAX_DELAY   1280
 // Bit 7 of the chorus level byte routes the chorus into the REVERB instead of
 // the mix; with the reverb level at zero that measured as exact silence.
 #define JV_CHORUS_TO_REVERB_BIT 0x80
 // Chorus type lives in bits 4-5 of the patch-common reverb/chorus byte. The
 // factory banks use CHORUS1 on 170 patches and CHORUS2 on 22; CHORUS3 does not
-// occur and measured identical to CHORUS1. CHORUS2 is NOT characterised: its
-// output does not correlate with any single delayed copy of the input at any
-// lag from 0.3 to 125 ms, so it is not a plain modulated delay. It is given
-// CHORUS1's structure here.
+// occur and measured identical to CHORUS1.
+//
+// CHORUS2 is the same modulated delay, six times deeper and twice as fast.
+// Measured on a sine carrier at depth 127: 195.6 cents of peak-to-peak pitch
+// deviation against CHORUS1's 32.5 at every rate, and a period of 576 / 416 /
+// 224 ms against 1120 / 768 / 448 at rate 32 / 64 / 96 -- half, to within 4 %.
+// The excursion is therefore three times CHORUS1's.
+//
+// It was first written off as "not a plain modulated delay" because the
+// cross-correlation against the dry signal found no peak at any lag. That was
+// the measurement, not the effect: at these slopes the delay moves 24 samples
+// inside a 16 ms analysis window, which smears the peak away. The sine carrier
+// does not care how fast the delay sweeps, only where the pitch ends up.
+// Roland's own description calls CHORUS2 a slower modulation rate; the
+// measurement says the period is half, consistently at three rates.
+//
+// The slope multiplier is 8, not the 6 the cents measurement implies. Matching
+// the engine's output spectrum to the reference's needs 8 -- energy-weighted
+// spectral spread 10.14 and 15.80 Hz against 9.27 and 14.79 at depth 64 and
+// 127, within 8 %, where 6 came out 20 to 31 % narrow. Spectral spread is the
+// measure to trust here: it needs no peak tracking, and it reproduces CHORUS1
+// to within 8 % (1.52 / 2.71 Hz against 1.55 / 2.96) where the pitch tracker
+// gave answers that varied with the analysis window.
 #define JV_CHORUS_TYPE1 0
 #define JV_CHORUS_TYPE2 1
+#define JV_CHORUS2_SLOPE_MUL 8.0f
+#define JV_CHORUS2_RATE_MUL  2.0f
 
 // ------------------------------------------------------------------- reverb
 // Patch common byte +12 holds the reverb type in bits 0-3, +13 the level, +14
