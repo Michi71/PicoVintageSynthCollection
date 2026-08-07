@@ -17,8 +17,18 @@ const char* kBankName[3] = {"User", "A", "B"};
 // the two preset banks first, the user bank last. Numbered order would put User
 // below A, so stepping down from A 01 enters the user bank backwards at 64.
 // Behind B it is entered at 01, the way you would expect to arrive at it.
+//
+// The 4 MB build carries no user samples, so its list stops after B -- which is
+// the other reason the user bank sits at the end rather than in the middle.
+#ifdef JV_BANKS_AB_ONLY
+const uint8_t kBankOrder[2] = {1, 2};
+const uint8_t kBankSlot[3]  = {0, 0, 1};   // bank id -> list position (User -> A)
+const int     kBankCount    = 2;
+#else
 const uint8_t kBankOrder[3] = {1, 2, 0};   // list position -> bank id
 const uint8_t kBankSlot[3]  = {2, 0, 1};   // bank id -> list position
+const int     kBankCount    = 3;
+#endif
 
 } // namespace
 
@@ -43,7 +53,7 @@ void JV_Controller::onEncoderA(int delta) {
             // A walks the 192 patches as one list; the bank follows along.
             {
                 const int here = kBankSlot[bank_ <= 2 ? bank_ : 0] * 64 + patch_;
-                const int idx = clampInt(here + delta, 0, 191);
+                const int idx = clampInt(here + delta, 0, kBankCount * 64 - 1);
                 bank_ = kBankOrder[idx / 64];
                 patch_ = (uint8_t)(idx % 64);
                 applyPatch();
@@ -79,7 +89,7 @@ void JV_Controller::onEncoderB(int delta) {
     // Same order as the flat walk, so the two encoders agree about which bank
     // comes next.
     if (page_ == JvPage::PATCH) {
-        const int slot = clampInt(kBankSlot[bank_ <= 2 ? bank_ : 0] + delta, 0, 2);
+        const int slot = clampInt(kBankSlot[bank_ <= 2 ? bank_ : 0] + delta, 0, kBankCount - 1);
         bank_ = kBankOrder[slot];
         applyPatch();
     }
@@ -157,7 +167,9 @@ void JV_Controller::exportSettings(JvSettingsV1& s) const {
 }
 
 void JV_Controller::importSettings(const JvSettingsV1& s) {
-    bank_   = (uint8_t)clampInt(s.bank, 0, 2);
+    // Round-trips unchanged on the full build; on the 4 MB one a stored User
+    // bank lands on A rather than on 64 silent patches.
+    bank_   = kBankOrder[kBankSlot[clampInt(s.bank, 0, 2)]];
     patch_  = (uint8_t)clampInt(s.patch, 0, 63);
     volume_ = (uint8_t)clampInt(s.volume, 0, 100);
     voices_ = (uint8_t)clampInt(s.voices, 1, jv::kMaxVoices);

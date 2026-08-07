@@ -82,7 +82,7 @@ here. Firmware image is 4.53 MB, of which 4.25 MB is the ROM blob.
 
 | Page | Encoder A | Encoder B |
 |---|---|---|
-| PATCH | patch, walking all 192 as one list | bank (User / A / B) |
+| PATCH | patch, walking all 192 as one list: A, then B, then User | bank |
 | VOL | master volume | — |
 | VOICES | polyphony cap 1–24 | line B shows live `Act <n>` |
 | TUNE | master tune ±50 cents | line B shows the resulting A4 |
@@ -115,6 +115,35 @@ cmake --build build
 Configure converts the ROMs once into a descrambled blob under the build tree
 and embeds it with `.incbin`. Without the ROMs the configure step prints a note
 and skips the instrument, so a plain checkout still builds the other eight.
+
+### Fitting a 4 MB Pico 2
+
+The full image is 4.33 MB and needs a 16 MB board. `-DPICOFACEJV_4MB=ON` builds
+a 3.76 MB image that fits the base Pico 2, leaving 234 KB clear of the veeprom
+sectors at the top of flash:
+
+```bash
+cmake -S . -B build-4mb -DPICO_BOARD=pico2 -DCMAKE_BUILD_TYPE=Release -DPICOFACEJV_4MB=ON
+cmake --build build-4mb --target PicoFaceJV
+```
+
+What it drops is the **user bank**: 64 patches, and with them the 22 samples
+nothing else uses. Banks A and B — 128 patches — remain, and they are not
+degraded in any way. Nothing is resampled, requantised or shortened; the
+samples they reach are relocated into a smaller blob and the sample table is
+rewritten to match. All 128 render bit-identically to the full build, which the
+host harness checks patch by patch.
+
+The saving comes from three places, in order of size: the user bank's own
+samples, the 39 samples no patch of any bank references at all, and the ~130 KB
+that plain sequential packing strands at the 1 MB page boundaries. The wave
+address space is paged because the exponent nibbles for a byte live in the
+first 32 KB of that byte's own 1 MB page, so a sample cannot cross a page and
+cannot move by anything other than a multiple of 32. `compact()` in
+[jv_make_blob.py](../../tools/jv_extract/jv_make_blob.py) carries the details.
+
+Going further is not worth it: keeping the user bank as well lands at 3.99 MB,
+which leaves 7 KB — not a margin, and any future code growth breaks the build.
 
 ## Building the host harness
 

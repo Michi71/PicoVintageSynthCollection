@@ -28,8 +28,12 @@ void JV_Midi::onNoteOff(uint8_t ch, uint8_t note) {
 bool JV_Midi::resolveProgram(uint8_t pc, int& bank, int& index) const {
     if (pc > 127) return false;
     if (bankMsb_ == 80) {
+#ifdef JV_BANKS_AB_ONLY
+        return false;   // no user samples in this build; leave the patch alone
+#else
         if (pc >= 64) return false;
         bank = 0; index = pc; return true;
+#endif
     }
     bank = (pc < 64) ? 1 : 2;
     index = pc & 63;

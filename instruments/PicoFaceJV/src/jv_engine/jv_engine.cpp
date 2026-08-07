@@ -579,7 +579,12 @@ void Engine::Reverb::process(const float* inL, const float* inR,
 // -------------------------------------------------------------------- engine
 
 bool Engine::init(const RomView& rom, uint32_t sampleRate) {
-    if (!rom.wave || !rom.rom2 || rom.waveLen < 0x400000 || rom.rom2Len < 0x40000)
+    // The wave blob need not be the full 4 MB: a build that carries only the
+    // samples some banks reach is shorter, and the sample table it ships with
+    // has been rewritten to match. Every address is bounds-checked against
+    // waveLen in sampleFor(), so the length here only has to be plausible --
+    // one page's worth of exponent nibbles is the floor.
+    if (!rom.wave || !rom.rom2 || rom.waveLen < 0x8000 || rom.rom2Len < 0x40000)
         return false;
     rom_ = rom;
     sr_ = sampleRate;
@@ -590,6 +595,7 @@ bool Engine::init(const RomView& rom, uint32_t sampleRate) {
 
 bool Engine::selectPatch(int bank, int index) {
     static const uint32_t banks[3] = {JV_BANK_USER, JV_BANK_A, JV_BANK_B};
+    if (!rom_.rom2) return false;   // init() refused the ROM; do not walk off it
     if (bank < 0 || bank > 2 || index < 0 || index >= 64) return false;
     patch_ = rom_.rom2 + banks[bank] + (size_t)index * JV_PATCH_SIZE;
     chorus_.configure(patch_, sr_);
@@ -631,7 +637,11 @@ bool Engine::sampleFor(int waveNumber, uint8_t note, Sample& out) const {
     // holds on the last value). An alternating loop needs at least two samples
     // to turn around in.
     out.bidir = (s[11] & 1) != 0 && out.end > out.loop + 1;
-    return out.start < out.loop && out.loop <= out.end && out.end <= 0x400000;
+    // `end` is inclusive, so it is the last address read. A cut-down build
+    // zeroes the entries of the samples it dropped, which fails start < loop
+    // here and leaves the tone silent rather than playing whatever now lives
+    // at that address.
+    return out.start < out.loop && out.loop <= out.end && out.end < rom_.waveLen;
 }
 
 int32_t Engine::decodeStep(Voice& v) const {

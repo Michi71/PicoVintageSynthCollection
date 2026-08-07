@@ -1,4 +1,5 @@
 build/
+build-*/
 build_host/
 cmake-build-*/
 compile_commands.json

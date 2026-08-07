@@ -1121,6 +1121,74 @@ Neither source changed a measured number. Both were worth reading anyway: one
 supplied the missing premise for an experiment, the other independently
 corroborated six inferences that had rested on argument alone.
 
+## Fitting a 4 MB board, without touching a sample
+
+The full instrument is 4.33 MB of flash, so it needs a 16 MB board. Most people
+who would like to try it own a base Pico 2 with 4 MB. The question was whether
+something could be selected away, and the honest answer had to come from the
+data rather than from a guess about what "sounds unimportant".
+
+Reachability, measured rather than assumed: a tone names a multisample, a
+multisample names up to 16 samples across its zones, and a tone with bit 7 of
+its flag byte clear is off. Walking that from all 192 patches reaches **538 of
+577 samples** and **93 of 129 multisamples**. So 39 samples are addressed by
+nothing at all — the ROM also serves the JV-880's rhythm sets, which this
+instrument does not implement. Their bytes are 0.36 MB that no build needs.
+
+That alone does not get there. The banks split as follows, after relocation and
+packing:
+
+| kept | samples | wave data | blob | firmware | free on a 4 MB board |
+|---|---|---|---|---|---|
+| A | 331 | 1.60 MB | 1.67 MB | 2.00 MB | 2040 KB |
+| A + B | 516 | 3.29 MB | 3.43 MB | 3.76 MB | 234 KB |
+| A + B + User | 538 | 3.52 MB | 3.65 MB | 3.99 MB | 7 KB |
+
+Keeping everything and dropping only the dead bytes misses by a hair — 7 KB is
+not a margin, it is a build that breaks on the next commit. Dropping the user
+bank costs 64 patches and 22 samples and buys 234 KB, so that is where the line
+is.
+
+Three constraints shape the relocation, all of them consequences of how the
+chip finds the exponent nibble for a byte at address `a`:
+
+```text
+nibble_byte = wave[(a & 0xF00000) | ((a & 0xFFFFF) >> 5)]
+nibble      = high half if a & 0x10 else low half
+```
+
+A sample must keep its address **modulo 32**, or it reads its neighbours'
+exponents. It must stay inside **one 1 MB page**, because that is what supplies
+its nibbles. And the first 32 KB of every page *are* nibbles, so a page holds
+992 KB of sample data, not 1 MB.
+
+Two things were easy to get wrong here and both were caught by measurement
+rather than by reasoning:
+
+* **Samples share bodies.** The 577 samples span 4.34 MB of ranges inside a
+  4 MB ROM — several differ only in loop points over the same data. Relocating
+  them individually duplicates about half a megabyte, which is more than the
+  whole exercise saves. Overlapping ranges have to be merged and moved as one
+  block, and those blocks then cannot be split to fill a page, because the
+  samples inside them are tied to each other's offsets.
+* **Packing order matters more than it looks.** Filling pages in address order
+  strands ~130 KB at the page ends — over half the final margin. First-fit
+  decreasing gets it back.
+
+The check is the strong one, and it is worth stating in the form it takes: the
+claim is not "close enough", it is that banks A and B are **bit-identical** to
+the full build. Nothing is resampled, requantised or shortened; only moved.
+`tools/host_tests/jv_blob_test` renders all 128 patches out of both blobs and
+compares sample by sample. It reports `0/128 patches differ`.
+
+One engine change fell out of this. `Engine::init()` refused any wave blob
+under 4 MB, and `selectPatch()` then walked off a null `rom2` — the compacted
+blob crashed before it played a note. The size floor was never the right check:
+every address is bounds-checked in `sampleFor()` anyway, which is also what
+makes a dropped sample safe. Zeroing its table entry fails `start < loop` there,
+so a tone naming it falls silent instead of playing whatever now sits at that
+address.
+
 ## Credit
 
 The patch and tone field layout comes from

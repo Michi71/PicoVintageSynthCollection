@@ -32,17 +32,34 @@ endif()
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
-set(_jv_gen ${CMAKE_CURRENT_BINARY_DIR}/PicoFaceJV_rom)
+# Opt-in build for the 4 MB Pico 2. The full instrument needs 4.33 MB of flash
+# and only fits a 16 MB board; dropping the user bank and rebuilding the wave
+# blob from just the samples banks A and B reach brings it to 3.76 MB, which
+# leaves 234 KB spare. Banks A and B are bit-identical to the full build --
+# nothing is resampled or requantised, only relocated. What is lost is the
+# 64 user patches, and with them 22 samples that nothing else uses.
+option(PICOFACEJV_4MB
+    "PicoFaceJV: fit a 4 MB Pico 2 by shipping banks A and B only" OFF)
+
+if(PICOFACEJV_4MB)
+    set(_jv_gen ${CMAKE_CURRENT_BINARY_DIR}/PicoFaceJV_rom_ab)
+    set(_jv_banks --banks=A,B)
+else()
+    set(_jv_gen ${CMAKE_CURRENT_BINARY_DIR}/PicoFaceJV_rom)
+    set(_jv_banks "")
+endif()
 set(_jv_blob_s ${_jv_gen}/jv_blob.S)
 
 # Run at configure time, not build time: the generated .S has to exist before
 # the target is declared, and the conversion is a one-off of a few seconds.
+# The two variants generate into different directories, so switching the option
+# back and forth does not re-convert and cannot pick up the wrong blob.
 if(NOT EXISTS ${_jv_blob_s})
     message(STATUS "PicoFaceJV: converting ROM set (this takes a moment)")
     execute_process(
         COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_SOURCE_DIR}/tools/jv_extract/jv_make_blob.py
-                ${_jv_roms} ${_jv_gen}
+                ${_jv_roms} ${_jv_gen} ${_jv_banks}
         RESULT_VARIABLE _jv_rc
         OUTPUT_VARIABLE _jv_out
         ERROR_VARIABLE  _jv_err)
@@ -74,3 +91,9 @@ picoface_add_instrument(
         # and live there, so that measurement and firmware cannot drift apart.
         ${CMAKE_SOURCE_DIR}/tools/jv_extract
 )
+
+if(PICOFACEJV_4MB)
+    # The panel and the MIDI bank select both have to stop offering the user
+    # bank: its samples are not in the blob, so its patches would be silent.
+    target_compile_definitions(PicoFaceJV PRIVATE JV_BANKS_AB_ONLY=1)
+endif()
