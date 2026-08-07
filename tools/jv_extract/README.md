@@ -915,6 +915,38 @@ Two things worth carrying forward:
   exactly like PAN-DLY putting both taps on both channels, which sent the
   implementation off after a bug that was not there.
 
+## MIDI: what the machine receives
+
+The manual's MIDI implementation (printed 10-32 f.) lists exactly what the
+JV-880 accepts, and the firmware now covers that list rather than the handful
+of controllers it started with:
+
+| CC | what it does | note |
+|----|--------------|------|
+| 0 | bank select, MSB only | 80 user, 81 preset; latched until a program change |
+| 1 | modulation | matrix source |
+| 5 | portamento time | overrides the patch |
+| 6 / 38 | data entry | for RPN |
+| 7 | volume | on the machine's own tone-level curve |
+| 10 | pan | constant power, 0 left / 64 centre / 127 right |
+| 11 | expression | matrix source |
+| 64 | hold-1 | |
+| 65 | portamento switch | overrides the patch |
+| 91 | Effect1 depth | reverb send, scales the whole bus |
+| 93 | Effect3 depth | chorus send |
+| 100 / 101 | RPN | 0 bend sensitivity, 1 fine tune, 2 coarse tune |
+| 120 / 123 | all sound / notes off | |
+| 121 | reset all controllers | returns every override to the patch |
+| 124-127 | omni / mono / poly | mono forces SOLO, poly forces it off |
+
+Program change reaches all 192 patches: bank 80 gives the 64 user patches, bank
+81 splits into A for programs 0-63 and B for 64-127. Before this it could only
+move within whichever bank was already selected.
+
+The overrides are deliberately three-state -- CC5, CC65 and mono/poly hold -1
+for "use the patch", so a reset-all-controllers hands the decision back rather
+than freezing whatever the last CC said.
+
 ## Resonance mode and tone delay
 
 **Resonance mode** is bit 7 of +53: clear SOFT, set HARD. 58 of the 539 active

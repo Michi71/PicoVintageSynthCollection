@@ -58,9 +58,17 @@ public:
     void noteOff(uint8_t ch, uint8_t note, uint8_t) override { midi_.onNoteOff(ch, note); }
     void controlChange(uint8_t ch, uint8_t cc, uint8_t v) override { midi_.onControlChange(ch, cc, v); }
     void pitchBend(uint8_t ch, int16_t bend) override { midi_.onPitchBend(ch, bend); }
+    // Program change reaches all 192 patches, since the latched bank select
+    // decides which memory it lands in -- see JV_Midi::resolveProgram.
     void programChange(uint8_t ch, uint8_t p) override {
-        if (p < 64) { JvSettingsV1 s{}; controller_.exportSettings(s); s.patch = p;
-                      controller_.importSettings(s); dirty_ = true; }
+        int bank = 0, index = 0;
+        if (!midi_.resolveProgram(p, bank, index)) return;
+        JvSettingsV1 s{};
+        controller_.exportSettings(s);
+        s.bank = (uint8_t)bank;
+        s.patch = (uint8_t)index;
+        controller_.importSettings(s);
+        dirty_ = true;
     }
 
     // ---------------------------------------------------------------- GUI

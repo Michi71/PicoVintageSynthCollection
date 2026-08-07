@@ -1071,7 +1071,7 @@ void Engine::beginGlide(Voice& v, int fromNote, uint8_t toNote) {
     if (!portaOn() || fromNote < 0 || fromNote == (int)toNote) return;
 
     const float semis = (float)fromNote - (float)toNote;
-    const float octMs = JV_PORTA_OCTAVE_MS(patch_[25] & 0x7F);
+    const float octMs = JV_PORTA_OCTAVE_MS(portaTime());
     float ms = octMs;
     if (patch_[25] & JV_PORTA_TYPE_RATE_BIT) ms *= fabsf(semis) / 12.0f;
     if (ms < 1.0f) return;
@@ -1273,6 +1273,12 @@ void Engine::renderBlock(float* left, float* right, int frames) {
     }
     // The chorus either joins the mix or feeds the reverb, which is what bit 7
     // of its level byte selects. Ten factory patches route it that way.
+    // CC91 / CC93 scale the whole send bus rather than the per-tone amounts,
+    // which is what a channel-wide effect depth is.
+    if (choScale_ != 1.0f)
+        for (int i = 0; i < frames; i++) { choL_[i] *= choScale_; choR_[i] *= choScale_; }
+    if (revScale_ != 1.0f)
+        for (int i = 0; i < frames; i++) { revL_[i] *= revScale_; revR_[i] *= revScale_; }
     if (chorus_.toReverb) chorus_.process(choL_, choR_, revL_, revR_, frames);
     else                  chorus_.process(choL_, choR_, left, right, frames);
     reverb_.process(revL_, revR_, left, right, frames);

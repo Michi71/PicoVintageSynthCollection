@@ -6,6 +6,8 @@
 #include <cmath>
 #include <cstring>
 
+#include "jv_calibration.h"
+
 // The ROM blob is produced at configure time by tools/jv_extract/jv_make_blob.py
 // and pulled in with .incbin; see instrument.cmake. Nothing ROM-derived is in
 // the repository.
@@ -41,6 +43,38 @@ void JV_Bridge::setVolume(uint8_t percent) {
     gain_ = x * x;
 }
 
+// The JV's own tone-level law, so a MIDI volume behaves like the machine's
+// level controls rather than a generic square taper.
+void JV_Bridge::setMidiVolume(uint8_t v) {
+    if (v > 127) v = 127;
+    if (v == 0) { midiGain_ = 0.0f; return; }
+    const float x = v * 0.25f;
+    const int i = (int)x;
+    const float db = (i >= 31) ? JV_TVA_LEVEL_DB[31]
+                              : JV_TVA_LEVEL_DB[i] +
+                                (JV_TVA_LEVEL_DB[i + 1] - JV_TVA_LEVEL_DB[i]) * (x - (float)i);
+    midiGain_ = (db <= -200.0f) ? 0.0f : powf(10.0f, db * (1.0f / 20.0f));
+}
+
+// Constant power, so a pan sweep does not dip in the middle. The manual puts 0
+// at the left end, 64 centre and 127 right.
+void JV_Bridge::setMidiPan(uint8_t v) {
+    if (v > 127) v = 127;
+    const float a = (float)v * (1.5707963f / 127.0f);
+    panL_ = cosf(a) * 1.41421356f;
+    panR_ = sinf(a) * 1.41421356f;
+}
+
+void JV_Bridge::setBendRangeOverride(int semis) {
+    bendOverride_ = semis;
+    updateBend();
+}
+
+void JV_Bridge::setRpnTuneCents(float cents) {
+    rpnCents_ = cents;
+    updatePitch();
+}
+
 void JV_Bridge::setMasterTune(int cents) {
     if (cents < -50) cents = -50;
     if (cents > 50) cents = 50;
@@ -57,14 +91,16 @@ void JV_Bridge::setPitchBend(int16_t bend) {
 // common case. Re-derived on every patch change as well, since the wheel may
 // already be off centre when the patch switches.
 void JV_Bridge::updateBend() {
-    const float semis = (bend_ >= 0) ? (float)engine_.bendUpSemis()
-                                     : -(float)engine_.bendDownSemis();
+    float semis;
+    if (bendOverride_ >= 0) semis = (float)bendOverride_;
+    else semis = (bend_ >= 0) ? (float)engine_.bendUpSemis()
+                              : -(float)engine_.bendDownSemis();
     bendRatio_ = powf(2.0f, (bend_ / 8192.0f) * semis / 12.0f);
     updatePitch();
 }
 
 void JV_Bridge::updatePitch() {
-    engine_.setPitchTrim(bendRatio_ * powf(2.0f, tuneCents_ / 1200.0f));
+    engine_.setPitchTrim(bendRatio_ * powf(2.0f, (tuneCents_ + rpnCents_) / 1200.0f));
 }
 
 void JV_Bridge::fillBufferI32(int32_t* out, int frames) {
@@ -75,8 +111,8 @@ void JV_Bridge::fillBufferI32(int32_t* out, int frames) {
         engine_.render(bufL_, bufR_, chunk);
 
         for (int i = 0; i < chunk; ++i) {
-            float l = bufL_[i] * gain_;
-            float r = bufR_[i] * gain_;
+            float l = bufL_[i] * gain_ * midiGain_ * panL_;
+            float r = bufR_[i] * gain_ * midiGain_ * panR_;
 
             // Same rational soft clip the other instruments use: transparent
             // below the knee, no hard corner above it.

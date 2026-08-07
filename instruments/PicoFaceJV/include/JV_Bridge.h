@@ -35,7 +35,19 @@ public:
     bool selectPatch(int bank, int index);
     const char* patchName() const { return engine_.patchName(); }
 
-    void setVolume(uint8_t percent);          // 0..100
+    void setVolume(uint8_t percent);          // 0..100, the front-panel knob
+    // MIDI channel volume (CC7) and pan (CC10). These sit on top of the panel
+    // volume rather than replacing it, which is how a part control behaves.
+    void setMidiVolume(uint8_t v);
+    void setMidiPan(uint8_t v);
+    // RPN 0 overrides the patch's bend range; -1 hands it back to the patch.
+    void setBendRangeOverride(int semis);
+    // RPN 1 and 2, fine and coarse tuning, in cents on top of the master tune.
+    void setRpnTuneCents(float cents);
+    void setSendScale(float rev, float cho) { engine_.setSendScale(rev, cho); }
+    void setPortaTimeOverride(int t)        { engine_.setPortaTimeOverride(t); }
+    void setPortaSwitchOverride(int s)      { engine_.setPortaSwitchOverride(s); }
+    void setMonoOverride(int m)             { engine_.setMonoOverride(m); }
     void setVoiceLimit(int n)                 { engine_.setVoiceLimit(n); }
     int  voiceLimit() const                   { return engine_.voiceLimit(); }
     void setMasterTune(int cents);            // -50..+50
@@ -55,7 +67,11 @@ private:
     float gain_ = 0.8f;
     int   tuneCents_ = 0;
     int16_t bend_ = 0;
+    int   bendOverride_ = -1;
+    float rpnCents_ = 0.0f;
     float bendRatio_ = 1.0f;
+    float midiGain_ = 1.0f;
+    float panL_ = 1.0f, panR_ = 1.0f;
     float bufL_[kBlock]{}, bufR_[kBlock]{};
 };
 

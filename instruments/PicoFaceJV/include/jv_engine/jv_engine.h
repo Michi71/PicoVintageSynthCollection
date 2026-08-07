@@ -89,6 +89,17 @@ public:
     // calibrate against the reference emulator; 1.0 = no correction.
     void setPitchTrim(float ratio) { pitchTrim_ = ratio; }
 
+    // Channel-wide scaling of the two effect sends, for CC91 and CC93 -- the
+    // manual calls them Effect1 and Effect3 depth. 1.0 leaves the patch alone.
+    void setSendScale(float rev, float cho) { revScale_ = rev; choScale_ = cho; }
+    // CC5 and CC65 override the patch's own portamento time and switch. Pass
+    // -1 to hand control back to the patch.
+    void setPortaTimeOverride(int t)   { portaTimeOv_ = t; }
+    void setPortaSwitchOverride(int s) { portaSwOv_ = s; }
+    // MIDI mono / poly mode forces SOLO on or off whatever the patch says;
+    // -1 hands the decision back to the patch.
+    void setMonoOverride(int m) { monoOv_ = m; }
+
 private:
     // Segment shape is direction-dependent, as measured: rising segments ramp
     // linearly in amplitude, falling ones decay linearly in dB. The time is the
@@ -282,8 +293,18 @@ private:
     bool retuneVoices(uint8_t note, int fromNote);
     void beginGlide(Voice& v, int fromNote, uint8_t toNote);
 
-    bool soloMode() const   { return patch_ && (patch_[24] & JV_KEY_ASSIGN_SOLO_BIT); }
-    bool portaOn() const    { return patch_ && (patch_[24] & JV_PORTA_SWITCH_BIT); }
+    bool soloMode() const {
+        if (monoOv_ >= 0) return monoOv_ != 0;
+        return patch_ && (patch_[24] & JV_KEY_ASSIGN_SOLO_BIT);
+    }
+    bool portaOn() const {
+        if (portaSwOv_ >= 0) return portaSwOv_ != 0;
+        return patch_ && (patch_[24] & JV_PORTA_SWITCH_BIT);
+    }
+    int  portaTime() const {
+        if (portaTimeOv_ >= 0) return portaTimeOv_;
+        return patch_ ? (patch_[25] & 0x7F) : 0;
+    }
     bool soloLegato() const { return patch_ && (patch_[24] & JV_SOLO_LEGATO_BIT); }
     bool portaLegatoOnly() const {
         return patch_ && (patch_[24] & JV_PORTA_MODE_LEGATO_BIT);
@@ -320,6 +341,8 @@ private:
     // between the last two note-ons becomes the delay.
     uint32_t lastNoteOn_ = 0;
     bool     haveLastNoteOn_ = false;
+    float    revScale_ = 1.0f, choScale_ = 1.0f;
+    int      portaTimeOv_ = -1, portaSwOv_ = -1, monoOv_ = -1;
     uint32_t panAlt_ = 0;      // toggles for tones set to alternating pan
     int      voiceLimit_ = kMaxVoices;
     Chorus   chorus_;
