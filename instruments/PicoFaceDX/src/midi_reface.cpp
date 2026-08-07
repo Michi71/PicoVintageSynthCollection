@@ -11,6 +11,7 @@
 #include "dx_patch_stage.h"
 #include "presets.h"
 #include "midi_serial.h"
+#include "midi_output_usb.h"
 #include "pico/stdlib.h"
 #include "tusb.h"
 #include <string.h>
@@ -113,7 +114,11 @@ void RefaceMidi::setRxChannel(uint8_t ch) {
 }
 
 void RefaceMidi::txBytes(const uint8_t* b, uint16_t n) {
-    if (tud_midi_mounted()) { tud_midi_stream_write(0, b, n); }
+    // Queued rather than written straight to TinyUSB: a full voice bulk is 241
+    // bytes across seven messages and one TX FIFO holds 48 SysEx bytes, so the
+    // direct call dropped everything past the first block and a half without
+    // saying so. See core/include/midi_output_usb.h.
+    usbMidiOut().write(b, n);
     // Everything the reface layer sends - active sensing, panel CCs, SysEx
     // replies - goes out the DIN socket as well. Unconditional: unlike USB
     // there is nothing to enumerate, and a receiver that is not plugged in

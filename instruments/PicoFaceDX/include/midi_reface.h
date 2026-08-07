@@ -68,7 +68,7 @@ public:
     void onProgramChange(uint8_t program, uint8_t ch);              // 0..DX_NPRESETS-1 -> factory DX preset
     void onPitchBend(uint16_t bend14, uint8_t ch);                   // 14-bit pitch bend
     void onRealtime(uint8_t status);                                 // Active Sensing / Reset / Clock etc.
-    void onSysEx(const uint8_t* data, uint16_t len);                 // raw SysEx (without F0/F7)
+    void onSysEx(const uint8_t* data, uint16_t len);                 // complete message, F0 and F7 included
     void notifyActivity();                                            // mark last RX time (resets sense timeout)
 
     void txProgram(int preset);                                      // -> Program Change 0..DX_NPRESETS-1
@@ -93,7 +93,7 @@ private:
     void     applyOperatorParam(uint8_t opNum, uint8_t addr, uint8_t value);
     uint8_t  readCommonParam(uint8_t addr) const;
     uint8_t  readOperatorParam(uint8_t opNum, uint8_t addr) const;
-    void     txBytes(const uint8_t* b, uint16_t n);                 // tud_midi_stream_write wrapper
+    void     txBytes(const uint8_t* b, uint16_t n);                 // queues on usbMidiOut() + DIN
     void     txCC(uint8_t cc, uint8_t val);
     void     txIdentityReply();
     void     txParamChange(uint8_t ah, uint8_t am, uint8_t al);     // current value(s)

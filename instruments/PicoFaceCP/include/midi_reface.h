@@ -99,7 +99,7 @@ private:
   void     applySystemParam(uint8_t addr, const uint8_t* data, uint16_t len);
   void     applyTgParam(uint8_t addr, uint8_t value);
   uint8_t  readTgParam(uint8_t addr) const;    // live values from _ep/_fx
-  void     txBytes(const uint8_t* b, uint16_t n);  // tud_midi_stream_write wrapper
+  void     txBytes(const uint8_t* b, uint16_t n);  // queues on usbMidiOut() + DIN
   void     txCC(uint8_t cc, uint8_t val);
   void     txIdentityReply();
   void     txParamChange(uint8_t ah, uint8_t am, uint8_t al);  // current value(s)

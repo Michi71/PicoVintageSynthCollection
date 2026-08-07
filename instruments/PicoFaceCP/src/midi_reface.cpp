@@ -8,6 +8,7 @@
 
 #include "midi_reface.h"
 #include "midi_serial.h"
+#include "midi_output_usb.h"
 #include "ipc.h"
 #include "mdaEPiano.h"
 #include "reface_cp_chain.h"
@@ -136,9 +137,10 @@ uint8_t RefaceMidi::ccZone3(uint8_t v) {
 }
 
 void RefaceMidi::txBytes(const uint8_t* b, uint16_t n) {
-    if (tud_midi_mounted()) {
-        tud_midi_stream_write(0, b, n);
-    }
+    // Queued rather than written straight to TinyUSB, which takes only what
+    // fits one TX FIFO (48 SysEx bytes) and silently drops the rest.
+    // See core/include/midi_output_usb.h.
+    usbMidiOut().write(b, n);
     // Everything the reface layer sends - panel CCs, SysEx replies - goes out
     // the DIN socket as well. Unconditional: unlike USB there is nothing to
     // enumerate, and a receiver that is not plugged in simply does not listen.

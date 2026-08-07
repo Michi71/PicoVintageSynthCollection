@@ -19,6 +19,16 @@ static volatile uint16_t s_rxHead = 0;      // written by the IRQ
 static volatile uint16_t s_rxTail = 0;      // written by process()
 static volatile uint32_t s_rxDropped = 0;   // diagnostics: ring was full
 
+// Transmit ring, drained by process() into the 32-byte hardware FIFO. Written
+// and read from the main loop only, so no volatile and no IRQ interaction.
+// 512 bytes holds two full reface DX voice dumps: the wire needs 77 ms for one
+// of them, so a second request can arrive while the first is still going out.
+static constexpr uint16_t kTxRingSize = 512;
+static uint8_t  s_tx[kTxRingSize];
+static uint16_t s_txHead = 0;      // read position
+static uint16_t s_txCount = 0;     // bytes queued
+static uint32_t s_txDropped = 0;   // diagnostics: messages that did not fit
+
 // Kept RAM resident and tiny - it only moves bytes, all parsing happens in process().
 static void __not_in_flash_func(midi_uart_irq)()
 {
@@ -58,12 +68,45 @@ void MIDISerial::init()
     irq_set_priority(irq, 0x40);
 }
 
+// Queue only - see the note in the header. The old version called
+// uart_putc_raw() in a loop, which busy-waits whenever the 32-byte TX FIFO is
+// full. That is invisible for the 3-byte channel messages it was written for
+// and ruinous for a SysEx bulk dump, which is longer than the FIFO by an order
+// of magnitude and stalls the audio producer for as long as the wire needs.
 void MIDISerial::write(const uint8_t* data, uint16_t len)
 {
-    // uart_putc_raw blocks only while the 32-byte TX FIFO is full;
-    // a 3-byte message never gets that far.
+    if (!data || len == 0) {
+        return;
+    }
+
+    // All or nothing: half a SysEx on the wire is worse for a receiver than a
+    // missing one, and a chopped channel message would corrupt running status.
+    if ((uint16_t)(kTxRingSize - s_txCount) < len) {
+        s_txDropped++;
+        return;
+    }
+
+    uint16_t w = (uint16_t)((s_txHead + s_txCount) % kTxRingSize);
     for (uint16_t i = 0; i < len; ++i) {
-        uart_putc_raw(MIDI_UART, data[i]);
+        s_tx[w] = data[i];
+        if (++w == kTxRingSize) w = 0;
+    }
+    s_txCount = (uint16_t)(s_txCount + len);
+
+    // Prime the hardware FIFO now so a short message still leaves immediately
+    // rather than waiting for the next process().
+    txPump();
+}
+
+// Top up the hardware FIFO with whatever it will take. uart_is_writable() is
+// the whole point: it never waits, so a dump trickles out across as many main
+// loop iterations as 31250 baud needs while the audio producer keeps running.
+void MIDISerial::txPump()
+{
+    while (s_txCount > 0 && uart_is_writable(MIDI_UART)) {
+        uart_get_hw(MIDI_UART)->dr = s_tx[s_txHead];
+        if (++s_txHead == kTxRingSize) s_txHead = 0;
+        s_txCount--;
     }
 }
 
@@ -118,6 +161,10 @@ void MIDISerial::sendPitchBend(uint8_t ch, uint16_t value14)
 
 void MIDISerial::process()
 {
+    // Transmit first: this is the one place per main loop iteration that keeps
+    // a queued dump moving, and it must run whether or not anything arrived.
+    txPump();
+
     while (s_rxTail != s_rxHead) {
         const uint8_t b = s_rx[s_rxTail];
         s_rxTail = (uint16_t)((s_rxTail + 1) % kRxRingSize);

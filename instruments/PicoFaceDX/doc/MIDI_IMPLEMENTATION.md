@@ -163,6 +163,33 @@ Checksum: the Yamaha/Roland standard, `(128 - (sum & 0x7F)) & 0x7F` over the mod
 
 RX writes into a staging patch (`include/dx_patch_stage.h`) instead of into the live engine - the control side must never mutate the live patch directly. The bulk footer block (address `0F 0F xx`) triggers `IPC_CMD_DX_PATCH_APPLY`, which copies the staging patch into the live engine at the next block boundary. The bulk header block (address `0E 0F xx`) first initializes the staging area with the CURRENT live patch, so that a partial dump - only the common block, say - does not overwrite unrelated operator data with stale staging leftovers.
 
+### Transmit buffering
+
+A full voice dump is 241 bytes across seven messages. TinyUSB's transmit FIFO
+holds `CFG_TUD_MIDI_TX_BUFSIZE` (64) bytes of four-byte packets, and a SysEx
+packet carries three payload bytes, so only 48 SysEx bytes fit between two
+`tud_task()` calls - `tud_midi_stream_write()` takes that much and reports how
+far it got. Writing a dump straight to it therefore delivered roughly a block
+and a half and discarded the rest without a word, which is what made Soundmondo
+show "Init Voice" instead of the device's patch.
+
+`txBytes()` therefore queues on the core's `MIDIOutputUSB`
+(`core/include/midi_output_usb.h`), which the main loop drains one FIFO at a
+time after each `tud_task()`. Messages are queued whole or not at all: a
+truncated SysEx leaves TinyUSB's stream state inside a message, so the next
+bytes written - active sensing - would be packed as SysEx continuation and the
+outgoing stream would stay corrupted until an `F0` resynchronised it.
+
+The DIN side of `txBytes()` had the opposite failure. `MIDISerial::write()`
+called `uart_putc_raw()` in a loop, which busy-waits whenever the 32-byte TX
+FIFO is full - harmless for the three-byte channel messages it was written for,
+ruinous for a dump. At 31250 baud a byte takes 320 us, so 241 bytes held the
+main loop for about 77 ms against an audio pool of six 64-sample buffers, 8.7 ms
+at 44.1 kHz. The pool ran dry and the I2S DMA repeated it, heard as a low tone
+of roughly a quarter second whenever an editor asked for a voice - on connect as
+well as on sync, and regardless of whether anything was plugged into the DIN
+socket. `MIDISerial` now queues too and tops up the FIFO from `process()`.
+
 ### Dump Request (RX) → TX-Antwort
 
 | Adresse | Antwort |

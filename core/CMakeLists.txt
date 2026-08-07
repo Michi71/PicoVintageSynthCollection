@@ -33,6 +33,9 @@ set(PICOFACE_CORE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/pico_hw.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/veeprom.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/midi_input_usb.cpp"
+    # Buffered USB MIDI transmit. Base source, not a module: writing straight to
+    # TinyUSB silently truncates anything past one TX FIFO (see the header).
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/midi_output_usb.cpp"
     # DIN MIDI on uart1. Base source, not an optional module: the hardware is
     # on every board and an idle RX interrupt costs nothing.
     "${CMAKE_CURRENT_SOURCE_DIR}/src/midi_serial.cpp"
