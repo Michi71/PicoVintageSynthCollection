@@ -1217,15 +1217,24 @@ emulator the address lines are function arguments.
 reverb        917 1295 1406 1424 1483 2149 4063 4877 5462 6772
               7217 7960 8438 9510 10097 10879 11441 12700 13128
 DELAY/PAN     0 1 2 3 4 5 6 7 | 8192 8193 8194 8195
-always on     16196 16197 16230 16231
+chorus        4 to 6 taps just below the wrap, 82-189 samples back
 ```
 
 Three things are settled by that. The six reverb types do **not** each get their
 own network -- they share one and differ only in coefficients. The time setting
 moves no tap at all, so it too is a coefficient, which means the measured RT60
-law is the right level of description. And the four taps present in every
-configuration, reverb or delay, are 153-188 samples read backwards, 4.8-5.9 ms:
-that is the chorus, which runs on the same chip. The reverb proper has 19 taps.
+law is the right level of description. And a handful of taps sit in every
+configuration, reverb or delay alike, a short distance behind the write pointer:
+that is the chorus, which runs on the same chip. The reverb proper has 19 taps
+and the delays 12.
+
+Checked across seven patches of bank A (0, 7, 19, 31, 44, 55, 63) at three time
+settings each: the reverb's 19 and the delays' 12 are **identical every time**,
+so the geometry belongs to the chip and not to the patch. The chorus taps are
+the exception and vary from patch to patch -- four of them for some, six for
+others, anywhere from 82 to 189 samples back -- which is what a modulated delay
+looks like when it is sampled at one instant. Reading a single patch would have
+suggested a fixed 153-188, and that would have been wrong.
 
 **Where it stops.** The coefficients are not reachable this way, and neither is
 the RT60 law, because the emulator does not implement them. Rendering a patch
