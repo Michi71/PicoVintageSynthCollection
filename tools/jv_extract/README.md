@@ -1273,11 +1273,33 @@ first the note dominating, then dropping away. So the ~13 dB deficit is not a
 tuning error in the Schroeder bank: the curve it is tuned to does not describe a
 reverb.
 
-**This emulator cannot settle it.** What the JV-880's reverb actually does is
-not reachable from here, and no further sweep of it will help. Recordings from
-the hardware would be needed, and until there are any, the honest position is
-that the reverb is matched to a curve of unknown provenance and the geometry
-above is the only measured thing about it.
+**This emulator cannot settle it, and the reason is in the silicon.**
+[giulioz/roland-dsps](https://github.com/giulioz/roland-dsps), a survey of
+Roland's custom effect chips, names the one in this machine:
+
+> **GP** (Toshiba TC24SC201AF-002, 1990). Integrated 28-voices sample player
+> with TVF and **ROM-based DSP (chorus/reverb)**. Used in: SC-55, JV-80, many
+> many more.
+
+The JV-880 is the rack JV-80, so that is the chip, and the effects are not a
+wired-up network but a **program in a ROM inside it**. Of every chip in that
+survey the GP is the only one with no emulator of its own; it points at
+Nuked-SC55, which is where this project's reference emulator comes from.
+Nuked-SC55 models the hardware -- registers, addressing, the delay memory --
+but not the program running in it, because that ROM has not been read out.
+
+Which accounts for every observation above. The addressing works, so the taps
+are real and their geometry is worth having. There is no recirculation, because
+the feedback lives in the program. Type and time do nothing, because they are
+parameters to a program that is not running. The measurements were right; what
+was missing was the reason.
+
+So this is not "not reachable yet". Nothing done to the emulator will produce
+the reverb until that ROM is dumped -- optically, as has been done for some of
+the others in that survey, though not for this one. Until then the honest
+position is that the reverb is matched to a curve of unknown provenance, and the
+geometry above is the only measured thing about it. Recordings from hardware
+would be the way round it.
 
 Three lessons, each of which cost a wrong conclusion here. A differential
 measurement is only as good as its control: patch common 13, the reverb return,
@@ -1308,6 +1330,12 @@ The patch and tone field layout comes from
 (`Source/dataStructures.h`, by Giulio Zausa), which also carries the reference
 emulator this harness drives -- itself derived from
 [NukeYKT's Nuked-SC55](https://github.com/nukeykt/Nuked-SC55).
+
+The identification of the effect chip, and with it the explanation of why its
+reverb cannot be measured here, comes from the same author's
+[giulioz/roland-dsps](https://github.com/giulioz/roland-dsps). It carries no
+licence file, so nothing is taken from it but the reading; it is cited above as
+a source, which is all it is used for.
 
 That emulator is under a licence forbidding sale and commercial use, which is
 compatible with neither MIT nor GPL-3.0. It is therefore **not vendored into
