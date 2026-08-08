@@ -24,6 +24,9 @@ tools/host_tests/**/*_test
 !tools/host_tests/**/*_test/
 tools/host_tests/**/*.wav
 
+# build_xip_probe.sh drops its host build of the RD engine here.
+tools/rd_extract/.xip_probe_build/
+
 # build_fx_taps.sh drops a hooked copy of the reference emulator's pcm.cpp and
 # the trace binary in here. Neither belongs in the repository: the emulator's
 # licence permits linking and running it, not redistribution.

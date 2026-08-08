@@ -57,6 +57,62 @@ First validation (note-by-note, vel 110): r = 0.90–0.97, RMS ratio
   registers, sample-ROM reads become sequential). renderSample() remains as
   a 1-sample wrapper for the host tools.
 
+## How much of the render is waiting for flash
+
+`build_xip_probe.sh` answers that with a number instead of a hunch. It builds
+the engine for the host with `RD_XIP_TRACE` defined, which enables one hook at
+the wave-ROM read in `rd_new_engine.cpp`, captures every address, and runs the
+stream through a model of the RP2350's XIP cache (16 KB, two-way, 8-byte lines
+-- the geometry the 4-byte packing above assumes). No firmware build defines
+the macro; `nm` on `PicoFaceRD.elf` shows no such symbol.
+
+```bash
+tools/rd_extract/build_xip_probe.sh 0 12 200      # patch, voices, blocks
+```
+
+**What it found.** At the 32 kHz base limit of twelve voices the engine issues
+119 wave-ROM loads per sample -- one per part, ten parts per note, as expected
+-- and the flash cost is enormous but wildly patch-dependent:
+
+| patch | miss rate | flash-bound | | patch | miss rate | flash-bound |
+|---|---|---|---|---|---|---|
+| 3 | 85.7 % | **65.8 %** | | 8 | 43.0 % | 32.1 % |
+| 14 | 84.6 % | 65.0 % | | 11 | 37.3 % | 28.6 % |
+| 0 | 77.1 % | 58.7 % | | 7 | 16.2 % | 12.5 % |
+| 12 | 75.8 % | 58.1 % | | **5** | **0.2 %** | **0.2 %** |
+| 13 | 83.1 % | 63.8 % | | **15** | **0.1 %** | **0.1 %** |
+
+Two thirds of the cycle budget goes to stalls on the worst patches. On patches
+5 and 15 the cost is nil -- their wave data fits the cache and every voice
+reuses it -- and it stays nil as voices are added:
+
+| voices | patch 15 | patch 5 | patch 3 |
+|---|---|---|---|
+| 12 | 0.1 % | 0.2 % | 65.8 % |
+| 16 | 0.1 % | 0.2 % | 82.8 % |
+| 24 | 0.1 % | 0.2 % | **95.7 %** |
+| 32 | 0.1 % | 0.2 % | 96.3 % |
+
+So the base limit of twelve is set by patches like 3, which is already at 96 %
+of budget on stalls alone at twenty-four voices -- while patches 5 and 15 never
+touch flash at all. A per-patch base limit, derived offline from this
+measurement rather than guessed at runtime, is the lever the voice governor
+does not currently have.
+
+**What this does not show.** Only that the flash bottleneck disappears, not
+that those patches can run twenty-four voices: the arithmetic scales with voice
+count too, and this probe does not measure it. If it fails there, it will not
+be flash. The device can answer that today without any code change -- VOICES
+offers fixed polyphony, the footer shows peak load, so patch 15 at 24 voices
+against patch 3 at 24 voices settles it.
+
+**On the numbers.** The miss rate is measured: a real address stream from the
+real engine through a stated cache geometry. The conversion to percent of
+budget is an estimate with its assumptions in the source -- 96 CPU cycles per
+miss, from a 120 MHz QSPI fetch at the 4:1 clock ratio. Halve or double that
+and the absolute figures move; the ordering, and the factor of several hundred
+between patch 3 and patch 15, do not.
+
 ## Regression runner (one command)
 
     tools/rd_extract/run_regression.sh

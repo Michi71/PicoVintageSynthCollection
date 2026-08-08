@@ -7,6 +7,12 @@
 #include <cstring>
 #include <cstdlib>
 
+#ifdef RD_XIP_TRACE
+// Host-only: defined by tools/rd_extract/build_xip_probe.sh, never by a
+// firmware build. See the call site in the sample read.
+extern void rd_xip_trace(unsigned waverom_addr);
+#endif
+
 // Sub-phase interpolation LUT. NOTE: a never-written non-const static gets
 // promoted to flash .rodata by GCC (verified in the linker map) -- RAM
 // residency is enforced by an explicit runtime copy into .bss at loadPack.
@@ -435,6 +441,13 @@ int32_t RD_HOT_FUNC(RdNewEngine::renderVoice)(Voice& v, uint32_t tOn, uint32_t t
         uint32_t volume = ~(((adder1_a >> 14) & 0b111111) | ((adder3_o & 0b1111) << 6) | (adder3_of ? ((adder3_o & 0b11110000) << 6) : 0)) & 0x3fff;
 
         // 4-byte packed entry: one 32-bit load, two entries per XIP line.
+        // This single load is the whole flash story: one per part per sample,
+        // so up to 120 of them at twelve voices. tools/rd_extract runs the
+        // address stream through a cache model to see how many of them miss;
+        // the hook is compile-time and absent from every firmware build.
+#ifdef RD_XIP_TRACE
+        rd_xip_trace(waverom_addr);
+#endif
         const uint32_t w = _bank[waverom_addr];
         uint32_t pa = (w & 0x3FFFu) | (ag3 ? 1u : 0u);
         uint32_t pb = ((w >> 15) & 0x1FFu) | (ag3 ? 0u : 1u);
