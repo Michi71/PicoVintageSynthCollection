@@ -170,6 +170,8 @@ int main(void)
     // Installed before init(), so an instrument may already use the veeprom
     // while starting up.
     veeprom_set_lock_hooks(pf_flash_lock, pf_flash_unlock);
+    // Before the scan: it decides which records this instrument may see at all.
+    veeprom_set_instrument(inst.name());
     veeprom_init();
 
     inst.init();   // engine first - it determines its own sample rate

@@ -284,6 +284,8 @@ After merging project_config.h, pico_hw.h and pico_hw.cpp into the core, the fol
 | midi_input_usb.cpp | PicoFaceYC |
 | veeprom.cpp | PicoFaceRD |
 
+RD's `veeprom.cpp` differs in exactly one point too: `RD_CLOCK_504` selects a second QMI timing value after the flash write. Everything else is a copy, and every fix to the core file has to be made twice until the timing constant becomes a define. The instrument tag added for issue #18 is in both.
+
 YC's `midi_input_usb.cpp` differs in exactly one point: it turns a note-on with velocity 0 into a note-off. The core's DIN parser does that anyway, YC's `RefaceMidi::onNoteOn()` does not - that is where the handling belongs, and then the file can go.
 
 `settings.cpp`, `midi_reface.cpp` and `pico_frontpanel.cpp` were listed here until YC was converted. The first two still live under `instruments/PicoFaceYC/src/`, but no longer replace anything, because the core has no sources by those names any more. `pico_frontpanel.cpp` is gone without replacement.
