@@ -104,6 +104,8 @@ public:
 
     void controlChange(uint8_t, uint8_t cc, uint8_t value) override {
         switch (cc) {
+        case 0:   return;                     // bank select MSB, see programChange
+        case 32:  bank_ = value; return;      // bank select LSB
         case 1:   ipc_send_ob_modwheel(value); return;
         case 64:  ipc_send_ob_sustain(value >= 64 ? 1 : 0); return;
         case 120:
@@ -122,6 +124,34 @@ public:
 
     void pitchBend(uint8_t, int16_t bend) override {
         ipc_send_ob_pitchbend((uint16_t)((int32_t) bend + 8192));
+    }
+
+    // The factory bank is far longer than the 128 slots a program change can
+    // address on its own, so a preset is bank * 128 + program. Three banks
+    // cover it; with no bank select at all a host reaches the first 128
+    // presets, which is what a bare program change is expected to do.
+    //
+    // The bank comes from CC 32 alone and CC 0 is accepted but ignored. Taking
+    // the usual 14-bit (MSB << 7) | LSB would mean that one stale MSB - hosts
+    // like to leave a General MIDI 121 lying there - puts every program change
+    // out of range and silently stops preset switching altogether, which is
+    // exactly the complaint this handler exists to fix. Ignoring the MSB
+    // degrades gracefully instead: the wrong bank at worst, never no response.
+    // Both controllers are unused in the panel table, so neither falls through
+    // to the parameter search below.
+    //
+    // An index past the end is ignored rather than wrapped or clamped: silence
+    // on a bank this instrument does not have is easier to diagnose than a
+    // quietly loaded unrelated patch.
+    //
+    // Straight to the engine rather than through the ring, for the reason the
+    // preset menu gives in OB_Ui.cpp: a preset is the whole parameter set at
+    // once and would fill it. Safe because MIDI dispatch and render() are both
+    // core0 main-loop steps and never overlap.
+    void programChange(uint8_t, uint8_t program) override {
+        const uint32_t index = (uint32_t) bank_ * 128u + (uint32_t) program;
+        if (index >= (uint32_t) OB_NPRESETS) return;
+        engine_.applyPreset((int) index);
     }
 
     // ----------------------------------------------------------------
@@ -197,6 +227,7 @@ private:
     OB_Ui     ui_;
     float     load_     = 0.f;
     float     loadPeak_ = 0.f;
+    uint8_t   bank_     = 0;   // CC 32, held until the next program change
 };
 
 } // namespace
