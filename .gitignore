@@ -24,6 +24,11 @@ tools/host_tests/**/*_test
 !tools/host_tests/**/*_test/
 tools/host_tests/**/*.wav
 
+# build_fx_taps.sh drops a hooked copy of the reference emulator's pcm.cpp and
+# the trace binary in here. Neither belongs in the repository: the emulator's
+# licence permits linking and running it, not redistribution.
+tools/jv_extract/.fx_taps_build/
+
 # local test material for tools/rd_midi. Named individually on purpose: the
 # other .mid files in that folder are tracked and belong to the repository.
 tools/rd_midi/DieTaenzerin.mid
