@@ -59,6 +59,8 @@ A patch is 12 B name + 14 B common + 4 x 84 B tone. See `jv_tone_map.h`.
 | `jv_probe.cpp` | differential probe harness. Reads probe specs on stdin, renders each on the reference emulator, writes one CSV feature row per probe. |
 | `jv_analyze.py` | `effects` / `curves` / `shape` views over that CSV. |
 | `jv_tone_map.h` | the patch/tone layout, with each field marked VERIFIED or UNVERIFIED. |
+| `jv_fx_taps.cpp` | address trace of the effect chip's delay memory. Run it through `build_fx_taps.sh`; see "The reverb, and where it stops". |
+| `build_fx_taps.sh` | generates a hooked copy of the emulator's `pcm.cpp` into a scratch directory, builds the trace against it, runs it. |
 
 ### Building the probe
 
@@ -1188,6 +1190,71 @@ every address is bounds-checked in `sampleFor()` anyway, which is also what
 makes a dropped sample safe. Zeroing its table entry fails `start < loop` there,
 so a tone naming it falls silent instead of playing whatever now sits at that
 address.
+
+## The reverb, and where it stops
+
+The reverb is the one part of the engine that is matched rather than
+reproduced: the type, time and level laws are measured, but the network behind
+them is a Schroeder bank of my own, and its tails run about 13 dB low on
+material that decays. This is what came of trying to settle it.
+
+The effects sit inside the PCM chip, whose delay memory the reference emulator
+models as `eram`, 0x4000 words -- 512 ms at 32 kHz. Every effect slot addresses
+it as `eram[(base + tv_counter) & 0x3fff]`, with `tv_counter` a free-running
+pointer, so logging each access and taking `(addr - tv_counter) & 0x3fff`
+recovers the base the firmware programmed. That is the tap position, and it
+does not have to be guessed. `jv_fx_taps.cpp` does exactly that.
+
+The same route was the one munt took for the MT-32's reverb, where the buffer
+sizes came from tracing the reverb RAM address lines of the real chip. Its
+constants are of no use here -- a different chip, five years earlier, four modes
+against the JV's six plus two delays -- but the method carries over, and in an
+emulator the address lines are function arguments.
+
+**What came out.** One fixed delay network, shared by all six reverb types:
+
+```
+reverb        917 1295 1406 1424 1483 2149 4063 4877 5462 6772
+              7217 7960 8438 9510 10097 10879 11441 12700 13128
+DELAY/PAN     0 1 2 3 4 5 6 7 | 8192 8193 8194 8195
+chorus        4 to 6 taps just below the wrap, 82-189 samples back
+```
+
+Three things are settled by that. The six reverb types do **not** each get their
+own network -- they share one and differ only in coefficients. The time setting
+moves no tap at all, so it too is a coefficient, which means the measured RT60
+law is the right level of description. And a handful of taps sit in every
+configuration, reverb or delay alike, a short distance behind the write pointer:
+that is the chorus, which runs on the same chip. The reverb proper has 19 taps
+and the delays 12.
+
+Checked across seven patches of bank A (0, 7, 19, 31, 44, 55, 63) at three time
+settings each: the reverb's 19 and the delays' 12 are **identical every time**,
+so the geometry belongs to the chip and not to the patch. The chorus taps are
+the exception and vary from patch to patch -- four of them for some, six for
+others, anywhere from 82 to 189 samples back -- which is what a modulated delay
+looks like when it is sampled at one instant. Reading a single patch would have
+suggested a fixed 153-188, and that would have been wrong.
+
+**Where it stops.** The coefficients are not reachable this way, and neither is
+the RT60 law, because the emulator does not implement them. Rendering a patch
+twice with only the reverb return changed and subtracting -- the same
+differential trick the probe harness uses -- gives *exactly zero* for ROOM1
+through HALL1, and a constant, non-decaying offset for HALL2. The same
+measurement pointed at the chorus, on the same chip through the same code path,
+gives a clean -16.5 dBFS. So the harness is sound and the gap is in the
+emulator; its `// fixme` at the chorus/reverb mixing stage is not cosmetic.
+
+Reading the registers directly does not work either, and the first version of
+this tool was thrown away for it: the chip walks 32 slots in rotation and reuses
+`ram2[28..30]` per slot, so a snapshot catches one arbitrary moment of the cycle
+and reports identical values for every reverb type. It looks like an answer and
+is not one.
+
+What is left to do with this is to build the network on the real tap geometry
+above and fit only the gains to the RT60 curve that was measured from hardware.
+That is half guessed instead of wholly guessed, which is the honest description
+of the improvement.
 
 ## Credit
 
