@@ -1243,48 +1243,63 @@ reverb type. It looks like an answer and is not one, and the first version of
 this tool was thrown away for it. The address trace above is immune to that
 because it records every access rather than one instant.
 
-An earlier revision of this section claimed something stronger and wrong: that
-the emulator does not implement the reverb at all. It does. That claim came from
-a differential measurement -- render a patch twice with one byte changed,
-subtract, and what remains is the effect -- in which the byte changed was patch
-common 13, the reverb return. Toggling it does nothing in the emulator, so the
-difference was *exactly zero*, and a hard zero reads like an unimplemented
-feature rather than like a control that was not connected.
+Neither is the decay, and for a blunter reason: **there is no decay**. The
+effect section moves signal through the delay memory -- the addressing is real,
+which is why the tap trace works -- but it does not recirculate. What comes out
+is a delayed copy of what went in, and it stops when the input stops.
 
-Toggling the per-tone reverb send instead (`+82`, `jv_tone_map.h`) shows the
-tail plainly. Rendering a note with the send at 127 and at 0, as 25 ms RMS
-windows in dB:
+Isolate the effect by rendering a note twice, once with the per-tone reverb send
+at 127 and once at 0 (`+82` in `jv_tone_map.h`), and subtract. The difference is
+exactly zero, then present, then exactly zero again. Vary how long the key is
+held and the window moves with it:
 
 ```
-send 127   -7 -3 -2 -3 -3 -4 -13 -17 -11 -13 -13 -9 -12 -14 -17 -26 -19 -20 -30 -33 -33 -39 -38 -38
-send 0     -7 -3 -2 -3 -3 -4 -13 -17 -11 -13 -13 -9 -12 -14 -17 -26 -19 -20 -31 -33 -35 -46 -46 -55
+key down  60 ms   difference present from 375 ms to  625 ms   (275 ms)
+key down 500 ms   difference present from 375 ms to 1150 ms   (800 ms)
 ```
 
-Bit-identical while the note carries the sound, then diverging: without the send
-the signal falls to -55 dB, with it the tail holds at -38. Those 17 dB are the
+The onset stays at 375 ms -- the propagation time to the output taps -- while
+the length follows the note. A reverb tail would outlast its input and decay;
+this ends with it. Nothing changes with the reverb type or the time setting,
+because there is no loop for them to act on.
+
+**Consequences for the engine.** `jv_reverb_rt60_ms` and `jv_reverb_level` were
+fitted here, and there is no reverb tail here to fit to. The note in
+`Engine::Reverb` records the measurement as taken "in context on A04", with the
+dry note still sounding, and describes a decay that steepens from 7 to
+15.6 dB/100 ms where a comb bank falls at a constant 8.9. That shape is what a
+dry release plus a delayed copy looks like when the two are measured together --
+first the note dominating, then dropping away. So the ~13 dB deficit is not a
+tuning error in the Schroeder bank: the curve it is tuned to does not describe a
 reverb.
 
-Two lessons worth keeping, because both cost real time here. A differential
-measurement is only as good as its control, and a control that changes nothing
-produces the same silence as a feature that does not exist -- so the setup has
-to be proved on a knob that is known to work before its silence means anything.
-And the check that was supposed to validate the harness, the same measurement
-pointed at the chorus, used the same wrong kind of byte and therefore confirmed
-the setup instead of testing it.
+**This emulator cannot settle it.** What the JV-880's reverb actually does is
+not reachable from here, and no further sweep of it will help. Recordings from
+the hardware would be needed, and until there are any, the honest position is
+that the reverb is matched to a curve of unknown provenance and the geometry
+above is the only measured thing about it.
 
-What is left to do with this is to build the network on the real tap geometry
-above and fit the gains to a decay measured through the send, which is half
-guessed instead of wholly guessed.
+Three lessons, each of which cost a wrong conclusion here. A differential
+measurement is only as good as its control: patch common 13, the reverb return,
+does nothing in this emulator, so toggling it gives exactly the same silence as
+a missing feature -- prove the setup on a control known to work before its
+silence means anything. The check meant to validate the harness, the same
+measurement aimed at the chorus, used the same wrong kind of byte and so
+confirmed the setup instead of testing it. And a difference that is merely
+non-zero proves nothing either: seeing one through the send, this section was
+briefly rewritten to say the reverb worked after all, when what had been found
+was a delay line. Ask what the difference *is*, not whether there is one.
 
-The decay laws the engine carries today (`jv_reverb_rt60_ms`, `jv_reverb_level`)
-came off this emulator, so they stand -- but they were taken in context, with
-the dry note still sounding, which is why `Engine::Reverb` carries a note about
-the decay steepening from 7 to 15.6 dB per 100 ms while a comb bank falls at a
-constant 8.9. A tail isolated through the send has no dry note in it, so it can
-say whether that steepening is the reverb's own behaviour or the dry release
-masking its beginning. Those are different diagnoses of the ~13 dB deficit and
-they point at different fixes, so that measurement comes before any change to
-the network.
+What is left, then, is not a measurement but a decision. The tap geometry above
+is real and the gains are not obtainable here, so a rebuild of `Engine::Reverb`
+on the measured geometry would still be guessing its gains -- against a decay
+law that, as it stands, describes a dry release rather than a reverb. Better
+than today, but not by as much as the geometry alone suggests, and worth doing
+only alongside a decay from hardware.
+
+Until such a recording exists, leaving the reverb as it is and saying so
+plainly, as `README.md` and `Engine::Reverb` both do, beats rebuilding it around
+numbers of unknown provenance.
 
 ## Credit
 
