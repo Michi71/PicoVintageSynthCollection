@@ -190,6 +190,43 @@ of roughly a quarter second whenever an editor asked for a voice - on connect as
 well as on sync, and regardless of whether anything was plugged into the DIN
 socket. `MIDISerial` now queues too and tops up the FIFO from `process()`.
 
+### Known Soundmondo defect: operator 4 shown wrong after a sync (not this firmware)
+
+Verified against Soundmondo as served on 2026-08-08. After a voice sync,
+Soundmondo's reface DX voice editor can show wrong values for **operator 4
+only** - typically Level, Vel.s, FB level, and the right-hand key scaling pair -
+while operators 1-3 and the common block are correct. The device's transmission
+is fine: a wire capture of the full dump is byte-exact with valid checksums, and
+this firmware's blocks are byte-identical to what a real reface DX sends, which
+is therefore affected just the same.
+
+The defect is in Soundmondo's `components/reface-panel/reface-panel.js`, and it
+takes two of their bugs in combination. Applying an operator bulk block walks
+the 28 bytes in address order; at offset 9 (`KB.R`) the value is mirrored into a
+second model property, whose change observer runs this `switch`:
+
+```js
+case "osc2.3.kbr":
+  this.set("eg.3.kbr", this.osc2[3].kbr);
+                                    // no break - only in the op-4 case
+case "ksc.0.levellmin":
+...
+  console.lone("new levellmin:" + newVal);   // typo for console.log
+```
+
+The operator 1-3 cases have their `break`; only the operator 4 case falls
+through, into a line that misspells `console.log` and throws. The exception
+aborts the block walk, so every operator 4 field **after offset 9** keeps the
+editor's init-voice default, and the wrong fields are exactly those where the
+patch differs from the defaults - which is why the pattern looks arbitrary.
+Confirmed both ways by driving the live page's `dx-keyboard` element with a
+captured dump: with the typo present the display shows the defaults, with
+`console.lone = console.log` patched in the same payload displays correctly.
+
+Nothing in this firmware can compensate for it. Workaround for a Soundmondo
+session: paste `console.lone = console.log;` into the browser's DevTools
+console before syncing; it holds until the page is reloaded.
+
 ### Dump Request (RX) → TX-Antwort
 
 | Adresse | Antwort |
