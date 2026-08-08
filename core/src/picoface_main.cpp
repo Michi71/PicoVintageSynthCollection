@@ -284,7 +284,14 @@ int main(void)
 
         // 2. Incremental display flush
         // Half tile rows, roughly 1.5 ms of I2C each, so the audio lead does not collapse.
-        if (picoface_ui_flush_row < 16) {
+        //
+        // Stands aside while MIDI still has bytes queued. The transmit queue is
+        // topped up once per pass, so a 1.5 ms I2C block between two passes
+        // paces a SysEx dump at roughly a TinyUSB FIFO per 1.5 ms: a 241-byte
+        // voice takes about six of those, some 9 ms, where USB itself would be
+        // done in four 1 ms frames. An editor reading a voice sees the gaps; the
+        // display catches up a few milliseconds later and nobody sees that.
+        if (picoface_ui_flush_row < 16 && usbMidiOut().empty()) {
             u8g2_UpdateDisplayArea(&g_u8g2, (picoface_ui_flush_row & 1) ? 8 : 0, (uint8_t)(picoface_ui_flush_row >> 1), 8, 1);
             picoface_ui_flush_row++;
         }
