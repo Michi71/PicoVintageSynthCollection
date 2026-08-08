@@ -190,6 +190,40 @@ static void test_wear_leveling_1000(void) {
     CHECK(out[0] == (uint8_t)(999 & 0xFF), "payload[0] == 999 & 0xFF");
 }
 
+// Issue #18: PicoFaceSM booted into silence on a board that had run PicoFaceJ6.
+// Both instruments are at settings version 3 and a .uf2 does not erase the
+// store, so J6's 72-byte record survived the flash and satisfied the core's
+// "version matches, length is at least what I need" test for SM's 54 bytes.
+// SM read J6's programme number and parameter array as Solina parameters.
+static void test_foreign_instrument_ignored(void) {
+    // PicoFaceJ6 stores its settings and the board is then flashed with SM.
+    veeprom_sim_reset();
+    veeprom_set_instrument("PicoFaceJ6");
+    veeprom_init();
+    uint8_t j6[72];
+    for (int i = 0; i < 72; i++) j6[i] = (uint8_t)(i + 1);
+    CHECK(veeprom_save(j6, sizeof(j6), 3), "j6 saves its record");
+
+    // Same flash, same settings version, different instrument: nothing to see.
+    veeprom_set_instrument("PicoFaceSM");
+    veeprom_init();
+    uint8_t buf[240];
+    uint16_t len = 0, ver = 0;
+    CHECK(!veeprom_load(buf, sizeof(buf), &len, &ver), "sm does not read j6 record");
+
+    // SM writes its own, and that one comes back.
+    uint8_t sm[54];
+    memset(sm, 0xC3, sizeof(sm));
+    CHECK(veeprom_save(sm, sizeof(sm), 3), "sm saves over the stale sector");
+    CHECK(veeprom_load(buf, sizeof(buf), &len, &ver), "sm reads its own record");
+    CHECK(len == 54 && memcmp(buf, sm, 54) == 0, "sm record intact");
+
+    // And J6, flashed back on, still finds nothing of SM's.
+    veeprom_set_instrument("PicoFaceJ6");
+    veeprom_init();
+    CHECK(!veeprom_load(buf, sizeof(buf), &len, &ver), "j6 does not read sm record");
+}
+
 int main(void) {
     test_empty_flash();
     test_roundtrip();
@@ -200,6 +234,7 @@ int main(void) {
     test_torn_write_ignored();
     test_oversize_rejected();
     test_wear_leveling_1000();
+    test_foreign_instrument_ignored();
     printf("Summary: %d failures\n", fails);
     return fails;
 }

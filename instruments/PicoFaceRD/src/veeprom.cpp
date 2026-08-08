@@ -29,6 +29,10 @@ static uint32_t s_lastSeq = 0;
 static veeprom_lock_fn s_lock = 0;
 static veeprom_unlock_fn s_unlock = 0;
 
+// The magic actually written and checked: the base value mixed with the
+// instrument name. See veeprom_set_instrument() in the header for why.
+static uint32_t s_magic = VEEPROM_MAGIC;
+
 #ifdef VEEPROM_HOST_TEST
 
 uint8_t  veeprom_sim_flash[VEEPROM_NUM_SECTORS * VEEPROM_SECTOR_SIZE];
@@ -52,6 +56,7 @@ void veeprom_sim_reset(void) {
     memset(veeprom_sim_erase_count, 0, sizeof(veeprom_sim_erase_count));
     s_lastSlot = -1;
     s_lastSeq = 0;
+    s_magic = VEEPROM_MAGIC;   // a fresh boot has no instrument set yet
 }
 
 #else
@@ -119,11 +124,17 @@ uint32_t veeprom_crc32(const void* data, size_t len) {
     return crc ^ 0xFFFFFFFFu;
 }
 
+void veeprom_set_instrument(const char* name) {
+    uint32_t h = 2166136261u;                       // FNV-1a over the name
+    for (const char* p = name; p && *p; ++p) h = (h ^ (uint8_t)*p) * 16777619u;
+    s_magic = VEEPROM_MAGIC ^ h;
+}
+
 static bool slot_valid(int slot) {
     const uint8_t* p = read_ptr((uint32_t)slot * VEEPROM_RECORD_SIZE);
     VeepromHdr hdr;
     memcpy(&hdr, p, sizeof(hdr));
-    if (hdr.magic != VEEPROM_MAGIC) return false;
+    if (hdr.magic != s_magic) return false;
     if (hdr.len > VEEPROM_MAX_PAYLOAD) return false;
     if (hdr.crc != veeprom_crc32(p + VEEPROM_HDR_SIZE, hdr.len)) return false;
     return true;
@@ -187,7 +198,7 @@ bool veeprom_save(const void* payload, uint16_t len, uint16_t version) {
     memset(buf, 0xFF, VEEPROM_RECORD_SIZE);
 
     VeepromHdr hdr;
-    hdr.magic = VEEPROM_MAGIC;
+    hdr.magic = s_magic;
     hdr.seq = s_lastSeq + 1;
     hdr.version = version;
     hdr.len = len;

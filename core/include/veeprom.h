@@ -40,6 +40,8 @@
 #define VEEPROM_SLOTS         ((VEEPROM_NUM_SECTORS * VEEPROM_SECTOR_SIZE) / VEEPROM_RECORD_SIZE)
 #define VEEPROM_HDR_SIZE      16u
 #define VEEPROM_MAX_PAYLOAD   (VEEPROM_RECORD_SIZE - VEEPROM_HDR_SIZE)
+// Base magic, "PCFP". The value actually written and checked is this mixed
+// with the instrument name -- see veeprom_set_instrument().
 #define VEEPROM_MAGIC         0x50434650u   // "PCFP"
 
 // ----- Record header ----------------------------------------------------------
@@ -67,6 +69,25 @@ typedef void (*veeprom_unlock_fn)(void);
 void veeprom_set_lock_hooks(veeprom_lock_fn lock, veeprom_unlock_fn unlock);
 
 // ----- Public API -------------------------------------------------------------
+
+// Tie every record to one instrument. MUST be called before veeprom_init().
+//
+// The store sits at a fixed address at the top of flash and a .uf2 does not
+// erase it, so flashing a different instrument onto the same board leaves the
+// previous one's record in place. The header carries a schema version but no
+// instrument, and those versions collide across the collection -- PicoFaceJ6,
+// PicoFaceSM and PicoFaceDX all reached version 3 independently. The core
+// accepts a record whose version matches and whose length is at least what the
+// instrument needs, so a 72-byte J6 record satisfied PicoFaceSM's 54, and
+// PicoFaceSM read J6's programme number, MIDI channel and parameter array as
+// its own. Reported as "starts with a silent preset" (issue #18), and silence
+// is the polite outcome of that.
+//
+// The name is folded into the magic, so a record from another instrument fails
+// the same check a corrupt one does and its slot is reclaimed. Records written
+// before this existed no longer validate either: settings are lost once, which
+// is what a schema change has always cost here.
+void veeprom_set_instrument(const char* name);
 
 // Scan flash and locate the latest valid record. Must be called once at boot.
 void veeprom_init(void);
