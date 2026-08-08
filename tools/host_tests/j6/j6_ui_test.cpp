@@ -408,6 +408,59 @@ static void test_edited_marker(J6_Controller& c)
 }
 
 /* ------------------------------------------------------------------------ */
+/* Reported as "the arpeggiator is enabled by default": it was not a default at
+ * all, the switch was simply part of the stored settings and came back on at
+ * every power-on once it had been used. HOLD sat in the same trap. */
+static void test_latches_not_restored(J6_Controller& c)
+{
+    group("Arpeggiator und Hold kommen nicht eingeschaltet zurueck");
+
+    /* What the veeprom would hold after switching both on and turning the rate
+     * up: a record with everything set, exported by the panel itself. */
+    J6SettingsV1 s{};
+    c.exportSettings(s);
+    s.param[JUNO_ARP_ON]   = 1000;   /* on                                 */
+    s.param[JUNO_HOLD]     = 1000;   /* likewise                           */
+    s.param[JUNO_ARP_RATE] = 800;    /* and clearly not the default 350    */
+    s.param[JUNO_ARP_MODE] = 1000;   /* down                               */
+
+    uint32_t drain;
+    while (j6_ipc_pop(&drain)) { }   /* the ring, as at power-on           */
+    c.importSettings(s);
+
+    bool sawArpOn = false, sawHold = false, sawRate = false, sawMode = false;
+    uint16_t rate = 0, mode = 0;
+    uint32_t pkt;
+    while (j6_ipc_pop(&pkt)) {
+        if (ipc_type(pkt) != IPC_CMD_J6_PARAM) continue;
+        switch (ipc_d1(pkt)) {
+            case JUNO_ARP_ON:   sawArpOn = true;                 break;
+            case JUNO_HOLD:     sawHold  = true;                 break;
+            case JUNO_ARP_RATE: sawRate  = true; rate = ipc_d2(pkt); break;
+            case JUNO_ARP_MODE: sawMode  = true; mode = ipc_d2(pkt); break;
+            default: break;
+        }
+    }
+
+    ck(!sawArpOn, "der Arp-Schalter wird der Engine gar nicht erst geschickt");
+    ck(!sawHold,  "Hold ebensowenig");
+
+    note("Rate %u, Mode %u", rate, mode);
+    ck(sawRate && rate == 800, "die Rate ueberlebt");
+    ck(sawMode && mode == 1000, "die Betriebsart auch");
+
+    /* And the panel agrees with the engine, so the ARP page does not show an
+     * "on" that nothing is playing. Both latches live on that one page. */
+    goToPage(c, "ARP", "ARP");
+    char a[24], b[24];
+    c.paramAText(a, sizeof(a));
+    c.paramBText(b, sizeof(b));
+    note("ARP-Seite zeigt \"%s\" / \"%s\"", a, b);
+    ck(strcmp(a, "On") != 0 && strcmp(a, "1") != 0, "die Arp-Anzeige steht nicht auf ein");
+    ck(strcmp(b, "On") != 0 && strcmp(b, "1") != 0, "die Hold-Anzeige auch nicht");
+}
+
+/* ------------------------------------------------------------------------ */
 static void test_every_page(J6_Controller& c)
 {
     group("Jede Seite laesst sich anzeigen und bedienen");
@@ -460,6 +513,7 @@ int main(void)
         test_truncation(c);
         test_write_page(c);
         test_edited_marker(c);
+        test_latches_not_restored(c);
         test_every_page(c);
     }
 

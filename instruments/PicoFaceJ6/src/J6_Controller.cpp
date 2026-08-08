@@ -749,6 +749,22 @@ void J6_Controller::importSettings(const J6SettingsV1& s)
         ipc_send_param(J6_PARAM_PROGRAM, (uint16_t) program_);
 
     for (int i = 0; i < JUNO_TOTAL_COUNT; ++i) {
+        /*
+         * Everything except the two performance latches, which always come
+         * back off. On the original both are pieces of plastic you can see
+         * from across the room, so restoring their position is what hardware
+         * does; here they are three levels down a menu, and an instrument that
+         * arpeggiates the first chord after power-on -- or holds it -- with
+         * nothing on screen saying why is a trap rather than a feature.
+         *
+         * Rate, mode and range stay restored. Those are settings, and the next
+         * switch-on should find the arpeggiator configured the way it was
+         * left, just not running. The stored values are still written by
+         * exportSettings so the record layout and its version are unchanged;
+         * an existing record simply has two fields nobody reads.
+         */
+        if (i == JUNO_ARP_ON || i == JUNO_HOLD) continue;
+
         uint16_t q = s.param[i];
         if (q > 1000) q = 1000;
         shadow_[i] = (float) q / 1000.0f;
