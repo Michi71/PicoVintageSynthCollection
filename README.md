@@ -67,6 +67,33 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICOFACE_INSTRUMENTS_F
 cmake --build build
 ```
 
+### If the very first cmake call dies with an architecture error
+
+On macOS a mixed package manager prefix produces this, and it reads like a
+problem with the project:
+
+```
+dyld: Library not loaded: /opt/local/lib/libarchive.13.dylib
+  Referenced from: /opt/local/bin/cmake
+  Reason: (mach-o file, but is an incompatible architecture (have 'arm64', need 'x86_64'))
+Abort trap: 6
+```
+
+It is not. The complaint comes from `dyld` about loading `cmake` itself, before
+any of this repository is read, and "need 'x86_64'" means the `cmake` binary is
+an Intel build sitting next to Apple Silicon libraries — a MacPorts or Homebrew
+prefix that was installed under Rosetta, or carried over from an Intel Mac
+without the migration. Check with:
+
+```bash
+uname -m                 # arm64 on Apple Silicon
+file $(which cmake)      # must say the same
+```
+
+If they disagree, reinstall the toolchain for the machine's own architecture
+(MacPorts documents a migration procedure for exactly this). Apple Silicon
+itself is fine: the collection is developed on it.
+
 ## Repository layout
 
 ```text
