@@ -1236,25 +1236,55 @@ others, anywhere from 82 to 189 samples back -- which is what a modulated delay
 looks like when it is sampled at one instant. Reading a single patch would have
 suggested a fixed 153-188, and that would have been wrong.
 
-**Where it stops.** The coefficients are not reachable this way, and neither is
-the RT60 law, because the emulator does not implement them. Rendering a patch
-twice with only the reverb return changed and subtracting -- the same
-differential trick the probe harness uses -- gives *exactly zero* for ROOM1
-through HALL1, and a constant, non-decaying offset for HALL2. The same
-measurement pointed at the chorus, on the same chip through the same code path,
-gives a clean -16.5 dBFS. So the harness is sound and the gap is in the
-emulator; its `// fixme` at the chorus/reverb mixing stage is not cosmetic.
+**Where it stops.** The coefficients are not reachable this way: the chip walks
+32 slots in rotation and reuses `ram2[28..30]` per slot, so a register snapshot
+catches one arbitrary moment of the cycle and reports identical values for every
+reverb type. It looks like an answer and is not one, and the first version of
+this tool was thrown away for it. The address trace above is immune to that
+because it records every access rather than one instant.
 
-Reading the registers directly does not work either, and the first version of
-this tool was thrown away for it: the chip walks 32 slots in rotation and reuses
-`ram2[28..30]` per slot, so a snapshot catches one arbitrary moment of the cycle
-and reports identical values for every reverb type. It looks like an answer and
-is not one.
+An earlier revision of this section claimed something stronger and wrong: that
+the emulator does not implement the reverb at all. It does. That claim came from
+a differential measurement -- render a patch twice with one byte changed,
+subtract, and what remains is the effect -- in which the byte changed was patch
+common 13, the reverb return. Toggling it does nothing in the emulator, so the
+difference was *exactly zero*, and a hard zero reads like an unimplemented
+feature rather than like a control that was not connected.
+
+Toggling the per-tone reverb send instead (`+82`, `jv_tone_map.h`) shows the
+tail plainly. Rendering a note with the send at 127 and at 0, as 25 ms RMS
+windows in dB:
+
+```
+send 127   -7 -3 -2 -3 -3 -4 -13 -17 -11 -13 -13 -9 -12 -14 -17 -26 -19 -20 -30 -33 -33 -39 -38 -38
+send 0     -7 -3 -2 -3 -3 -4 -13 -17 -11 -13 -13 -9 -12 -14 -17 -26 -19 -20 -31 -33 -35 -46 -46 -55
+```
+
+Bit-identical while the note carries the sound, then diverging: without the send
+the signal falls to -55 dB, with it the tail holds at -38. Those 17 dB are the
+reverb.
+
+Two lessons worth keeping, because both cost real time here. A differential
+measurement is only as good as its control, and a control that changes nothing
+produces the same silence as a feature that does not exist -- so the setup has
+to be proved on a knob that is known to work before its silence means anything.
+And the check that was supposed to validate the harness, the same measurement
+pointed at the chorus, used the same wrong kind of byte and therefore confirmed
+the setup instead of testing it.
 
 What is left to do with this is to build the network on the real tap geometry
-above and fit only the gains to the RT60 curve that was measured from hardware.
-That is half guessed instead of wholly guessed, which is the honest description
-of the improvement.
+above and fit the gains to a decay measured through the send, which is half
+guessed instead of wholly guessed.
+
+The decay laws the engine carries today (`jv_reverb_rt60_ms`, `jv_reverb_level`)
+came off this emulator, so they stand -- but they were taken in context, with
+the dry note still sounding, which is why `Engine::Reverb` carries a note about
+the decay steepening from 7 to 15.6 dB per 100 ms while a comb bank falls at a
+constant 8.9. A tail isolated through the send has no dry note in it, so it can
+say whether that steepening is the reverb's own behaviour or the dry release
+masking its beginning. Those are different diagnoses of the ~13 dB deficit and
+they point at different fixes, so that measurement comes before any change to
+the network.
 
 ## Credit
 
