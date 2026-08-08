@@ -14,11 +14,15 @@
 
 set -u
 
-# R points at the PicoFaceRD instrument directory, not at the repository root:
-# in the standalone repository these tools sat next to include/ and src/, in the
-# collection the engine lives under instruments/PicoFaceRD/. Everything below
-# still says "$R/include" and "$R/src", so this line is the only difference.
-REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+# Two roots, because the move into the collection split what used to be one
+# tree: the engine went to instruments/PicoFaceRD/ ($R, still addressed as
+# "$R/include" and "$R/src" throughout), while these harnesses went to
+# tools/rd_extract/ at the repository root ($HERE). The first version of this
+# line kept only $R and left the harness sources under "$R/tools/rd_extract",
+# where nothing has been since the merge - so the runner failed on its very
+# first build and stayed that way.
+HERE="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(cd "$HERE/../.." && pwd)"
 R="$REPO/instruments/PicoFaceRD"
 WORK="$REPO/build_host"
 mkdir -p "$WORK/packs"
@@ -57,13 +61,13 @@ build_tool() {
 build_tool rd_dump_packs \
     clang++ -O2 -std=c++17 -I "$R/include" -I "$R/include/rd_engine" \
     -o "$WORK/rd_dump_packs" \
-    "$R/tools/rd_extract/rd_dump_packs.cpp" \
+    "$HERE/rd_dump_packs.cpp" \
     "$R/src/rd_engine/rd_packs_data.cpp"
 
 build_tool rd_ab_test \
     clang++ -O2 -std=c++17 -I "$R/include" -I "$R/include/rd_engine" \
     -o "$WORK/rd_ab_test" \
-    "$R/tools/rd_extract/rd_ab_test.cpp" \
+    "$HERE/rd_ab_test.cpp" \
     "$R/src/rd_engine/mcu.cpp" \
     "$R/src/rd_engine/sound_chip.cpp" \
     "$R/src/rd_engine/mks20a_tables.cpp" \
@@ -81,7 +85,7 @@ build_tool rd_ab_test \
 build_tool rd_stress2 \
     clang++ -O2 -std=c++17 -I "$R/include" -I "$R/include/rd_engine" -I "$R/effects" \
     -o "$WORK/rd_stress2" \
-    "$R/tools/rd_extract/rd_stress2.cpp" \
+    "$HERE/rd_stress2.cpp" \
     "$R/src/RD_Synth_Bridge_v2.cpp" \
     "$R/src/rd_effects.cpp" \
     "$R/src/rd_engine/rd_new_engine.cpp" \

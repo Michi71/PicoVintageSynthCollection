@@ -45,12 +45,15 @@ for old, new in ((u_old, u_new), (p_old, p_new)):
 open(sys.argv[2], "w").write(src)
 PY
 
+# Everything the compiler says goes to stderr, filtered but never to stdout:
+# stdout is the CSV, and a stray warning in the middle of it silently corrupts
+# the run. The emulator builds with a few of its own warnings.
 CXX="${CXX:-c++}"
-"$CXX" -O2 -std=c++17 -I"$JV" -I"$JV/resample" -o "$OUT/jv_fx_taps" \
+{ "$CXX" -O2 -std=c++17 -I"$JV" -I"$JV/resample" -o "$OUT/jv_fx_taps" \
     "$HERE/jv_fx_taps.cpp" "$OUT/pcm_traced.cpp" \
     "$JV"/mcu.cpp "$JV"/mcu_opcodes.cpp "$JV"/mcu_interrupt.cpp \
     "$JV"/mcu_timer.cpp "$JV"/submcu.cpp "$JV"/lcd.cpp "$JV"/resample/*.c 2>&1 |
-    grep -v 'treating .c. input as .c++.' || true
+    grep -v 'treating .c. input as .c++.'; } >&2 || true
 
 echo "[ok]   $OUT/jv_fx_taps" >&2
 exec "$OUT/jv_fx_taps" "$@"

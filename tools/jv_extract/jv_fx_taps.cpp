@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
     const int nWarm = SR, nHold = SR / 2;
     std::vector<float> L(nWarm + nHold), R(nWarm + nHold), S(64), S2(64);
 
-    printf("type,time,reads,writes,taps\n");
+    printf("type,time,nreads,nwrites,reads,writes\n");
 
     static const int kTimes[] = {0, 64, 127};
     for (int type = 0; type < 8; type++) {
@@ -164,6 +164,14 @@ int main(int argc, char** argv) {
             printf("%d,%d,%zu,%zu,\"", type, time, reads.size(), writes.size());
             bool first = true;
             for (const auto& kv : reads) {
+                printf("%s%d", first ? "" : " ", kv.first);
+                first = false;
+            }
+            // Writes as well: a tap's length is its read base minus its write
+            // base, so reads alone give positions but no delays.
+            printf("\",\"");
+            first = true;
+            for (const auto& kv : writes) {
                 printf("%s%d", first ? "" : " ", kv.first);
                 first = false;
             }
