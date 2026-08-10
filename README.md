@@ -31,11 +31,11 @@ codebase. Same board, same core, one firmware image per instrument.
 | [instruments/PicoFaceOB](instruments/PicoFaceOB/README.md) | Oberheim OB-X (engine ported from OB-Xf) | PicoFaceOB.uf2 |
 | [instruments/PicoFaceJV](instruments/PicoFaceJV/README.md) | Roland JV-880 (native engine over the original PCM data) | local build only |
 
-The JV-880 is the one exception to "download and flash": it only builds where a
+The JV-880 is the exception to "download and flash": it only builds where a
 JV-880 ROM set is present, and the ROMs are not distributable, so it is not in
 the release binaries. Without them the configure step skips it and the eight
-above are unaffected. It runs on the hardware, and `-DPICOFACEJV_4MB=ON` fits it
-on a base 4 MB Pico 2.
+above are unaffected. It runs on the hardware; see the flash note below for the
+one build option it needs on a small board.
 
 ## Hardware
 
@@ -48,6 +48,27 @@ on a base 4 MB Pico 2.
 
 The pin map is the same for every instrument and lives in
 [core/include/project_config.h](core/include/project_config.h).
+
+### How much flash an instrument needs
+
+The reference board carries 16 MB. That is not a requirement of the design, but
+three instruments ship sample data and will not fit the 4 MB that a base
+Raspberry Pi Pico 2 and many other RP2350 boards provide:
+
+| Instrument | Image | On a 4 MB board |
+|---|---|---|
+| YC, DX, J6, MD, SM, OB | 90-190 KB | fits anywhere |
+| PicoFaceCP | 4.22 MB | does not fit |
+| PicoFaceJV | 4.34 MB | only with `-DPICOFACEJV_4MB=ON` (3.76 MB, banks A+B) |
+| PicoFaceRD | 5.07 MB | does not fit |
+
+CP carries the Rhodes, Clavinet and E-piano sample sets, RD the MKS-20 sample
+packs. Neither has a reduced variant: there is no subset to drop the way the
+JV's three wave banks can become two. Anything from 8 MB up holds all nine.
+
+An oversized `.uf2` fails to copy in a way that names no reason: the file
+transfer stops or the drive rejects it, with nothing on screen about flash size.
+That is the symptom, and it is not a corrupt download.
 
 ## Building
 
