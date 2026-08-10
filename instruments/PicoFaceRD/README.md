@@ -38,6 +38,11 @@ compatible 16 MB stand-in — the Waveshare RP2350 Plus has no board file in the
 pinned SDK, and all pins used here are addressed explicitly, so the only thing
 taken from the board file is the 16 MB flash size (which matches).
 
+The 16 MB is not decoration here: the image is **5.07 MB**, mostly sample packs,
+so this one does not fit a 4 MB board such as a base Pico 2, and there is no
+reduced variant. An oversized `.uf2` stops copying without saying why. See
+[How much flash an instrument needs](../../README.md#how-much-flash-an-instrument-needs).
+
 ## User interface
 
 Encoder **Select** switches the page (with wrap-around), encoders **A** and **B** edit the two page parameters. Continuous values are shown in percent and step 1 % per detent.
