@@ -1,0 +1,32 @@
+{
+  "name": "Clv",
+  "source_dir": "build_host/cp_samples/source/clavinet",
+  "output_dir": "build_host/cp_samples/converted/clavinet",
+  "target_sr": 32000,
+  "normalize": {
+    "mode": "mda_curve"
+  },
+  "trim": {
+    "mode": "loop",
+    "win_ms": 8,
+    "hop_ms": 1,
+    "smooth_ms": 40,
+    "loop_after_peak_ms": 150,
+    "loop_min_window_ms": 250,
+    "loop_max_window_ms": 500,
+    "num_periods": 10,
+    "min_loop_samples": 30
+  },
+  "loop_finder": {
+    "binary": "tools/FindLoopPoints",
+    "min_score": 0.15
+  },
+  "bit_depth": 16,
+  "engine": {
+    "velocity_layers": 3,
+    "velocity_thresholds": [
+      48,
+      80
+    ]
+  }
+}
