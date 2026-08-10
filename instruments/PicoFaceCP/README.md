@@ -47,6 +47,14 @@ the desktop before flashing.
 Footprint in the collection build: 4,431,496 bytes of flash (the sample sets
 dominate), 178,104 bytes of RAM.
 
+Only `Rd I` plays mda-EPiano's own samples. The other five voices are sample
+sets built for this instrument and committed as headers
+(`Rd_IIData.h`, `WrData.h`, `ClvData.h`, `CPData.h`, `PnoData.h`); the
+toolchain that produces them is
+[tools/cp_sampleprep](../../tools/cp_sampleprep/README.md). The source
+recordings are not distributed — that README says why, and what a replacement
+set has to look like.
+
 ---
 
 ## Signal flow
