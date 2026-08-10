@@ -1207,9 +1207,16 @@ does not have to be guessed. `jv_fx_taps.cpp` does exactly that.
 
 The same route was the one munt took for the MT-32's reverb, where the buffer
 sizes came from tracing the reverb RAM address lines of the real chip. Its
-constants are of no use here -- a different chip, five years earlier, four modes
+constants are of no use here -- a different chip in an older machine, four modes
 against the JV's six plus two delays -- but the method carries over, and in an
 emulator the address lines are function arguments.
+
+The chips are named in the same survey that identifies the JV's, cited below:
+the MT-32's reverb is a Hitachi HG61H20R36F, the JV's effect section a Toshiba
+TC24SC201AF-002 dated 1990. The survey gives no year for the Hitachi part, and
+the MT-32 shipped in 1987, so how far apart their designs are is not something
+this repository can state -- an earlier draft claimed five years and had no
+source for it.
 
 **What came out.** One fixed delay network, shared by all six reverb types:
 
