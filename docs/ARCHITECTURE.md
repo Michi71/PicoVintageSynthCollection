@@ -235,7 +235,8 @@ Voice mode has no CC: the value is an enumeration, not a 0..127 quantity.
 PicoFaceOB is the first instrument whose sound generation does not come from
 this project: it is ported from
 [OB-Xf](https://github.com/surge-synthesizer/OB-Xf). Two things therefore set it
-apart from the other seven.
+apart from the other eight. PicoFaceJV came later and is not a second case: its
+PCM data is the user's own, but the engine playing it was written here.
 
 **License.** OB-Xf is GPL-3.0-or-later, and so is this repository as a whole
 (root `LICENSE`). What sets PicoFaceOB apart is not the licence itself but its

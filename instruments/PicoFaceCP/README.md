@@ -4,7 +4,7 @@
   <img src="../../img/picofacecp.png" alt="PicoFaceCP prototype hardware" width="800">
 </p>
 
-**A Yamaha reface CP emulation**, one of the eight instruments in
+**A Yamaha reface CP emulation**, one of the nine instruments in
 [PicoVintageSynthCollection](../../README.md).
 
 The [mda-EPiano](https://sourceforge.net/projects/mda-vst/) sound engine drives

@@ -1,6 +1,6 @@
 # PicoFaceOB
 
-An Oberheim OB-X emulation, one of the eight instruments in
+An Oberheim OB-X emulation, one of the nine instruments in
 [PicoVintageSynthCollection](../../README.md). The sound generation is a port of
 **OB-Xf** (https://github.com/surge-synthesizer/OB-Xf), the successor of OB-Xd.
 

@@ -5,7 +5,7 @@
 </p>
 
 
-An emulation of the ARP Solina String Ensemble, one of the eight instruments in
+An emulation of the ARP Solina String Ensemble, one of the nine instruments in
 [PicoVintageSynthCollection](../../README.md).
 
 **Status:** running firmware for the RP2350, plus a macOS host test that

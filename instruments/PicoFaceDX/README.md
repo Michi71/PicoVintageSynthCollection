@@ -4,7 +4,7 @@
   <img src="../../img/picofacedx.png" alt="PicoFaceDX prototype hardware" width="800">
 </p>
 
-A Yamaha reface DX FM synth clone, one of the eight instruments in
+A Yamaha reface DX FM synth clone, one of the nine instruments in
 [PicoVintageSynthCollection](../../README.md). Four operators, twelve
 algorithms, two effect slots.
 
@@ -125,7 +125,7 @@ Confirmed working: with it, Soundmondo connects and loads voices directly.
 
 It is **off by default** and meant for a session with such an editor, not for
 distribution: it borrows Yamaha's vendor ID, and it gives up the per-instrument
-PID that lets a host tell the eight images of this collection apart. The option
+PID that lets a host tell the nine images of this collection apart. The option
 is cached, so switching it back off needs a reconfigure *and* a rebuild:
 
 ```bash

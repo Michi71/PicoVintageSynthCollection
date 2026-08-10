@@ -5,7 +5,7 @@
 </p>
 
 A Roland **MKS-20 / MK-80** ("S/A synthesis") digital piano clone, one of the
-eight instruments in [PicoVintageSynthCollection](../../README.md). Instead of emulating the original hardware cycle-exactly at runtime, it plays a **descriptor-driven re-implementation** of the S/A engine: the original firmware's voice programming was captured note-by-note on a host-side reference emulator, distilled into compact per-note descriptors, and is replayed on-device with chip-exact envelope arithmetic. The result is validated against the reference emulator with a cross-correlation matrix of 1920 cells (median r = 0.9997).
+nine instruments in [PicoVintageSynthCollection](../../README.md). Instead of emulating the original hardware cycle-exactly at runtime, it plays a **descriptor-driven re-implementation** of the S/A engine: the original firmware's voice programming was captured note-by-note on a host-side reference emulator, distilled into compact per-note descriptors, and is replayed on-device with chip-exact envelope arithmetic. The result is validated against the reference emulator with a cross-correlation matrix of 1920 cells (median r = 0.9997).
 
 ## Features
 
@@ -30,7 +30,7 @@ and [doc/hardware/PROTOTYPE.md](doc/hardware/PROTOTYPE.md) describes a complete
 
 This instrument is the one that pushes the platform hardest: it runs at 480 MHz
 with flash at 120 MHz QSPI, set through `PICOFACE_SYS_CLOCK_HZ` and
-`PICOFACE_QMI_M0_TIMING_TARGET` in its `instrument.cmake`. The other seven run
+`PICOFACE_QMI_M0_TIMING_TARGET` in its `instrument.cmake`. The other eight run
 at 444 MHz.
 
 Note: the build uses the SDK board definition `sparkfun_promicro_rp2350` as a

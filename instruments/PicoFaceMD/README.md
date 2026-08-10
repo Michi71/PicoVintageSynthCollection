@@ -1,6 +1,6 @@
 # PicoFaceMD — Moog Minimoog Model D
 
-An emulation of the Moog Minimoog Model D, one of the eight instruments in
+An emulation of the Moog Minimoog Model D, one of the nine instruments in
 [PicoVintageSynthCollection](../../README.md).
 
 **Status:** running firmware for the RP2350, plus a macOS host test that

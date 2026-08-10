@@ -1,6 +1,6 @@
 # PicoFaceYC
 
-A Yamaha reface YC combo/home organ clone, one of the eight instruments in
+A Yamaha reface YC combo/home organ clone, one of the nine instruments in
 [PicoVintageSynthCollection](../../README.md). The organ engine is a
 wavetable-based additive footage synthesis architecture written for this
 project, following the tone generation concepts of setBfree.
