@@ -18,8 +18,9 @@
 //
 // This is the route munt took for the MT-32, where the buffer sizes came from
 // tracing the reverb RAM address lines of the real chip. The MT-32's constants
-// are of no use here (different chip, five years earlier) but the method is,
-// and in an emulator the address lines are function arguments.
+// are of no use here (Hitachi HG61H20R36F there, Toshiba TC24SC201AF-002 here,
+// four modes against six plus two delays) but the method is, and in an emulator
+// the address lines are function arguments.
 //
 // Reading the registers directly does NOT work, and the first version of this
 // tool was thrown away for it: the chip walks 32 slots in rotation and reuses
