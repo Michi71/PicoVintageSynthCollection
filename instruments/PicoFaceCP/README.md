@@ -4,7 +4,7 @@
   <img src="../../img/picofacecp.png" alt="PicoFaceCP prototype hardware" width="800">
 </p>
 
-**A Yamaha reface CP emulation**, one of the eight instruments in
+**A Yamaha reface CP emulation**, one of the nine instruments in
 [PicoVintageSynthCollection](../../README.md).
 
 The [mda-EPiano](https://sourceforge.net/projects/mda-vst/) sound engine drives
@@ -78,6 +78,11 @@ reface owner's manual, "reface CP" section - not shipped with this repository.
 
 The board is the same for every instrument in the collection; the pin map lives
 in [core/include/project_config.h](../../core/include/project_config.h).
+
+The image is **4.22 MB** — the six sample sets are most of it — so this one does
+not fit a 4 MB board such as a base Pico 2, and there is no reduced variant. An
+oversized `.uf2` stops copying without saying why. See
+[How much flash an instrument needs](../../README.md#how-much-flash-an-instrument-needs).
 
 ---
 

@@ -1,6 +1,6 @@
 # PicoFaceJ6 — Roland Juno-60
 
-An emulation of the Roland Juno-60, one of the eight instruments in
+An emulation of the Roland Juno-60, one of the nine instruments in
 [PicoVintageSynthCollection](../../README.md).
 
 **Status:** running firmware for the RP2350, plus a macOS host test that
