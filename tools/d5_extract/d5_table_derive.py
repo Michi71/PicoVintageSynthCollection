@@ -746,6 +746,10 @@ def main():
             fade = min(1600, len(cut) // 4)
             cut = cut.copy()
             cut[-fade:] *= np.linspace(1, 0, fade)
+        elif len(cut):
+            # short one-shots are hard to judge as a bare blip: give the
+            # player room with a little leading and trailing silence
+            cut = np.concatenate([np.zeros(3200), cut, np.zeros(12800)])
         with wave.open(os.path.join(sdir, f"{e['pcm']:03d}_{e['name']}.wav"), "wb") as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)
