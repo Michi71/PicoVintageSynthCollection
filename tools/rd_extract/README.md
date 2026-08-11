@@ -70,6 +70,13 @@ the macro; `nm` on `PicoFaceRD.elf` shows no such symbol.
 tools/rd_extract/build_xip_probe.sh 0 12 200      # patch, voices, blocks
 ```
 
+**Patch numbers here are engine indices, 0-15.** The instrument displays
+`instrument() + 1`, so every number in this section is one below what the PATCH
+page shows. The two patches with no flash cost at all are indices 5 and 15,
+which are **`06 Vibraphone` and `16 Vibraphone`** on the device -- and that they
+are both vibraphones is the mechanism showing through: short, simple, heavily
+reused waveforms fit the cache, where a piano's spread across the ROM does not.
+
 **What it found.** At the 32 kHz base limit of twelve voices the engine issues
 119 wave-ROM loads per sample -- one per part, ten parts per note, as expected
 -- and the flash cost is enormous but wildly patch-dependent:
@@ -102,9 +109,35 @@ does not currently have.
 **What this does not show.** Only that the flash bottleneck disappears, not
 that those patches can run twenty-four voices: the arithmetic scales with voice
 count too, and this probe does not measure it. If it fails there, it will not
-be flash. The device can answer that today without any code change -- VOICES
-offers fixed polyphony, the footer shows peak load, so patch 15 at 24 voices
-against patch 3 at 24 voices settles it.
+be flash.
+
+The device can answer that without a code change, but not as casually as this
+paragraph used to suggest. Four patches measured on hardware at a VOICES
+setting of 24:
+
+| device | index | miss rate | peak load |
+|---|---|---|---|
+| 02 Piano 2 | 1 | 56.0 % | 100 % |
+| 03 Piano 3 | 2 | 59.5 % | 57 % |
+| 14 A. Piano 2 | 13 | 58.7 % | 90 % |
+| 15 Clavi | 14 | 68.3 % | 67 % |
+
+The lowest miss rate carries the highest load and the highest miss rate the
+second lowest, so within this group the miss rate predicts nothing. Neither
+does the sample rate: indices 1, 2 and 13 run at 20 kHz and index 14, the
+cheapest of the four, at 32 kHz.
+
+What was not controlled is how many voices actually sounded. `P` is a peak over
+whatever was played, while the probe assumes twenty-four voices sustaining, and
+patches differ enormously in how long a voice stays alive -- a piano's release
+keeps parts running where a clavinet's does not. The footer prints
+`A<active>/<limit>` next to `P`; without reading it the four numbers are not
+comparable to each other, let alone to this table.
+
+The comparison worth making is **`16 Vibraphone` against `15 Clavi`**, both at
+a fixed 24 voices, holding until `A` reaches the limit and reading `P` there.
+That is 0.0 % against 68.3 % miss rate with everything else equal -- the
+cleanest flash isolation the device allows.
 
 **On the numbers.** The miss rate is measured: a real address stream from the
 real engine through a stated cache geometry. The conversion to percent of
@@ -112,6 +145,11 @@ budget is an estimate with its assumptions in the source -- 96 CPU cycles per
 miss, from a 120 MHz QSPI fetch at the 4:1 clock ratio. Halve or double that
 and the absolute figures move; the ordering, and the factor of several hundred
 between patch 3 and patch 15, do not.
+
+The hardware numbers above sharpen that caveat. Among patches whose miss rates
+sit within ten points of each other the model says nothing useful about which
+will cost more, so "flash-bound %" is worth reading as a ranking between the
+extremes -- something against nothing -- and not as a per-patch budget.
 
 ## Regression runner (one command)
 
