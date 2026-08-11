@@ -166,6 +166,63 @@ def top_boundaries(rom, zone, count, hop):
 
 # ----------------------------------------------------------------- assembly
 
+ATT_GRID = PAGE
+# region sizes in words with placement cost; ear review round 2 established
+# the page-grid slot quantization (most attacks 2 pages, pianos bigger)
+ATT_SIZES = {2048: 0.3, 4096: 0.0, 6144: 0.3, 8192: 0.7, 10240: 1.2, 12288: 1.4}
+# regions confirmed correct by ear (Lpiano/Mpiano/Hpiano) -- fixed exactly,
+# including their position in the numbering: (0-based index, start, end)
+ATT_PINS = [(15, 49152, 57344), (16, 57344, 65536), (17, 65536, 71680)]
+
+
+def attack_regions_dp(rs, frontier, sizes=None, onset_pen=2.0, span_pen=0.6):
+    """Choose exactly 47 attack regions on the page grid, sizes weighted
+    toward the observed slot classes, starts preferring onsets, ending
+    exactly at the frontier, with the ear-confirmed piano regions pinned.
+    Dense odd-position onsets are internal re-attacks (drum hits), so
+    spanning an onset is only mildly penalized."""
+    n = frontier // ATT_GRID
+    onset = [rs.attack_like(g * ATT_GRID) for g in range(n + 1)]
+    INF = float("inf")
+    dp = [[INF] * 48 for _ in range(n + 1)]
+    par = [[None] * 48 for _ in range(n + 1)]
+    dp[0][0] = 0.0
+    for i in range(n):
+        for k in range(47):
+            if dp[i][k] == INF:
+                continue
+            pos = i * ATT_GRID
+            base = dp[i][k] + (0.0 if onset[i] else onset_pen)
+            pin = next((p for p in ATT_PINS if p[1] == pos), None)
+            if pin and k != pin[0]:
+                continue          # a pinned start must be reached at its index
+            for sz, cost in (sizes or ATT_SIZES).items():
+                if pin and sz != pin[2] - pin[1]:
+                    continue
+                j = i + sz // ATT_GRID
+                if j > n:
+                    continue
+                end = j * ATT_GRID
+                if pin is None and any(pos < pa < end or pos < pb < end
+                                       or (pa <= pos and end <= pb)
+                                       for _, pa, pb in ATT_PINS):
+                    continue      # regions may not overlap a pinned region
+                c = base + cost + sum(span_pen for t in range(i + 1, j) if onset[t])
+                if c < dp[j][k + 1]:
+                    dp[j][k + 1] = c
+                    par[j][k + 1] = i
+    if dp[n][47] == INF:
+        return None
+    bounds = []
+    i, k = n, 47
+    while k:
+        i = par[i][k]
+        bounds.append(i * ATT_GRID)
+        k -= 1
+    bounds.reverse()
+    return list(zip(bounds, bounds[1:] + [frontier]))
+
+
 def clipped_regions(starts, hard_end, isl):
     """(start, end) per start; ends clip to the island holding the start."""
     out = []
@@ -179,13 +236,11 @@ def clipped_regions(starts, hard_end, isl):
     return out
 
 
-def build_table(rs, rom, frontier, noise_a, noise_b, forced, topup):
-    """Region list for PCM 1..100 given the attack/static frontier, forced
-    attack boundaries (from ear review), and chosen top-up boundaries."""
-    onsets = [p * PAGE for p in range(1, frontier // PAGE)
-              if rs.attack_like(p * PAGE)]
-    att = sorted(set([0] + onsets + list(forced) + list(topup)))[:47]
-    att_regions = list(zip(att, att[1:] + [frontier]))
+def build_table(rs, rom, frontier, noise_a, noise_b, **dp_kw):
+    """Region list for PCM 1..100 given the attack/static frontier."""
+    att_regions = attack_regions_dp(rs, frontier, **dp_kw)
+    if att_regions is None:
+        return []
 
     st_zone = (frontier, noise_a)
     st_isl = islands(rom, st_zone)
@@ -212,19 +267,44 @@ def topup_candidates(rs, rom, frontier, need):
     return [pos for _, pos in extra[: max(need * 4, 8)]]
 
 
-CHECKS = [
-    ("Lpiano<Mpiano<Hpiano", (16, 17, 18), "pitch_asc"),
-    ("FluteH>FluteL", (34, 35), "pitch_desc"),
-    ("Horgan>Lorgan", (49, 50), "pitch_desc"),
-    ("EP_lp1~EP_lp2", (51, 52), "similar"),
-    ("SAXlp1~SAXlp2", (63, 64), "similar"),
-    ("Spect1..7 block", tuple(range(68, 75)), "block"),
+CHECKS = [    # (label, pcm numbers, kind, weight)
+    ("Lpiano<Mpiano<Hpiano", (16, 17, 18), "pitch_asc", 2.0),
+    ("FluteH>FluteL", (34, 35), "pitch_desc", 2.0),
+    ("Horgan>Lorgan", (49, 50), "pitch_desc", 3.0),   # frontier sentinel
+    ("EP_lp1~EP_lp2", (51, 52), "similar", 1.0),
+    ("SAXlp1~SAXlp2", (63, 64), "similar", 1.0),
+    ("Spect1..7 block", tuple(range(68, 75)), "block", 1.0),
+    ("Xylo1~Xylo2", (3, 4), "similar", 1.0),
+    ("Eguit1~Eguit2", (24, 25), "similar", 1.0),
+    ("Lips1~Lips2", (39, 40), "similar", 1.0),
+    ("EB_lp1/2/3 block", (55, 57, 58), "block", 1.0),
+    ("Aah_lp~Ooh_lp", (65, 66), "similar_loose", 1.0),
+    ("Breath noisy", (32,), "noisy", 1.5),
+    ("Steam noisy", (33,), "noisy", 1.5),
+    ("3angle bright", (12,), "bright", 1.5),
 ]
+
+
+def flatness(x):
+    x = np.asarray(x[:4096], dtype=np.float64)
+    if len(x) < 512:
+        return 0.0
+    m = np.abs(np.fft.rfft(x * np.hanning(len(x))))[1:] + 1e-12
+    return float(np.exp(np.mean(np.log(m))) / np.mean(m))
+
+
+def centroid(x):
+    x = np.asarray(x[:4096], dtype=np.float64)
+    if len(x) < 512:
+        return 0.0
+    m = np.abs(np.fft.rfft(x * np.hanning(len(x))))
+    f = np.arange(len(m)) * SAMPLE_RATE / 2 / (len(m) - 1)
+    return float(np.sum(f * m) / (np.sum(m) + 1e-12))
 
 
 def validate(rom, table):
     results = []
-    for name, pcms, kind in CHECKS:
+    for name, pcms, kind, weight in CHECKS:
         entries = [table[p - 1] for p in pcms]
         if any(e["start"] is None for e in entries):
             results.append((name, None))
@@ -246,6 +326,16 @@ def validate(rom, table):
             if kind == "similar":
                 s = similar(specs[0], specs[1])
                 results.append((name, (s > 0.85, round(s, 2))))
+            elif kind == "similar_loose":
+                # same source, different vowel/register: moderate similarity
+                s = similar(specs[0], specs[1])
+                results.append((name, (0.5 < s < 0.97, round(s, 2))))
+            elif kind == "noisy":
+                fl = flatness(cuts[0])
+                results.append((name, (fl > 0.25, round(fl, 2))))
+            elif kind == "bright":
+                c = centroid(cuts[0])
+                results.append((name, (c > 3500, round(c))))
             else:
                 sims = [similar(a, b) for a, b in zip(specs, specs[1:])]
                 results.append((name, (min(sims) > 0.6, round(float(np.mean(sims)), 2))))
@@ -267,39 +357,28 @@ def main():
     print(f"Noise block (PCM 76): words {noise_a}..{noise_b} "
           f"(pages {noise_a/PAGE:.2f}..{noise_b/PAGE:.2f})")
 
-    # ear-review constraints: force a split inside every region reported as
-    # containing two sounds (attack zone only; positions on the page grid)
-    forced = []
-    prev = None
-    if args.review and args.prev:
-        review = json.load(open(args.review))
-        prev = json.load(open(args.prev))
-        zone_flux = flux(rom, PAGE)
-        for pcm in review.get("merged", []):
-            e = prev[pcm - 1]
-            pages = range(e["start"] // PAGE + 1, e["end"] // PAGE)
-            if pages:
-                p = max(pages, key=lambda q: zone_flux[q])
-                forced.append(p * PAGE)
-                print(f"review: forcing split inside PCM {pcm} at page {p}")
+    prev = json.load(open(args.prev)) if args.prev else None
 
     def energetic(table):
         # peak-based: attacks carry long decay tails, so RMS would misjudge
         return all(float(np.max(np.abs(rom[e["start"]: e["end"]]), initial=0.0)) >= 0.02
                    for e in table)
 
-    from itertools import combinations
+    # cost-jitter sampling: the DP has near-ties the family checks must
+    # arbitrate, so validate several perturbed DP optima per frontier
+    import random
+    rng = random.Random(50)
+    variants = [dict()]
+    for _ in range(30):
+        variants.append(dict(
+            sizes={sz: c + rng.uniform(-0.4, 0.4) for sz, c in ATT_SIZES.items()},
+            onset_pen=rng.uniform(1.2, 3.0),
+            span_pen=rng.uniform(0.3, 1.0)))
     best = None
     for fp in range(84, 100):
         frontier = fp * PAGE
-        onset_count = 1 + sum(1 for p in range(1, fp) if rs.attack_like(p * PAGE))
-        need = 47 - onset_count - len([f for f in forced if f < frontier])
-        if need < 0 or need > 3:
-            continue          # implausible frontier
-        cands = [c for c in topup_candidates(rs, rom, frontier, need)
-                 if c not in forced][: need + 4] if need else []
-        for topup in (combinations(cands, need) if need else [()]):
-            regions = build_table(rs, rom, frontier, noise_a, noise_b, forced, topup)
+        for dp_kw in variants:
+            regions = build_table(rs, rom, frontier, noise_a, noise_b, **dp_kw)
             if len(regions) != 100:
                 continue
             table = []
@@ -310,9 +389,11 @@ def main():
             if not energetic(table):
                 continue
             res = validate(rom, table)
-            score = sum(1 for _, r in res if r and r[0])
+            score = sum(w for (_, r), (_, _, _, w) in zip(res, CHECKS) if r and r[0])
             if best is None or score > best[0]:
                 best = (score, frontier, table, res)
+                print(f"  new best: frontier page {fp}, weighted {score:.1f}, "
+                      f"{sum(1 for _, r in res if r and r[0])}/{len(CHECKS)} pass")
 
     if best is None:
         raise SystemExit("no candidate satisfied the energy constraint -- "
@@ -320,6 +401,12 @@ def main():
     score, frontier, table, res = best
     print(f"best frontier (start of PCM 48): page {frontier//PAGE}  "
           f"({score}/{len(CHECKS)} checks pass, all regions energetic)")
+    from collections import Counter
+    hist = Counter(e["end"] - e["start"] for e in table[:47])
+    print("attack size histogram:",
+          {k: v for k, v in sorted(hist.items())})
+    pianos = [(e["end"] - e["start"]) for e in table[15:18]]
+    print(f"piano sizes (PCM 16-18): {pianos}")
     if prev:
         changed = [e["pcm"] for e, p in zip(table, prev)
                    if (e["start"], e["end"]) != (p["start"], p["end"])]
