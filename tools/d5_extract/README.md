@@ -199,6 +199,25 @@ samples do obey (a loop repeats at exactly one period):
 - **Fifteen of the static loops are internally consistent** (one period from
   start to end) and are very likely right.
 
+**Where it stands after a full listening pass.** Attacks 1..47 are confirmed
+twice over -- by the ROM's own silence marks and by ear, with nothing found
+in either. Static loops 48..52 pass by ear as well. From 53 on the review
+keeps finding trouble, and two re-derivations were built and thrown away:
+one scored by periodicity, one by loop quality, both rejected by ear (and
+both had to be restrained from a degenerate answer first, which is a warning
+about the method rather than about the data).
+
+The measurement that finally matches what the ear reports is spectral
+brightness across the zone. It falls into blocks: pages 92..111 sit between
+287 and 2000 Hz, which is where instrument loops belong; 112..118 jump to
+3900..10600 Hz; page 119 drops back to 454 Hz on its own; and 120..127 are
+uniformly bright at about 7400 Hz. The table puts the saxophones and the
+vocal loops in 114..118 -- a saxophone cannot have a spectral centroid of
+8000 Hz -- and puts Spect1, an inharmonic spectrum, on the one dark page in
+the middle. So the assignment from roughly PCM 63 onward is wrong, in a way
+that brightness measures and the ear confirms, and neither automatic
+re-derivation found the right answer.
+
 Putting `cp_sampleprep`'s loop finder on them sharpened that considerably --
 it is the better judge, and it found the harpsichord's real period of 156
 words where the estimator here had bottomed out at its 16-word floor. Offered
