@@ -280,6 +280,7 @@ confirm or correct the hypothesis table sample by sample.
 | `d5_make_blob.py` | decodes the ROM set into `d5_pcm.bin` (512 KiB, 16-bit) plus `d5_blob.S` and `d5_pcm_table.h` for the firmware. |
 | `d5_syx_to_patches.py` | converts a D-50 SysEx bulk dump into `d5_patch_data.h`: 64 patches as raw parameter bytes, checksums and parameter ranges verified. |
 | `d5_bq3_decompress.py` | unpacks a Roland Boutique BQ3 firmware update (D-05) into its components -- Okumura LZSS, verified against the loader's own routine. |
+| `d5_review_render.py` | renders the frozen table for review by ear: one-shots padded with silence, loops tiled and pitch-normalised, plus one file with all of them in order. |
 | `d5_sample_table.json` | the frozen table: start, length, loop flag and provenance per sample. |
 
 ```bash
