@@ -172,9 +172,14 @@ ATT_GRID = PAGE
 ATT_SIZES = {2048: 0.3, 4096: 0.0, 6144: 0.3, 8192: 0.7, 10240: 1.2, 12288: 1.4}
 # regions confirmed correct by ear (Lpiano/Mpiano/Hpiano) -- fixed exactly,
 # including their position in the numbering: (0-based index, start, end)
+# round-6 ear review: "first something else, then the sound" -- the true
+# starts of Clarnt (idx 30) and Breath (idx 31) lie beyond these positions
+REVIEW_MIN_START = {30: 126976, 31: 131072}
+
 ATT_PINS = [(2, 8192, 12288), (3, 12288, 16384),        # Xylo1/Xylo2
             (15, 49152, 57344), (16, 57344, 65536), (17, 65536, 71680),
             (32, 135168, None),     # Steam start, measured (web ref, 0.95)
+            (33, 139264, None),     # FluteH start, ear-confirmed ("ab 033 ok")
             (38, 155648, None),     # Lips1 start, measured (web ref)
             (46, 184320, None)]     # Pizz start, measured (web ref, 1.00)
 
@@ -200,6 +205,8 @@ def attack_regions_dp(rs, frontier, sizes=None, onset_pen=2.0, span_pen=0.6):
             pin = next((p for p in ATT_PINS if p[1] == pos), None)
             if pin and k != pin[0]:
                 continue          # a pinned start must be reached at its index
+            if REVIEW_MIN_START.get(k, 0) > pos:
+                continue          # ear review: this region starts later
             for sz, cost in (sizes or ATT_SIZES).items():
                 if pin and pin[2] is not None and sz != pin[2] - pin[1]:
                     continue
@@ -388,9 +395,9 @@ CHECKS = [    # (label, pcm numbers, kind, weight)
     ("Steam noisy", (33,), "noisy", 1.5),
     ("3angle bright", (12,), "bright", 1.5),
     ("Noise is noise", (76,), "noisy", 3.0),
-    ("flat page 112 is a Spect", (68,), "spect112", 2.0),
+    ("flat page 112 is a Spect", (68,), "spect112", 6.0),
     ("attack regions pure", (), "purity", 3.0),
-    ("Aah/Ooh audible", (65, 66), "rms_min:0.08", 1.5),
+    ("Aah/Ooh formants", (65, 66), "formants", 2.0),
 ]
 
 
@@ -445,6 +452,20 @@ def validate(rom, table):
             lim = float(kind.split(":")[1])
             vals = [round(rms_of(rom[e["start"]: e["end"]]), 3) for e in entries]
             results.append((name, (all(v >= lim for v in vals), vals)))
+            continue
+        if kind == "formants":
+            ratios = []
+            for e in entries:
+                x = np.asarray(rom[e["start"]: e["end"]][:8192])
+                if len(x) < 512:
+                    ratios.append(0.0)
+                    continue
+                m = np.abs(np.fft.rfft(x * np.hanning(len(x)))) ** 2
+                f = np.arange(len(m)) * (SAMPLE_RATE / 2) / (len(m) - 1)
+                low = m[f < 250].sum() + 1e-9
+                mid = m[(f >= 500) & (f < 3000)].sum()
+                ratios.append(round(float(mid / low), 2))
+            results.append((name, (all(r > 1.0 for r in ratios), ratios)))
             continue
         keys = [(e["start"], e["end"]) for e in entries]
         cuts = [rom[a:b] for a, b in keys]
@@ -612,10 +633,16 @@ def main():
                     break
                 trial = [dict(e) for e in table]
                 pos = w_start
+                ok_rev = True
                 for off, pages in enumerate(list(comp) + [rest]):
+                    if REVIEW_MIN_START.get(lo + off, 0) > pos:
+                        ok_rev = False
+                        break
                     trial[lo + off]["start"] = pos
                     pos += pages * PAGE
                     trial[lo + off]["end"] = pos
+                if not ok_rev:
+                    continue
                 tres = validate(rom, trial)
                 sc = weighted(tres)
                 if sc > best_local[0] + 1e-9:
