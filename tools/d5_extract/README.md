@@ -104,15 +104,27 @@ synth chip line commented out.
 
 `BQ3_UPD.BIN` (4 MB) is the obvious place to look for Roland's own copy of
 the table, since the 2017 reissue reproduces the D-50 exactly. It does not
-yield it: the file is an update container (`ESC91.000` magic) holding a
-plain ARM Thumb loader with readable USB driver strings up to ~0x30000,
-followed by a payload that is uniformly distributed (chi-square 158503 per
-4 KB against a uniform model, no compression signature, one duplicate
-16-byte block in 64 KB -- so neither compressed nor ECB-encrypted, but
-encrypted with a stream or chained cipher). Neither the PCM data in any
-tested encoding nor the sample names appear in it. Anyone revisiting this
-needs the loader's key handling, i.e. an analysis of the ARM code in the
-first section.
+give it up easily, but it is not sealed either.
+
+The file is an update container (`ESC91.000` magic) holding a plain ARM
+Thumb loader with readable driver strings up to ~0x30000, followed by a
+payload that measures as uniformly distributed: chi-square 158503 per 4 KB
+against a uniform model, no archive signature, one duplicate 16-byte block
+in 64 KB. That reads as encryption, and this file said so until the payload
+turned out to contain factory patch names -- `Pizzagogo`, `Spacious Sweep`,
+`Synthesizer D-05` -- which random data does not.
+
+They sit in **LZSS-style compression**, not in cipher text. The bytes make
+that plain: `FF` before `Pizzagog`, then `F3` before the rest of the word,
+`FF` before `Spacio`. Those are the control bytes of an LZ77 variant with
+eight symbols per flag byte, a set bit meaning "literal" -- which is why a
+name appears in runs of eight interrupted by one byte, and why compressed
+data measures as random overall. Whoever wants Roland's own patch and table
+data can decompress this; the format is a small, well-trodden one.
+
+It stopped being necessary here: the genuine factory bank exists as a SysEx
+dump of the PN-D50-00 ROM card, the memory card the D-50 shipped with, and
+that is what the instrument plays.
 
 ## Reconstructing the table anyway
 

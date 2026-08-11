@@ -60,10 +60,16 @@ Without a bank the instrument falls back to eight patches built by hand from
 the engine's parameters, chosen to cover the ground: every structure appears,
 both waveforms, ring modulation, the pitch envelope and each effect.
 
-Note that a bank is somebody's work. The one this was developed against turned
-out to be a user bank rather than Roland's factory sixty-four -- its tone names
-say so ("by SG", "By Sven GODIJN") -- which is worth knowing before publishing
-anything made with it.
+The bank to use is the dump of **PN-D50-00**, the ROM card the D-50 shipped
+with: Fantasia, Digital Native Dance, Soundtrack, Pizzagogo, Glass Voices,
+Staccato Heaven, Shakuhachi, Nightmare -- the sixty-four sounds that made the
+machine. Two of those names turn up inside Roland's own D-05 firmware, which
+is as close to a signature as this gets.
+
+A bank is somebody's work, and not every file called "factory" is one: a
+second dump tried here announced itself in its tone names ("by SG", "By Sven
+GODIJN") as a user bank. Worth checking before publishing anything made with
+one.
 
 ## How the engine works, and what is not the original
 
