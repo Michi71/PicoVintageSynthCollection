@@ -66,10 +66,10 @@ def similar(a, b):
 _feat_cache = {}
 
 
-def pitch_of(x, key=None):
-    if key is not None and ("p", key) in _feat_cache:
-        return _feat_cache[("p", key)]
-    x = np.asarray(x[:8192], dtype=np.float64)
+def pitch_of(x, key=None, skip=0):
+    if key is not None and ("p", key, skip) in _feat_cache:
+        return _feat_cache[("p", key, skip)]
+    x = np.asarray(x[skip: skip + 8192], dtype=np.float64)
     x = x - x.mean()
     out = 0.0
     if np.max(np.abs(x)) >= 1e-3:
@@ -83,7 +83,7 @@ def pitch_of(x, key=None):
         if ac[lag] > 0.3:
             out = SAMPLE_RATE / lag
     if key is not None:
-        _feat_cache[("p", key)] = out
+        _feat_cache[("p", key, skip)] = out
     return out
 
 
@@ -172,7 +172,8 @@ ATT_GRID = PAGE
 ATT_SIZES = {2048: 0.3, 4096: 0.0, 6144: 0.3, 8192: 0.7, 10240: 1.2, 12288: 1.4}
 # regions confirmed correct by ear (Lpiano/Mpiano/Hpiano) -- fixed exactly,
 # including their position in the numbering: (0-based index, start, end)
-ATT_PINS = [(15, 49152, 57344), (16, 57344, 65536), (17, 65536, 71680)]
+ATT_PINS = [(2, 8192, 12288), (3, 12288, 16384),        # Xylo1/Xylo2
+            (15, 49152, 57344), (16, 57344, 65536), (17, 65536, 71680)]
 
 
 def attack_regions_dp(rs, frontier, sizes=None, onset_pen=2.0, span_pen=0.6):
@@ -236,24 +237,121 @@ def clipped_regions(starts, hard_end, isl):
     return out
 
 
+LOOP_GRID = 256
+
+
+def seam_cost(rom, a, b):
+    """How badly [a, b) loops: what the loop plays after wrapping (the region
+    start) versus what actually follows in ROM (the region end)."""
+    k = 64
+    if b + k > len(rom) or b - a < 2 * k:
+        return 9.0
+    d = float(np.mean(np.abs(rom[b: b + k] - rom[a: a + k])))
+    scale = float(np.mean(np.abs(rom[a:b]))) + 1e-6
+    return d / scale
+
+
+def loop_regions_dp(rom, zone, count, seam_w=3.0):
+    """Split a zone into `count` seamlessly loopable regions: boundaries on a
+    256-word grid inside signal islands, sizes preferring 512-multiples,
+    seam quality as the dominant cost. Regions never span silence gaps."""
+    isl = islands(rom, zone)
+    if not isl:
+        return None
+    positions = []          # (word, island_id)
+    for iid, (ia, ib) in enumerate(isl):
+        pos = [ia]
+        g = (ia // LOOP_GRID + 1) * LOOP_GRID
+        while g < ib:
+            pos.append(g)
+            g += LOOP_GRID
+        pos.append(ib)
+        positions += [(w, iid) for w in sorted(set(pos))]
+    n = len(positions)
+    INF = float("inf")
+    dp = [[INF] * (count + 1) for _ in range(n)]
+    par = [[None] * (count + 1) for _ in range(n)]
+    # entry: first island start; islands are chained via their edges
+    dp[0][0] = 0.0
+    for i in range(n):
+        wa, ia = positions[i]
+        for k in range(count + 1):
+            if dp[i][k] == INF:
+                continue
+            # gap jump: island end -> next island start, no region consumed
+            if i + 1 < n and positions[i + 1][1] != ia:
+                if dp[i][k] < dp[i + 1][k]:
+                    dp[i + 1][k] = dp[i][k]
+                    par[i + 1][k] = (i, k, False)
+            if k == count:
+                continue
+            for j in range(i + 1, n):
+                wb, ib_ = positions[j]
+                if ib_ != ia:
+                    break
+                size = wb - wa
+                if size < 512:
+                    continue
+                if size > 8192:
+                    break
+                c = (dp[i][k] + seam_w * seam_cost(rom, wa, wb)
+                     + (0.0 if size % 512 == 0 else 0.3)
+                     + {512: 0.0, 1024: 0.1, 2048: 0.2}.get(size, 0.5))
+                if c < dp[j][k + 1]:
+                    dp[j][k + 1] = c
+                    par[j][k + 1] = (i, k, True)
+    if dp[n - 1][count] == INF:
+        return None
+    regions = []
+    i, k = n - 1, count
+    while par[i][k] is not None:
+        pi, pk, is_region = par[i][k]
+        if is_region:
+            regions.append((positions[pi][0], positions[i][0]))
+        i, k = pi, pk
+    regions.reverse()
+    return regions
+
+
+def refine_loop_boundaries(rom, regions, span=192):
+    """Word-exact seam tuning: shift each internal boundary within +/-span
+    to minimize the seam costs of the two adjacent loops. Kills the click
+    per revolution without re-partitioning."""
+    regions = [list(r) for r in regions]
+    for i in range(len(regions) - 1):
+        a0 = regions[i][0]
+        b = regions[i][1]
+        e1 = regions[i + 1][1]
+        best = (seam_cost(rom, a0, b) + seam_cost(rom, b, e1), b)
+        for d in range(-span, span + 1, 4):
+            nb = b + d
+            if nb - a0 < 384 or e1 - nb < 384:
+                continue
+            c = seam_cost(rom, a0, nb) + seam_cost(rom, nb, e1)
+            if c < best[0]:
+                best = (c, nb)
+        regions[i][1] = regions[i + 1][0] = best[1]
+    return [tuple(r) for r in regions]
+
+
 def build_table(rs, rom, frontier, noise_a, noise_b, **dp_kw):
     """Region list for PCM 1..100 given the attack/static frontier."""
     att_regions = attack_regions_dp(rs, frontier, **dp_kw)
     if att_regions is None:
         return []
-
     st_zone = (frontier, noise_a)
-    st_isl = islands(rom, st_zone)
     st_starts = island_boundaries(rom, st_zone, 28)
-    st_regions = clipped_regions(st_starts, noise_a, st_isl)
-    st_regions.append((noise_a, noise_b))
-
+    st_regions = clipped_regions(st_starts, noise_a, islands(rom, st_zone))
+    if len(st_regions) != 28:
+        return []
+    st_regions = refine_loop_boundaries(rom, st_regions)
     cp_zone = (noise_b, len(rom))
-    cp_isl = islands(rom, cp_zone)
     cp_starts = island_boundaries(rom, cp_zone, 24)
-    cp_regions = clipped_regions(cp_starts, len(rom), cp_isl)
-
-    return att_regions + st_regions + cp_regions
+    cp_regions = clipped_regions(cp_starts, len(rom), islands(rom, cp_zone))
+    if len(cp_regions) != 24:
+        return []
+    cp_regions = refine_loop_boundaries(rom, cp_regions)
+    return att_regions + st_regions + [(noise_a, noise_b)] + cp_regions
 
 
 def topup_candidates(rs, rom, frontier, need):
@@ -269,16 +367,17 @@ def topup_candidates(rs, rom, frontier, need):
 
 CHECKS = [    # (label, pcm numbers, kind, weight)
     ("Lpiano<Mpiano<Hpiano", (16, 17, 18), "pitch_asc", 2.0),
-    ("FluteH>FluteL", (34, 35), "pitch_desc", 2.0),
-    ("Horgan>Lorgan", (49, 50), "pitch_desc", 3.0),   # frontier sentinel
+    ("FluteH>FluteL", (34, 35), "flutes", 2.0),
+    ("Horgan/Lorgan octave", (49, 50), "pitch_octave", 3.0),  # frontier sentinel
     ("EP_lp1~EP_lp2", (51, 52), "similar", 1.0),
     ("SAXlp1~SAXlp2", (63, 64), "similar", 1.0),
     ("Spect1..7 block", tuple(range(68, 75)), "block", 1.0),
-    ("Xylo1~Xylo2", (3, 4), "similar", 1.0),
     ("Eguit1~Eguit2", (24, 25), "similar", 1.0),
     ("Lips1~Lips2", (39, 40), "similar", 1.0),
     ("EB_lp1/2/3 block", (55, 57, 58), "block", 1.0),
     ("Aah_lp~Ooh_lp", (65, 66), "similar_loose", 1.0),
+    ("Uprite is a bass", (30,), "pitch_max:120", 2.0),
+    ("Clarnt reedy register", (31,), "pitch_range:140:800", 2.0),
     ("Breath noisy", (32,), "noisy", 1.5),
     ("Steam noisy", (33,), "noisy", 1.5),
     ("3angle bright", (12,), "bright", 1.5),
@@ -311,8 +410,32 @@ def validate(rom, table):
             continue
         keys = [(e["start"], e["end"]) for e in entries]
         cuts = [rom[a:b] for a, b in keys]
+        skip = 1024 if all(p <= 47 for p in pcms) else 0
+        if kind.startswith("pitch_max:"):
+            lim = float(kind.split(":")[1])
+            pv = pitch_of(cuts[0], keys[0], skip)
+            results.append((name, (0 < pv <= lim, round(pv))))
+            continue
+        if kind.startswith("pitch_range:"):
+            lo, hi = (float(t) for t in kind.split(":")[1:])
+            pv = pitch_of(cuts[0], keys[0], skip)
+            results.append((name, (lo <= pv <= hi, round(pv))))
+            continue
+        if kind == "flutes":
+            skip_f = 1024
+            pa = pitch_of(cuts[0], keys[0], skip_f)
+            pb = pitch_of(cuts[1], keys[1], skip_f)
+            ok = 250 <= pb <= 2000 and 250 <= pa <= 2000 and pa / max(pb, 1) >= 1.2
+            results.append((name, (ok, [round(pa), round(pb)])))
+            continue
+        if kind == "pitch_octave":
+            pa = pitch_of(cuts[0], keys[0])
+            pb = pitch_of(cuts[1], keys[1])
+            ok = pb > 0 and 1.88 <= pa / pb <= 2.12
+            results.append((name, (ok, [round(pa), round(pb)])))
+            continue
         if kind in ("pitch_asc", "pitch_desc"):
-            ps = [pitch_of(c, k) for c, k in zip(cuts, keys)]
+            ps = [pitch_of(c, k, skip) for c, k in zip(cuts, keys)]
             ok = all(p > 0 for p in ps) and (
                 all(a < b for a, b in zip(ps, ps[1:])) if kind == "pitch_asc"
                 else all(a > b for a, b in zip(ps, ps[1:])))
@@ -346,6 +469,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("romdir")
     ap.add_argument("--out", default="tools/d5_extract/out")
+    ap.add_argument("--frontier", type=int, default=None,
+                    help="lock the attack/static frontier to this page")
     ap.add_argument("--review", help="JSON with ear-review findings: "
                     '{"merged": [pcm, ...], "bad": [pcm, ...]}')
     ap.add_argument("--prev", help="previous hypothesis JSON the review refers to")
@@ -375,7 +500,8 @@ def main():
             onset_pen=rng.uniform(1.2, 3.0),
             span_pen=rng.uniform(0.3, 1.0)))
     best = None
-    for fp in range(84, 100):
+    fp_range = [args.frontier] if args.frontier else range(84, 100)
+    for fp in fp_range:
         frontier = fp * PAGE
         for dp_kw in variants:
             regions = build_table(rs, rom, frontier, noise_a, noise_b, **dp_kw)
@@ -399,6 +525,87 @@ def main():
         raise SystemExit("no candidate satisfied the energy constraint -- "
                          "inspect islands/thresholds")
     score, frontier, table, res = best
+
+    # ---- local repair
+    def weighted(res):
+        return sum(w for (_, r), (_, _, _, w) in zip(res, CHECKS) if r and r[0])
+
+    # window recompose: enumerate every slot composition of the attack
+    # stretch spanned by failing checks (plus one region each side)
+    from itertools import product as iproduct
+
+    def failing_attack_span(res):
+        idxs = []
+        for (name, r), (_, pcms, _, _) in zip(res, CHECKS):
+            if r and not r[0]:
+                idxs += [p - 1 for p in pcms if p <= 47]
+        if not idxs:
+            return None
+        return max(0, min(idxs) - 1), min(46, max(idxs) + 1)
+
+    span = failing_attack_span(res)
+    if span:
+        lo, hi = span
+        w_start = table[lo]["start"]
+        w_end = table[hi]["end"]
+        count = hi - lo + 1
+        total_pages = (w_end - w_start) // PAGE
+        pin_ok = not any(w_start < pa < w_end or w_start < pb < w_end
+                         for _, pa, pb in ATT_PINS)
+        if pin_ok and count >= 2 and total_pages >= count:
+            best_local = (weighted(res), table, res)
+            sizes_range = range(1, 7)
+            tried = 0
+            for comp in iproduct(sizes_range, repeat=count - 1):
+                rest = total_pages - sum(comp)
+                if rest < 1 or rest > 6:
+                    continue
+                tried += 1
+                if tried > 30000:
+                    break
+                trial = [dict(e) for e in table]
+                pos = w_start
+                for off, pages in enumerate(list(comp) + [rest]):
+                    trial[lo + off]["start"] = pos
+                    pos += pages * PAGE
+                    trial[lo + off]["end"] = pos
+                tres = validate(rom, trial)
+                sc = weighted(tres)
+                if sc > best_local[0] + 1e-9:
+                    best_local = (sc, trial, tres)
+            if best_local[0] > weighted(res):
+                score, table, res = best_local[0], best_local[1], best_local[2]
+                print(f"window recompose PCM {lo+1}..{hi+1}: weighted {score:.1f}")
+
+    pinned_words = set()
+    for _, pa, pb in ATT_PINS:
+        pinned_words.update((pa, pb))
+    improved = True
+    rounds = 0
+    while improved and rounds < 12:
+        improved = False
+        rounds += 1
+        for bi in range(1, 47):     # boundary between attack bi-1 and bi
+            cur = table[bi]["start"]
+            if cur in pinned_words:
+                continue
+            for delta in (-2 * PAGE, -PAGE, PAGE, 2 * PAGE):
+                nw = cur + delta
+                if not (table[bi - 1]["start"] + PAGE <= nw
+                        <= table[bi]["end"] - PAGE):
+                    continue
+                trial = [dict(e) for e in table]
+                trial[bi - 1]["end"] = nw
+                trial[bi]["start"] = nw
+                tres = validate(rom, trial)
+                if weighted(tres) > weighted(res) + 1e-9:
+                    table, res = trial, tres
+                    score = weighted(res)
+                    improved = True
+                    break
+    print(f"after local repair: weighted {score:.1f}, "
+          f"{sum(1 for _, r in res if r and r[0])}/{len(CHECKS)} pass "
+          f"({rounds} rounds)")
     print(f"best frontier (start of PCM 48): page {frontier//PAGE}  "
           f"({score}/{len(CHECKS)} checks pass, all regions energetic)")
     from collections import Counter
