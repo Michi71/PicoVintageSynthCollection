@@ -150,17 +150,26 @@ like the D-50, keeps its sample data in a separate mask ROM. What is in the
 decompressed `BQ3:Appli` is ARM code and data tables, and Roland's own sample
 table should be among them, root pitches included.
 
-Finding it there is unfinished. The D-05 is an ARM re-implementation, not a
-copy of the D-50 firmware, so its table need not use our reconstructed word
-addresses, and its data region is dense with mathematical lookup tables
-(exponential pitch curves, power-of-two ramps) that answer address-shaped
-searches with false positives. The anchors we trust -- the three pianos an
-octave apart, the measured Steam/Lips1/Pizz starts -- do not line up as a
-single table under word, byte or page encoding. The decompressed image is the
-right haystack and it is now openable; identifying the table inside it is the
-next session's work, and nothing in the instrument depends on it, since the
-by-ear table is verified against the genuine ROMs, which are the authority the
-D-05 can only reproduce.
+**The table is not in the update either, and the search is finished.** What
+the decompressed application does contain is Roland's own PCM list: an array
+of exactly 100 pointers at device address 0x60165CA8, in PCM order 1 to 100,
+into a string pool holding every one of the D-50's wave names -- independent
+confirmation that our name table and its numbering are right. What it does
+not contain is any structure carrying start, length, loop or root pitch for
+those 100 waves. Searched for as monotone address runs in every unit and
+stride, as a length field restricted to the power-of-two sizes the layout law
+demands, as a 100-entry parameter table anywhere near the name list, and by
+following the one code reference to that list. The other two components rule
+themselves out: `BQ3:Updater` is the flash writer, and `BQ3:SUB-CPU` is a
+24 KB STM32 panel controller with no PCM data at all.
+
+The conclusion is the same architecture we found in the D-50 itself, kept
+across thirty years: the wave addressing lives with the waves, in the sound
+subsystem's own ROM, not with the CPU firmware. A firmware update carries the
+application and the panel, and neither needs to know where a sample starts.
+So the reissue confirms the finding rather than dissolving it -- and the
+reconstructed table stays what it is, verified against the genuine ROMs,
+which are the authority the D-05 can only reproduce anyway.
 
 ## Reconstructing the table anyway
 
