@@ -45,6 +45,30 @@ if(NOT EXISTS ${_d5_blob_s})
     message(STATUS "PicoFaceD5: ${_d5_out}")
 endif()
 
+# A patch bank is optional: with a .syx in roms/ the instrument plays those
+# patches, without one it falls back to the hand-built presets in the source
+# tree. Any D-50 bulk dump works -- the converter checks its checksums and
+# parameter ranges and refuses anything that is not one.
+file(GLOB _d5_syx ${_d5_roms}/*.syx ${_d5_roms}/*.SYX)
+if(_d5_syx)
+    list(GET _d5_syx 0 _d5_bank)
+    if(NOT EXISTS ${_d5_gen}/d5_patch_data.h)
+        message(STATUS "PicoFaceD5: converting patch bank")
+        execute_process(
+            COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/tools/d5_extract/d5_syx_to_patches.py
+                    ${_d5_bank} ${_d5_gen}
+            RESULT_VARIABLE _d5_syx_rc
+            OUTPUT_VARIABLE _d5_syx_out
+            ERROR_VARIABLE  _d5_syx_err)
+        if(NOT _d5_syx_rc EQUAL 0)
+            message(FATAL_ERROR
+                "PicoFaceD5: patch bank conversion failed\n${_d5_syx_out}${_d5_syx_err}")
+        endif()
+        message(STATUS "PicoFaceD5: ${_d5_syx_out}")
+    endif()
+endif()
+
 picoface_add_instrument(
     NAME PicoFaceD5
     PROGRAM_NAME "PicoFaceD5"

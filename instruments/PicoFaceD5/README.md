@@ -31,7 +31,8 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
 cmake --build build
 ```
 
-The result is 626 KB of flash - 512 KB of it sample data - and 79 KB of RAM,
+The result is 662 KB of flash - 512 KB of it sample data, 29 KB the patch
+bank - and 79 KB of RAM,
 which fits any RP2350 board including the 4 MB ones. Of the collection's four
 sample-based instruments this is the only one that does.
 
@@ -50,13 +51,19 @@ recognised.
 
 ## The patches
 
-The eight patches it boots with are **not** the D-50's factory sixty-four.
-They are built by hand from the engine's parameters and chosen to cover the
-ground: every structure appears, both waveforms, ring modulation, the pitch
-envelope and each effect. The factory patches exist as SysEx bulk dumps and
-the format for reading them is fully documented in the machine's own MIDI
-implementation, so importing them is a host-side tool waiting to be written,
-in the same shape as `tools/dx_syx_to_patches`.
+Drop a D-50 SysEx bulk dump (`*.syx`) into `roms/` beside the ROM images and
+the build converts it: 64 patches, played with the machine's own parameters.
+The converter verifies every checksum and eight documented parameter ranges,
+so it will not silently accept a file that is not a D-50 bank.
+
+Without a bank the instrument falls back to eight patches built by hand from
+the engine's parameters, chosen to cover the ground: every structure appears,
+both waveforms, ring modulation, the pitch envelope and each effect.
+
+Note that a bank is somebody's work. The one this was developed against turned
+out to be a user bank rather than Roland's factory sixty-four -- its tone names
+say so ("by SG", "By Sven GODIJN") -- which is worth knowing before publishing
+anything made with it.
 
 ## How the engine works, and what is not the original
 

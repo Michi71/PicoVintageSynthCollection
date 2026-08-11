@@ -15,6 +15,14 @@
 #include "d5_presets.h"
 #include "pico/time.h"
 
+// A converted SysEx bank if the build found one, the hand-built patches
+// otherwise. The instrument plays either without knowing the difference.
+#if __has_include("d5_patch_data.h")
+#include "d5_patch_data.h"
+#include "d5_engine/d5_patch_map.h"
+#define D5_HAVE_BANK 1
+#endif
+
 extern "C" {
 extern const int16_t d5_pcm_blob[];
 extern const int16_t d5_pcm_blob_end[];
@@ -32,22 +40,35 @@ void D5_Bridge::init() {
 }
 
 void D5_Bridge::applyPatch() {
+#ifdef D5_HAVE_BANK
+    const int i = patchIndex_ % d5::kPatchCount;
+    d5::PatchSpec spec = d5::patch_from_bytes(d5::kPatchData[i], d5_pcm_blob);
+    g_patch_name = d5::kPatchNames[i];
+#else
     d5::Preset pr = d5::preset(patchIndex_ % d5::kPresetCount);
     d5::preset_bind(pr.spec, d5_pcm_blob, pr.pcm1, pr.pcm2);
+    d5::PatchSpec spec = pr.spec;
+    g_patch_name = pr.name;
+#endif
 
     // Remember what the patch itself asks for: the UI's global controls scale
     // these, so a dry patch stays drier than a wet one at the same setting.
-    baseReverb_ = pr.spec.reverb.balance;
-    baseChorus_ = pr.spec.upper.chorus.balance;
-    baseVolume_ = pr.spec.volume;
+    baseReverb_ = spec.reverb.balance;
+    baseChorus_ = spec.upper.chorus.balance;
+    baseVolume_ = spec.volume;
 
-    patch_.configure(pr.spec, static_cast<float>(sampleRate()));
-    g_patch_name = pr.name;
-    g_structure = pr.spec.upper.voice.structure;
+    patch_.configure(spec, static_cast<float>(sampleRate()));
+    g_structure = spec.upper.voice.structure;
     applyLevels();
 }
 
-int D5_Bridge::patchCount() const { return d5::kPresetCount; }
+int D5_Bridge::patchCount() const {
+#ifdef D5_HAVE_BANK
+    return d5::kPatchCount;
+#else
+    return d5::kPresetCount;
+#endif
+}
 
 const char* D5_Bridge::patchName() const { return g_patch_name; }
 

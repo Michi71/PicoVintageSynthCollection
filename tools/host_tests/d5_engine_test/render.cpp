@@ -20,6 +20,8 @@
 #include "d5_engine/d5_pcm_voice.h"
 #include "d5_engine/d5_synth_voice.h"
 #include "d5_engine/d5_patch.h"
+#include "d5_engine/d5_patch_map.h"
+#include "d5_patch_data.h"
 #include "d5_pcm_table.h"
 
 namespace {
@@ -433,6 +435,36 @@ void render_fx(const std::vector<int16_t>& blob, std::vector<float>& out) {
     }
 }
 
+// Patches from a converted SysEx bank, played as a short phrase each.
+void render_bank(const std::vector<int16_t>& blob, std::vector<float>& out,
+                 const std::vector<int>& want) {
+    for (int idx : want) {
+        if (idx < 0 || idx >= d5::kPatchCount) continue;
+        d5::PatchSpec spec = d5::patch_from_bytes(d5::kPatchData[idx], blob.data());
+        d5::Patch patch;
+        patch.configure(spec, kSampleRate);
+
+        const int chord[4] = {48, 55, 60, 64};
+        for (int n = 0; n < 4; ++n) {
+            patch.note_on(chord[n], 0.85f);
+            for (int i = 0; i < static_cast<int>(kSampleRate * 0.35f); ++i)
+                out.push_back(patch.next());
+        }
+        for (int i = 0; i < static_cast<int>(kSampleRate * 1.1f); ++i)
+            out.push_back(patch.next());
+        for (int n = 0; n < 4; ++n) patch.note_off(chord[n]);
+        for (int i = 0; i < static_cast<int>(kSampleRate * 1.4f); ++i)
+            out.push_back(patch.next());
+        for (int i = 0; i < static_cast<int>(kSampleRate * 0.3f); ++i)
+            out.push_back(0.0f);
+
+        std::printf("bank %2d-%d  %-18s  structure %d/%d  reverb %2d\n",
+                    idx / 8 + 1, idx % 8 + 1, d5::kPatchNames[idx],
+                    spec.upper.voice.structure, spec.lower.voice.structure,
+                    spec.reverb.type + 1);
+    }
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) {
         std::fprintf(stderr,
@@ -444,6 +476,16 @@ int main(int argc, char** argv) {
                      "       %s --fx <d5_pcm.bin> <out.wav>\n",
                      argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
         return 1;
+    }
+    if (std::strcmp(argv[1], "--bank") == 0 && argc >= 4) {
+        std::vector<int> want;
+        for (int i = 4; i < argc; ++i) want.push_back(std::atoi(argv[i]) - 1);
+        if (want.empty()) for (int i = 0; i < 8; ++i) want.push_back(i);
+        std::vector<float> out;
+        render_bank(load_blob(argv[2]), out, want);
+        write_wav(argv[3], out);
+        std::printf("wrote %s (%.1f s)\n", argv[3], out.size() / kSampleRate);
+        return 0;
     }
     if (std::strcmp(argv[1], "--fx") == 0 && argc >= 4) {
         std::vector<float> out;

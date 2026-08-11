@@ -174,6 +174,7 @@ confirm or correct the hypothesis table sample by sample.
 | `d5_probe_midi.py` | probe MIDI generator for measuring a real D-50. |
 | `d5_match.py` | matches a probe recording against the ROM audio, emits the measured table (needs numpy). |
 | `d5_make_blob.py` | decodes the ROM set into `d5_pcm.bin` (512 KiB, 16-bit) plus `d5_blob.S` and `d5_pcm_table.h` for the firmware. |
+| `d5_syx_to_patches.py` | converts a D-50 SysEx bulk dump into `d5_patch_data.h`: 64 patches as raw parameter bytes, checksums and parameter ranges verified. |
 | `d5_sample_table.json` | the frozen table: start, length, loop flag and provenance per sample. |
 
 ```bash
@@ -194,6 +195,21 @@ c++ -O2 -std=c++17 -Ibuild/d5 -Iinstruments/PicoFaceD5/include \
 ./d5_render --structures build/d5/d5_pcm.bin s.wav   # all seven structures
 ./d5_render --mod build/d5/d5_pcm.bin mod.wav        # LFOs and pitch envelope
 ./d5_render --fx build/d5/d5_pcm.bin fx.wav          # equalizer, chorus, reverb
+./d5_render --bank build/d5/d5_pcm.bin b.wav 1 6 8   # patches from a converted bank
 ```
+
+## Patch banks
+
+`d5_syx_to_patches.py` reads any D-50 bulk dump: DT1 messages from address
+02-00-00, 448 bytes per patch in seven 64-byte blocks (upper partial 1 and 2,
+upper common, lower partial 1 and 2, lower common, patch). Roland's own manual
+lists those addresses with a gap in them; the layout above is what the data
+shows, and the converter proves it -- it checks eight parameters whose ranges
+are documented, and a wrong block assignment puts them out of range at once.
+
+The bytes stay raw in the generated header. `d5_patch_map.h` in the instrument
+converts them into engine specs, so one piece of code knows what parameter 22
+of a partial means -- and the same conversion can serve a patch arriving over
+MIDI later, since that is the identical format.
 
 Outputs land in `tools/d5_extract/out/`, which is not committed.
