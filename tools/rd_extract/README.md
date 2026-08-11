@@ -70,48 +70,98 @@ the macro; `nm` on `PicoFaceRD.elf` shows no such symbol.
 tools/rd_extract/build_xip_probe.sh 0 12 200      # patch, voices, blocks
 ```
 
+**Patch numbers here are engine indices, 0-15.** The instrument displays
+`instrument() + 1`, so every number in this section is one below what the PATCH
+page shows. The two patches with no flash cost at all are indices 5 and 15,
+which are **`06 Vibraphone` and `16 Vibraphone`** on the device -- and that they
+are both vibraphones is the mechanism showing through: short, simple, heavily
+reused waveforms fit the cache, where a piano's spread across the ROM does not.
+
 **What it found.** At the 32 kHz base limit of twelve voices the engine issues
 119 wave-ROM loads per sample -- one per part, ten parts per note, as expected
 -- and the flash cost is enormous but wildly patch-dependent:
 
-| patch | miss rate | flash-bound | | patch | miss rate | flash-bound |
-|---|---|---|---|---|---|---|
-| 3 | 85.7 % | **65.8 %** | | 8 | 43.0 % | 32.1 % |
-| 14 | 84.6 % | 65.0 % | | 11 | 37.3 % | 28.6 % |
-| 0 | 77.1 % | 58.7 % | | 7 | 16.2 % | 12.5 % |
-| 12 | 75.8 % | 58.1 % | | **5** | **0.2 %** | **0.2 %** |
-| 13 | 83.1 % | 63.8 % | | **15** | **0.1 %** | **0.1 %** |
+| patch | rate | miss rate | flash-bound | | patch | rate | miss rate | flash-bound |
+|---|---|---|---|---|---|---|---|---|
+| 3 | 32k | 85.6 % | **65.7 %** | | 8 | 20k | 43.7 % | 19.6 % |
+| 14 | 32k | 84.5 % | 64.9 % | | 11 | 32k | 37.1 % | 28.5 % |
+| 0 | 20k | 77.1 % | 36.7 % | | 7 | 32k | 17.1 % | 12.4 % |
+| 12 | 20k | 76.4 % | 35.8 % | | **5** | 20k | **0.1 %** | **0.1 %** |
+| 13 | 20k | 82.9 % | 39.8 % | | **15** | 20k | **0.1 %** | **0.0 %** |
 
-Two thirds of the cycle budget goes to stalls on the worst patches. On patches
-5 and 15 the cost is nil -- their wave data fits the cache and every voice
-reuses it -- and it stays nil as voices are added:
+The rate column matters and used to be missing: eleven of the sixteen patches
+render at 20 kHz and get half again as many cycles per sample as the five at
+32 kHz. The probe assumed 32 kHz for all of them, which overstated every
+20 kHz patch's flash-bound figure by a factor of 1.6. Fixed; the numbers above
+are the corrected ones.
+
+Miss rate is genuinely patch-dependent, and on patches 5 and 15 the cost is
+nil -- their wave data fits the cache and every voice reuses it -- and stays
+nil as voices are added:
 
 | voices | patch 15 | patch 5 | patch 3 |
 |---|---|---|---|
-| 12 | 0.1 % | 0.2 % | 65.8 % |
-| 16 | 0.1 % | 0.2 % | 82.8 % |
-| 24 | 0.1 % | 0.2 % | **95.7 %** |
-| 32 | 0.1 % | 0.2 % | 96.3 % |
+| 12 | 0.0 % | 0.1 % | 65.7 % |
+| 16 | 0.0 % | 0.1 % | 82.8 % |
+| 24 | 0.0 % | 0.1 % | **95.7 %** |
+| 32 | 0.0 % | 0.1 % | 96.3 % |
 
-So the base limit of twelve is set by patches like 3, which is already at 96 %
-of budget on stalls alone at twenty-four voices -- while patches 5 and 15 never
-touch flash at all. A per-patch base limit, derived offline from this
-measurement rather than guessed at runtime, is the lever the voice governor
-does not currently have.
+## What the hardware said, and what it cost this section
 
-**What this does not show.** Only that the flash bottleneck disappears, not
-that those patches can run twenty-four voices: the arithmetic scales with voice
-count too, and this probe does not measure it. If it fails there, it will not
-be flash. The device can answer that today without any code change -- VOICES
-offers fixed polyphony, the footer shows peak load, so patch 15 at 24 voices
-against patch 3 at 24 voices settles it.
+The paragraph that used to sit here said the probe showed only that the flash
+bottleneck disappears, not that a cache-clean patch can run twenty-four voices
+-- and proposed the device settle it, since VOICES offers fixed polyphony and
+the footer shows peak load. That test was run. It settled something else.
 
-**On the numbers.** The miss rate is measured: a real address stream from the
-real engine through a stated cache geometry. The conversion to percent of
-budget is an estimate with its assumptions in the source -- 96 CPU cycles per
-miss, from a 120 MHz QSPI fetch at the 4:1 clock ratio. Halve or double that
-and the absolute figures move; the ordering, and the factor of several hundred
-between patch 3 and patch 15, do not.
+The decisive pair, both held until the footer read `A24`:
+
+| device | index | rate | miss rate | peak load |
+|---|---|---|---|---|
+| **16 Vibraphone** | 15 | 20 kHz | **0.1 %** | **91 %** |
+| **15 Clavi** | 14 | 32 kHz | **68.3 %** | **67 %** |
+
+The patch that never touches flash is the expensive one. It issues 200.5
+wave-ROM loads per sample against the clavinet's 217.0, at a *lower* sample
+rate, with essentially every one of them a cache hit -- and it uses 91 % of its
+budget where the clavinet uses 67 % of its. The device computes load against
+each patch's own rate (`budget = length * 1e6 / s_sampleRates[instrument_]`),
+so the two percentages are directly comparable.
+
+That is not a caveat, it is a refutation. **Flash stalls are not what sets this
+engine's ceiling.** Four more patches, measured the same way, say the same
+thing from the other side:
+
+| device | index | miss rate | peak load |
+|---|---|---|---|
+| 02 Piano 2 | 1 | 56.0 % | 100 % |
+| 03 Piano 3 | 2 | 59.5 % | 57 % |
+| 14 A. Piano 2 | 13 | 58.7 % | 90 % |
+| 15 Clavi | 14 | 68.3 % | 67 % |
+
+The lowest miss rate carries the highest load. Neither miss rate nor sample
+rate orders this list.
+
+**The 96-cycles-per-miss figure is refuted outright.** For device 15 the model
+claims 94.8 % of the budget on stalls alone, while the whole patch measures
+67 % -- and stalls cannot exceed the total. The true cost is under 68 cycles
+per miss, and since the arithmetic is clearly substantial, well under.
+
+What the probe measures -- the address stream, the hit and miss counts through
+a stated cache geometry -- stands. What it never measured is the arithmetic
+per part, which is now the obvious candidate for the difference: two patches
+with near-identical load counts and opposite cache behaviour, and the cheap
+one for the cache is the expensive one for the CPU. Envelope segment counts
+and part types differ per patch and none of that is in this tool.
+
+**So read the tables above as cache behaviour, not as a cycle budget.** They
+correctly say which patches thrash and which do not, and the factor of several
+hundred between the extremes is real. They do not predict load, and the
+"flash-bound %" column should be read as an upper bound that hardware has
+already shown to be loose.
+
+A per-patch voice limit derived from these numbers -- floated in the paragraph
+this replaces -- would therefore have been tuned to the wrong variable. The
+lever is real; the measurement to derive it from is not this one.
 
 ## Regression runner (one command)
 
