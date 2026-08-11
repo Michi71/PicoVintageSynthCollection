@@ -55,23 +55,54 @@ table hypothesis, see `d5_table_scan.py`): 45 pages qualify as attack
 starts, exactly one page (112) is spectrally flat noise ("Noise", PCM 76),
 and running `d5_rom.py` on the set prints the per-page classification.
 
-## Where the sample table is
+## Where the sample table is: inside the synth chip
 
-Not in the 64 KB EPROM. That was searched exhaustively -- monotone address
+Not in the 64 KB EPROM: that was searched exhaustively -- monotone address
 runs, set-coverage windows, page-aligned u16/u24/byte tables in every unit
-and stride, anchored on the acoustic ground truth, over the regions that are
-identical between v1.06 and v2.22 (the table cannot differ between firmware
-versions that drive identical PCM ROMs). Everything that lights up is UI
-data or envelope/pitch LUTs.
+and stride, anchored on the acoustic ground truth, over the regions that
+are identical across the EPROM versions (the table cannot differ between
+firmware versions that drive identical PCM ROMs). Everything that lights up
+is UI data or envelope/pitch LUTs.
 
-The CPU is a uPD78312 with 8 KB of internal masked ROM mapped at
-0x0000-0x1FFF (the EPROM provides 0x2000-0x7FFF plus banked 16 KB pages at
-0x8000-0xBFFF; the memory map is documented in MAME's `roland_d50.cpp`).
-Roland shipped revised EPROMs (v1.04..v2.22) against the same masked CPU and
-mask PCM ROMs, so the PCM-tied metadata sits with the kernel in the internal
-ROM. That image is preserved (`d78312g-022_15179266.ic25` -- the part number
-matches the D-50 service notes' IC25 entry); once present in the ROM
-directory, `d5_table_scan.py` runs the anchored search against it.
+Not in the uPD78312's 8 KB internal ROM either (`d78312g-022_15179266.ic25`,
+CRC `9564903f`; the part number matches the service notes' IC25 entry).
+Disassembling it (MAME debugger, `upd78k3` core; memory map in MAME's
+`roland_d50.cpp`: internal ROM 0x0000-0x1FFF, EPROM 0x2000-0x7FFF plus
+banked 16 KB pages at 0x8000-0xBFFF, synth chip at 0xE000-0xE7FF) shows a
+kernel that services envelopes and modulation from RAM blocks the
+application stages -- and never writes anything address-shaped to the chip.
+The application never touches the chip at all.
+
+Conclusion: the MB87136 resolves PCM numbers to ROM addresses in its own
+mask ROM. No CPU-side dump contains the table, which is why it has never
+been documented.
+
+## Reconstructing the table anyway
+
+Two independent paths, both in this directory:
+
+**Without hardware** (`d5_table_derive.py`): the layout model "PCM 1..100
+in numeric order" plus audio segmentation. Attacks start page-aligned at
+onsets; the "Noise" block (PCM 76) is exactly detectable and pins the
+static zone's end; the factory-rendered combination loops 77..100 follow
+it. The attack/static frontier and the sub-page loop boundaries are chosen
+by maximizing named-family checks (Lpiano<Mpiano<Hpiano in pitch, Horgan
+above Lorgan, EP/SAX pairs spectrally similar, the seven Spect loops a
+similarity block). Current result: **all 6 checks pass**, frontier at page
+94, Noise at pages 112..113. Output is
+`d50_sample_table_hypothesis.json` plus one WAV per sample under
+`samples_hypothesis/` -- reviewing those against the known names by ear is
+the acceptance test.
+
+**With a real D-50/D-550** (`d5_probe_midi.py` + `d5_match.py`): the
+precision path, open to anyone with the hardware. `d5_probe_midi.py` emits
+a MIDI file that configures a bare PCM partial via SysEx (temporary area
+only) and plays PCM 1..100 one note at a time, preceded by a calibration
+block that identifies a clean structure/mute combination. `d5_match.py`
+locates every recorded note inside the decoded ROM audio by envelope plus
+sample-exact cross-correlation (with global playback-rate calibration) and
+emits the measured table. A dry recording of the probe run is enough to
+confirm or correct the hypothesis table sample by sample.
 
 ## Tools
 
@@ -79,12 +110,15 @@ directory, `d5_table_scan.py` runs the anchored search against it.
 |---|---|
 | `d5_rom.py` | CRC identification, dump folding, PCM decode, name table, per-page acoustic classification. Importable; run directly for a ROM-set summary. |
 | `d5_wavedump.py` | renders the decoded PCM space to WAV (full + per chip) for listening. |
-| `d5_table_scan.py` | anchored sample-table search over a given image (default: the internal ROM of the set). |
+| `d5_table_scan.py` | anchored sample-table search over a binary image (how the EPROM and internal ROM were ruled out). |
+| `d5_table_derive.py` | hardware-free table reconstruction with family validation (needs numpy). |
+| `d5_probe_midi.py` | probe MIDI generator for measuring a real D-50. |
+| `d5_match.py` | matches a probe recording against the ROM audio, emits the measured table (needs numpy). |
 
 ```bash
 python3 tools/d5_extract/d5_rom.py ~/develop/Roland_D50
 python3 tools/d5_extract/d5_wavedump.py ~/develop/Roland_D50
-python3 tools/d5_extract/d5_table_scan.py ~/develop/Roland_D50
+python3 tools/d5_extract/d5_table_derive.py ~/develop/Roland_D50
 ```
 
 Outputs land in `tools/d5_extract/out/`, which is not committed.
