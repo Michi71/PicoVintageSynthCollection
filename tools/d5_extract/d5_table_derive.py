@@ -389,6 +389,8 @@ CHECKS = [    # (label, pcm numbers, kind, weight)
     ("3angle bright", (12,), "bright", 1.5),
     ("Noise is noise", (76,), "noisy", 3.0),
     ("flat page 112 is a Spect", (68,), "spect112", 2.0),
+    ("attack regions pure", (), "purity", 3.0),
+    ("Aah/Ooh audible", (65, 66), "rms_min:0.08", 1.5),
 ]
 
 
@@ -409,12 +411,40 @@ def centroid(x):
     return float(np.sum(f * m) / (np.sum(m) + 1e-12))
 
 
+def region_impure(rs, rom, a, b):
+    """An internal onset with a timbre change means two sounds in one region;
+    an internal onset with the same timbre is a legitimate re-attack."""
+    for g in range(a // PAGE + 1, b // PAGE):
+        w = g * PAGE
+        if w - a < PAGE or b - w < PAGE:
+            continue
+        if rs.attack_like(w):
+            if similar(band_spectrum(rom[a:w]), band_spectrum(rom[w:b])) < 0.5:
+                return True
+    return False
+
+
+_RS_FOR_CHECKS = [None]
+
+
 def validate(rom, table):
     results = []
     for name, pcms, kind, weight in CHECKS:
+        if kind == "purity":
+            rs = _RS_FOR_CHECKS[0]
+            impure = [e["pcm"] for e in table[:47]
+                      if e["start"] is not None
+                      and region_impure(rs, rom, e["start"], e["end"])]
+            results.append((name, (not impure, impure)))
+            continue
         entries = [table[p - 1] for p in pcms]
         if any(e["start"] is None for e in entries):
             results.append((name, None))
+            continue
+        if kind.startswith("rms_min:"):
+            lim = float(kind.split(":")[1])
+            vals = [round(rms_of(rom[e["start"]: e["end"]]), 3) for e in entries]
+            results.append((name, (all(v >= lim for v in vals), vals)))
             continue
         keys = [(e["start"], e["end"]) for e in entries]
         cuts = [rom[a:b] for a, b in keys]
@@ -492,6 +522,7 @@ def main():
 
     rs = D5RomSet(args.romdir)
     rom = np.asarray(rs.audio)
+    _RS_FOR_CHECKS[0] = rs
 
     prev = json.load(open(args.prev)) if args.prev else None
 
@@ -708,10 +739,13 @@ def main():
             continue
         cut = rom[e["start"]: e["end"]]
         if e["looped"] and len(cut):
-            # a static/combination loop may be a 16 ms single-cycle waveform:
-            # tile it to 2 s so it is audible -- and so a wrong boundary is
-            # audible too, as a click or warble on every revolution
-            cut = np.tile(cut, max(1, int(2 * SAMPLE_RATE / len(cut))))
+            # a static loop may be a 16 ms single-cycle waveform: tile it to
+            # ~2 s so it is audible -- and so a wrong boundary is audible too,
+            # as a click or warble on every revolution
+            cut = np.tile(cut, max(2, int(np.ceil(2 * SAMPLE_RATE / len(cut)))))
+            fade = min(1600, len(cut) // 4)
+            cut = cut.copy()
+            cut[-fade:] *= np.linspace(1, 0, fade)
         with wave.open(os.path.join(sdir, f"{e['pcm']:03d}_{e['name']}.wav"), "wb") as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)
