@@ -126,26 +126,41 @@ It stopped being necessary here: the genuine factory bank exists as a SysEx
 dump of the PN-D50-00 ROM card, the memory card the D-50 shipped with, and
 that is what the instrument plays.
 
-**What decompressing it would and would not give.** Not the samples: the PCM
-data is not in this file at all. It was searched for raw, bit-permuted,
-decoded to 16-bit, and as literal runs interleaved with control bytes -- none
-of it is there, which is what one would expect of a firmware update for a
-device that already has its sample ROM. What could be there is the sample
-table itself, the one thing this directory had to reconstruct, including the
-root pitch per sample that our version only estimates.
+**The format is cracked; `d5_bq3_decompress.py` unpacks it.** The routine that
+did the guessing unnecessary is in the plaintext ARM Thumb loader: at file
+offset 0x58A it loads `MOVW r0, #0x0FEE`, and 0x0FEE = 4078 = N-F is the
+canonical ring-buffer start of Okumura LZSS (window N=4096, longest match
+F=18). Disassembling the routine settled every detail -- the ring buffer is
+zero-filled (not space-filled), the flag byte is read LSB-first, a set bit is
+a literal, and a match encodes position as `b1 | ((b2 & 0xF0) << 4)` and
+length as `(b2 & 0x0F) + 3`.
 
-Guessing the exact LZ variant did not work. Parameter sweeps over flag
-polarity, window size, length field, minimum match and both match encodings
-do produce partially correct output -- back-references expand into readable
-text, "The House Piano" becoming "use Piano" a few bytes later -- but the
-stream drifts, and neither output entropy nor text density separates a nearly
-right variant from a wrong one.
+The container holds three named components, each with a 0x40-byte header that
+is its own descriptor (source offset at +0x2C, compressed size at +0x30,
+destination at +0x38, decompressed size at +0x3C): `BQ3:Updater`,
+`BQ3:SUB-CPU` and `BQ3:Appli`, the last being the D-50 re-implementation. It
+decompresses to exactly its declared 1601636 bytes and consumes its
+compressed input to exactly the region boundary -- a wrong format would not
+land on either, so the decode is verified by construction.
 
-The tractable next step is not more guessing: the decompressor itself sits in
-the plaintext ARM Thumb loader in the first 212 KB, where a 4096-byte window
-mask (0x0FFF) appears fifteen times. Disassembling that routine settles the
-format exactly. It is a bounded piece of work, and nothing in the instrument
-depends on it.
+**What it gives, and what it does not.** Not the samples: the PCM audio is not
+in the update at all -- searched raw, bit-permuted, decoded to 16-bit and
+8-bit, in both the compressed and the decompressed image -- because the D-05,
+like the D-50, keeps its sample data in a separate mask ROM. What is in the
+decompressed `BQ3:Appli` is ARM code and data tables, and Roland's own sample
+table should be among them, root pitches included.
+
+Finding it there is unfinished. The D-05 is an ARM re-implementation, not a
+copy of the D-50 firmware, so its table need not use our reconstructed word
+addresses, and its data region is dense with mathematical lookup tables
+(exponential pitch curves, power-of-two ramps) that answer address-shaped
+searches with false positives. The anchors we trust -- the three pianos an
+octave apart, the measured Steam/Lips1/Pizz starts -- do not line up as a
+single table under word, byte or page encoding. The decompressed image is the
+right haystack and it is now openable; identifying the table inside it is the
+next session's work, and nothing in the instrument depends on it, since the
+by-ear table is verified against the genuine ROMs, which are the authority the
+D-05 can only reproduce.
 
 ## Reconstructing the table anyway
 
@@ -208,6 +223,7 @@ confirm or correct the hypothesis table sample by sample.
 | `d5_match.py` | matches a probe recording against the ROM audio, emits the measured table (needs numpy). |
 | `d5_make_blob.py` | decodes the ROM set into `d5_pcm.bin` (512 KiB, 16-bit) plus `d5_blob.S` and `d5_pcm_table.h` for the firmware. |
 | `d5_syx_to_patches.py` | converts a D-50 SysEx bulk dump into `d5_patch_data.h`: 64 patches as raw parameter bytes, checksums and parameter ranges verified. |
+| `d5_bq3_decompress.py` | unpacks a Roland Boutique BQ3 firmware update (D-05) into its components -- Okumura LZSS, verified against the loader's own routine. |
 | `d5_sample_table.json` | the frozen table: start, length, loop flag and provenance per sample. |
 
 ```bash
