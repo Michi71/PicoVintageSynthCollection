@@ -169,7 +169,7 @@ def top_boundaries(rom, zone, count, hop):
 ATT_GRID = PAGE
 # region sizes in words with placement cost; ear review round 2 established
 # the page-grid slot quantization (most attacks 2 pages, pianos bigger)
-ATT_SIZES = {2048: 0.3, 4096: 0.0, 6144: 0.3, 8192: 0.7, 10240: 1.2, 12288: 1.4}
+ATT_SIZES = {2048: 0.2, 4096: 0.0, 8192: 0.4, 16384: 1.0}
 # regions confirmed correct by ear (Lpiano/Mpiano/Hpiano) -- fixed exactly,
 # including their position in the numbering: (0-based index, start, end)
 # round-6 ear review: "first something else, then the sound" -- the true
@@ -177,7 +177,7 @@ ATT_SIZES = {2048: 0.3, 4096: 0.0, 6144: 0.3, 8192: 0.7, 10240: 1.2, 12288: 1.4}
 REVIEW_MIN_START = {30: 126976, 31: 131072}
 
 ATT_PINS = [(2, 8192, 12288), (3, 12288, 16384),        # Xylo1/Xylo2
-            (15, 49152, 57344), (16, 57344, 65536), (17, 65536, 71680),
+            (15, 49152, 57344), (16, 57344, 65536), (17, 65536, None),
             (32, 135168, None),     # Steam start, measured (web ref, 0.95)
             (33, 139264, None),     # FluteH start, ear-confirmed ("ab 033 ok")
             (38, 155648, None),     # Lips1 start, measured (web ref)
@@ -350,20 +350,60 @@ def refine_loop_boundaries(rom, regions, span=192):
     return [tuple(r) for r in regions]
 
 
+ST_SIZES = {2048: 0.0, 4096: 0.2, 8192: 0.6}   # power-of-two pages, like attacks
+
+
+def static_regions_dp(rom, zone, count=29):
+    """Split the static zone into `count` page-aligned regions whose sizes
+    follow the sibling-chip table law (2048 << n), scored by loop seam
+    quality."""
+    a, b = zone
+    n = (b - a) // PAGE
+    INF = float("inf")
+    dp = [[INF] * (count + 1) for _ in range(n + 1)]
+    par = [[None] * (count + 1) for _ in range(n + 1)]
+    dp[0][0] = 0.0
+    seams = {}
+    for i in range(n):
+        for k in range(count):
+            if dp[i][k] == INF:
+                continue
+            for sz, cost in ST_SIZES.items():
+                j = i + sz // PAGE
+                if j > n:
+                    continue
+                key = (i, j)
+                if key not in seams:
+                    seams[key] = seam_cost(rom, a + i * PAGE,
+                                           min(a + j * PAGE, len(rom) - 128))
+                c = dp[i][k] + cost + 2.0 * seams[key]
+                if c < dp[j][k + 1]:
+                    dp[j][k + 1] = c
+                    par[j][k + 1] = i
+    if dp[n][count] == INF:
+        return None
+    bounds = []
+    i, k = n, count
+    while k:
+        i = par[i][k]
+        bounds.append(a + i * PAGE)
+        k -= 1
+    bounds.reverse()
+    return list(zip(bounds, bounds[1:] + [b]))
+
+
 def build_table(rs, rom, frontier, **dp_kw):
     """Region list for PCM 1..76. Statics 48..76 fill the ROM to its end
     (the combination loops 77..100 are address ranges over this material,
-    not stored data -- established by web-reference matching). The last
-    static is Noise, checked spectrally, not assumed positionally."""
+    not stored data -- established by web-reference matching). All region
+    sizes follow the sibling-chip table law: 2048 << n words, page-aligned
+    (munt, ControlROMPCMStruct: addr = pos * 0x800, len = 0x800 << exp)."""
     att_regions = attack_regions_dp(rs, frontier, **dp_kw)
     if att_regions is None:
         return []
-    st_zone = (frontier, len(rom))
-    st_starts = island_boundaries(rom, st_zone, 29)
-    st_regions = clipped_regions(st_starts, len(rom), islands(rom, st_zone))
-    if len(st_regions) != 29:
+    st_regions = static_regions_dp(rom, (frontier, len(rom)))
+    if st_regions is None:
         return []
-    st_regions = refine_loop_boundaries(rom, st_regions)
     return att_regions + st_regions
 
 
@@ -663,12 +703,8 @@ def main():
             cur = table[bi]["start"]
             if cur in pinned_words:
                 continue
-            if bi <= 46:
-                deltas = (-2 * PAGE, -PAGE, PAGE, 2 * PAGE)
-                min_sz = PAGE
-            else:
-                deltas = (-2048, -1024, -512, -256, 256, 512, 1024, 2048)
-                min_sz = 384
+            deltas = (-2 * PAGE, -PAGE, PAGE, 2 * PAGE)
+            min_sz = PAGE
             for delta in deltas:
                 nw = cur + delta
                 if not (table[bi - 1]["start"] + min_sz <= nw
