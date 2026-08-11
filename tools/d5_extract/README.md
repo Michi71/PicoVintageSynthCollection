@@ -126,6 +126,27 @@ It stopped being necessary here: the genuine factory bank exists as a SysEx
 dump of the PN-D50-00 ROM card, the memory card the D-50 shipped with, and
 that is what the instrument plays.
 
+**What decompressing it would and would not give.** Not the samples: the PCM
+data is not in this file at all. It was searched for raw, bit-permuted,
+decoded to 16-bit, and as literal runs interleaved with control bytes -- none
+of it is there, which is what one would expect of a firmware update for a
+device that already has its sample ROM. What could be there is the sample
+table itself, the one thing this directory had to reconstruct, including the
+root pitch per sample that our version only estimates.
+
+Guessing the exact LZ variant did not work. Parameter sweeps over flag
+polarity, window size, length field, minimum match and both match encodings
+do produce partially correct output -- back-references expand into readable
+text, "The House Piano" becoming "use Piano" a few bytes later -- but the
+stream drifts, and neither output entropy nor text density separates a nearly
+right variant from a wrong one.
+
+The tractable next step is not more guessing: the decompressor itself sits in
+the plaintext ARM Thumb loader in the first 212 KB, where a 4096-byte window
+mask (0x0FFF) appears fifteen times. Disassembling that routine settles the
+format exactly. It is a bounded piece of work, and nothing in the instrument
+depends on it.
+
 ## Reconstructing the table anyway
 
 Two independent paths, both in this directory.
