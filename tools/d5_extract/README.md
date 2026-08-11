@@ -293,6 +293,7 @@ confirm or correct the hypothesis table sample by sample.
 | `d5_bq3_decompress.py` | unpacks a Roland Boutique BQ3 firmware update (D-05) into its components -- Okumura LZSS, verified against the loader's own routine. |
 | `d5_review_render.py` | renders the frozen table for review by ear: one-shots padded with silence, loops tiled and pitch-normalised, plus one file with all of them in order, and the unprocessed cuts under `raw/`. |
 | `d5_loop_audit.py` | judges every static loop with `cp_sampleprep/FindLoopPoints`: a sustain loop that will not loop is not one. |
+| `d5_repartition.py` | re-splits the stretches that fail that audit, scoring candidate partitions with the same loop finder. |
 | `d5_sample_table.json` | the frozen table: start, length, loop flag and provenance per sample. |
 
 ```bash
