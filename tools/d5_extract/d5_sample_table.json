@@ -1,6 +1,6 @@
 {
  "source": "Roland D-50 PCM ROM set (TC532000P-7469/7470), decoded 262144 words @32 kHz",
- "method": "audio-derived; the MB87136 holds the real table in mask ROM (see README)",
+ "method": "audio-derived; the MB87136 holds the real table in mask ROM (see README); static loops 60-62 corrected by ear after periodicity analysis exposed internal period changes in the original regions",
  "frozen": "2026-08-11",
  "samples": [
   {
@@ -538,28 +538,28 @@
    "pcm": 60,
    "name": "CELLlp",
    "start": 219136,
-   "end": 223232,
+   "end": 220672,
+   "looped": true,
+   "basis": "ear-confirmed",
+   "pages": 0
+  },
+  {
+   "pcm": 61,
+   "name": "VIOLlp",
+   "start": 220672,
+   "end": 226304,
    "looped": true,
    "basis": "ear-confirmed",
    "pages": 2
   },
   {
-   "pcm": 61,
-   "name": "VIOLlp",
-   "start": 223232,
-   "end": 225280,
-   "looped": true,
-   "basis": "ear-confirmed",
-   "pages": 1
-  },
-  {
    "pcm": 62,
    "name": "Reedlp",
-   "start": 225280,
+   "start": 226304,
    "end": 233472,
    "looped": true,
    "basis": "ear-confirmed",
-   "pages": 4
+   "pages": 3
   },
   {
    "pcm": 63,

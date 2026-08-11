@@ -200,12 +200,23 @@ samples do obey (a loop repeats at exactly one period):
   start to end) and are very likely right.
 
 The period changes in that zone land on 512-word positions, not on the 2048
-grid the table uses, so the static boundaries are quantised too coarsely.
+grid the table uses, so the static boundaries were quantised too coarsely.
 Deriving the correct ones automatically did not work: the Spect series and
 Noise are aperiodic by construction, so a segmentation that scores periodicity
-puts its boundaries wherever it likes there. The remaining work is a listening
-pass over the CELLlp/VIOLlp/Reedlp stretch with candidate splits, which is how
-every other boundary in this table was settled.
+puts its boundaries wherever it likes there. The stretch was settled the way
+every other boundary in this table was -- by ear, from candidate splits: the
+one following the measured period zones won, giving CELLlp 1536 words,
+VIOLlp 5632 and Reedlp 7168. The two strings come out at 257 and 263 Hz,
+which is why no amount of period analysis could have separated them.
+
+**And there is no header.** The obvious way to build such a ROM is to put a
+small record in front of each sample carrying its length and pitch, so that
+addressing the sample delivers its parameters with it. Tested against the 47
+confirmed starts: the first word is 0x0000 in every single one, and the second
+through sixth are 47 distinct values apiece that continue smoothly into the
+waveform. So the ROM marks where a sample begins and says nothing else about
+it. That is consistent with everything else here -- the parameters live in the
+synth chip, and the sample ROM holds nothing but samples.
 
 ## Reconstructing the table anyway
 
