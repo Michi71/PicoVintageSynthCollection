@@ -192,6 +192,7 @@ c++ -O2 -std=c++17 -Ibuild/d5 -Iinstruments/PicoFaceD5/include \
 ./d5_render --synth synth.wav                 # cutoff, resonance, pulse width
 ./d5_render --la build/d5/d5_pcm.bin la.wav   # sampled attack + synth sustain
 ./d5_render --structures build/d5/d5_pcm.bin s.wav   # all seven structures
+./d5_render --mod build/d5/d5_pcm.bin mod.wav        # LFOs and pitch envelope
 ```
 
 Outputs land in `tools/d5_extract/out/`, which is not committed.

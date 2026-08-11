@@ -22,6 +22,7 @@
 #include <cstdint>
 
 #include "d5_engine/d5_env.h"
+#include "d5_engine/d5_mod.h"
 
 namespace d5 {
 
@@ -60,22 +61,23 @@ public:
 
     bool active() const { return active_; }
 
-    float next() {
+    float next(const Modulation& mod = Modulation{}) {
         if (!active_) return 0.0f;
 
         // Cutoff in harmonics of the fundamental: the cosine slopes take one
         // period of the cutoff frequency, so a cutoff near the fundamental
         // leaves almost a sine, and a high one leaves nearly square edges.
         const float env = tvf_.next();
-        float c = spec_.cutoff + spec_.tvf_env_depth * env;
+        float c = spec_.cutoff + spec_.tvf_env_depth * env + mod.cutoff;
         if (c < 0.02f) c = 0.02f;
         if (c > 1.0f) c = 1.0f;
         const float cutoff_hz = 40.0f * std::pow(400.0f, c);   // 40 Hz .. 16 kHz
-        float slope = freq_ / cutoff_hz;                       // cycle fraction
+        const float freq = freq_ * mod.pitch;
+        float slope = freq / cutoff_hz;                        // cycle fraction
         if (slope > 0.45f) slope = 0.45f;
         if (slope < 1.0f / 64.0f) slope = 1.0f / 64.0f;
 
-        const float pw = clampf(spec_.pulse_width, 0.05f, 0.95f);
+        const float pw = clampf(spec_.pulse_width + mod.pw, 0.05f, 0.95f);
         float out = segment(phase_, pw, slope);
 
         if (spec_.waveform == Waveform::kSawtooth) {
@@ -105,7 +107,7 @@ public:
             res_phase_ += 1.0f;
         }
 
-        phase_ += inc_;
+        phase_ += inc_ * mod.pitch;
         if (phase_ >= 1.0f) {
             phase_ -= 1.0f;
             res_phase_ = 0.0f;          // resonance restarts with the cycle
@@ -113,7 +115,7 @@ public:
 
         const float amp = tva_.next();
         if (tva_.finished()) active_ = false;
-        return out * amp * gain_ * 0.5f;
+        return out * amp * gain_ * mod.amp * 0.5f;
     }
 
 private:

@@ -17,6 +17,7 @@
 #include <cstdint>
 
 #include "d5_engine/d5_env.h"
+#include "d5_engine/d5_mod.h"
 
 namespace d5 {
 
@@ -51,7 +52,7 @@ public:
     void note_off() { env_.release(); }
     bool active() const { return active_; }
 
-    float next() {
+    float next(const Modulation& mod = Modulation{}) {
         if (!active_) return 0.0f;
 
         const uint32_t i = static_cast<uint32_t>(pos_);
@@ -65,10 +66,10 @@ public:
         const float b = s_.data[k + 1] * (1.0f / 32768.0f);
         const float sample = a + (b - a) * frac;
 
-        pos_ += rate_;
+        pos_ += rate_ * mod.pitch;
         const float amp = env_.next();
         if (env_.finished()) active_ = false;
-        return sample * amp * gain_;
+        return sample * amp * gain_ * mod.amp;
     }
 
 private:
