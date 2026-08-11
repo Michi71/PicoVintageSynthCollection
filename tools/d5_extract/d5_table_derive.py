@@ -855,13 +855,26 @@ def main():
         if e["start"] is None:
             continue
         loop = rom[e["start"]: e["end"]]
+        # normalize the playback rate so the fundamental lands near 200 Hz --
+        # the D-50 pitch-tracks PCM loops, ROM rate is arbitrary
+        f0 = pitch_of(loop, None)
+        base = 1.0
+        if f0 > 0:
+            base = 200.0 / f0
+            while base < 0.24:
+                base *= 2
+            while base > 4.1:
+                base /= 2
         mix = np.zeros(dur)
         for rate, gain in ((1.0, 0.5), (1.003, 0.35), (0.5, 0.45)):
-            t = (np.arange(dur) * rate) % len(loop)
+            t = (np.arange(dur) * rate * base) % len(loop)
             mix += gain * np.interp(t, np.arange(len(loop)), loop)
         env = np.minimum(1, np.arange(dur) / (0.4 * SAMPLE_RATE))
         env *= np.minimum(1, (dur - np.arange(dur)) / (0.5 * SAMPLE_RATE))
-        mix *= env / (np.max(np.abs(mix)) + 1e-9) * 0.9
+        mix *= env
+        rms = np.sqrt(np.mean(mix ** 2)) + 1e-9
+        mix *= 0.2 / rms
+        mix = np.clip(mix, -0.98, 0.98)
         with wave.open(os.path.join(pdir, f"{e['pcm']:03d}_{e['name']}_pad.wav"), "wb") as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)
