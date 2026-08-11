@@ -93,20 +93,42 @@ first section.
 
 ## Reconstructing the table anyway
 
-Two independent paths, both in this directory:
+Two independent paths, both in this directory.
 
 **Without hardware** (`d5_table_derive.py`): the layout model "PCM 1..100
-in numeric order" plus audio segmentation. Attacks start page-aligned at
-onsets; the "Noise" block (PCM 76) is exactly detectable and pins the
-static zone's end; the factory-rendered combination loops 77..100 follow
-it. The attack/static frontier and the sub-page loop boundaries are chosen
-by maximizing named-family checks (Lpiano<Mpiano<Hpiano in pitch, Horgan
-above Lorgan, EP/SAX pairs spectrally similar, the seven Spect loops a
-similarity block). Current result: **all 6 checks pass**, frontier at page
-94, Noise at pages 112..113. Output is
-`d50_sample_table_hypothesis.json` plus one WAV per sample under
-`samples_hypothesis/` -- reviewing those against the known names by ear is
-the acceptance test.
+in numeric order" plus audio segmentation, constrained by everything that
+could be established independently:
+
+- every region is `2048 << n` words on the page grid, the table format the
+  MT-32 sibling uses (munt, `ControlROMPCMStruct`: `addr = pos * 0x800`,
+  `len = 0x800 << exp`);
+- three positions are measured, not derived: labeled sample rips found on
+  the web cross-correlate against the decoded ROM at 0.95 to 1.00 (Steam
+  at word 135168, Lips1 at 155648, Pizz at 184320). A fourth, Loop19,
+  matches the very start of the ROM -- which is how the combination loops
+  77..100 turned out to be address ranges over the primary material rather
+  than stored data;
+- 18 weighted checks over named families (pitch order of the three pianos,
+  the organ octave, pair and block similarity, formant ratios for the
+  vocals, spectral flatness for the Spect series and Noise) plus a purity
+  check that rejects any attack region containing a timbre change;
+- and the ear review: ten rounds of listening produced start positions,
+  inequalities ("the clarinet begins later than this") and two refuted
+  expectations (Xylo1/Xylo2 and Eguit1/Eguit2 are genuinely different
+  instruments, not pairs).
+
+The frozen result is [`d5_sample_table.json`](d5_sample_table.json), with
+`basis` per entry: 3 measured, 29 ear-confirmed, 30 derived, 14 forced by
+arithmetic (the last 14 samples fill the last 14 pages, one page each, so
+nothing is left to choose), 24 unresolved combination ranges. Regions
+1..76 tile the ROM without a gap.
+
+What the table does **not** carry is a root pitch per sample -- that lives
+in the chip with the addresses. `d5_make_blob.py` measures one from the
+material instead (lowest prominent partial, unpitched material reports 0).
+Those values are estimates; the three pianos come out an octave apart as
+they audibly are, but individual entries can be off by an octave and want
+a pass against reference recordings once the engine plays.
 
 **With a real D-50/D-550** (`d5_probe_midi.py` + `d5_match.py`): the
 precision path, open to anyone with the hardware. `d5_probe_midi.py` emits
@@ -128,11 +150,22 @@ confirm or correct the hypothesis table sample by sample.
 | `d5_table_derive.py` | hardware-free table reconstruction with family validation (needs numpy). |
 | `d5_probe_midi.py` | probe MIDI generator for measuring a real D-50. |
 | `d5_match.py` | matches a probe recording against the ROM audio, emits the measured table (needs numpy). |
+| `d5_make_blob.py` | decodes the ROM set into `d5_pcm.bin` (512 KiB, 16-bit) plus `d5_blob.S` and `d5_pcm_table.h` for the firmware. |
+| `d5_sample_table.json` | the frozen table: start, length, loop flag and provenance per sample. |
 
 ```bash
 python3 tools/d5_extract/d5_rom.py ~/develop/Roland_D50
 python3 tools/d5_extract/d5_wavedump.py ~/develop/Roland_D50
 python3 tools/d5_extract/d5_table_derive.py ~/develop/Roland_D50
+python3 tools/d5_extract/d5_make_blob.py ~/develop/Roland_D50 build/d5
+```
+
+The engine can be heard on the host without hardware:
+
+```bash
+c++ -O2 -std=c++17 -Ibuild/d5 -Iinstruments/PicoFaceD5/include \
+    -o d5_render tools/host_tests/d5_engine_test/render.cpp
+./d5_render build/d5/d5_pcm.bin survey.wav
 ```
 
 Outputs land in `tools/d5_extract/out/`, which is not committed.

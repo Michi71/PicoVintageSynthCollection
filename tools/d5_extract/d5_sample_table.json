@@ -1,0 +1,907 @@
+{
+ "source": "Roland D-50 PCM ROM set (TC532000P-7469/7470), decoded 262144 words @32 kHz",
+ "method": "audio-derived; the MB87136 holds the real table in mask ROM (see README)",
+ "frozen": "2026-08-11",
+ "samples": [
+  {
+   "pcm": 1,
+   "name": "Marmba",
+   "start": 0,
+   "end": 4096,
+   "looped": false,
+   "basis": "derived",
+   "pages": 2
+  },
+  {
+   "pcm": 2,
+   "name": "Vibes",
+   "start": 4096,
+   "end": 8192,
+   "looped": false,
+   "basis": "derived",
+   "pages": 2
+  },
+  {
+   "pcm": 3,
+   "name": "Xylo1",
+   "start": 8192,
+   "end": 12288,
+   "looped": false,
+   "basis": "ear-confirmed",
+   "pages": 2
+  },
+  {
+   "pcm": 4,
+   "name": "Xylo2",
+   "start": 12288,
+   "end": 16384,
+   "looped": false,
+   "basis": "ear-confirmed",
+   "pages": 2
+  },
+  {
+   "pcm": 5,
+   "name": "Log_Bs",
+   "start": 16384,
+   "end": 24576,
+   "looped": false,
+   "basis": "derived",
+   "pages": 4
+  },
+  {
+   "pcm": 6,
+   "name": "Hammer",
+   "start": 24576,
+   "end": 26624,
+   "looped": false,
+   "basis": "derived",
+   "pages": 1
+  },
+  {
+   "pcm": 7,
+   "name": "JpnDrm",
+   "start": 26624,
+   "end": 28672,
+   "looped": false,
+   "basis": "derived",
+   "pages": 1
+  },
+  {
+   "pcm": 8,
+   "name": "Kalmba",
+   "start": 28672,
+   "end": 30720,
+   "looped": false,
+   "basis": "derived",
+   "pages": 1
+  },
+  {
+   "pcm": 9,
+   "name": "Pluck",
+   "start": 30720,
+   "end": 32768,
+   "looped": false,
+   "basis": "derived",
+   "pages": 1
+  },
+  {
+   "pcm": 10,
+   "name": "Chink",
+   "start": 32768,
+   "end": 34816,
+   "looped": false,
+   "basis": "derived",
+   "pages": 1
+  },
+  {
+   "pcm": 11,
+   "name": "Agogo",
+   "start": 34816,
+   "end": 36864,
+   "looped": false,
+   "basis": "derived",
+   "pages": 1
+  },
+  {
+   "pcm": 12,
+   "name": "3angle",
+   "start": 36864,
+   "end": 40960,
+   "looped": false,
+   "basis": "derived",
+   "pages": 2
+  },
+  {
+   "pcm": 13,
+   "name": "Bells",
+   "start": 40960,
+   "end": 45056,
+   "looped": false,
+   "basis": "derived",
+   "pages": 2
+  },
+  {
+   "pcm": 14,
+   "name": "Nails",
+   "start": 45056,
+   "end": 47104,
+   "looped": false,
+   "basis": "derived",
+   "pages": 1
+  },
+  {
+   "pcm": 15,
+   "name": "Pick",
+   "start": 47104,
+   "end": 49152,
+   "looped": false,
+   "basis": "derived",
+   "pages": 1
+  },
+  {
+   "pcm": 16,
+   "name": "Lpiano",
+   "start": 49152,
+   "end": 57344,
+   "looped": false,
+   "basis": "ear-confirmed",
+   "pages": 4
+  },
+  {
+   "pcm": 17,
+   "name": "Mpiano",
+   "start": 57344,
+   "end": 65536,
+   "looped": false,
+   "basis": "ear-confirmed",
+   "pages": 4
+  },
+  {
+   "pcm": 18,
+   "name": "Hpiano",
+   "start": 65536,
+   "end": 73728,
+   "looped": false,
+   "basis": "ear-confirmed",
+   "pages": 4
+  },
+  {
+   "pcm": 19,
+   "name": "Harpsi",
+   "start": 73728,
+   "end": 81920,
+   "looped": false,
+   "basis": "derived",
+   "pages": 4
+  },
+  {
+   "pcm": 20,
+   "name": "Harp",
+   "start": 81920,
+   "end": 86016,
+   "looped": false,
+   "basis": "derived",
+   "pages": 2
+  },
+  {
+   "pcm": 21,
+   "name": "OrgPrc",
+   "start": 86016,
+   "end": 90112,
+   "looped": false,
+   "basis": "derived",
+   "pages": 2
+  },
+  {
+   "pcm": 22,
+   "name": "Steel",
+   "start": 90112,
+   "end": 94208,
+   "looped": false,
+   "basis": "derived",
+   "pages": 2
+  },
+  {
+   "pcm": 23,
+   "name": "Nylon",
+   "start": 94208,
+   "end": 98304,
+   "looped": false,
+   "basis": "derived",
+   "pages": 2
+  },
+  {
+   "pcm": 24,
+   "name": "Eguit1",
+   "start": 98304,
+   "end": 102400,
+   "looped": false,
+   "basis": "ear-confirmed",
+   "pages": 2
+  },
+  {
+   "pcm": 25,
+   "name": "Eguit2",
+   "start": 102400,
+   "end": 106496,
+   "looped": false,
+   "basis": "ear-confirmed",
+   "pages": 2
+  },
+  {
+   "pcm": 26,
+   "name": "Dirt",
+   "start": 106496,
+   "end": 110592,
+   "looped": false,
+   "basis": "ear-confirmed",
+   "pages": 2
+  },
+  {
+   "pcm": 27,
+   "name": "P_Bass",
+   "start": 110592,
+   "end": 114688,
+   "looped": false,
+   "basis": "ear-confirmed",
+   "pages": 2
+  },
+  {
+   "pcm": 28,
+   "name": "Pop",
+   "start": 114688,
+   "end": 118784,
+   "looped": false,
+   "basis": "ear-confirmed",
+   "pages": 2
+  },
+  {
+   "pcm": 29,
+   "name": "Thump",
+   "start": 118784,
+   "end": 122880,
+   "looped": false,
+   "basis": "ear-confirmed",
+   "pages": 2
+  },
+  {
+   "pcm": 30,
+   "name": "Uprite",
+   "start": 122880,
+   "end": 126976,
+   "looped": false,
+   "basis": "ear-confirmed",
+   "pages": 2
+  },
+  {
+   "pcm": 31,
+   "name": "Clarnt",
+   "start": 126976,
+   "end": 131072,
+   "looped": false,
+   "basis": "ear-confirmed",
+   "pages": 2
+  },
+  {
+   "pcm": 32,
+   "name": "Breath",
+   "start": 131072,
+   "end": 135168,
+   "looped": false,
+   "basis": "ear-confirmed",
+   "pages": 2
+  },
+  {
+   "pcm": 33,
+   "name": "Steam",
+   "start": 135168,
+   "end": 139264,
+   "looped": false,
+   "basis": "measured",
+   "pages": 2
+  },
+  {
+   "pcm": 34,
+   "name": "FluteH",
+   "start": 139264,
+   "end": 143360,
+   "looped": false,
+   "basis": "derived",
+   "pages": 2
+  },
+  {
+   "pcm": 35,
+   "name": "FluteL",
+   "start": 143360,
+   "end": 147456,
+   "looped": false,
+   "basis": "derived",
+   "pages": 2
+  },
+  {
+   "pcm": 36,
+   "name": "Guiro",
+   "start": 147456,
+   "end": 149504,
+   "looped": false,
+   "basis": "derived",
+   "pages": 1
+  },
+  {
+   "pcm": 37,
+   "name": "IndFlt",
+   "start": 149504,
+   "end": 151552,
+   "looped": false,
+   "basis": "derived",
+   "pages": 1
+  },
+  {
+   "pcm": 38,
+   "name": "Harmo",
+   "start": 151552,
+   "end": 155648,
+   "looped": false,
+   "basis": "derived",
+   "pages": 2
+  },
+  {
+   "pcm": 39,
+   "name": "Lips1",
+   "start": 155648,
+   "end": 157696,
+   "looped": false,
+   "basis": "measured",
+   "pages": 1
+  },
+  {
+   "pcm": 40,
+   "name": "Lips2",
+   "start": 157696,
+   "end": 159744,
+   "looped": false,
+   "basis": "derived",
+   "pages": 1
+  },
+  {
+   "pcm": 41,
+   "name": "Trumpt",
+   "start": 159744,
+   "end": 163840,
+   "looped": false,
+   "basis": "derived",
+   "pages": 2
+  },
+  {
+   "pcm": 42,
+   "name": "Bones",
+   "start": 163840,
+   "end": 167936,
+   "looped": false,
+   "basis": "derived",
+   "pages": 2
+  },
+  {
+   "pcm": 43,
+   "name": "Contra",
+   "start": 167936,
+   "end": 172032,
+   "looped": false,
+   "basis": "derived",
+   "pages": 2
+  },
+  {
+   "pcm": 44,
+   "name": "Cello",
+   "start": 172032,
+   "end": 176128,
+   "looped": false,
+   "basis": "derived",
+   "pages": 2
+  },
+  {
+   "pcm": 45,
+   "name": "VioBow",
+   "start": 176128,
+   "end": 180224,
+   "looped": false,
+   "basis": "derived",
+   "pages": 2
+  },
+  {
+   "pcm": 46,
+   "name": "Violns",
+   "start": 180224,
+   "end": 184320,
+   "looped": false,
+   "basis": "derived",
+   "pages": 2
+  },
+  {
+   "pcm": 47,
+   "name": "Pizz",
+   "start": 184320,
+   "end": 188416,
+   "looped": false,
+   "basis": "measured",
+   "pages": 2
+  },
+  {
+   "pcm": 48,
+   "name": "Drawbr",
+   "start": 188416,
+   "end": 190464,
+   "looped": true,
+   "basis": "ear-confirmed",
+   "pages": 1
+  },
+  {
+   "pcm": 49,
+   "name": "Horgan",
+   "start": 190464,
+   "end": 192512,
+   "looped": true,
+   "basis": "ear-confirmed",
+   "pages": 1
+  },
+  {
+   "pcm": 50,
+   "name": "Lorgan",
+   "start": 192512,
+   "end": 194560,
+   "looped": true,
+   "basis": "ear-confirmed",
+   "pages": 1
+  },
+  {
+   "pcm": 51,
+   "name": "EP_lp1",
+   "start": 194560,
+   "end": 196608,
+   "looped": true,
+   "basis": "ear-confirmed",
+   "pages": 1
+  },
+  {
+   "pcm": 52,
+   "name": "EP_lp2",
+   "start": 196608,
+   "end": 198656,
+   "looped": true,
+   "basis": "ear-confirmed",
+   "pages": 1
+  },
+  {
+   "pcm": 53,
+   "name": "CLAVlp",
+   "start": 198656,
+   "end": 202752,
+   "looped": true,
+   "basis": "ear-confirmed",
+   "pages": 2
+  },
+  {
+   "pcm": 54,
+   "name": "HC_lp",
+   "start": 202752,
+   "end": 206848,
+   "looped": true,
+   "basis": "ear-confirmed",
+   "pages": 2
+  },
+  {
+   "pcm": 55,
+   "name": "EB_lp1",
+   "start": 206848,
+   "end": 210944,
+   "looped": true,
+   "basis": "ear-confirmed",
+   "pages": 2
+  },
+  {
+   "pcm": 56,
+   "name": "AB_lp",
+   "start": 210944,
+   "end": 212992,
+   "looped": true,
+   "basis": "ear-confirmed",
+   "pages": 1
+  },
+  {
+   "pcm": 57,
+   "name": "EB_lp2",
+   "start": 212992,
+   "end": 215040,
+   "looped": true,
+   "basis": "ear-confirmed",
+   "pages": 1
+  },
+  {
+   "pcm": 58,
+   "name": "EB_lp3",
+   "start": 215040,
+   "end": 217088,
+   "looped": true,
+   "basis": "ear-confirmed",
+   "pages": 1
+  },
+  {
+   "pcm": 59,
+   "name": "EG_lp",
+   "start": 217088,
+   "end": 219136,
+   "looped": true,
+   "basis": "ear-confirmed",
+   "pages": 1
+  },
+  {
+   "pcm": 60,
+   "name": "CELLlp",
+   "start": 219136,
+   "end": 223232,
+   "looped": true,
+   "basis": "ear-confirmed",
+   "pages": 2
+  },
+  {
+   "pcm": 61,
+   "name": "VIOLlp",
+   "start": 223232,
+   "end": 225280,
+   "looped": true,
+   "basis": "ear-confirmed",
+   "pages": 1
+  },
+  {
+   "pcm": 62,
+   "name": "Reedlp",
+   "start": 225280,
+   "end": 233472,
+   "looped": true,
+   "basis": "ear-confirmed",
+   "pages": 4
+  },
+  {
+   "pcm": 63,
+   "name": "SAXlp1",
+   "start": 233472,
+   "end": 235520,
+   "looped": true,
+   "basis": "forced-by-arithmetic",
+   "pages": 1
+  },
+  {
+   "pcm": 64,
+   "name": "SAXlp2",
+   "start": 235520,
+   "end": 237568,
+   "looped": true,
+   "basis": "forced-by-arithmetic",
+   "pages": 1
+  },
+  {
+   "pcm": 65,
+   "name": "Aah_lp",
+   "start": 237568,
+   "end": 239616,
+   "looped": true,
+   "basis": "forced-by-arithmetic",
+   "pages": 1
+  },
+  {
+   "pcm": 66,
+   "name": "Ooh_lp",
+   "start": 239616,
+   "end": 241664,
+   "looped": true,
+   "basis": "forced-by-arithmetic",
+   "pages": 1
+  },
+  {
+   "pcm": 67,
+   "name": "Manlp1",
+   "start": 241664,
+   "end": 243712,
+   "looped": true,
+   "basis": "forced-by-arithmetic",
+   "pages": 1
+  },
+  {
+   "pcm": 68,
+   "name": "Spect1",
+   "start": 243712,
+   "end": 245760,
+   "looped": true,
+   "basis": "forced-by-arithmetic",
+   "pages": 1
+  },
+  {
+   "pcm": 69,
+   "name": "Spect2",
+   "start": 245760,
+   "end": 247808,
+   "looped": true,
+   "basis": "forced-by-arithmetic",
+   "pages": 1
+  },
+  {
+   "pcm": 70,
+   "name": "Spect3",
+   "start": 247808,
+   "end": 249856,
+   "looped": true,
+   "basis": "forced-by-arithmetic",
+   "pages": 1
+  },
+  {
+   "pcm": 71,
+   "name": "Spect4",
+   "start": 249856,
+   "end": 251904,
+   "looped": true,
+   "basis": "forced-by-arithmetic",
+   "pages": 1
+  },
+  {
+   "pcm": 72,
+   "name": "Spect5",
+   "start": 251904,
+   "end": 253952,
+   "looped": true,
+   "basis": "forced-by-arithmetic",
+   "pages": 1
+  },
+  {
+   "pcm": 73,
+   "name": "Spect6",
+   "start": 253952,
+   "end": 256000,
+   "looped": true,
+   "basis": "forced-by-arithmetic",
+   "pages": 1
+  },
+  {
+   "pcm": 74,
+   "name": "Spect7",
+   "start": 256000,
+   "end": 258048,
+   "looped": true,
+   "basis": "forced-by-arithmetic",
+   "pages": 1
+  },
+  {
+   "pcm": 75,
+   "name": "Manlp2",
+   "start": 258048,
+   "end": 260096,
+   "looped": true,
+   "basis": "forced-by-arithmetic",
+   "pages": 1
+  },
+  {
+   "pcm": 76,
+   "name": "Noise",
+   "start": 260096,
+   "end": 262144,
+   "looped": true,
+   "basis": "forced-by-arithmetic",
+   "pages": 1
+  },
+  {
+   "pcm": 77,
+   "name": "Loop01",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 78,
+   "name": "Loop02",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 79,
+   "name": "Loop03",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 80,
+   "name": "Loop04",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 81,
+   "name": "Loop05",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 82,
+   "name": "Loop06",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 83,
+   "name": "Loop07",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 84,
+   "name": "Loop08",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 85,
+   "name": "Loop09",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 86,
+   "name": "Loop10",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 87,
+   "name": "Loop11",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 88,
+   "name": "Loop12",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 89,
+   "name": "Loop13",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 90,
+   "name": "Loop14",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 91,
+   "name": "Loop15",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 92,
+   "name": "Loop16",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 93,
+   "name": "Loop17",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 94,
+   "name": "Loop18",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 95,
+   "name": "Loop19",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 96,
+   "name": "Loop20",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 97,
+   "name": "Loop21",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 98,
+   "name": "Loop22",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 99,
+   "name": "Loop23",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  },
+  {
+   "pcm": 100,
+   "name": "Loop24",
+   "start": null,
+   "end": null,
+   "looped": true,
+   "basis": "range-unresolved",
+   "pages": null
+  }
+ ]
+}
