@@ -178,6 +178,10 @@ REVIEW_MIN_START = {30: 126976, 31: 131072}
 
 ATT_PINS = [(2, 8192, 12288), (3, 12288, 16384),        # Xylo1/Xylo2
             (15, 49152, 57344), (16, 57344, 65536), (17, 65536, None),
+            (23, 98304, None), (24, 102400, None), (25, 106496, None),
+            (26, 110592, None), (27, 114688, None), (28, 118784, None),
+            (29, 122880, None), (30, 126976, None), (31, 131072, None),
+            # ^ Eguit1..Breath, ear-approved in round 8
             (32, 135168, None),     # Steam start, measured (web ref, 0.95)
             (33, 139264, None),     # FluteH start, ear-confirmed ("ab 033 ok")
             (38, 155648, None),     # Lips1 start, measured (web ref)
@@ -424,8 +428,7 @@ CHECKS = [    # (label, pcm numbers, kind, weight)
     ("Horgan/Lorgan octave", (49, 50), "pitch_octave", 3.0),  # frontier sentinel
     ("EP_lp1~EP_lp2", (51, 52), "similar", 1.0),
     ("SAXlp1~SAXlp2", (63, 64), "similar", 1.0),
-    ("Spect1..7 block", tuple(range(68, 75)), "block", 1.0),
-    ("Eguit1~Eguit2", (24, 25), "similar", 1.0),
+    ("Spect2..7 block", tuple(range(69, 75)), "block", 1.0),
     ("Lips1~Lips2", (39, 40), "similar", 1.0),
     ("EB_lp1/2/3 block", (55, 57, 58), "block", 1.0),
     ("Aah_lp~Ooh_lp", (65, 66), "similar_loose", 1.0),
@@ -435,9 +438,9 @@ CHECKS = [    # (label, pcm numbers, kind, weight)
     ("Steam noisy", (33,), "noisy", 1.5),
     ("3angle bright", (12,), "bright", 1.5),
     ("Noise is noise", (76,), "noisy", 3.0),
-    ("flat page 112 is a Spect", (68,), "spect112", 6.0),
     ("attack regions pure", (), "purity", 3.0),
-    ("Aah/Ooh formants", (65, 66), "formants", 2.0),
+    ("vocal cluster formants", (65, 66, 67), "formant_min:1000", 4.0),
+    ("Spects are spectral", tuple(range(68, 75)), "flat_min:0.3", 3.0),
 ]
 
 
@@ -492,6 +495,23 @@ def validate(rom, table):
             lim = float(kind.split(":")[1])
             vals = [round(rms_of(rom[e["start"]: e["end"]]), 3) for e in entries]
             results.append((name, (all(v >= lim for v in vals), vals)))
+            continue
+        if kind.startswith("formant_min:"):
+            lim = float(kind.split(":")[1])
+            ratios = []
+            for e in entries:
+                x = np.asarray(rom[e["start"]: e["end"]][:8192])
+                m = np.abs(np.fft.rfft(x * np.hanning(len(x)))) ** 2
+                f = np.arange(len(m)) * (SAMPLE_RATE / 2) / (len(m) - 1)
+                low = m[f < 250].sum() + 1e-9
+                mid = m[(f >= 500) & (f < 3000)].sum()
+                ratios.append(round(float(mid / low), 1))
+            results.append((name, (all(r > lim for r in ratios), ratios)))
+            continue
+        if kind.startswith("flat_min:"):
+            lim = float(kind.split(":")[1])
+            vals = [round(flatness(rom[e["start"]: e["end"]]), 2) for e in entries]
+            results.append((name, (float(np.mean(vals)) > lim, vals)))
             continue
         if kind == "formants":
             ratios = []
