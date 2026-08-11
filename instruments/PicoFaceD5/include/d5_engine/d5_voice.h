@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Michi71
 //
-// A D-50 tone: two partials plus the common block that decides how they meet.
+// One voice of a D-50 tone: the two partials, the structure that decides how
+// they meet, and the tone's LFOs and pitch envelope as this note hears them.
+//
+// The equalizer, the chorus and the reverb are not here. They sit behind the
+// sum of all voices (see d5_patch.h) -- a per-voice chorus would be both
+// wrong and, at six kilobytes of delay line each, expensive.
 //
 // The seven structures are the table on page 22 of the Advanced Course, and
 // the block diagrams there carry a detail worth spelling out: in a ring
@@ -58,7 +63,7 @@ struct LfoRoute {
 // off / rising with the envelope / inverted.
 enum class PEnvMode : uint8_t { kOff = 0, kPositive = 1, kNegative = 2 };
 
-struct ToneSpec {
+struct VoiceSpec {
     int structure = 1;              // 1..7, panel "Structure No."
     float balance = 0.5f;           // 0..1, panel "Partial Balance", .5 = even
     // Bit 0 lets partial 1 sound, bit 1 partial 2. The panel calls this
@@ -88,9 +93,9 @@ struct ToneSpec {
     LfoRoute tva_lfo[2]{};          // panel "TVA Mod LFO Select / Depth"
 };
 
-class Tone {
+class Voice {
 public:
-    void note_on(const ToneSpec& spec, int note, float velocity,
+    void note_on(const VoiceSpec& spec, int note, float velocity,
                  float sample_rate) {
         spec_ = spec;
         const Structure& st = structure();
@@ -189,7 +194,7 @@ private:
         return l[i];
     }
 
-    ToneSpec spec_{};
+    VoiceSpec spec_{};
     PcmVoice pcm_[2]{};
     SynthPartial synth_[2]{};
     Lfo lfo_[3]{};

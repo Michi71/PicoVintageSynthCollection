@@ -19,7 +19,7 @@
 
 #include "d5_engine/d5_pcm_voice.h"
 #include "d5_engine/d5_synth_voice.h"
-#include "d5_engine/d5_tone.h"
+#include "d5_engine/d5_patch.h"
 #include "d5_pcm_table.h"
 
 namespace {
@@ -205,7 +205,7 @@ void render_structures(const std::vector<int16_t>& blob,
     const d5::PcmSample& s2 = d5::kPcmSamples[48 - 1];   // Drawbr, a loop
 
     for (int str = 1; str <= 7; ++str) {
-        d5::ToneSpec t;
+        d5::VoiceSpec t;
         t.structure = str;
         t.balance = 0.5f;
         t.coarse[1] = 7;        // second partial a fifth up
@@ -232,7 +232,7 @@ void render_structures(const std::vector<int16_t>& blob,
             t.synth[i].tva_env.t[4] = 0.4f;
         }
 
-        d5::Tone tone;
+        d5::Voice tone;
         tone.note_on(t, 48, 0.9f, kSampleRate);
         const int hold = static_cast<int>(kSampleRate * 1.5f);
         for (int i = 0; i < hold; ++i) out.push_back(tone.next() * 0.7f);
@@ -256,7 +256,7 @@ void render_mod(const std::vector<int16_t>& blob, std::vector<float>& out) {
     const d5::PcmSample& piano = d5::kPcmSamples[16 - 1];
 
     auto tone_base = [&]() {
-        d5::ToneSpec t;
+        d5::VoiceSpec t;
         t.structure = 1;                    // synth + synth, so the modulation
         t.balance = 0.0f;                   // is heard on partial 1 alone
         t.synth[0].waveform = d5::Waveform::kSawtooth;
@@ -276,44 +276,44 @@ void render_mod(const std::vector<int16_t>& blob, std::vector<float>& out) {
         return t;
     };
 
-    struct Step { const char* what; d5::ToneSpec t; int note; };
+    struct Step { const char* what; d5::VoiceSpec t; int note; };
     std::vector<Step> steps;
     {
-        d5::ToneSpec t = tone_base();                    // vibrato
+        d5::VoiceSpec t = tone_base();                    // vibrato
         t.pitch_lfo[0] = {0, 0.15f};
         steps.push_back({"vibrato (LFO 1 to pitch)", t, 52});
     }
     {
-        d5::ToneSpec t = tone_base();                    // delayed vibrato
+        d5::VoiceSpec t = tone_base();                    // delayed vibrato
         t.pitch_lfo[0] = {0, 0.25f};
         t.lfo[0].delay = 0.12f;
         steps.push_back({"delayed vibrato", t, 52});
     }
     {
-        d5::ToneSpec t = tone_base();                    // PWM
+        d5::VoiceSpec t = tone_base();                    // PWM
         t.synth[0].waveform = d5::Waveform::kSquare;
         t.lfo[0].rate = 0.42f;
         t.pw_lfo[0] = {0, 0.7f};
         steps.push_back({"pulse width modulation", t, 45});
     }
     {
-        d5::ToneSpec t = tone_base();                    // filter wobble
+        d5::VoiceSpec t = tone_base();                    // filter wobble
         t.tvf_lfo[0] = {0, 0.6f};
         t.lfo[0].rate = 0.45f;
         steps.push_back({"TVF modulation", t, 45});
     }
     {
-        d5::ToneSpec t = tone_base();                    // tremolo
+        d5::VoiceSpec t = tone_base();                    // tremolo
         t.tva_lfo[0] = {0, 0.8f};
         steps.push_back({"TVA modulation (tremolo)", t, 52});
     }
     {
-        d5::ToneSpec t = tone_base();                    // sample and hold
+        d5::VoiceSpec t = tone_base();                    // sample and hold
         t.pitch_lfo[0] = {2, 0.5f};
         steps.push_back({"random LFO to pitch", t, 52});
     }
     {
-        d5::ToneSpec t = tone_base();                    // pitch envelope
+        d5::VoiceSpec t = tone_base();                    // pitch envelope
         t.penv.l0 = -1.0f;                               // start a tone low
         t.penv.l1 = 0.2f; t.penv.l2 = 0.0f;
         t.penv.sustain = 0.0f; t.penv.end = -0.5f;
@@ -323,7 +323,7 @@ void render_mod(const std::vector<int16_t>& blob, std::vector<float>& out) {
         steps.push_back({"pitch envelope, rising into the note", t, 52});
     }
     {
-        d5::ToneSpec t = tone_base();                    // PCM + pitch env
+        d5::VoiceSpec t = tone_base();                    // PCM + pitch env
         t.structure = 3;
         t.balance = 0.0f;
         t.pcm[0].data = blob.data();
@@ -341,8 +341,8 @@ void render_mod(const std::vector<int16_t>& blob, std::vector<float>& out) {
     }
 
     for (const Step& st : steps) {
-        d5::Tone tone;
-        d5::ToneSpec spec = st.t;
+        d5::Voice tone;
+        d5::VoiceSpec spec = st.t;
         tone.note_on(spec, st.note, 0.9f, kSampleRate);
         for (int i = 0; i < static_cast<int>(kSampleRate * 2.2f); ++i)
             out.push_back(tone.next() * 0.8f);
@@ -355,6 +355,84 @@ void render_mod(const std::vector<int16_t>& blob, std::vector<float>& out) {
     }
 }
 
+// The common block's effects, and the patch level above them: a chord
+// through the equalizer, several chorus types and several reverbs.
+void render_fx(const std::vector<int16_t>& blob, std::vector<float>& out) {
+    const d5::PcmSample& piano = d5::kPcmSamples[16 - 1];
+
+    auto patch_base = [&]() {
+        d5::PatchSpec p;
+        d5::VoiceSpec& v = p.upper.voice;
+        v.structure = 3;                       // PCM attack + synth sustain
+        v.balance = 0.5f;
+        v.pcm[0].data = blob.data();
+        v.pcm[0].start = piano.start;
+        v.pcm[0].length = piano.length;
+        v.pcm[0].looped = piano.looped;
+        v.pcm[0].root_hz = piano.root_hz;
+        v.pcm_env[0].t[0] = 0.002f;
+        v.pcm_env[0].l[0] = 1.0f; v.pcm_env[0].l[1] = 0.4f;
+        v.pcm_env[0].sustain = 0.0f; v.pcm_env[0].t[1] = 0.15f;
+        v.synth[1].waveform = d5::Waveform::kSawtooth;
+        v.synth[1].cutoff = 0.45f;
+        v.synth[1].resonance = 0.2f;
+        v.synth[1].tvf_env_depth = 0.25f;
+        v.synth[1].tva_env.t[0] = 0.1f;
+        v.synth[1].tva_env.sustain = 0.8f;
+        v.synth[1].tva_env.t[4] = 0.5f;
+        p.upper.level = 0.6f;
+        p.reverb.balance = 0.0f;
+        return p;
+    };
+
+    struct Step { const char* what; d5::PatchSpec p; };
+    std::vector<Step> steps;
+    {   d5::PatchSpec p = patch_base();
+        steps.push_back({"dry, no equalizer", p}); }
+    {   d5::PatchSpec p = patch_base();
+        p.upper.eq.low_freq = 6; p.upper.eq.low_gain_db = 10.0f;
+        steps.push_back({"low shelf +10 dB at 175 Hz", p}); }
+    {   d5::PatchSpec p = patch_base();
+        p.upper.eq.high_freq = 14; p.upper.eq.high_q = 6;
+        p.upper.eq.high_gain_db = 11.0f;
+        steps.push_back({"high peak +11 dB at 2.8 kHz, Q 3.0", p}); }
+    for (int type : {0, 4, 6}) {
+        d5::PatchSpec p = patch_base();
+        p.upper.chorus.type = type;
+        p.upper.chorus.balance = 0.5f;
+        p.upper.chorus.rate = 0.3f;
+        p.upper.chorus.depth = 0.6f;
+        steps.push_back({type == 0 ? "chorus type 1" :
+                         (type == 4 ? "chorus type 5 (ensemble)"
+                                    : "chorus type 7 (flanger-ish)"), p});
+    }
+    for (int rv : {3, 12, 18, 31}) {
+        d5::PatchSpec p = patch_base();
+        p.reverb.type = rv;
+        p.reverb.balance = 0.42f;
+        steps.push_back({rv == 3 ? "reverb 4 (small room)" :
+                         (rv == 12 ? "reverb 13 (hall)" :
+                          (rv == 18 ? "reverb 19 (gated)"
+                                    : "reverb 32 (long)")), p});
+    }
+
+    for (const Step& st : steps) {
+        d5::Patch patch;
+        d5::PatchSpec spec = st.p;
+        patch.configure(spec, kSampleRate);
+        const int chord[3] = {48, 55, 60};
+        for (int n : chord) patch.note_on(n, 0.85f);
+        for (int i = 0; i < static_cast<int>(kSampleRate * 1.6f); ++i)
+            out.push_back(patch.next());
+        for (int n : chord) patch.note_off(n);
+        for (int i = 0; i < static_cast<int>(kSampleRate * 2.0f); ++i)
+            out.push_back(patch.next());
+        for (int i = 0; i < static_cast<int>(kSampleRate * 0.3f); ++i)
+            out.push_back(0.0f);
+        std::printf("fx: %s\n", st.what);
+    }
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) {
         std::fprintf(stderr,
@@ -362,9 +440,17 @@ int main(int argc, char** argv) {
                      "       %s --synth <out.wav>\n"
                      "       %s --la <d5_pcm.bin> <out.wav>\n"
                      "       %s --structures <d5_pcm.bin> <out.wav>\n"
-                     "       %s --mod <d5_pcm.bin> <out.wav>\n",
-                     argv[0], argv[0], argv[0], argv[0], argv[0]);
+                     "       %s --mod <d5_pcm.bin> <out.wav>\n"
+                     "       %s --fx <d5_pcm.bin> <out.wav>\n",
+                     argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
         return 1;
+    }
+    if (std::strcmp(argv[1], "--fx") == 0 && argc >= 4) {
+        std::vector<float> out;
+        render_fx(load_blob(argv[2]), out);
+        write_wav(argv[3], out);
+        std::printf("wrote %s (%.1f s)\n", argv[3], out.size() / kSampleRate);
+        return 0;
     }
     if (std::strcmp(argv[1], "--mod") == 0 && argc >= 4) {
         std::vector<float> out;
