@@ -77,6 +77,29 @@ Conclusion: the MB87136 resolves PCM numbers to ROM addresses in its own
 mask ROM. No CPU-side dump contains the table, which is why it has never
 been documented.
 
+### The "600-byte table" the D-50 really has
+
+A claim that circulates is that the D-50's firmware holds a 600-byte table
+of 100 six-byte entries carrying start, loop and flag data. Half of that is
+right: there is exactly such a table, 100 entries of 6 bytes at file offset
+0xFC00 -- but every one of its 600 bytes is printable ASCII. It is the list
+of PCM *names* (`Marmba`, `Vibes `, ... `Loop24`), and it is what this
+directory uses to label samples.
+
+No second 100x6 table carries addresses. Tested exhaustively over both the
+EPROM and the internal ROM: every base offset, all six field positions,
+byte / u16 (both endiannesses) / u24 fields, and every plausible address
+unit, required to reproduce the six independently established positions
+(the three ear-confirmed pianos plus the measured Steam, Lips1 and Pizz).
+Zero tables satisfy all six; the best partial agreement is two of six,
+which is what chance produces across that many candidates.
+
+The other half of the claim -- that the ROM data is bit-scrambled and needs
+a specific algorithm to decode -- is correct, and that decoder is
+`d5_rom.py`. And MAME does not document these sounds: its `roland_d50.cpp`
+is a skeleton flagged `MACHINE_NOT_WORKING | MACHINE_NO_SOUND`, with the
+synth chip line commented out.
+
 ### The D-05 Boutique firmware
 
 `BQ3_UPD.BIN` (4 MB) is the obvious place to look for Roland's own copy of
