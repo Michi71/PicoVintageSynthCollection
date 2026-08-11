@@ -171,6 +171,42 @@ So the reissue confirms the finding rather than dissolving it -- and the
 reconstructed table stays what it is, verified against the genuine ROMs,
 which are the authority the D-05 can only reproduce anyway.
 
+## What the ROM marks itself
+
+One boundary marker is in the sample data after all, and it took a listener's
+doubt about the later samples to go looking for it. A one-shot is padded to
+the end of its slot with digital silence, which in this log format is the
+all-zero word -- magnitude zero is 2^-16, far below anything the format
+otherwise encodes. So a run of zero words is the tail of a sample, and the
+page boundary just past it is where the next one starts.
+
+That gives 46 boundaries stated by the ROM itself, and **every one of them
+agrees with the reconstructed table**, including the three positions measured
+independently against labeled rips. The attack half of the table (PCM 1..47)
+is confirmed by the data, not only by ear. `zero_run_boundaries()` in
+`d5_table_derive.py` now enforces them: a candidate table that contradicts one
+is discarded.
+
+The marks stop at page 92, where the sustained loops begin -- a loop fills its
+slot, so there is no padding to mark. And that is exactly the region where the
+by-ear review kept finding trouble. Two findings there, from the one law those
+samples do obey (a loop repeats at exactly one period):
+
+- **PCM 60 (CELLlp) and PCM 62 (Reedlp) are wrong.** Their regions contain
+  internal period changes -- 256 to 127 to 128 across CELLlp, and 128 to 256
+  to 27 across Reedlp -- which means each spans more than one sample. They are
+  also the two over-long regions in the table, at 4096 and 8192 words.
+- **Fifteen of the static loops are internally consistent** (one period from
+  start to end) and are very likely right.
+
+The period changes in that zone land on 512-word positions, not on the 2048
+grid the table uses, so the static boundaries are quantised too coarsely.
+Deriving the correct ones automatically did not work: the Spect series and
+Noise are aperiodic by construction, so a segmentation that scores periodicity
+puts its boundaries wherever it likes there. The remaining work is a listening
+pass over the CELLlp/VIOLlp/Reedlp stretch with candidate splits, which is how
+every other boundary in this table was settled.
+
 ## Reconstructing the table anyway
 
 Two independent paths, both in this directory.
