@@ -188,7 +188,9 @@ The engine can be heard on the host without hardware:
 ```bash
 c++ -O2 -std=c++17 -Ibuild/d5 -Iinstruments/PicoFaceD5/include \
     -o d5_render tools/host_tests/d5_engine_test/render.cpp
-./d5_render build/d5/d5_pcm.bin survey.wav
+./d5_render build/d5/d5_pcm.bin survey.wav    # every resolved sample
+./d5_render --synth synth.wav                 # cutoff, resonance, pulse width
+./d5_render --la build/d5/d5_pcm.bin la.wav   # sampled attack + synth sustain
 ```
 
 Outputs land in `tools/d5_extract/out/`, which is not committed.

@@ -16,70 +16,14 @@
 #include <cmath>
 #include <cstdint>
 
+#include "d5_engine/d5_env.h"
+
 namespace d5 {
 
-// Five-segment TVA envelope in the D-50's own terms: three timed levels, a
-// sustain the note holds at, and a release to the end level.
-struct TvaEnvSpec {
-    float t[5] = {0.004f, 0.10f, 0.20f, 0.30f, 0.40f};   // seconds
-    float l[3] = {1.0f, 0.85f, 0.7f};
-    float sustain = 0.6f;
-    float end = 0.0f;
-};
-
-class TvaEnv {
-public:
-    void start(const TvaEnvSpec& spec, float sample_rate) {
-        spec_ = spec;
-        sr_ = sample_rate;
-        seg_ = 0;
-        level_ = 0.0f;
-        held_ = true;
-        arm(0, spec_.l[0]);
-    }
-
-    void release() {
-        if (held_) {
-            held_ = false;
-            seg_ = 4;
-            arm(4, spec_.end);
-        }
-    }
-
-    bool finished() const { return !held_ && seg_ >= 5; }
-
-    float next() {
-        if (remaining_ > 0) {
-            level_ += step_;
-            --remaining_;
-        } else if (held_ && seg_ < 3) {
-            ++seg_;
-            arm(seg_, seg_ < 3 ? spec_.l[seg_] : spec_.sustain);
-        } else if (held_ && seg_ == 3) {
-            level_ = spec_.sustain;          // hold until release
-        } else if (!held_ && seg_ == 4) {
-            seg_ = 5;
-            level_ = spec_.end;
-        }
-        return level_ < 0.0f ? 0.0f : level_;
-    }
-
-private:
-    void arm(int seg, float target) {
-        seg_ = seg;
-        remaining_ = static_cast<int32_t>(spec_.t[seg] * sr_);
-        step_ = remaining_ > 0 ? (target - level_) / remaining_ : 0.0f;
-        if (remaining_ <= 0) level_ = target;
-    }
-
-    TvaEnvSpec spec_{};
-    float sr_ = 32000.0f;
-    float level_ = 0.0f;
-    float step_ = 0.0f;
-    int32_t remaining_ = 0;
-    int seg_ = 0;
-    bool held_ = false;
-};
+// The TVA envelope is the shared five-segment shape; the synth partial uses
+// the same one for its TVF.
+using TvaEnvSpec = Env5Spec;
+using TvaEnv = Env5;
 
 struct PcmSampleRef {
     const int16_t* data = nullptr;   // whole PCM space
