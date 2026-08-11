@@ -49,3 +49,6 @@ instruments/PicoFaceJV/roms/
 
 # Built by tools/cp_sampleprep/build_loop_finder.sh
 tools/cp_sampleprep/FindLoopPoints
+
+# d5_extract WAV renders
+tools/d5_extract/out/
