@@ -56,11 +56,23 @@ def render_loop(loop, seconds=2.5):
     period = estimate_period(loop)
     rate = 1.0
     if period:
-        rate = (SAMPLE_RATE / period) / TARGET_HZ
-        while rate < 0.25:
-            rate *= 2
-        while rate > 4.0:
-            rate /= 2
+        # Playback rate multiplies the stored pitch, so reaching the target
+        # means target/stored -- inverting this plays a 62 Hz clavinet loop at
+        # 20 Hz, where every cycle is heard as a separate pluck. That is not a
+        # broken sample, it is a broken renderer, and it took someone loading
+        # the files into a sampler to catch it.
+        f0 = SAMPLE_RATE / period
+        rate = TARGET_HZ / f0
+
+        # A second trap: slowing a short-period loop down far enough puts the
+        # revolution of the whole region below ~15 Hz, and then the region
+        # itself is heard as a flutter on top of the note. Loop a whole number
+        # of periods instead -- same pitch, same timbre, no flutter.
+        rev = rate * SAMPLE_RATE / len(loop)
+        if rev < 15.0 and period:
+            keep = max(1, int(rate * SAMPLE_RATE / 15.0) // period) * period
+            if 0 < keep < len(loop):
+                loop = loop[:keep]
     n = int(SAMPLE_RATE * seconds)
     out = np.zeros(n)
     for r, g in ((1.0, 0.6), (1.003, 0.4), (0.5, 0.5)):   # octave and detune
@@ -98,6 +110,9 @@ def main():
     table = json.load(open(os.path.join(here, "d5_sample_table.json")))["samples"]
     rom = np.asarray(rs.audio, dtype=np.float64)
 
+    rawdir = os.path.join(outdir, "raw")
+    os.makedirs(rawdir, exist_ok=True)
+
     joined = []
     for e in table:
         if e["start"] is None:
@@ -107,6 +122,10 @@ def main():
         audio = render_loop(cut) if looped else render_oneshot(cut)
         name = f"{e['pcm']:03d}_{e['name']}.wav"
         write_wav(os.path.join(outdir, name), audio)
+        # The cut itself, untouched, for anyone who would rather set loop
+        # points in a sampler than trust this renderer.
+        peak = np.max(np.abs(cut)) + 1e-9
+        write_wav(os.path.join(rawdir, name), cut / peak * 0.9)
         joined.append(audio)
         joined.append(np.zeros(int(SAMPLE_RATE * 0.35)))
         period = estimate_period(cut)
@@ -116,7 +135,8 @@ def main():
               f"{hz:7.1f} Hz  {e['basis']}")
 
     write_wav(os.path.join(outdir, "all_samples.wav"), np.concatenate(joined))
-    print(f"\nwrote {len(joined)//2} samples into {outdir}/ plus all_samples.wav")
+    print(f"\nwrote {len(joined)//2} samples into {outdir}/ plus all_samples.wav,")
+    print(f"and the unprocessed cuts into {rawdir}/ at {SAMPLE_RATE} Hz")
 
 
 if __name__ == "__main__":
