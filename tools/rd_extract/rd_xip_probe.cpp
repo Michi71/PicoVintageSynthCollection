@@ -103,15 +103,34 @@ int main(int argc, char** argv) {
     printf("  XIP misses          %10ld   (%.1f %% miss rate)\n", c.misses, 100.0 * missRate);
     printf("  misses per sample   %10.1f\n", (double) c.misses / (double) samples);
 
-    // Budget: at 32 kHz one sample is 480e6/32000 = 15000 CPU cycles across two
-    // cores. A miss fetches one line over QSPI at 120 MHz; a quad read costs
-    // roughly 8+8 QSPI clocks of overhead plus the data, call it 24, which at
-    // the 4:1 clock ratio is ~96 CPU cycles. Both numbers are stated so the
-    // estimate can be argued with.
-    const double cyclesPerSample = 480e6 / 32000.0;
+    // Budget: one sample is 480e6/rate CPU cycles across two cores, and the
+    // rate is per patch -- eleven of the sixteen run at 20 kHz and get half
+    // again as many cycles as the five at 32 kHz. This used to assume 32 kHz
+    // for all of them, which overstated every 20 kHz patch's flash-bound
+    // figure by a factor of 1.6.
+    static const int kRates[16] = {
+        20000, 20000, 20000, 32000,
+        32000, 20000, 20000, 32000,
+        20000, 20000, 20000, 32000,
+        20000, 20000, 32000, 20000,
+    };
+    const int rate = kRates[patch & 15];
+    const double cyclesPerSample = 480e6 / (double) rate;
+
+    // A miss fetches one line over QSPI at 120 MHz; a quad read costs roughly
+    // 8+8 QSPI clocks of overhead plus the data, call it 24, which at the 4:1
+    // clock ratio is ~96 CPU cycles.
+    //
+    // Hardware says that is too high. Device patch 15 (index 14, 32 kHz) is
+    // modelled at 94.8 % of budget on stalls alone, yet its measured PEAK LOAD
+    // at 24 sounding voices is 67 % -- and stalls cannot exceed the total. So
+    // the true cost per miss is under 68 cycles here, probably well under.
+    // The miss counts above are the measurement; this conversion is not.
     const double missCycles = (double) c.misses / (double) samples * 96.0;
-    printf("\n  cycle budget/sample %10.0f  (480 MHz, 32 kHz, both cores)\n", cyclesPerSample);
+    printf("\n  cycle budget/sample %10.0f  (480 MHz, %d kHz, both cores)\n",
+           cyclesPerSample, rate / 1000);
     printf("  estimated stall     %10.0f  cycles/sample at ~96 per miss\n", missCycles);
-    printf("  -> flash-bound      %10.1f %% of the budget\n", 100.0 * missCycles / cyclesPerSample);
+    printf("  -> flash-bound      %10.1f %% of the budget  (upper bound, see source)\n",
+           100.0 * missCycles / cyclesPerSample);
     return 0;
 }
