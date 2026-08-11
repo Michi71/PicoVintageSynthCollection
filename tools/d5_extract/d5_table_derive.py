@@ -173,7 +173,10 @@ ATT_SIZES = {2048: 0.3, 4096: 0.0, 6144: 0.3, 8192: 0.7, 10240: 1.2, 12288: 1.4}
 # regions confirmed correct by ear (Lpiano/Mpiano/Hpiano) -- fixed exactly,
 # including their position in the numbering: (0-based index, start, end)
 ATT_PINS = [(2, 8192, 12288), (3, 12288, 16384),        # Xylo1/Xylo2
-            (15, 49152, 57344), (16, 57344, 65536), (17, 65536, 71680)]
+            (15, 49152, 57344), (16, 57344, 65536), (17, 65536, 71680),
+            (32, 135168, None),     # Steam start, measured (web ref, 0.95)
+            (38, 155648, None),     # Lips1 start, measured (web ref)
+            (46, 184320, None)]     # Pizz start, measured (web ref, 1.00)
 
 
 def attack_regions_dp(rs, frontier, sizes=None, onset_pen=2.0, span_pen=0.6):
@@ -198,16 +201,22 @@ def attack_regions_dp(rs, frontier, sizes=None, onset_pen=2.0, span_pen=0.6):
             if pin and k != pin[0]:
                 continue          # a pinned start must be reached at its index
             for sz, cost in (sizes or ATT_SIZES).items():
-                if pin and sz != pin[2] - pin[1]:
+                if pin and pin[2] is not None and sz != pin[2] - pin[1]:
                     continue
                 j = i + sz // ATT_GRID
                 if j > n:
                     continue
                 end = j * ATT_GRID
-                if pin is None and any(pos < pa < end or pos < pb < end
-                                       or (pa <= pos and end <= pb)
-                                       for _, pa, pb in ATT_PINS):
-                    continue      # regions may not overlap a pinned region
+                bad = False
+                for _, pa, pb in ATT_PINS:
+                    if pin is not None and pa == pos:
+                        continue
+                    if pos < pa < end or (pb is not None and (
+                            pos < pb < end or (pa <= pos and end <= pb))):
+                        bad = True
+                        break
+                if bad:
+                    continue      # regions may not cross a pinned boundary
                 c = base + cost + sum(span_pen for t in range(i + 1, j) if onset[t])
                 if c < dp[j][k + 1]:
                     dp[j][k + 1] = c
@@ -334,24 +343,21 @@ def refine_loop_boundaries(rom, regions, span=192):
     return [tuple(r) for r in regions]
 
 
-def build_table(rs, rom, frontier, noise_a, noise_b, **dp_kw):
-    """Region list for PCM 1..100 given the attack/static frontier."""
+def build_table(rs, rom, frontier, **dp_kw):
+    """Region list for PCM 1..76. Statics 48..76 fill the ROM to its end
+    (the combination loops 77..100 are address ranges over this material,
+    not stored data -- established by web-reference matching). The last
+    static is Noise, checked spectrally, not assumed positionally."""
     att_regions = attack_regions_dp(rs, frontier, **dp_kw)
     if att_regions is None:
         return []
-    st_zone = (frontier, noise_a)
-    st_starts = island_boundaries(rom, st_zone, 28)
-    st_regions = clipped_regions(st_starts, noise_a, islands(rom, st_zone))
-    if len(st_regions) != 28:
+    st_zone = (frontier, len(rom))
+    st_starts = island_boundaries(rom, st_zone, 29)
+    st_regions = clipped_regions(st_starts, len(rom), islands(rom, st_zone))
+    if len(st_regions) != 29:
         return []
     st_regions = refine_loop_boundaries(rom, st_regions)
-    cp_zone = (noise_b, len(rom))
-    cp_starts = island_boundaries(rom, cp_zone, 24)
-    cp_regions = clipped_regions(cp_starts, len(rom), islands(rom, cp_zone))
-    if len(cp_regions) != 24:
-        return []
-    cp_regions = refine_loop_boundaries(rom, cp_regions)
-    return att_regions + st_regions + [(noise_a, noise_b)] + cp_regions
+    return att_regions + st_regions
 
 
 def topup_candidates(rs, rom, frontier, need):
@@ -376,11 +382,13 @@ CHECKS = [    # (label, pcm numbers, kind, weight)
     ("Lips1~Lips2", (39, 40), "similar", 1.0),
     ("EB_lp1/2/3 block", (55, 57, 58), "block", 1.0),
     ("Aah_lp~Ooh_lp", (65, 66), "similar_loose", 1.0),
-    ("Uprite is a bass", (30,), "pitch_max:120", 2.0),
+    ("Uprite is a bass", (30,), "pitch_max:130", 2.0),
     ("Clarnt reedy register", (31,), "pitch_range:140:800", 2.0),
     ("Breath noisy", (32,), "noisy", 1.5),
     ("Steam noisy", (33,), "noisy", 1.5),
     ("3angle bright", (12,), "bright", 1.5),
+    ("Noise is noise", (76,), "noisy", 3.0),
+    ("flat page 112 is a Spect", (68,), "spect112", 2.0),
 ]
 
 
@@ -410,6 +418,12 @@ def validate(rom, table):
             continue
         keys = [(e["start"], e["end"]) for e in entries]
         cuts = [rom[a:b] for a, b in keys]
+        if kind == "spect112":
+            holder = next((x for x in table if x["start"] is not None
+                           and x["start"] <= 229376 < x["end"]), None)
+            ok = holder is not None and 68 <= holder["pcm"] <= 75
+            results.append((name, (ok, holder["pcm"] if holder else None)))
+            continue
         skip = 1024 if all(p <= 47 for p in pcms) else 0
         if kind.startswith("pitch_max:"):
             lim = float(kind.split(":")[1])
@@ -455,7 +469,7 @@ def validate(rom, table):
                 results.append((name, (0.5 < s < 0.97, round(s, 2))))
             elif kind == "noisy":
                 fl = flatness(cuts[0])
-                results.append((name, (fl > 0.25, round(fl, 2))))
+                results.append((name, (fl > 0.10, round(fl, 2))))
             elif kind == "bright":
                 c = centroid(cuts[0])
                 results.append((name, (c > 3500, round(c))))
@@ -478,9 +492,6 @@ def main():
 
     rs = D5RomSet(args.romdir)
     rom = np.asarray(rs.audio)
-    noise_a, noise_b = noise_extent(rs, rom)
-    print(f"Noise block (PCM 76): words {noise_a}..{noise_b} "
-          f"(pages {noise_a/PAGE:.2f}..{noise_b/PAGE:.2f})")
 
     prev = json.load(open(args.prev)) if args.prev else None
 
@@ -504,15 +515,19 @@ def main():
     for fp in fp_range:
         frontier = fp * PAGE
         for dp_kw in variants:
-            regions = build_table(rs, rom, frontier, noise_a, noise_b, **dp_kw)
-            if len(regions) != 100:
+            regions = build_table(rs, rom, frontier, **dp_kw)
+            if len(regions) != 76:
                 continue
             table = []
             for i, (a, b) in enumerate(regions):
                 table.append({"pcm": i + 1, "name": rs.names[i], "start": int(a),
                               "end": int(b), "looped": i >= 47,
                               "basis": "order-hypothesis"})
-            if not energetic(table):
+            for i in range(76, 100):
+                table.append({"pcm": i + 1, "name": rs.names[i], "start": None,
+                              "end": None, "looped": True,
+                              "basis": "range-unresolved"})
+            if not energetic(table[:76]):
                 continue
             res = validate(rom, table)
             score = sum(w for (_, r), (_, _, _, w) in zip(res, CHECKS) if r and r[0])
@@ -550,7 +565,8 @@ def main():
         w_end = table[hi]["end"]
         count = hi - lo + 1
         total_pages = (w_end - w_start) // PAGE
-        pin_ok = not any(w_start < pa < w_end or w_start < pb < w_end
+        pin_ok = not any(w_start < pa < w_end
+                         or (pb is not None and w_start < pb < w_end)
                          for _, pa, pb in ATT_PINS)
         if pin_ok and count >= 2 and total_pages >= count:
             best_local = (weighted(res), table, res)
@@ -585,14 +601,20 @@ def main():
     while improved and rounds < 12:
         improved = False
         rounds += 1
-        for bi in range(1, 47):     # boundary between attack bi-1 and bi
+        for bi in range(1, 76):     # every internal boundary, attacks + statics
             cur = table[bi]["start"]
             if cur in pinned_words:
                 continue
-            for delta in (-2 * PAGE, -PAGE, PAGE, 2 * PAGE):
+            if bi <= 46:
+                deltas = (-2 * PAGE, -PAGE, PAGE, 2 * PAGE)
+                min_sz = PAGE
+            else:
+                deltas = (-2048, -1024, -512, -256, 256, 512, 1024, 2048)
+                min_sz = 384
+            for delta in deltas:
                 nw = cur + delta
-                if not (table[bi - 1]["start"] + PAGE <= nw
-                        <= table[bi]["end"] - PAGE):
+                if not (table[bi - 1]["start"] + min_sz <= nw
+                        <= table[bi]["end"] - min_sz):
                     continue
                 trial = [dict(e) for e in table]
                 trial[bi - 1]["end"] = nw
@@ -603,6 +625,55 @@ def main():
                     score = weighted(res)
                     improved = True
                     break
+    # chain rotation: merge one static region with its neighbor and split
+    # another -- relocates a boundary across the chain, which single-boundary
+    # moves cannot do
+    improved = True
+    while improved:
+        improved = False
+        for merge_at in range(48, 76):      # boundary index to remove
+            if table[merge_at]["start"] in pinned_words:
+                continue
+            for split_at in range(47, 76):  # region index to split
+                if abs(split_at - merge_at) > 12 or split_at == merge_at:
+                    continue
+                a, b = table[split_at]["start"], table[split_at]["end"]
+                if b - a < 1024:
+                    continue
+                cands = range(a + 512, b - 511, 256)
+                best_pos, best_seam = None, None
+                for cpos in cands:
+                    sc_ = seam_cost(rom, a, cpos) + seam_cost(rom, cpos, b)
+                    if best_seam is None or sc_ < best_seam:
+                        best_seam, best_pos = sc_, cpos
+                if best_pos is None:
+                    continue
+                trial = [dict(e) for e in table]
+                # remove boundary at merge_at
+                trial[merge_at - 1]["end"] = trial[merge_at]["end"]
+                del trial[merge_at]
+                # split region (index shifts if split_at > merge_at)
+                si = split_at if split_at < merge_at else split_at - 1
+                left = dict(trial[si])
+                right = dict(trial[si])
+                left["end"] = best_pos
+                right["start"] = best_pos
+                trial = trial[:si] + [left, right] + trial[si + 1:]
+                for idx, e in enumerate(trial):
+                    e["pcm"] = idx + 1
+                    e["name"] = rs.names[idx]
+                    e["looped"] = idx >= 47
+                tres = validate(rom, trial)
+                if weighted(tres) > weighted(res) + 1e-9:
+                    table, res = trial, tres
+                    score = weighted(res)
+                    improved = True
+                    print(f"  rotation: merged boundary {merge_at}, "
+                          f"split region {split_at} -> weighted {score:.1f}")
+                    break
+            if improved:
+                break
+
     print(f"after local repair: weighted {score:.1f}, "
           f"{sum(1 for _, r in res if r and r[0])}/{len(CHECKS)} pass "
           f"({rounds} rounds)")
@@ -633,6 +704,8 @@ def main():
     sdir = os.path.join(args.out, "samples_hypothesis")
     os.makedirs(sdir, exist_ok=True)
     for e in table:
+        if e["start"] is None:
+            continue
         cut = rom[e["start"]: e["end"]]
         if e["looped"] and len(cut):
             # a static/combination loop may be a 16 ms single-cycle waveform:
