@@ -19,6 +19,7 @@
 
 #include "d5_engine/d5_pcm_voice.h"
 #include "d5_engine/d5_synth_voice.h"
+#include "d5_engine/d5_tone.h"
 #include "d5_pcm_table.h"
 
 namespace {
@@ -196,14 +197,75 @@ void render_la(const std::vector<int16_t>& blob, std::vector<float>& out) {
     }
 }
 
+// All seven structures on the same material, so the difference between a
+// mixture and a ring modulation is the only thing that changes.
+void render_structures(const std::vector<int16_t>& blob,
+                       std::vector<float>& out) {
+    const d5::PcmSample& s1 = d5::kPcmSamples[16 - 1];   // Lpiano
+    const d5::PcmSample& s2 = d5::kPcmSamples[48 - 1];   // Drawbr, a loop
+
+    for (int str = 1; str <= 7; ++str) {
+        d5::ToneSpec t;
+        t.structure = str;
+        t.balance = 0.5f;
+        t.coarse[1] = 7;        // second partial a fifth up
+
+        for (int i = 0; i < 2; ++i) {
+            const d5::PcmSample& s = (i == 0) ? s1 : s2;
+            t.pcm[i].data = blob.data();
+            t.pcm[i].start = s.start;
+            t.pcm[i].length = s.length;
+            t.pcm[i].looped = s.looped;
+            t.pcm[i].root_hz = s.root_hz;
+            t.pcm_env[i].t[0] = s.looped ? 0.05f : 0.002f;
+            t.pcm_env[i].sustain = s.looped ? 0.8f : 0.25f;
+            t.pcm_env[i].t[4] = 0.3f;
+
+            t.synth[i].waveform = (i == 0) ? d5::Waveform::kSawtooth
+                                           : d5::Waveform::kSquare;
+            t.synth[i].cutoff = (i == 0) ? 0.55f : 0.65f;
+            t.synth[i].resonance = 0.25f;
+            t.synth[i].tvf_env_depth = 0.2f;
+            t.synth[i].pulse_width = (i == 0) ? 0.5f : 0.35f;
+            t.synth[i].tva_env.t[0] = 0.08f;
+            t.synth[i].tva_env.sustain = 0.8f;
+            t.synth[i].tva_env.t[4] = 0.4f;
+        }
+
+        d5::Tone tone;
+        tone.note_on(t, 48, 0.9f, kSampleRate);
+        const int hold = static_cast<int>(kSampleRate * 1.5f);
+        for (int i = 0; i < hold; ++i) out.push_back(tone.next() * 0.7f);
+        tone.note_off();
+        for (int i = 0; i < static_cast<int>(kSampleRate * 0.6f); ++i)
+            out.push_back(tone.next() * 0.7f);
+        for (int i = 0; i < static_cast<int>(kSampleRate * 0.3f); ++i)
+            out.push_back(0.0f);
+
+        const d5::Structure& st = d5::kStructures[str - 1];
+        std::printf("structure %d: %s + %s%s\n", str,
+                    st.p1 == d5::PartialType::kPcm ? "PCM" : "synth",
+                    st.p2 == d5::PartialType::kPcm ? "PCM" : "synth",
+                    st.ring ? " (ring modulated)" : "");
+    }
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) {
         std::fprintf(stderr,
                      "usage: %s <d5_pcm.bin> <out.wav> [pcm_number ...]\n"
                      "       %s --synth <out.wav>\n"
-                     "       %s --la <d5_pcm.bin> <out.wav>\n",
-                     argv[0], argv[0], argv[0]);
+                     "       %s --la <d5_pcm.bin> <out.wav>\n"
+                     "       %s --structures <d5_pcm.bin> <out.wav>\n",
+                     argv[0], argv[0], argv[0], argv[0]);
         return 1;
+    }
+    if (std::strcmp(argv[1], "--structures") == 0 && argc >= 4) {
+        std::vector<float> out;
+        render_structures(load_blob(argv[2]), out);
+        write_wav(argv[3], out);
+        std::printf("wrote %s (%.1f s)\n", argv[3], out.size() / kSampleRate);
+        return 0;
     }
     if (std::strcmp(argv[1], "--la") == 0 && argc >= 4) {
         std::vector<float> out;
