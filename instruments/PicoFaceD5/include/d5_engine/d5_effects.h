@@ -155,6 +155,10 @@ public:
         write_ = 0;
     }
 
+    // Changing the mix must not touch the delay line: turning a knob while a
+    // chord rings should not restart the chorus.
+    void set_balance(float b) { spec_.balance = clamp01(b); }
+
     float process(float x) {
         const ChorusType& t = kChorusTypes[clamp_index(spec_.type, 8)];
         float wet = 0.0f;
@@ -260,6 +264,8 @@ public:
         }
         pre_i_ = 0;
     }
+
+    void set_balance(float b) { spec_.balance = clamp01(b); }
 
     void note_activity() { age_ = 0; }      // a gate restarts with the note
 

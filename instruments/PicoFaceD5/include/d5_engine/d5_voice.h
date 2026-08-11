@@ -74,6 +74,11 @@ struct VoiceSpec {
     // the second partial is what makes a ring structure inharmonic rather
     // than just brighter.
     int coarse[2] = {0, 0};
+    // Panel "WG Pitch Fine" per partial, plus the instrument's master tune;
+    // both in cents, both continuous, so they can detune a pair against each
+    // other without landing on a semitone.
+    float fine_cents[2] = {0.0f, 0.0f};
+    float master_cents = 0.0f;
 
     SynthSpec synth[2]{};           // used where the structure says S
     PcmSampleRef pcm[2]{};          // used where it says P
@@ -107,11 +112,15 @@ public:
 
         for (int i = 0; i < 2; ++i) {
             const int n = note + spec_.coarse[i];
+            const float cents = spec_.fine_cents[i] + spec_.master_cents;
+            const float detune = cents != 0.0f
+                                     ? std::pow(2.0f, cents / 1200.0f) : 1.0f;
             if (types[i] == PartialType::kPcm) {
                 pcm_[i].note_on(spec_.pcm[i], n, velocity,
-                                spec_.pcm_env[i], sample_rate);
+                                spec_.pcm_env[i], sample_rate, detune);
             } else {
-                synth_[i].note_on(spec_.synth[i], n, velocity, sample_rate);
+                synth_[i].note_on(spec_.synth[i], n, velocity, sample_rate,
+                                  detune);
             }
         }
     }
@@ -154,7 +163,7 @@ public:
             } else if (spec_.penv_mode[i] == PEnvMode::kNegative) {
                 factor /= pitch_env;
             }
-            mod[i].pitch = factor;
+            mod[i].pitch = factor * bend_;
             mod[i].pw = 0.5f * spec_.pw_lfo[i].depth * lfo_value(l, spec_.pw_lfo[i]);
             mod[i].cutoff = 0.5f * spec_.tvf_lfo[i].depth * lfo_value(l, spec_.tvf_lfo[i]);
             // amplitude modulation only ever ducks, never boosts past unity
@@ -182,6 +191,10 @@ public:
         return a * w1 + second * w2;
     }
 
+    // Pitch bend reaches notes that are already sounding, so it cannot go
+    // through the spec the way coarse and fine tune do.
+    void set_bend(float factor) { bend_ = factor; }
+
     const Structure& structure() const {
         const int i = (spec_.structure < 1 || spec_.structure > 7)
                           ? 0 : spec_.structure - 1;
@@ -199,6 +212,7 @@ private:
     SynthPartial synth_[2]{};
     Lfo lfo_[3]{};
     PitchEnv penv_{};
+    float bend_ = 1.0f;
 };
 
 }  // namespace d5

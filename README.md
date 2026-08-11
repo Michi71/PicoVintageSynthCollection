@@ -1,6 +1,6 @@
 # PicoVintageSynthCollection
 
-Nine vintage synthesizer emulations for the RP2350, built from one shared
+Ten vintage synthesizer emulations for the RP2350, built from one shared
 codebase. Same board, same core, one firmware image per instrument.
 
 <p align="center">
@@ -30,12 +30,14 @@ codebase. Same board, same core, one firmware image per instrument.
 | [instruments/PicoFaceSM](instruments/PicoFaceSM/README.md) | ARP/Eminent Solina String Ensemble | PicoFaceSM.uf2 |
 | [instruments/PicoFaceOB](instruments/PicoFaceOB/README.md) | Oberheim OB-X (engine ported from OB-Xf) | PicoFaceOB.uf2 |
 | [instruments/PicoFaceJV](instruments/PicoFaceJV/README.md) | Roland JV-880 (native engine over the original PCM data) | local build only |
+| [instruments/PicoFaceD5](instruments/PicoFaceD5/README.md) | Roland D-50 (native LA engine over the original PCM data) | local build only |
 
-The JV-880 is the exception to "download and flash": it only builds where a
-JV-880 ROM set is present, and the ROMs are not distributable, so it is not in
-the release binaries. Without them the configure step skips it and the eight
-above are unaffected. It runs on the hardware; see the flash note below for the
-one build option it needs on a small board.
+The JV-880 and the D-50 are the exceptions to "download and flash": they only
+build where the respective ROM set is present, and those ROMs are not
+distributable, so neither is in the release binaries. Without them the
+configure step skips them and the eight above are unaffected. The JV-880 runs
+on the hardware; see the flash note below for the one build option it needs on
+a small board. The D-50 is new and has not been on the hardware yet.
 
 ## Hardware
 
@@ -60,11 +62,14 @@ Raspberry Pi Pico 2 and many other RP2350 boards provide:
 | YC, DX, J6, MD, SM, OB | 90-190 KB | fits anywhere |
 | PicoFaceCP | 4.22 MB | does not fit |
 | PicoFaceJV | 4.34 MB | only with `-DPICOFACEJV_4MB=ON` (3.76 MB, banks A+B) |
+| PicoFaceD5 | 1.19 MB | fits |
 | PicoFaceRD | 5.07 MB | does not fit |
 
 CP carries the Rhodes, Clavinet and E-piano sample sets, RD the MKS-20 sample
 packs. Neither has a reduced variant: there is no subset to drop the way the
-JV's three wave banks can become two. Anything from 8 MB up holds all nine.
+JV's three wave banks can become two. Anything from 8 MB up holds all ten. The
+D-50 is the one sample-based instrument that fits everywhere: its whole sample
+ROM is 512 KB.
 
 An oversized `.uf2` fails to copy in a way that names no reason: the file
 transfer stops or the drive rejects it, with nothing on screen about flash size.
@@ -145,9 +150,11 @@ instrument's README names the document so it can be obtained separately.
 
 ## Status
 
-**All nine instruments build from a single configure run, each with its own
-USB PID, and all nine run on the hardware.** Eight are in the release binaries;
-the JV-880 needs a local ROM set, as above. Open points are listed in
+**All ten instruments build from a single configure run, each with its own USB
+PID.** Eight are in the release binaries and confirmed on the hardware; the
+JV-880 runs on the hardware but needs a local ROM set, and the D-50 is new -
+it builds and its engine is verified on the host, but it has not been on the
+hardware yet. Open points are listed in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), section 8.
 
 ## License

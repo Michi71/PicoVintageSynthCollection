@@ -41,14 +41,14 @@ struct SynthSpec {
 class SynthPartial {
 public:
     void note_on(const SynthSpec& spec, int note, float velocity,
-                 float sample_rate) {
+                 float sample_rate, float detune = 1.0f) {
         spec_ = spec;
         sr_ = sample_rate;
         gain_ = velocity;
         phase_ = 0.0f;
         res_phase_ = 0.0f;
         active_ = true;
-        freq_ = 440.0f * std::pow(2.0f, (note - 69) / 12.0f);
+        freq_ = 440.0f * std::pow(2.0f, (note - 69) / 12.0f) * detune;
         inc_ = freq_ / sr_;
         tvf_.start(spec_.tvf_env, sr_);
         tva_.start(spec_.tva_env, sr_);

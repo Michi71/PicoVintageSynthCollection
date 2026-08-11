@@ -80,6 +80,14 @@ public:
         return false;
     }
 
+    // Live edits that must not interrupt sounding notes.
+    void set_level(float v) { spec_.level = v; }
+    void set_chorus_balance(float b) { chorus_.set_balance(b); }
+    void set_master_cents(float c) { spec_.voice.master_cents = c; }
+    void set_bend(float factor) {
+        for (int i = 0; i < kVoices; ++i) voices_[i].set_bend(factor);
+    }
+
 private:
     ToneSpec spec_{};
     float sr_ = 32000.0f;
@@ -156,6 +164,23 @@ public:
     }
 
     bool sounding() const { return upper_.sounding() || lower_.sounding(); }
+
+    // Panel controls that apply while the patch is playing. Anything that
+    // would resize a delay line or restart a voice belongs in configure().
+    void set_volume(float v) { spec_.volume = v; }
+    void set_reverb_balance(float b) { reverb_.set_balance(b); }
+    void set_chorus_balance(float b) {
+        upper_.set_chorus_balance(b);
+        lower_.set_chorus_balance(b);
+    }
+    void set_master_cents(float c) {
+        upper_.set_master_cents(c);
+        lower_.set_master_cents(c);
+    }
+    void set_bend(float factor) {
+        upper_.set_bend(factor);
+        lower_.set_bend(factor);
+    }
 
 private:
     PatchSpec spec_{};
