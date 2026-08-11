@@ -77,6 +77,20 @@ Conclusion: the MB87136 resolves PCM numbers to ROM addresses in its own
 mask ROM. No CPU-side dump contains the table, which is why it has never
 been documented.
 
+### The D-05 Boutique firmware
+
+`BQ3_UPD.BIN` (4 MB) is the obvious place to look for Roland's own copy of
+the table, since the 2017 reissue reproduces the D-50 exactly. It does not
+yield it: the file is an update container (`ESC91.000` magic) holding a
+plain ARM Thumb loader with readable USB driver strings up to ~0x30000,
+followed by a payload that is uniformly distributed (chi-square 158503 per
+4 KB against a uniform model, no compression signature, one duplicate
+16-byte block in 64 KB -- so neither compressed nor ECB-encrypted, but
+encrypted with a stream or chained cipher). Neither the PCM data in any
+tested encoding nor the sample names appear in it. Anyone revisiting this
+needs the loader's key handling, i.e. an analysis of the ARM code in the
+first section.
+
 ## Reconstructing the table anyway
 
 Two independent paths, both in this directory:
