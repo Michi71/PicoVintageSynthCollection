@@ -87,6 +87,57 @@ def pitch_of(x, key=None):
     return out
 
 
+def rms_of(x):
+    x = np.asarray(x)
+    return float(np.sqrt(np.mean(x * x))) if len(x) else 0.0
+
+
+def islands(rom, zone, hop=256, thr=0.003, min_len=512):
+    """Signal islands inside a zone: maximal runs with energy, gaps removed.
+    Region boundaries may only fall inside islands, and region starts snap
+    to island starts, so silence gaps never become 'samples'."""
+    a, b = zone
+    n = (b - a) // hop
+    r = np.sqrt(np.mean(rom[a: a + n * hop].reshape(n, hop) ** 2, axis=1))
+    out = []
+    start = None
+    for i, v in enumerate(r > thr):
+        if v and start is None:
+            start = i
+        elif not v and start is not None:
+            if (i - start) * hop >= min_len:
+                out.append((a + start * hop, a + i * hop))
+            start = None
+    if start is not None and (n - start) * hop >= min_len:
+        out.append((a + start * hop, b))
+    return out
+
+
+def island_boundaries(rom, zone, count, hop=256):
+    """Split a zone into `count` regions: islands first, then the strongest
+    flux positions inside islands until the count is reached."""
+    isl = islands(rom, zone)
+    if not isl:
+        return []
+    starts = [s for s, _ in isl]
+    need = count - len(isl)
+    if need > 0:
+        cands = []
+        for s, e in isl:
+            f = flux(rom[s:e], hop)
+            for i in range(2, len(f) - 2):
+                cands.append((f[i], s + i * hop))
+        cands.sort(reverse=True)
+        picked = []
+        for _, pos in cands:
+            if all(abs(pos - q) >= 2 * hop for q in picked + starts):
+                picked.append(pos)
+            if len(picked) == need:
+                break
+        starts += picked
+    return sorted(starts)[:count]
+
+
 def noise_extent(rs, rom):
     pages = [p for p in range(len(rom) // PAGE) if rs.noisy_at(p * PAGE)]
     p = pages[0]
@@ -115,15 +166,39 @@ def top_boundaries(rom, zone, count, hop):
 
 # ----------------------------------------------------------------- assembly
 
-def build_table(rs, rom, frontier, noise_a, st_bounds, comp_bounds, topup):
-    """Region list for PCM 1..100 given the attack/static frontier and a
-    chosen set of extra attack boundaries."""
+def clipped_regions(starts, hard_end, isl):
+    """(start, end) per start; ends clip to the island holding the start."""
+    out = []
+    for i, s in enumerate(starts):
+        e = starts[i + 1] if i + 1 < len(starts) else hard_end
+        for ia, ib in isl:
+            if ia <= s < ib:
+                e = min(e, ib)
+                break
+        out.append((s, e))
+    return out
+
+
+def build_table(rs, rom, frontier, noise_a, noise_b, forced, topup):
+    """Region list for PCM 1..100 given the attack/static frontier, forced
+    attack boundaries (from ear review), and chosen top-up boundaries."""
     onsets = [p * PAGE for p in range(1, frontier // PAGE)
               if rs.attack_like(p * PAGE)]
-    att = sorted(set([0] + onsets + list(topup)))[:47]
-    bounds = sorted(set(att + [frontier] + st_bounds + [noise_a] + comp_bounds))
-    ends = bounds[1:] + [len(rom)]
-    return list(zip(bounds, ends))
+    att = sorted(set([0] + onsets + list(forced) + list(topup)))[:47]
+    att_regions = list(zip(att, att[1:] + [frontier]))
+
+    st_zone = (frontier, noise_a)
+    st_isl = islands(rom, st_zone)
+    st_starts = island_boundaries(rom, st_zone, 28)
+    st_regions = clipped_regions(st_starts, noise_a, st_isl)
+    st_regions.append((noise_a, noise_b))
+
+    cp_zone = (noise_b, len(rom))
+    cp_isl = islands(rom, cp_zone)
+    cp_starts = island_boundaries(rom, cp_zone, 24)
+    cp_regions = clipped_regions(cp_starts, len(rom), cp_isl)
+
+    return att_regions + st_regions + cp_regions
 
 
 def topup_candidates(rs, rom, frontier, need):
@@ -181,6 +256,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("romdir")
     ap.add_argument("--out", default="tools/d5_extract/out")
+    ap.add_argument("--review", help="JSON with ear-review findings: "
+                    '{"merged": [pcm, ...], "bad": [pcm, ...]}')
+    ap.add_argument("--prev", help="previous hypothesis JSON the review refers to")
     args = ap.parse_args()
 
     rs = D5RomSet(args.romdir)
@@ -189,19 +267,39 @@ def main():
     print(f"Noise block (PCM 76): words {noise_a}..{noise_b} "
           f"(pages {noise_a/PAGE:.2f}..{noise_b/PAGE:.2f})")
 
+    # ear-review constraints: force a split inside every region reported as
+    # containing two sounds (attack zone only; positions on the page grid)
+    forced = []
+    prev = None
+    if args.review and args.prev:
+        review = json.load(open(args.review))
+        prev = json.load(open(args.prev))
+        zone_flux = flux(rom, PAGE)
+        for pcm in review.get("merged", []):
+            e = prev[pcm - 1]
+            pages = range(e["start"] // PAGE + 1, e["end"] // PAGE)
+            if pages:
+                p = max(pages, key=lambda q: zone_flux[q])
+                forced.append(p * PAGE)
+                print(f"review: forcing split inside PCM {pcm} at page {p}")
+
+    def energetic(table):
+        # peak-based: attacks carry long decay tails, so RMS would misjudge
+        return all(float(np.max(np.abs(rom[e["start"]: e["end"]]), initial=0.0)) >= 0.02
+                   for e in table)
+
     from itertools import combinations
     best = None
-    comp_bounds = [noise_b] + top_boundaries(rom, (noise_b, len(rom)), 23, 256)
     for fp in range(84, 100):
         frontier = fp * PAGE
-        st_bounds = top_boundaries(rom, (frontier, noise_a), 27, 256)
         onset_count = 1 + sum(1 for p in range(1, fp) if rs.attack_like(p * PAGE))
-        need = 47 - onset_count
+        need = 47 - onset_count - len([f for f in forced if f < frontier])
         if need < 0 or need > 3:
             continue          # implausible frontier
-        cands = topup_candidates(rs, rom, frontier, need)[: need + 4] if need else []
+        cands = [c for c in topup_candidates(rs, rom, frontier, need)
+                 if c not in forced][: need + 4] if need else []
         for topup in (combinations(cands, need) if need else [()]):
-            regions = build_table(rs, rom, frontier, noise_a, st_bounds, comp_bounds, topup)
+            regions = build_table(rs, rom, frontier, noise_a, noise_b, forced, topup)
             if len(regions) != 100:
                 continue
             table = []
@@ -209,14 +307,23 @@ def main():
                 table.append({"pcm": i + 1, "name": rs.names[i], "start": int(a),
                               "end": int(b), "looped": i >= 47,
                               "basis": "order-hypothesis"})
+            if not energetic(table):
+                continue
             res = validate(rom, table)
             score = sum(1 for _, r in res if r and r[0])
             if best is None or score > best[0]:
                 best = (score, frontier, table, res)
 
+    if best is None:
+        raise SystemExit("no candidate satisfied the energy constraint -- "
+                         "inspect islands/thresholds")
     score, frontier, table, res = best
     print(f"best frontier (start of PCM 48): page {frontier//PAGE}  "
-          f"({score}/{len(CHECKS)} checks pass)")
+          f"({score}/{len(CHECKS)} checks pass, all regions energetic)")
+    if prev:
+        changed = [e["pcm"] for e, p in zip(table, prev)
+                   if (e["start"], e["end"]) != (p["start"], p["end"])]
+        print(f"changed vs previous table ({len(changed)}): {changed}")
     for name, r in res:
         if r is None:
             print(f"  {name}: SKIP")
@@ -233,12 +340,18 @@ def main():
     os.makedirs(sdir, exist_ok=True)
     for e in table:
         cut = rom[e["start"]: e["end"]]
+        if e["looped"] and len(cut):
+            # a static/combination loop may be a 16 ms single-cycle waveform:
+            # tile it to 2 s so it is audible -- and so a wrong boundary is
+            # audible too, as a click or warble on every revolution
+            cut = np.tile(cut, max(1, int(2 * SAMPLE_RATE / len(cut))))
         with wave.open(os.path.join(sdir, f"{e['pcm']:03d}_{e['name']}.wav"), "wb") as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)
             wf.setframerate(SAMPLE_RATE)
             wf.writeframes(np.clip(cut * 32767, -32767, 32767).astype("<i2").tobytes())
-    print(f"cut 100 samples into {sdir}/ -- listen and check against the names")
+    print(f"cut 100 samples into {sdir}/ (loops tiled to ~2 s) -- "
+          f"a click or warble in a looped sample means its boundary is off")
 
 
 if __name__ == "__main__":
