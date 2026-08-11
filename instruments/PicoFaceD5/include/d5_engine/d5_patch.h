@@ -139,7 +139,20 @@ public:
         const float b = spec_.balance < 0 ? 0 : (spec_.balance > 1 ? 1 : spec_.balance);
         const float mix = upper_.next() * (b > 0.5f ? 2.0f * (1.0f - b) : 1.0f) +
                           lower_.next() * (b < 0.5f ? 2.0f * b : 1.0f);
-        return reverb_.process(mix) * spec_.volume;
+        return saturate(reverb_.process(mix) * spec_.volume);
+    }
+
+    // Sixteen voices plus a reverb tail can ask for more than full scale, and
+    // a converter answers that with hard clipping. This stays linear below
+    // -3 dB and bends smoothly above, so loud chords lose their peaks instead
+    // of tearing.
+    static float saturate(float x) {
+        constexpr float kKnee = 0.7f;
+        const float a = x < 0.0f ? -x : x;
+        if (a <= kKnee) return x;
+        const float over = (a - kKnee) / (1.0f - kKnee);
+        const float shaped = kKnee + (1.0f - kKnee) * (over / (1.0f + over));
+        return x < 0.0f ? -shaped : shaped;
     }
 
     bool sounding() const { return upper_.sounding() || lower_.sounding(); }
