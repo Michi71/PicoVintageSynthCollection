@@ -185,7 +185,7 @@ ATT_PINS = [(2, 8192, 12288), (3, 12288, 16384),        # Xylo1/Xylo2
             (32, 135168, None),     # Steam start, measured (web ref, 0.95)
             (33, 139264, None),     # FluteH start, ear-confirmed ("ab 033 ok")
             (38, 155648, None),     # Lips1 start, measured (web ref)
-            (46, 184320, None)]     # Pizz start, measured (web ref, 1.00)
+            (46, 184320, 188416)]   # Pizz, measured + ear: 2 pages, ends at frontier 92
 
 
 def attack_regions_dp(rs, frontier, sizes=None, onset_pen=2.0, span_pen=0.6):
@@ -752,9 +752,13 @@ def main():
                 if abs(split_at - merge_at) > 12 or split_at == merge_at:
                     continue
                 a, b = table[split_at]["start"], table[split_at]["end"]
-                if b - a < 1024:
+                if b - a < 2 * PAGE:
                     continue
-                cands = range(a + 512, b - 511, 256)
+                pow2 = {2048, 4096, 8192, 16384}
+                cands = [c for c in range(a + PAGE, b, PAGE)
+                         if (c - a) in pow2 and (b - c) in pow2]
+                if not cands:
+                    continue
                 best_pos, best_seam = None, None
                 for cpos in cands:
                     sc_ = seam_cost(rom, a, cpos) + seam_cost(rom, cpos, b)
@@ -840,6 +844,30 @@ def main():
             wf.writeframes(np.clip(cut * 32767, -32767, 32767).astype("<i2").tobytes())
     print(f"cut 100 samples into {sdir}/ (loops tiled to ~2 s) -- "
           f"a click or warble in a looped sample means its boundary is off")
+
+    # review aid: bare short loops are hard to recognize, so render each
+    # static as a small pad -- octave layers, slight detune, soft envelope --
+    # roughly how the D-50 would deploy it
+    pdir = os.path.join(sdir, "pads")
+    os.makedirs(pdir, exist_ok=True)
+    dur = 3 * SAMPLE_RATE
+    for e in table[47:76]:
+        if e["start"] is None:
+            continue
+        loop = rom[e["start"]: e["end"]]
+        mix = np.zeros(dur)
+        for rate, gain in ((1.0, 0.5), (1.003, 0.35), (0.5, 0.45)):
+            t = (np.arange(dur) * rate) % len(loop)
+            mix += gain * np.interp(t, np.arange(len(loop)), loop)
+        env = np.minimum(1, np.arange(dur) / (0.4 * SAMPLE_RATE))
+        env *= np.minimum(1, (dur - np.arange(dur)) / (0.5 * SAMPLE_RATE))
+        mix *= env / (np.max(np.abs(mix)) + 1e-9) * 0.9
+        with wave.open(os.path.join(pdir, f"{e['pcm']:03d}_{e['name']}_pad.wav"), "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(SAMPLE_RATE)
+            wf.writeframes((mix * 32767).astype("<i2").tobytes())
+    print(f"rendered static-loop pads into {pdir}/")
 
 
 if __name__ == "__main__":
