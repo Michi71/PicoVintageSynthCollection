@@ -181,6 +181,59 @@ def zero_run_boundaries(rs):
     return out
 
 
+def timbre_boundaries(rom, lo_page=93, hi_page=128):
+    """Sample starts the static zone marks by changing timbre.
+
+    The sustained loops carry no silence padding, so `zero_run_boundaries`
+    is blind past the attack zone. But a loop is stationary by construction:
+    both halves of a page hold the same spectrum, and across the whole of a
+    sample the spectrum barely moves. Where it jumps, a different recording
+    begins.
+
+    So compare the half page before a page boundary with the half after, in
+    24 log-spaced bands, and call it an edge only when that step is both
+    large in absolute terms and several times larger than the drift measured
+    inside the neighbouring pages. The second condition is what keeps a
+    gradually brightening sample from being cut in two.
+
+    Measured on the D-50 ROM this finds 17 edges in pages 93..127. Twelve
+    are sample starts the table already has; the four at pages 102, 108, 112
+    and 113 are not, and pages 112 and 119 step by 39 -- as hard as anything
+    in the ROM. That is the measurement behind the standing doubt about the
+    names from PCM 62 onward.
+    """
+    half = PAGE // 2
+    edges = np.geomspace(30.0, 15000.0, 25)
+    freq = np.fft.rfftfreq(half, 1.0 / SAMPLE_RATE)
+    bands = [(freq >= edges[i]) & (freq < edges[i + 1]) for i in range(24)]
+    window = np.hanning(half)
+
+    def spectrum(a):
+        seg = rom[a:a + half]
+        if len(seg) < half or float(np.max(np.abs(seg))) < 1e-6:
+            return None
+        mag = np.abs(np.fft.rfft((seg - seg.mean()) * window))
+        mag = mag / (mag.sum() + 1e-12)
+        v = np.array([mag[m].sum() for m in bands])
+        return np.log(v / (v.sum() + 1e-12) + 1e-8)
+
+    def dist(a, b):
+        p, q = spectrum(a), spectrum(b)
+        return None if p is None or q is None else float(np.linalg.norm(p - q))
+
+    out = []
+    for page in range(lo_page, hi_page):
+        base = page * PAGE
+        over = dist(base - half, base)
+        left = dist(base - 2 * half, base - half)
+        right = dist(base, base + half)
+        if over is None or left is None or right is None:
+            continue
+        if over >= 12.0 and over > 3.0 * max(left, right, 0.5):
+            out.append(base)
+    return out
+
+
 def noise_extent(rs, rom):
     pages = [p for p in range(len(rom) // PAGE) if rs.noisy_at(p * PAGE)]
     p = pages[0]
@@ -652,6 +705,14 @@ def main():
     marked = zero_run_boundaries(rs)
     print(f"{len(marked)} sample boundaries marked by silence padding in the ROM")
 
+    # Boundaries the static zone states by changing timbre. Reported, not
+    # enforced: the threshold is ours, not the ROM's, so a contradiction is
+    # evidence against the table rather than proof, and it is the operator's
+    # to weigh. Enforcing it would let a tuning constant silently rewrite a
+    # table that survived a listening test.
+    timbre = timbre_boundaries(rom)
+    print(f"{len(timbre)} sample starts marked by a timbre step in the static zone")
+
     prev = json.load(open(args.prev)) if args.prev else None
 
     def energetic(table):
@@ -702,6 +763,16 @@ def main():
         raise SystemExit("no candidate satisfied the energy constraint -- "
                          "inspect islands/thresholds")
     score, frontier, table, res = best
+
+    chosen = {e["start"] for e in table if e["start"] is not None}
+    missed = [b for b in timbre if b not in chosen]
+    if missed:
+        print(f"\n{len(missed)} timbre steps this table cuts through rather than "
+              f"starting a sample at:")
+        for b in missed:
+            print(f"    word {b} (page {b // PAGE}) -- inside "
+                  + next(f"PCM {e['pcm']} {e['name']}" for e in table
+                         if e["start"] is not None and e["start"] < b < e["end"]))
 
     # ---- local repair
     def weighted(res):

@@ -64,20 +64,44 @@ def render_loop(loop, seconds=2.5):
         f0 = SAMPLE_RATE / period
         rate = TARGET_HZ / f0
 
-        # A second trap: slowing a short-period loop down far enough puts the
-        # revolution of the whole region below ~15 Hz, and then the region
-        # itself is heard as a flutter on top of the note. Loop a whole number
-        # of periods instead -- same pitch, same timbre, no flutter.
-        rev = rate * SAMPLE_RATE / len(loop)
-        if rev < 15.0 and period:
-            keep = max(1, int(rate * SAMPLE_RATE / 15.0) // period) * period
-            if 0 < keep < len(loop):
-                loop = loop[:keep]
+        # Tiling a region whose length is not a whole multiple of its period
+        # puts a step at every revolution, and that step is heard as a flutter
+        # over the note -- on every loop, not only the slow ones. A region of
+        # 2048 words with a period of 123 holds 16.65 periods, and the 0.65
+        # is the click. So always loop a whole number of periods.
+        #
+        # Worth saying plainly: that the regions do not come out as whole
+        # multiples is itself a finding. The machine must loop somewhere
+        # inside a sample, not across the whole of it, which means real loop
+        # points -- and those live in the chip with the addresses.
+        whole = (len(loop) // period) * period
+        if whole >= period * 2:
+            loop = loop[:whole]
+
+        # Whole periods remove the gross step, but the estimate is integer and
+        # the true period is not, so a small seam survives. Fade it out by
+        # blending the START out of the end: the played region is
+        # loop[:L-xf], and its first xf samples get loop[L-xf:] mixed under
+        # them, so the last output sample and the first come from the same
+        # place in the original and the wrap is continuous. Blending the other
+        # way round -- end into start -- looks symmetrical and is not: it
+        # leaves the wrap jumping from head[xf-1] back to head[0], which
+        # measures worse than no crossfade at all.
+        #
+        # This is a listening aid, not a repair. It would also hide a genuinely
+        # wrong boundary, so judge boundaries on raw/ and timbre on these.
+        span = len(loop)
+        xf = min(period // 2, 96, span // 8)
+        if xf > 4:
+            w = np.linspace(0.0, 1.0, xf)
+            faded = loop[:span - xf].copy()
+            faded[:xf] = loop[:xf] * w + loop[span - xf:] * (1.0 - w)
+            loop = faded
     n = int(SAMPLE_RATE * seconds)
     out = np.zeros(n)
     for r, g in ((1.0, 0.6), (1.003, 0.4), (0.5, 0.5)):   # octave and detune
         t = (np.arange(n) * r * rate) % len(loop)
-        out += g * np.interp(t, np.arange(len(loop)), loop)
+        out += g * np.interp(t, np.arange(len(loop)), loop, period=len(loop))
     env = np.minimum(1.0, np.arange(n) / (0.3 * SAMPLE_RATE))
     env *= np.minimum(1.0, (n - np.arange(n)) / (0.4 * SAMPLE_RATE))
     out *= env
