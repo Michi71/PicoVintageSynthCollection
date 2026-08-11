@@ -199,6 +199,17 @@ samples do obey (a loop repeats at exactly one period):
 - **Fifteen of the static loops are internally consistent** (one period from
   start to end) and are very likely right.
 
+Putting `cp_sampleprep`'s loop finder on them sharpened that considerably --
+it is the better judge, and it found the harpsichord's real period of 156
+words where the estimator here had bottomed out at its 16-word floor. Offered
+several period counts (its default of ten rejects any sample too short to
+hold that many), it rates **20 of the 29 static loops excellent or good**,
+which confirms those boundaries from a direction nothing else in this
+directory tests. Nine do not loop: EG_lp, SAXlp1, SAXlp2, Ooh_lp, Manlp1,
+Spect3, Spect4, Spect6 and Spect7. For several of those a half or a quarter
+of the region loops perfectly while the rest does not, which is what a region
+merging two samples looks like.
+
 The period changes in that zone land on 512-word positions, not on the 2048
 grid the table uses, so the static boundaries were quantised too coarsely.
 Deriving the correct ones automatically did not work: the Spect series and
@@ -280,7 +291,8 @@ confirm or correct the hypothesis table sample by sample.
 | `d5_make_blob.py` | decodes the ROM set into `d5_pcm.bin` (512 KiB, 16-bit) plus `d5_blob.S` and `d5_pcm_table.h` for the firmware. |
 | `d5_syx_to_patches.py` | converts a D-50 SysEx bulk dump into `d5_patch_data.h`: 64 patches as raw parameter bytes, checksums and parameter ranges verified. |
 | `d5_bq3_decompress.py` | unpacks a Roland Boutique BQ3 firmware update (D-05) into its components -- Okumura LZSS, verified against the loader's own routine. |
-| `d5_review_render.py` | renders the frozen table for review by ear: one-shots padded with silence, loops tiled and pitch-normalised, plus one file with all of them in order. |
+| `d5_review_render.py` | renders the frozen table for review by ear: one-shots padded with silence, loops tiled and pitch-normalised, plus one file with all of them in order, and the unprocessed cuts under `raw/`. |
+| `d5_loop_audit.py` | judges every static loop with `cp_sampleprep/FindLoopPoints`: a sustain loop that will not loop is not one. |
 | `d5_sample_table.json` | the frozen table: start, length, loop flag and provenance per sample. |
 
 ```bash
