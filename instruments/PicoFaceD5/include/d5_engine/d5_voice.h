@@ -86,6 +86,12 @@ struct VoiceSpec {
     // partial ignores velocity, which 7 of the bank's partials ask for and
     // previously could not get; negative inverts.
     float velo_sens[2] = {1.0f, 1.0f};
+    // P-Mod Lever (common offset 23): how much vibrato the player's left
+    // hand may add on top of the standing depth. Gated per partial by the
+    // WG LFO mode -- A&L partials respond to the lever alone, which is why
+    // Living Calliope reads depth 0 and lever 23: the "living" is the hand.
+    float lever_amount = 0.0f;
+    float lever_gate[2] = {0.0f, 0.0f};
     // Panel "WG Pitch Fine" per partial, plus the instrument's master tune;
     // both in cents, both continuous, so they can detune a pair against each
     // other without landing on a semitone.
@@ -182,7 +188,9 @@ public:
 
         for (int i = 0; i < 2; ++i) {
             const LfoRoute& pr = spec_.pitch_lfo[i];
-            const float cents = 600.0f * pr.depth * lfo_value(l, pr);
+            const float depth = pr.depth
+                + spec_.lever_gate[i] * spec_.lever_amount * wheel_;
+            const float cents = 600.0f * depth * lfo_value(l, pr);
             float factor = cents != 0.0f
                                ? fast_exp2(cents * (1.0f / 1200.0f)) : 1.0f;
             if (spec_.penv_mode[i] == PEnvMode::kPositive) {
@@ -235,6 +243,7 @@ public:
     // Pitch bend reaches notes that are already sounding, so it cannot go
     // through the spec the way coarse and fine tune do.
     void set_bend(float factor) { bend_ = factor; }
+    void set_wheel(float w) { wheel_ = w < 0.0f ? 0.0f : (w > 1.0f ? 1.0f : w); }
 
     const Structure& structure() const {
         const int i = (spec_.structure < 1 || spec_.structure > 7)
@@ -254,6 +263,7 @@ private:
     Lfo lfo_[3]{};
     PitchEnv penv_{};
     float bend_ = 1.0f;
+    float wheel_ = 0.0f;
     Modulation mod_[2]{};
     float dpitch_[2] = {0.0f, 0.0f};
     float damp_[2] = {0.0f, 0.0f};

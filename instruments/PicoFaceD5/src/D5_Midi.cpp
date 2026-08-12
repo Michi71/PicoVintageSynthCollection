@@ -24,6 +24,9 @@ void D5_Midi::onNoteOff(uint8_t ch, uint8_t note) {
 void D5_Midi::onControlChange(uint8_t ch, uint8_t cc, uint8_t value) {
     if (!accepts(ch)) return;
     switch (cc) {
+        case 1:                                     // mod wheel -> P-Mod lever
+            bridge_.setModWheel(value * (1.0f / 127.0f));
+            break;
         case 7:                                     // channel volume
             bridge_.setVolume(value * 100 / 127);
             break;

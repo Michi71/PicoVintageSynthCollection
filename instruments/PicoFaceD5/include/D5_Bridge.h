@@ -41,7 +41,8 @@ public:
     void setReverb(int percent);           // scales the patch's reverb balance
     void setChorus(int percent);
     void setVoiceLimit(int voices);        // per tone, 1..8
-    void setPitchBendCents(float cents);   // reaches sounding notes
+    void setPitchBendCents(float cents);
+    void setModWheel(float w);             // CC1, the D-50 lever's near kin   // reaches sounding notes
     int voiceLimit() const { return voiceLimit_; }
 
     int activeVoices() const { return activeVoices_; }

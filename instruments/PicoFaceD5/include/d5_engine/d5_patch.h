@@ -64,6 +64,10 @@ public:
         }
     }
 
+    void set_wheel(float w) {
+        for (int i = 0; i < kVoices; ++i) voices_[i].set_wheel(w);
+    }
+
     float D5_HOT(next)() {
         float sum = 0.0f;
         for (int i = 0; i < kVoices; ++i) {
@@ -181,6 +185,10 @@ public:
     void set_bend(float factor) {
         upper_.set_bend(factor);
         lower_.set_bend(factor);
+    }
+    void set_mod_wheel(float w) {
+        upper_.set_wheel(w);
+        lower_.set_wheel(w);
     }
 
 private:

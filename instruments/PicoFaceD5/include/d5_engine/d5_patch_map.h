@@ -267,11 +267,16 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
     // partials correctly get none, rather than a full-depth vibrato the
     // player never asked for.
     const uint8_t mode = p[3];
-    if (mode == 0 || mode == 3) {
+    if (mode == 0) {
         v.pitch_lfo[index] = LfoRoute{};
+        v.lever_gate[index] = 0.0f;
     } else {
         v.pitch_lfo[index].lfo = 0;                    // P-Mod rides LFO-1
-        v.pitch_lfo[index].depth = (mode == 2) ? -1.0f : 1.0f;
+        // A&L partials carry no standing depth; all non-off modes accept the
+        // lever, signed like the route.
+        const float sign = (mode == 2) ? -1.0f : 1.0f;
+        v.pitch_lfo[index].depth = (mode == 3) ? 0.0f : sign;
+        v.lever_gate[index] = sign;
     }
     v.penv_mode[index] = (p[4] == 0) ? PEnvMode::kOff
                                      : (p[4] == 2 ? PEnvMode::kNegative
@@ -310,6 +315,13 @@ inline void map_common(const uint8_t* c, ToneSpec& tone) {
     const float pmod = kDepthCurve[c[22] > 100 ? 100 : c[22]];
     v.pitch_lfo[0].depth *= pmod;
     v.pitch_lfo[1].depth *= pmod;
+    // The lever ceiling is linear, and the reference recording is the
+    // referee: Living Calliope's lever byte 23 gives 138 cents at full push
+    // on its one vibrating pipe, which reads as about +-50 apparent against
+    // the fixed pipe -- and the recording's hand vibrato of 25..34 cents
+    // sits right at a natural half-push. Both curved families undershoot by
+    // threefold; the performance control is simply not on the fine law.
+    v.lever_amount = level01(c[23]);
 
     // ---- the three LFOs
     for (int i = 0; i < 3; ++i) {
