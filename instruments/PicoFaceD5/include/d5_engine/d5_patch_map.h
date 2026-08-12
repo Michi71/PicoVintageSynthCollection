@@ -77,6 +77,14 @@ inline constexpr float kDepthCurve[101] = {
     0.499967f, 0.535880f, 0.574344f, 0.615556f, 0.659776f, 0.707071f,
     0.757833f, 0.812259f, 0.870544f, 0.933015f, 1.000000f};
 
+inline LfoRoute lfo_route(uint8_t select, uint8_t depth) {
+    LfoRoute r;
+    const int s = select > 5 ? 0 : select;
+    r.lfo = s / 2;
+    r.depth = ((s & 1) ? -1.0f : 1.0f) * kDepthCurve[depth > 100 ? 100 : depth];
+    return r;
+}
+
 // A bipolar parameter through the same law: fine around its center.
 inline float bipolar_curved(uint8_t v) {
     const int d = (int)v - 50;
@@ -88,13 +96,13 @@ inline float bipolar_curved(uint8_t v) {
 // LFO select 0..5 is +1,-1,+2,-2,+3,-3 -- interleaved, per the MIDI
 // implementation's parameter list. The first guess here was +1,+2,+3,-1,-2,-3,
 // which sent every second modulation to the wrong LFO with the wrong sign.
-inline LfoRoute lfo_route(uint8_t select, uint8_t depth) {
-    LfoRoute r;
-    const int s = select > 5 ? 0 : select;
-    r.lfo = s / 2;
-    r.depth = ((s & 1) ? -1.0f : 1.0f) * level01(depth);
-    return r;
-}
+// Their depth goes through kDepthCurve below, like every "LFO Depth" on this
+// machine: the pitch one is proven from the D-05 firmware, and reading its
+// siblings linearly gave wobbles the patch never asked for. The TVF ENV
+// depth is deliberately NOT on this law -- at ten octaves of range a median
+// factory sweep would come out near zero, so it keeps its linear reading
+// until its own curve is identified.
+inline LfoRoute lfo_route(uint8_t select, uint8_t depth);
 
 // WG Pitch Keyfollow, parameter offset 2: seventeen ratios straight from the
 // parameter list. Index 11 is the 1:1 the guessed mapping silently assumed
