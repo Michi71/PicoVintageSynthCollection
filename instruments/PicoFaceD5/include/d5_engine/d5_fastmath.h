@@ -24,6 +24,18 @@
 #include <cstdint>
 #include <cstring>
 
+// Has to be outside any namespace: pico.h declares types at file scope.
+#if defined(__has_include)
+#  if __has_include("pico.h")
+#    include "pico.h"
+#  endif
+#endif
+#ifdef __not_in_flash
+#  define D5_IN_RAM __attribute__((section(".time_critical.d5_fastmath")))
+#else
+#  define D5_IN_RAM
+#endif
+
 namespace d5 {
 
 inline constexpr int kSinBits = 9;
@@ -71,8 +83,15 @@ struct Exp2Table {
     }
 };
 
-inline constexpr SinTable kSin{};
-inline constexpr Exp2Table kExp2{};
+// Placed in RAM, not flash. Both are read with a data-dependent index several
+// times per sample per partial, and on the RP2350 that competes for the XIP
+// cache with the 512 KiB PCM blob sitting in the same flash. Leaving them in
+// flash cost more than the libm calls they replaced: with the blob being read
+// at non-unit rates the tables get evicted, and every lookup turns into a
+// flash read. PicoFaceDX puts its level table in .time_critical for exactly
+// this reason, and PicoFaceOB learned the same lesson the same way.
+inline const SinTable kSin D5_IN_RAM = SinTable{};
+inline const Exp2Table kExp2 D5_IN_RAM = Exp2Table{};
 
 }  // namespace detail
 

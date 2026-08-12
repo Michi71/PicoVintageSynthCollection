@@ -156,7 +156,9 @@ void D5_Bridge::allNotesOff() {
     activeVoices_ = 0;
 }
 
-void D5_Bridge::fillBufferI32(int32_t* out, int frames) {
+// In RAM: the render runs from the audio path every block, and leaving it in
+// flash puts it in the same XIP cache as the 512 KiB sample blob it reads.
+void __not_in_flash_func(D5_Bridge::fillBufferI32)(int32_t* out, int frames) {
     const absolute_time_t t0 = get_absolute_time();
 
     for (int i = 0; i < frames; ++i) {
