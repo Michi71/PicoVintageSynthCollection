@@ -30,6 +30,20 @@ set(_d5_blob_s ${_d5_gen}/d5_blob.S)
 # Run at configure time, not build time: the generated .S and the table header
 # have to exist before the target is declared, and the conversion is a one-off
 # of a few seconds.
+#
+# Rerun it when its inputs move, not only when the output is missing. The
+# sample table is edited as the reconstruction improves, and a build that
+# silently kept the previous one sent a stale image to a hardware test.
+set(_d5_tbl ${CMAKE_SOURCE_DIR}/tools/d5_extract/d5_sample_table.json)
+set(_d5_gen_script ${CMAKE_SOURCE_DIR}/tools/d5_extract/d5_make_blob.py)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+             ${_d5_tbl} ${_d5_gen_script})
+if(EXISTS ${_d5_blob_s} AND
+   (${_d5_tbl} IS_NEWER_THAN ${_d5_gen}/d5_pcm_table.h OR
+    ${_d5_gen_script} IS_NEWER_THAN ${_d5_gen}/d5_pcm_table.h))
+    message(STATUS "PicoFaceD5: sample table changed, reconverting")
+    file(REMOVE ${_d5_blob_s})
+endif()
 if(NOT EXISTS ${_d5_blob_s})
     message(STATUS "PicoFaceD5: converting ROM set (this takes a moment)")
     execute_process(
