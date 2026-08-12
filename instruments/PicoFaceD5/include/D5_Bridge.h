@@ -45,6 +45,11 @@ public:
     int voiceLimit() const { return voiceLimit_; }
 
     int activeVoices() const { return activeVoices_; }
+    // Every note-on that reached this bridge since boot -- the footer shows
+    // it so a stuck voice display can be told apart from notes never
+    // arriving (chord of three: +3 here means delivery works, +1 means the
+    // transport or parser dropped the rest).
+    uint32_t noteOnTotal() const { return noteOnTotal_; }
     int cpuLoadPeakPercent() const { return cpuPeak_; }
     int outputPeakPercent() const { return outPeak_; }
     int bootBenchPercent();
@@ -61,6 +66,7 @@ private:
     int chorus_ = 100;
     int voiceLimit_ = d5::kMaxVoicesPerTone;
     int activeVoices_ = 0;
+    uint32_t noteOnTotal_ = 0;
     int cpuPeak_ = 0;
     int outPeak_ = 0;
     float baseVolume_ = 1.0f;

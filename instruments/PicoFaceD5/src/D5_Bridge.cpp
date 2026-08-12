@@ -164,7 +164,11 @@ void D5_Bridge::setPitchBendCents(float cents) {
 
 void D5_Bridge::noteOn(uint8_t note, uint8_t velocity) {
     if (note > 127) return;
-    if (activeVoices_ >= voiceLimit_) {
+    ++noteOnTotal_;
+    // Re-striking a held note replaces its own voice inside the tone; only a
+    // genuinely new note may steal, or full-polyphony retriggers eat a
+    // neighbour for nothing.
+    if (activeVoices_ >= voiceLimit_ && !held_[note]) {
         // The tone steals internally, but the governor's limit is ours: past
         // it we drop the oldest held note first so the count stays honest.
         for (int n = 0; n < 128; ++n) {

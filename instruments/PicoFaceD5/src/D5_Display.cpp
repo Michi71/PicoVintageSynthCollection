@@ -32,8 +32,10 @@ void d5_display_page(picoface::ui::Display& d, const D5UiModel& m) {
     if (m.lineA[0]) u8g2_DrawStr(u, 4, 32, m.lineA);
     if (m.lineB[0]) u8g2_DrawStr(u, 4, 48, m.lineB);
 
-    u8g2_SetFont(u, u8g2_font_6x10_tf);
-    if (m.footer[0]) u8g2_DrawStr(u, 4, 62, m.footer);
+    // 5x7: the footer carries six diagnostic fields now, and 128 px at six
+    // pixels a glyph was two fields short.
+    u8g2_SetFont(u, u8g2_font_5x7_tf);
+    if (m.footer[0]) u8g2_DrawStr(u, 2, 62, m.footer);
 
     // Leave the state deterministic for the next pass.
     u8g2_SetDrawColor(u, 1);
