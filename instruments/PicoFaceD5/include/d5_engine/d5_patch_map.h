@@ -433,8 +433,13 @@ inline PatchSpec patch_from_bytes(const uint8_t* patch, const int16_t* blob) {
     // saturator at -1.4 dBFS -- a wall of limiting that swallowed every new
     // attack, heard as "the notes cancelling each other". 0.09 keeps the
     // same pile at about -4 dBFS: dense, but with the transients alive.
-    p.upper.level = 0.09f;
-    p.lower.level = 0.09f;
+    // 0.22 after the edge-law port: the correct waveforms carry about 8 dB
+    // less crest than the invented narrow pulses, and the reverb taming took
+    // another 6 -- the bank had sunk to -28.6 dBFS RMS with the volume knob
+    // already at 98. At 0.22 the bank peaks just under full scale and the
+    // brutal 24-note legato pile stays clear of the saturator wall.
+    p.upper.level = 0.22f;
+    p.lower.level = 0.22f;
     return p;
 }
 
