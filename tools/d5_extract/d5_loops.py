@@ -148,6 +148,43 @@ def repetition_span(rom, a, period):
     return n + period if n else 0
 
 
+def wrap_step(rom, a, b):
+    """The jump from the last word back to the first, against the interior.
+
+    If Roland cut a region to be looped whole, wrapping it costs no more than
+    an ordinary step within it. Returned as (jump, interior median, ratio), and
+    the ratio is the number that matters: below about 3 the wrap is inaudible,
+    because the waveform is already moving that fast anyway.
+
+    Measured on all 29 regions this comes out at or under 1 for every one of
+    them bar VIOLlp, and exactly 0 for Noise, whose last word equals its first.
+    So there are no loop points to find. The loop is the region -- which is why
+    every search for a better one inside it came back with nothing.
+    """
+    seg = rom[a:b]
+    interior = float(np.median(np.abs(np.diff(seg)))) + 1e-12
+    jump = abs(float(seg[0] - seg[-1]))
+    return jump, interior, jump / interior
+
+
+def loop_period(rom, a, b):
+    """The cycle length of a sustained region, and how we know.
+
+    Every one of them turns out to be 32000/2^k: 128, 256, 512 or 1024 words
+    stored several times over inside the page, 2048 for the Spect samples where
+    the cycle fills the page exactly, and 16384 for Noise which takes eight
+    pages. Where the cycle is shorter than the region the ROM simply repeats it
+    bit for bit, so the two cases are one case.
+    """
+    p = exact_period(rom, a, b)
+    if p:
+        return p, "exact repetition"
+    _j, _i, ratio = wrap_step(rom, a, b)
+    if ratio <= 3.0:
+        return b - a, "whole region, wrap is seamless"
+    return b - a, f"whole region, wrap is {ratio:.0f}x the interior step"
+
+
 # --------------------------------------------------------------- loop endings
 
 
@@ -282,34 +319,24 @@ def main():
         gap = np.zeros(int(SAMPLE_RATE * 0.3))
         pad = np.zeros(int(SAMPLE_RATE * 0.05))
         joined = []
-        proven = unresolved = 0
         for i, (label, a, b) in enumerate(regions(starts)):
-            cut = rom[a:b]
-            period = exact_period(rom, a, b)
+            period, how = loop_period(rom, a, b)
             base = f"{label}_{labels[i]}" if i < len(labels) else label
-            if period:
-                # Tile the one cycle at its stored rate. This is not a render
-                # decision -- it is what the ROM already contains, repeated
-                # further. Nothing here can introduce a seam.
-                reps = int(np.ceil(2.0 * SAMPLE_RATE / period))
-                audio_out = np.tile(rom[a:a + period], reps)
-                name = f"{base}_per{period}"
-                write_wav(os.path.join(rawdir, name + ".wav"), rom[a:a + period])
-                proven += 1
-                note = (f"period {period:5} x{(b-a)//period:3} exact, "
-                        f"{SAMPLE_RATE/period:7.2f} Hz")
-            else:
-                audio_out = np.concatenate([pad, cut, pad])
-                name = f"{base}_ROH"
-                write_wav(os.path.join(rawdir, name + ".wav"), cut)
-                unresolved += 1
-                note = "no exact period -- raw, unlooped"
+            # Tile the one cycle at its stored rate. This is not a render
+            # decision -- it is what the ROM already contains, repeated
+            # further, at the rate it is stored at. No interpolation, no
+            # pitch correction, so nothing here can introduce a seam that
+            # the machine would not also produce.
+            reps = max(2, int(np.ceil(3.0 * SAMPLE_RATE / period)))
+            audio_out = np.tile(rom[a:a + period], reps)
+            name = f"{base}_per{period}"
+            write_wav(os.path.join(rawdir, name + ".wav"), rom[a:a + period])
             write_wav(os.path.join(args.outdir, name + ".wav"), audio_out)
-            joined += [pad, audio_out / (float(np.max(np.abs(audio_out))) + 1e-12) * 0.9,
-                       gap]
-            print(f"{base:20} {a:6}..{b:6}  {b-a:5} W  page {a/PAGE:7.3f}  {note}")
-        print(f"\n{proven} regions proven by exact repetition, "
-              f"{unresolved} still open")
+            joined += [pad, audio_out[:int(2.0 * SAMPLE_RATE)]
+                       / (float(np.max(np.abs(audio_out))) + 1e-12) * 0.9, gap]
+            print(f"{base:20} {a:6}..{b:6}  {b-a:5} W  page {a/PAGE:7.3f}  "
+                  f"period {period:5} x{(b-a)//period:3}  "
+                  f"{SAMPLE_RATE/period:8.3f} Hz  {how}")
         write_wav(os.path.join(args.outdir, "folge_alle.wav"),
                   np.concatenate(joined), peak_normalise=False)
         print(f"\nwrote {len(starts)} regions into {args.outdir}/, the bare cuts "
