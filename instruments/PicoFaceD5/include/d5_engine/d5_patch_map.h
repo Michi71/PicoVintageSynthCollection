@@ -62,7 +62,15 @@ inline LfoRoute lfo_route(uint8_t select, uint8_t depth) {
 inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
                         const int16_t* blob) {
     // ---- wave generator
-    v.coarse[index] = static_cast<int>(p[0]) - 36;      // 0..72, C1..C7
+    // 0..72 = C1..C7 per the parameter list. Which of those is "no
+    // transposition" is not stated anywhere we have, and it is not free to
+    // guess: the factory bank puts 207 of its 256 coarse bytes on exact
+    // multiples of 12, so the wrong neutral detunes every patch by whole
+    // octaves plus whatever the remainder is.
+#ifndef D5_COARSE_NEUTRAL
+#define D5_COARSE_NEUTRAL 36
+#endif
+    v.coarse[index] = static_cast<int>(p[0]) - D5_COARSE_NEUTRAL;
     v.fine_cents[index] = (static_cast<int>(p[1]) - 50);
 
     SynthSpec& s = v.synth[index];
@@ -118,7 +126,14 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
         v.pitch_lfo[index] = LfoRoute{};
     } else {
         v.pitch_lfo[index].lfo = 0;                    // LFO-1 is the pitch LFO
-        v.pitch_lfo[index].depth = (mode == 3) ? -0.25f : 0.25f;
+        // The mode byte says which way, not how far, and the byte that says
+        // how far is not identified in this dump. It used to assume a quarter
+        // of full swing, which is +-150 cents of vibrato applied to 201 of the
+        // bank's 256 partials -- that is not a reading of the patch, it is an
+        // invention, and it cost 15 of the 64 patches their tuning. Zero until
+        // the depth byte is known: a route that does nothing is wrong in a way
+        // that can be heard as missing, which is the honest kind.
+        v.pitch_lfo[index].depth = 0.0f;   // sign would be mode == 3 ? -1 : +1
     }
     v.penv_mode[index] = (p[4] == 0) ? PEnvMode::kOff
                                      : (p[4] == 2 ? PEnvMode::kNegative
@@ -141,7 +156,10 @@ inline void map_common(const uint8_t* c, ToneSpec& tone) {
     v.penv.l2 = bipolar(c[19]);
     v.penv.sustain = bipolar(c[20]);
     v.penv.end = bipolar(c[21]);
-    v.penv.depth_cents = 2400.0f;
+    // Was pinned at the parameter's maximum, so any partial with the
+    // envelope switched on bent two octaves. Its depth byte is not identified
+    // either; zero for the same reason as the pitch LFO above.
+    v.penv.depth_cents = 0.0f;
 
     // ---- the three LFOs
     for (int i = 0; i < 3; ++i) {
