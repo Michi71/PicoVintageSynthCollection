@@ -81,6 +81,11 @@ struct VoiceSpec {
     // pitch (drum layers), 1/2 plays quarter-tone steps -- sound design the
     // D-50 uses freely and the bank uses in 80 of 256 partials.
     float keyfollow[2] = {1.0f, 1.0f};
+    // TVA Velocity Range as -1..+1: how far the strike reaches the level.
+    // +1 is the raw-velocity behaviour this engine always had; 0 means the
+    // partial ignores velocity, which 7 of the bank's partials ask for and
+    // previously could not get; negative inverts.
+    float velo_sens[2] = {1.0f, 1.0f};
     // Panel "WG Pitch Fine" per partial, plus the instrument's master tune;
     // both in cents, both continuous, so they can detune a pair against each
     // other without landing on a semitone.
@@ -123,6 +128,9 @@ public:
         dpitch_[0] = dpitch_[1] = 0.0f;
         damp_[0] = damp_[1] = 0.0f;
         for (int i = 0; i < 2; ++i) {
+            const float sv = spec_.velo_sens[i];
+            const float vel = sv >= 0.0f ? 1.0f + sv * (velocity - 1.0f)
+                                         : 1.0f + sv * velocity;
             const float n = 60.0f
                 + spec_.keyfollow[i] * static_cast<float>(note - 60)
                 + static_cast<float>(spec_.coarse[i]);
@@ -130,10 +138,10 @@ public:
             const float detune = cents != 0.0f
                                      ? std::pow(2.0f, cents / 1200.0f) : 1.0f;
             if (types[i] == PartialType::kPcm) {
-                pcm_[i].note_on(spec_.pcm[i], n, velocity,
+                pcm_[i].note_on(spec_.pcm[i], n, vel,
                                 spec_.pcm_env[i], sample_rate, detune);
             } else {
-                synth_[i].note_on(spec_.synth[i], n, velocity, sample_rate,
+                synth_[i].note_on(spec_.synth[i], n, vel, sample_rate,
                                   detune);
             }
         }

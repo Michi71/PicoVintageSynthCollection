@@ -245,7 +245,9 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
     v.pcm_env[index] = s.tva_env;      // the sampled partial shares it
 
     v.keyfollow[index] = keyfollow_ratio(p[2], 16);
+    v.velo_sens[index] = (static_cast<int>(p[36]) - 50) * 0.02f;
     s.cutoff_keyfollow = keyfollow_ratio(p[15], 14);
+    s.tvf_velo = level01(p[19]);
 
     // ---- modulation routes
     // WG Mod LFO Mode, offset 3: OFF, (+), (-), A&L. The magnitude is not
@@ -369,8 +371,13 @@ inline PatchSpec patch_from_bytes(const uint8_t* patch, const int16_t* blob) {
     // for eight times unity, and the saturator would then be working on every
     // chord instead of only on the loudest. A quarter of a voice's level per
     // tone leaves a four-note chord peaking around -3 dB.
-    p.upper.level = 0.13f;
-    p.lower.level = 0.13f;
+    // Sixteen voices of two partials can stack during held or pedalled
+    // playing, and at 0.13 a full legato pile sat pinned against the
+    // saturator at -1.4 dBFS -- a wall of limiting that swallowed every new
+    // attack, heard as "the notes cancelling each other". 0.09 keeps the
+    // same pile at about -4 dBFS: dense, but with the transients alive.
+    p.upper.level = 0.09f;
+    p.lower.level = 0.09f;
     return p;
 }
 

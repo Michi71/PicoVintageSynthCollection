@@ -38,6 +38,7 @@ struct SynthSpec {
     float resonance = 0.3f;        // 0..1, panel "TVF Resonance"
     float tvf_env_depth = 0.4f;    // how far the TVF envelope moves cutoff
     float cutoff_keyfollow = 0.0f; // ratio; the cutoff tracks the keyboard
+    float tvf_velo = 0.0f;         // 0..1: how far velocity opens the filter
     Env5Spec tvf_env{};
     Env5Spec tva_env{};
 };
@@ -53,6 +54,10 @@ public:
         active_ = true;
         freq_ = 440.0f * std::pow(2.0f, (note - 69.0f) / 12.0f) * detune;
         q_ = 0.7f + 24.0f * spec.resonance * spec.resonance;
+        // TVF ENV Velocity Range: a soft strike sweeps less. Folded into the
+        // effective depth once per note; block_mod reads it from here.
+        tvf_depth_eff_ = spec.tvf_env_depth
+                         * (1.0f + spec.tvf_velo * (velocity - 1.0f));
         cyc_ = 0.0f;
         res_env_ = 1.0f;
         inv_cutoff_ = 1.0f / 1000.0f;   // neutral until the first block_mod
@@ -83,7 +88,7 @@ public:
     void block_mod(const Modulation& mod) {
         if (!active_) return;
         const float env = tvf_.next_n(kModPeriod);
-        float c = spec_.cutoff + kf_shift_ + spec_.tvf_env_depth * env + mod.cutoff;
+        float c = spec_.cutoff + kf_shift_ + tvf_depth_eff_ * env + mod.cutoff;
         if (c < 0.02f) c = 0.02f;
         if (c > 1.0f) c = 1.0f;
         // 40 Hz .. 16 kHz -- once std::pow per sample, the single most
@@ -184,6 +189,7 @@ private:
     float cyc_ = 0.0f;
     float res_env_ = 1.0f;
     float q_ = 0.7f;
+    float tvf_depth_eff_ = 0.0f;
     float gain_ = 1.0f;
     bool active_ = false;
 };
