@@ -51,9 +51,9 @@ namespace d5 {{
 
 struct PcmSample {{
     uint32_t start;      // in samples, into d5_pcm_blob
-    uint32_t length;
+    uint32_t length;     // 48..76: exactly one cycle, so the loop is the entry
     bool     looped;     // 48..76 are the sustained loops
-    float    root_hz;    // measured fundamental, 0 for unpitched material
+    float    root_hz;    // 48..76 exact as 32000/length; attacks measured
     char     name[7];
 }};
 
@@ -117,7 +117,10 @@ def root_hz(audio, start, end):
         denom = a - 2 * b + c
         if denom != 0:
             k = k + 0.5 * (a - c) / denom
-    return float(k * (SAMPLE_RATE / n))
+    # The interpolation can push bin 0 below zero, and a negative root pitch
+    # inverts the playback rate. Only the attacks still come through here, but
+    # it cost a puzzled half hour when a loop did.
+    return max(0.0, float(k * (SAMPLE_RATE / n)))
 
 
 def main():
@@ -147,7 +150,13 @@ def main():
             rows.append(f'    {{ 0, 0, true, 0.f, "{e["name"][:6]}" }},'
                         f'  // {e["pcm"]:3} {e["basis"]}')
         else:
-            f0 = root_hz(rs.audio, e["start"], e["end"])
+            # The sustained loops carry their own pitch and it is exact:
+            # each is one cycle of 2^k words, so the fundamental is
+            # 32000/length to the last digit. Only the attacks, which have no
+            # cycle to measure against, still go through the estimator.
+            f0 = e.get("root_hz")
+            if f0 is None:
+                f0 = root_hz(rs.audio, e["start"], e["end"])
             rows.append(f'    {{ {e["start"]:6}, {e["end"] - e["start"]:6}, '
                         f'{"true " if e["looped"] else "false"}, {f0:8.2f}f, '
                         f'"{e["name"][:6]}" }},'

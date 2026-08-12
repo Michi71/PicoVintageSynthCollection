@@ -430,262 +430,291 @@
    "pcm": 48,
    "name": "Drawbr",
    "start": 188416,
-   "end": 190464,
+   "end": 188928,
    "looped": true,
-   "basis": "ear-confirmed",
-   "pages": 1
+   "basis": "exact repetition",
+   "pages": 1,
+   "root_hz": 62.5
   },
   {
    "pcm": 49,
    "name": "Horgan",
    "start": 190464,
-   "end": 192512,
+   "end": 190592,
    "looped": true,
-   "basis": "ear-confirmed",
-   "pages": 1
+   "basis": "exact repetition",
+   "pages": 1,
+   "root_hz": 250.0
   },
   {
    "pcm": 50,
    "name": "Lorgan",
    "start": 192512,
-   "end": 194560,
+   "end": 192768,
    "looped": true,
-   "basis": "ear-confirmed",
-   "pages": 1
+   "basis": "exact repetition",
+   "pages": 1,
+   "root_hz": 125.0
   },
   {
    "pcm": 51,
    "name": "EP_lp1",
    "start": 194560,
-   "end": 196608,
+   "end": 194816,
    "looped": true,
-   "basis": "ear-confirmed",
-   "pages": 1
+   "basis": "exact repetition",
+   "pages": 1,
+   "root_hz": 125.0
   },
   {
    "pcm": 52,
    "name": "EP_lp2",
    "start": 196608,
-   "end": 198656,
+   "end": 196864,
    "looped": true,
-   "basis": "ear-confirmed",
-   "pages": 1
+   "basis": "exact repetition",
+   "pages": 1,
+   "root_hz": 125.0
   },
   {
    "pcm": 53,
    "name": "CLAVlp",
    "start": 198656,
-   "end": 202752,
+   "end": 199168,
    "looped": true,
-   "basis": "ear-confirmed",
-   "pages": 2
+   "basis": "exact repetition",
+   "pages": 2,
+   "root_hz": 62.5
   },
   {
    "pcm": 54,
    "name": "HC_lp",
-   "start": 202752,
-   "end": 206848,
+   "start": 200704,
+   "end": 201216,
    "looped": true,
-   "basis": "ear-confirmed",
-   "pages": 2
+   "basis": "exact repetition",
+   "pages": 2,
+   "root_hz": 62.5
   },
   {
    "pcm": 55,
    "name": "EB_lp1",
-   "start": 206848,
-   "end": 210944,
+   "start": 202752,
+   "end": 203264,
    "looped": true,
-   "basis": "ear-confirmed",
-   "pages": 2
+   "basis": "exact repetition",
+   "pages": 2,
+   "root_hz": 62.5
   },
   {
    "pcm": 56,
    "name": "AB_lp",
-   "start": 210944,
-   "end": 212992,
+   "start": 204800,
+   "end": 205056,
    "looped": true,
-   "basis": "ear-confirmed",
-   "pages": 1
+   "basis": "exact repetition",
+   "pages": 1,
+   "root_hz": 125.0
   },
   {
    "pcm": 57,
    "name": "EB_lp2",
-   "start": 212992,
-   "end": 215040,
+   "start": 206848,
+   "end": 207360,
    "looped": true,
-   "basis": "ear-confirmed",
-   "pages": 1
+   "basis": "exact repetition",
+   "pages": 1,
+   "root_hz": 62.5
   },
   {
    "pcm": 58,
    "name": "EB_lp3",
-   "start": 215040,
-   "end": 217088,
+   "start": 208896,
+   "end": 209408,
    "looped": true,
-   "basis": "ear-confirmed",
-   "pages": 1
+   "basis": "exact repetition",
+   "pages": 1,
+   "root_hz": 62.5
   },
   {
    "pcm": 59,
    "name": "EG_lp",
-   "start": 217088,
-   "end": 219136,
+   "start": 210944,
+   "end": 211200,
    "looped": true,
-   "basis": "ear-confirmed",
-   "pages": 1
+   "basis": "exact repetition",
+   "pages": 1,
+   "root_hz": 125.0
   },
   {
    "pcm": 60,
    "name": "CELLlp",
-   "start": 219136,
-   "end": 220672,
+   "start": 212992,
+   "end": 213504,
    "looped": true,
-   "basis": "ear-confirmed",
-   "pages": 0
+   "basis": "exact repetition",
+   "pages": 0,
+   "root_hz": 62.5
   },
   {
    "pcm": 61,
    "name": "VIOLlp",
-   "start": 220672,
-   "end": 226304,
+   "start": 215040,
+   "end": 215168,
    "looped": true,
-   "basis": "ear-confirmed",
-   "pages": 2
+   "basis": "exact repetition",
+   "pages": 2,
+   "root_hz": 250.0
   },
   {
    "pcm": 62,
    "name": "Reedlp",
-   "start": 226304,
-   "end": 233472,
+   "start": 217088,
+   "end": 217600,
    "looped": true,
-   "basis": "ear-confirmed",
-   "pages": 3
+   "basis": "exact repetition",
+   "pages": 3,
+   "root_hz": 62.5
   },
   {
    "pcm": 63,
    "name": "SAXlp1",
-   "start": 233472,
-   "end": 235520,
+   "start": 219136,
+   "end": 219392,
    "looped": true,
-   "basis": "forced-by-arithmetic",
-   "pages": 1
+   "basis": "exact repetition",
+   "pages": 1,
+   "root_hz": 125.0
   },
   {
    "pcm": 64,
    "name": "SAXlp2",
-   "start": 235520,
-   "end": 237568,
+   "start": 221184,
+   "end": 221440,
    "looped": true,
-   "basis": "forced-by-arithmetic",
-   "pages": 1
+   "basis": "exact repetition",
+   "pages": 1,
+   "root_hz": 125.0
   },
   {
    "pcm": 65,
    "name": "Aah_lp",
-   "start": 237568,
-   "end": 239616,
+   "start": 223232,
+   "end": 223360,
    "looped": true,
-   "basis": "forced-by-arithmetic",
-   "pages": 1
+   "basis": "exact repetition",
+   "pages": 1,
+   "root_hz": 250.0
   },
   {
    "pcm": 66,
    "name": "Ooh_lp",
-   "start": 239616,
-   "end": 241664,
+   "start": 225280,
+   "end": 226304,
    "looped": true,
-   "basis": "forced-by-arithmetic",
-   "pages": 1
+   "basis": "exact repetition",
+   "pages": 1,
+   "root_hz": 31.25
   },
   {
    "pcm": 67,
    "name": "Manlp1",
-   "start": 241664,
-   "end": 243712,
+   "start": 227328,
+   "end": 227584,
    "looped": true,
-   "basis": "forced-by-arithmetic",
-   "pages": 1
+   "basis": "exact repetition",
+   "pages": 1,
+   "root_hz": 125.0
   },
   {
    "pcm": 68,
    "name": "Spect1",
-   "start": 243712,
-   "end": 245760,
+   "start": 229376,
+   "end": 231424,
    "looped": true,
-   "basis": "forced-by-arithmetic",
-   "pages": 1
+   "basis": "whole region, wrap is seamless",
+   "pages": 1,
+   "root_hz": 15.625
   },
   {
    "pcm": 69,
    "name": "Spect2",
-   "start": 245760,
-   "end": 247808,
+   "start": 231424,
+   "end": 233472,
    "looped": true,
-   "basis": "forced-by-arithmetic",
-   "pages": 1
+   "basis": "whole region, wrap is seamless",
+   "pages": 1,
+   "root_hz": 15.625
   },
   {
    "pcm": 70,
    "name": "Spect3",
-   "start": 247808,
-   "end": 249856,
+   "start": 233472,
+   "end": 235520,
    "looped": true,
-   "basis": "forced-by-arithmetic",
-   "pages": 1
+   "basis": "whole region, wrap is seamless",
+   "pages": 1,
+   "root_hz": 15.625
   },
   {
    "pcm": 71,
    "name": "Spect4",
-   "start": 249856,
-   "end": 251904,
+   "start": 235520,
+   "end": 237568,
    "looped": true,
-   "basis": "forced-by-arithmetic",
-   "pages": 1
+   "basis": "whole region, wrap is seamless",
+   "pages": 1,
+   "root_hz": 15.625
   },
   {
    "pcm": 72,
    "name": "Spect5",
-   "start": 251904,
-   "end": 253952,
+   "start": 237568,
+   "end": 239616,
    "looped": true,
-   "basis": "forced-by-arithmetic",
-   "pages": 1
+   "basis": "whole region, wrap is seamless",
+   "pages": 1,
+   "root_hz": 15.625
   },
   {
    "pcm": 73,
    "name": "Spect6",
-   "start": 253952,
-   "end": 256000,
+   "start": 239616,
+   "end": 241664,
    "looped": true,
-   "basis": "forced-by-arithmetic",
-   "pages": 1
+   "basis": "whole region, wrap is seamless",
+   "pages": 1,
+   "root_hz": 15.625
   },
   {
    "pcm": 74,
    "name": "Spect7",
-   "start": 256000,
-   "end": 258048,
+   "start": 241664,
+   "end": 243712,
    "looped": true,
-   "basis": "forced-by-arithmetic",
-   "pages": 1
+   "basis": "whole region, wrap is seamless",
+   "pages": 1,
+   "root_hz": 15.625
   },
   {
    "pcm": 75,
    "name": "Manlp2",
-   "start": 258048,
-   "end": 260096,
+   "start": 243712,
+   "end": 243968,
    "looped": true,
-   "basis": "forced-by-arithmetic",
-   "pages": 1
+   "basis": "exact repetition",
+   "pages": 1,
+   "root_hz": 125.0
   },
   {
    "pcm": 76,
    "name": "Noise",
-   "start": 260096,
+   "start": 245760,
    "end": 262144,
    "looped": true,
-   "basis": "forced-by-arithmetic",
-   "pages": 1
+   "basis": "whole region, wrap is seamless, spectrally flat, played at its stored rate",
+   "pages": 1,
+   "root_hz": 0.0
   },
   {
    "pcm": 77,
@@ -903,5 +932,6 @@
    "basis": "range-unresolved",
    "pages": null
   }
- ]
+ ],
+ "note": "PCM 1..47 are the attacks, gapless over pages 0..91. PCM 48..76 are one cycle each, taken from the head of the region that holds them; the ROM repeats that cycle to fill the region, so the loop is the entry itself. PCM 77..100 are combinations, unresolved."
 }

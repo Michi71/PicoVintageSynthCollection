@@ -7,10 +7,12 @@
 // ring modulation that pairs them) are separate.
 //
 // The D-50's own table carries a root pitch per sample, but that table lives
-// in the MB87136's mask ROM and cannot be read out, so the generated table
-// carries a root frequency measured from the material instead. Samples that
-// have no pitch to measure (noise, some percussion) report 0 and always play
-// at the ROM rate.
+// in the MB87136's mask ROM and cannot be read out. For the 29 sustained
+// loops it did not need to be: each is one cycle of 2^k words, so the root is
+// 32000/length exactly. The attacks have no cycle to measure against and
+// carry an estimate. Material with no pitch at all -- Noise, and some
+// percussion -- reports 0 and always plays at the ROM rate, because
+// transposing noise onto a note turns it into a buzz.
 #pragma once
 
 #include <cmath>
@@ -57,15 +59,24 @@ public:
     float next(const Modulation& mod = Modulation{}) {
         if (!active_) return 0.0f;
 
-        const uint32_t i = static_cast<uint32_t>(pos_);
-        if (i + 1 >= s_.length) {
+        const double len = static_cast<double>(s_.length);
+        if (pos_ >= len) {
             if (!s_.looped) { active_ = false; return 0.0f; }
-            pos_ -= static_cast<double>(s_.length);
+            pos_ -= len;
+            if (pos_ >= len) pos_ = std::fmod(pos_, len);   // very high notes
         }
-        const uint32_t k = s_.start + static_cast<uint32_t>(pos_);
+        const uint32_t i = static_cast<uint32_t>(pos_);
+        // The partner for interpolation is the next word, and at the end of a
+        // loop that word is the first one again -- not the one past the
+        // sample. Wrapping the position instead of the partner drops the last
+        // word of every revolution and plays the first one twice, which on a
+        // 128-word cycle is 250 corrupted words a second. It cost up to 2.4%
+        // of the signal on VIOLlp, and exactly nothing on Noise, whose last
+        // word happens to equal its first.
+        const uint32_t j = (i + 1 < s_.length) ? i + 1 : (s_.looped ? 0u : i);
         const float frac = static_cast<float>(pos_ - std::floor(pos_));
-        const float a = s_.data[k] * (1.0f / 32768.0f);
-        const float b = s_.data[k + 1] * (1.0f / 32768.0f);
+        const float a = s_.data[s_.start + i] * (1.0f / 32768.0f);
+        const float b = s_.data[s_.start + j] * (1.0f / 32768.0f);
         const float sample = a + (b - a) * frac;
 
         pos_ += rate_ * mod.pitch;
