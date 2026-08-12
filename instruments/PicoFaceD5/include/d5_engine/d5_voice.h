@@ -28,6 +28,7 @@
 #include <cmath>
 #include <cstdint>
 
+#include "d5_engine/d5_fastmath.h"
 #include "d5_engine/d5_lfo.h"
 #include "d5_engine/d5_pcm_voice.h"
 #include "d5_engine/d5_synth_voice.h"
@@ -156,8 +157,10 @@ public:
         for (int i = 0; i < 2; ++i) {
             const LfoRoute& pr = spec_.pitch_lfo[i];
             const float cents = 600.0f * pr.depth * lfo_value(l, pr);
+            // Per sample and per partial, so 32 of these a sample at full
+            // polyphony -- libm pow was not affordable here.
             float factor = cents != 0.0f
-                               ? std::pow(2.0f, cents / 1200.0f) : 1.0f;
+                               ? fast_exp2(cents * (1.0f / 1200.0f)) : 1.0f;
             if (spec_.penv_mode[i] == PEnvMode::kPositive) {
                 factor *= pitch_env;
             } else if (spec_.penv_mode[i] == PEnvMode::kNegative) {

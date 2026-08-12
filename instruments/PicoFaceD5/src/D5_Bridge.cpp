@@ -78,8 +78,12 @@ const char* D5_Bridge::structureName() const {
 }
 
 void D5_Bridge::selectPatch(int index) {
+    // Against patchCount(), not against kPresetCount: with a converted bank
+    // there are 64 of them, and clamping to the 8 built-in presets made the
+    // other 56 unreachable on hardware while the UI cheerfully reported 64.
+    const int n = patchCount();
     if (index < 0) index = 0;
-    if (index >= d5::kPresetCount) index = d5::kPresetCount - 1;
+    if (index >= n) index = n - 1;
     if (index == patchIndex_) return;
     allNotesOff();
     patchIndex_ = index;

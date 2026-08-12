@@ -23,6 +23,8 @@
 #include <cmath>
 #include <cstdint>
 
+#include "d5_engine/d5_fastmath.h"
+
 namespace d5 {
 
 // ------------------------------------------------------------------ biquad
@@ -164,7 +166,7 @@ public:
         float wet = 0.0f;
         for (int v = 0; v < t.voices; ++v) {
             const float ph = phase_ + static_cast<float>(v) / t.voices;
-            const float lfo = std::sin(2.0f * kPi * (ph - std::floor(ph)));
+            const float lfo = fast_sin(ph);   // wraps on its own
             const float ms = t.base_ms + t.spread_ms * v +
                              clamp01(spec_.depth) * 4.0f * lfo;
             wet += read(ms * 0.001f * sr_);

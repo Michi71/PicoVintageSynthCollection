@@ -14,6 +14,8 @@
 #include <cmath>
 #include <cstdint>
 
+#include "d5_engine/d5_fastmath.h"
+
 namespace d5 {
 
 enum class LfoWave : uint8_t { kTriangle = 0, kSawtooth = 1, kSquare = 2,
@@ -146,8 +148,10 @@ public:
         } else if (held_) {
             level_ = spec_.sustain;
         }
+        // Per sample and per voice, and the last libm call left in the
+        // audio path once the partials were converted.
         const float cents = level_ * spec_.depth_cents;
-        return cents == 0.0f ? 1.0f : std::pow(2.0f, cents / 1200.0f);
+        return cents == 0.0f ? 1.0f : fast_exp2(cents * (1.0f / 1200.0f));
     }
 
 private:

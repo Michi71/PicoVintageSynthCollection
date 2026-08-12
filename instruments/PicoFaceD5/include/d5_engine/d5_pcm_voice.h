@@ -42,7 +42,8 @@ public:
                  const TvaEnvSpec& env, float sample_rate,
                  float detune = 1.0f) {
         s_ = s;
-        pos_ = 0.0;
+        index_ = 0;
+        frac_ = 0.0f;
         active_ = s.data != nullptr && s.length > 0;
         gain_ = velocity;
         const float f = 440.0f * std::pow(2.0f, (note - 69) / 12.0f);
@@ -59,13 +60,7 @@ public:
     float next(const Modulation& mod = Modulation{}) {
         if (!active_) return 0.0f;
 
-        const double len = static_cast<double>(s_.length);
-        if (pos_ >= len) {
-            if (!s_.looped) { active_ = false; return 0.0f; }
-            pos_ -= len;
-            if (pos_ >= len) pos_ = std::fmod(pos_, len);   // very high notes
-        }
-        const uint32_t i = static_cast<uint32_t>(pos_);
+        const uint32_t i = index_;
         // The partner for interpolation is the next word, and at the end of a
         // loop that word is the first one again -- not the one past the
         // sample. Wrapping the position instead of the partner drops the last
@@ -74,21 +69,45 @@ public:
         // of the signal on VIOLlp, and exactly nothing on Noise, whose last
         // word happens to equal its first.
         const uint32_t j = (i + 1 < s_.length) ? i + 1 : (s_.looped ? 0u : i);
-        const float frac = static_cast<float>(pos_ - std::floor(pos_));
         const float a = s_.data[s_.start + i] * (1.0f / 32768.0f);
         const float b = s_.data[s_.start + j] * (1.0f / 32768.0f);
-        const float sample = a + (b - a) * frac;
+        const float sample = a + (b - a) * frac_;
 
-        pos_ += rate_ * mod.pitch;
+        advance(rate_ * mod.pitch);
         const float amp = env_.next();
         if (env_.finished()) active_ = false;
         return sample * amp * gain_ * mod.amp;
     }
 
 private:
+    // Position is an exact word index plus a float fraction, not a double.
+    // The Cortex-M33 has no double unit, so every step of the old version --
+    // the add, the floor, the compare, the truncation -- was a soft-float
+    // call, and there were sixteen voices asking for them 32000 times a
+    // second. This is also *more* precise: the integer part cannot lose bits
+    // to the mantissa however long the note is held.
+    //
+    // The whole-word step never reaches the sample length: it is
+    // freq * length / 32000, and no MIDI note reaches 32 kHz. So one
+    // conditional subtract is enough to wrap, no division and no modulo.
+    void advance(float step) {
+        frac_ += step;
+        const uint32_t whole = static_cast<uint32_t>(frac_);
+        if (whole) {
+            frac_ -= static_cast<float>(whole);
+            index_ += whole;
+            if (index_ >= s_.length) {
+                if (!s_.looped) { active_ = false; return; }
+                index_ -= s_.length;
+                if (index_ >= s_.length) index_ %= s_.length;   // paranoia
+            }
+        }
+    }
+
     PcmSampleRef s_{};
     TvaEnv env_{};
-    double pos_ = 0.0;
+    uint32_t index_ = 0;
+    float frac_ = 0.0f;
     float rate_ = 1.0f;
     float gain_ = 1.0f;
     bool active_ = false;

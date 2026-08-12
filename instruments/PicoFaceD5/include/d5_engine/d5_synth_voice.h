@@ -22,6 +22,7 @@
 #include <cstdint>
 
 #include "d5_engine/d5_env.h"
+#include "d5_engine/d5_fastmath.h"
 #include "d5_engine/d5_mod.h"
 
 namespace d5 {
@@ -71,7 +72,9 @@ public:
         float c = spec_.cutoff + spec_.tvf_env_depth * env + mod.cutoff;
         if (c < 0.02f) c = 0.02f;
         if (c > 1.0f) c = 1.0f;
-        const float cutoff_hz = 40.0f * std::pow(400.0f, c);   // 40 Hz .. 16 kHz
+        // 40 Hz .. 16 kHz. Was std::pow once per sample per partial, which
+        // is the single most expensive thing this engine ever did.
+        const float cutoff_hz = 40.0f * fast_exp2(kLog2Range * c);
         const float freq = freq_ * mod.pitch;
         float slope = freq / cutoff_hz;                        // cycle fraction
         if (slope > 0.45f) slope = 0.45f;
@@ -84,7 +87,7 @@ public:
             // the chip's sawtooth: the square multiplied by a synchronous
             // cosine, which cancels every other harmonic's mirror and leaves
             // the asymmetric slope
-            out *= std::cos(2.0f * kPi * phase_);
+            out *= fast_cos(phase_);
         }
 
         if (spec_.resonance > 0.0f) {
@@ -96,14 +99,13 @@ public:
             // click and as broadband energy, not as resonance).
             const float cycles = cutoff_hz * res_phase_ / sr_;
             const float q = 0.7f + 24.0f * spec_.resonance * spec_.resonance;
-            const float decay = std::exp(-kPi * cycles / q);
+            const float decay = fast_exp_neg(kPi * cycles / q);
             // fade the ring in over its first quarter cycle so its restart
             // does not click
             const float w = cycles < 0.25f
-                                ? 0.5f - 0.5f * std::cos(4.0f * kPi * cycles)
+                                ? 0.5f - 0.5f * fast_cos(2.0f * cycles)
                                 : 1.0f;
-            out += spec_.resonance * decay * w *
-                   std::sin(2.0f * kPi * cycles);
+            out += spec_.resonance * decay * w * fast_sin(cycles);
             res_phase_ += 1.0f;
         }
 
@@ -120,6 +122,7 @@ public:
 
 private:
     static constexpr float kPi = 3.14159265358979323846f;
+    static constexpr float kLog2Range = 8.6438561897747246f;   // log2(400)
 
     static float clampf(float v, float lo, float hi) {
         return v < lo ? lo : (v > hi ? hi : v);
@@ -129,13 +132,13 @@ private:
     // The cosine slopes are what a low cutoff does to a square edge.
     static float segment(float p, float pw, float slope) {
         if (p < slope) {
-            return -std::cos(kPi * p / slope);            // -1 -> +1
+            return -fast_cos(0.5f * p / slope);           // -1 -> +1
         }
         if (p < pw) {
             return 1.0f;
         }
         if (p < pw + slope) {
-            return std::cos(kPi * (p - pw) / slope);      // +1 -> -1
+            return fast_cos(0.5f * (p - pw) / slope);     // +1 -> -1
         }
         return -1.0f;
     }
