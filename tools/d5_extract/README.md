@@ -1,13 +1,16 @@
 # d5_extract - Roland D-50 ROM extraction
 
-Host-side toolchain for a planned PicoFaceD5. Nothing here is part of a
-firmware image, and no ROM data is in this repository.
+Host-side toolchain for PicoFaceD5. Nothing here is part of a firmware image,
+and no ROM data is in this repository.
 
 As with the JV, the goal is **not** a cycle emulation of the D-50's hardware.
 It is a native LA engine that plays the original PCM data. That requires the
 sample data (decoded below) and the sample table -- start, length and loop
-metadata for the 100 PCM sounds -- which is the current blocker (see "Where
-the sample table is").
+metadata for the 100 PCM sounds. The table is not in any ROM anyone can read
+(see "Where the sample table is"), so it was reconstructed: PCM 1..47 from the
+silence the ROM pads its one-shots with, PCM 48..76 from the fact that the ROM
+stores each sustained loop as bit-identical repetitions of one cycle. PCM
+77..100 are combinations and remain unresolved.
 
 ## ROM images
 
@@ -51,9 +54,13 @@ The names live in the program EPROM at file offset 0xFC00, 100 entries of 6
 ASCII chars, identical in v1.06 and v2.22.
 
 Acoustic ground truth derived from the decoded audio (used to verify any
-table hypothesis, see `d5_table_scan.py`): 45 pages qualify as attack
-starts, exactly one page (112) is spectrally flat noise ("Noise", PCM 76),
-and running `d5_rom.py` on the set prints the per-page classification.
+table hypothesis, see `d5_table_scan.py`): 45 pages qualify as attack starts,
+and running `d5_rom.py` on the set prints the per-page classification. The
+flat-noise test in that classification fires on a single page, which was read
+for a long time as locating "Noise" (PCM 76) there. It does not: Noise is
+eight pages, 120..127, and the flatness of its spectrum -- 0.49 against
+0.00..0.01 for all 28 other sustained samples -- holds across every one of
+them.
 
 ## Where the sample table is: inside the synth chip
 
@@ -188,9 +195,55 @@ is confirmed by the data, not only by ear. `zero_run_boundaries()` in
 is discarded.
 
 The marks stop at page 92, where the sustained loops begin -- a loop fills its
-slot, so there is no padding to mark. And that is exactly the region where the
-by-ear review kept finding trouble. Two findings there, from the one law those
-samples do obey (a loop repeats at exactly one period):
+slot, so there is no padding to mark. That region resisted for a long time,
+and the account of how is kept below because the method matters: three
+automatic re-derivations were built and every one of them was rejected by ear.
+
+## The sustained loops are stored pre-tiled
+
+The question that settled it was not "where does this sample end" but "does
+this data repeat, exactly". It does. Twenty-one of the thirty-six pages in the
+sustained zone are a whole number of **bit-identical** copies of a single
+cycle: page 93 is sixteen copies of 128 words, page 110 is two copies of 1024,
+and the repetition stops exactly on the page edge, never one word early or
+late. Boundary and loop are therefore proved rather than scored, and playback
+cannot flutter, because every revolution is the same bits.
+
+The other fifteen pages have no exact repetition at any offset at all. They
+are not a different design -- they are the same one at the top of its range.
+Every sustained sample is one cycle whose period is a power-of-two division of
+the 32 kHz clock, and the only thing that varies is whether the cycle is
+shorter than the page:
+
+| period | root | samples |
+|---|---|---|
+| 128 W | 250.000 Hz | Horgan, VIOLlp, Aah_lp |
+| 256 W | 125.000 Hz | Lorgan, EP_lp1/2, AB_lp, EG_lp, SAXlp1/2, Manlp1/2 |
+| 512 W | 62.500 Hz | Drawbr, CLAVlp, HC_lp, EB_lp1/2/3, CELLlp, Reedlp |
+| 1024 W | 31.250 Hz | Ooh_lp |
+| 2048 W | 15.625 Hz | Spect1..Spect7 |
+| 16384 W | 1.953 Hz | Noise |
+
+Below 2048 the ROM repeats the cycle to fill the page, which is what made
+those look special. At 2048 the cycle fills the page exactly and at 16384 it
+takes eight pages, so nothing is left over to repeat.
+
+There are no loop points to find, either, which is why every search for them
+came back empty. `wrap_step()` in `d5_loops.py` measures the jump from a
+region's last word back to its first against the median step inside it: for 28
+of the 29 that ratio is at or below 1, and for Noise the jump is exactly zero
+because its last word *is* its first. Roland cut these to be looped whole.
+
+That fixes the count as well. Twenty pages one sample each (PCM 48..67), seven
+for Spect1..7, one for Manlp2, and eight for Noise: 29 samples in 36 pages.
+Every one of the 17 timbre steps `timbre_boundaries()` measures in the zone is
+a sample start under that reading, and there is no step anywhere inside pages
+121..127 -- which is what a single sample there predicts and what nine samples
+there could not explain. Confirmed by ear over the whole zone.
+
+The rest of this section is what it took to get there, kept as a record of
+which methods failed. Two findings from the one law those samples obey (a loop
+repeats at exactly one period):
 
 - **PCM 60 (CELLlp) and PCM 62 (Reedlp) are wrong.** Their regions contain
   internal period changes -- 256 to 127 to 128 across CELLlp, and 128 to 256
@@ -229,15 +282,21 @@ Spect3, Spect4, Spect6 and Spect7. For several of those a half or a quarter
 of the region loops perfectly while the rest does not, which is what a region
 merging two samples looks like.
 
-The period changes in that zone land on 512-word positions, not on the 2048
-grid the table uses, so the static boundaries were quantised too coarsely.
-Deriving the correct ones automatically did not work: the Spect series and
-Noise are aperiodic by construction, so a segmentation that scores periodicity
-puts its boundaries wherever it likes there. The stretch was settled the way
-every other boundary in this table was -- by ear, from candidate splits: the
-one following the measured period zones won, giving CELLlp 1536 words,
-VIOLlp 5632 and Reedlp 7168. The two strings come out at 257 and 263 Hz,
-which is why no amount of period analysis could have separated them.
+All of that was measurement of the wrong thing, and it is worth saying why it
+went wrong for so long. Every one of those methods -- brightness blocks,
+periodicity scoring, loop-quality scoring, the general-purpose loop finder --
+asked how *good* a candidate boundary was, and each produced an optimum that
+measured well and sounded wrong. The question that worked asked instead
+whether the data repeats exactly, which has a yes-or-no answer the ROM
+supplies itself. Where a proof is available, a score is a liability: it will
+always return something.
+
+The estimator in `d5_make_blob.py` is the same lesson in miniature. Against
+the proven cycles it called CLAVlp, VIOLlp and Manlp1 unpitched, put Horgan at
+113 Hz where the truth is 250, and returned -3.86 Hz for HC_lp -- parabolic
+interpolation can push bin 0 negative, and a negative root inverts the
+playback rate. It is clamped now, and only the attacks still go through it;
+the loops carry 32000/length, exact.
 
 **And there is no header.** The obvious way to build such a ROM is to put a
 small record in front of each sample carrying its length and pitch, so that
@@ -301,6 +360,8 @@ confirm or correct the hypothesis table sample by sample.
 
 | File | What it does |
 |---|---|
+| `d5_attacks.py` | **PCM 1..47 on their own, frozen.** Standalone: its own ROM identification, its own decoder, the 47 boundaries as data. `--verify` checks a ROM set against it -- name table, page alignment, gaplessness, energy, and the 22 boundaries the silence padding marks. It duplicates `d5_rom.py` on purpose, so that work on the rest of the ROM cannot break the settled part. |
+| `d5_loops.py` | **PCM 48..76, one question at a time.** `--starts` proposes boundaries from timbre steps, `--cut` writes each region as the ROM holds it (tiled at its stored rate, no interpolation, no pitch correction), `--ends` asks whether a loop end exists before the next start. Start points live in `d5_loop_starts.json` and are meant to be edited as the listening settles them. |
 | `d5_rom.py` | CRC identification, dump folding, PCM decode, name table, per-page acoustic classification. Importable; run directly for a ROM-set summary. |
 | `d5_wavedump.py` | renders the decoded PCM space to WAV (full + per chip) for listening. |
 | `d5_table_scan.py` | anchored sample-table search over a binary image (how the EPROM and internal ROM were ruled out). |
@@ -311,8 +372,8 @@ confirm or correct the hypothesis table sample by sample.
 | `d5_syx_to_patches.py` | converts a D-50 SysEx bulk dump into `d5_patch_data.h`: 64 patches as raw parameter bytes, checksums and parameter ranges verified. |
 | `d5_bq3_decompress.py` | unpacks a Roland Boutique BQ3 firmware update (D-05) into its components -- Okumura LZSS, verified against the loader's own routine. |
 | `d5_review_render.py` | renders the frozen table for review by ear: one-shots padded with silence, loops tiled and pitch-normalised, plus one file with all of them in order, and the unprocessed cuts under `raw/`. |
-| `d5_loop_audit.py` | judges every static loop with `cp_sampleprep/FindLoopPoints`: a sustain loop that will not loop is not one. |
-| `d5_repartition.py` | re-splits the stretches that fail that audit, scoring candidate partitions with the same loop finder. |
+| `d5_loop_audit.py` | judges every static loop with `cp_sampleprep/FindLoopPoints`. Superseded by the exact-repetition test in `d5_loops.py`; kept because it is what showed the general-purpose loop finder to be the wrong judge here. |
+| `d5_repartition.py` | re-splits the stretches that fail that audit, scoring candidate partitions with the same loop finder. Superseded, and its results were rejected by ear -- kept as the record of a method that produced a confident wrong answer. |
 | `d5_sample_table.json` | the frozen table: start, length, loop flag and provenance per sample. |
 
 ```bash
