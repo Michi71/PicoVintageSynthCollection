@@ -8,6 +8,12 @@
 
 namespace d5 {
 
+// The control rate: LFOs, pitch envelope and routing run every kModPeriod
+// samples -- 2 kHz at the engine's 32 kHz -- with pitch and amplitude
+// ramped linearly across the block. Nothing routed here moves faster than
+// 28 Hz, and computing it per sample was most of what a voice cost.
+inline constexpr int kModPeriod = 16;
+
 struct Modulation {
     float pitch = 1.0f;    // multiplies the playback rate / frequency
     float amp = 1.0f;      // multiplies the output level (TVA modulation)

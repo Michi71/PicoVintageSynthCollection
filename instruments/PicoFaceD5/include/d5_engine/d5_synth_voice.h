@@ -23,6 +23,8 @@
 
 #include "d5_engine/d5_env.h"
 #include "d5_engine/d5_fastmath.h"
+#include "d5_engine/d5_hot.h"
+#include "d5_engine/d5_mod.h"
 #include "d5_engine/d5_mod.h"
 
 namespace d5 {
@@ -48,9 +50,15 @@ public:
         sr_ = sample_rate;
         gain_ = velocity;
         phase_ = 0.0f;
-        res_phase_ = 0.0f;
         active_ = true;
         freq_ = 440.0f * std::pow(2.0f, (note - 69.0f) / 12.0f) * detune;
+        q_ = 0.7f + 24.0f * spec.resonance * spec.resonance;
+        cyc_ = 0.0f;
+        res_env_ = 1.0f;
+        inv_cutoff_ = 1.0f / 1000.0f;   // neutral until the first block_mod
+        cut_per_sr_ = 0.0f;
+        decay_mul_ = 1.0f;
+        pw_eff_ = spec.pulse_width;
         // TVF keyfollow: the cutoff tracks the keyboard by its own ratio,
         // also pivoted on C4. Precomputed here as an offset on the 0..1
         // cutoff scale, whose exponent spans log2(400) octaves.
@@ -68,26 +76,42 @@ public:
 
     bool active() const { return active_; }
 
-    float next(const Modulation& mod = Modulation{}) {
+    // The block-rate half, called once per kModPeriod samples: the TVF
+    // envelope, the cutoff exponential, the slope reciprocal and the
+    // resonance decay constant. None of it moves at audio rate, and per
+    // sample it was most of what this partial cost.
+    void block_mod(const Modulation& mod) {
+        if (!active_) return;
+        const float env = tvf_.next_n(kModPeriod);
+        float c = spec_.cutoff + kf_shift_ + spec_.tvf_env_depth * env + mod.cutoff;
+        if (c < 0.02f) c = 0.02f;
+        if (c > 1.0f) c = 1.0f;
+        // 40 Hz .. 16 kHz -- once std::pow per sample, the single most
+        // expensive thing this engine ever did, now one table read per block.
+        const float cutoff_hz = 40.0f * fast_exp2(kLog2Range * c);
+        inv_cutoff_ = 1.0f / cutoff_hz;
+        cut_per_sr_ = cutoff_hz / sr_;
+        pw_eff_ = clampf(spec_.pulse_width + mod.pw, 0.05f, 0.95f);
+        if (spec_.resonance > 0.0f) {
+            // The ring decays by exp(-pi*cycles/q); advancing cycles by
+            // cut_per_sr_ each sample makes that one multiply, and the
+            // constant needs the table only when the cutoff moves.
+            decay_mul_ = fast_exp_neg(kPi * cut_per_sr_ / q_);
+        }
+    }
+
+    float D5_HOT(next)(const Modulation& mod = Modulation{}) {
         if (!active_) return 0.0f;
 
         // Cutoff in harmonics of the fundamental: the cosine slopes take one
         // period of the cutoff frequency, so a cutoff near the fundamental
         // leaves almost a sine, and a high one leaves nearly square edges.
-        const float env = tvf_.next();
-        float c = spec_.cutoff + kf_shift_ + spec_.tvf_env_depth * env + mod.cutoff;
-        if (c < 0.02f) c = 0.02f;
-        if (c > 1.0f) c = 1.0f;
-        // 40 Hz .. 16 kHz. Was std::pow once per sample per partial, which
-        // is the single most expensive thing this engine ever did.
-        const float cutoff_hz = 40.0f * fast_exp2(kLog2Range * c);
         const float freq = freq_ * mod.pitch;
-        float slope = freq / cutoff_hz;                        // cycle fraction
+        float slope = freq * inv_cutoff_;                      // cycle fraction
         if (slope > 0.45f) slope = 0.45f;
         if (slope < 1.0f / 64.0f) slope = 1.0f / 64.0f;
 
-        const float pw = clampf(spec_.pulse_width + mod.pw, 0.05f, 0.95f);
-        float out = segment(phase_, pw, slope);
+        float out = segment(phase_, pw_eff_, slope);
 
         if (spec_.waveform == Waveform::kSawtooth) {
             // the chip's sawtooth: the square multiplied by a synchronous
@@ -99,26 +123,22 @@ public:
         if (spec_.resonance > 0.0f) {
             // A sine at the cutoff, restarted every cycle of the fundamental
             // and decaying inside it -- the chip's stand-in for a resonant
-            // filter. The decay has to be counted in cycles of the cutoff,
-            // not in samples: a resonance of Q rings for about Q of them, and
-            // measuring it per sample makes it an impulse (which reads as a
-            // click and as broadband energy, not as resonance).
-            const float cycles = cutoff_hz * res_phase_ / sr_;
-            const float q = 0.7f + 24.0f * spec_.resonance * spec_.resonance;
-            const float decay = fast_exp_neg(kPi * cycles / q);
+            // filter. The decay counts in cycles of the cutoff, not samples.
+            cyc_ += cut_per_sr_;
+            res_env_ *= decay_mul_;
             // fade the ring in over its first quarter cycle so its restart
             // does not click
-            const float w = cycles < 0.25f
-                                ? 0.5f - 0.5f * fast_cos(2.0f * cycles)
+            const float w = cyc_ < 0.25f
+                                ? 0.5f - 0.5f * fast_cos(2.0f * cyc_)
                                 : 1.0f;
-            out += spec_.resonance * decay * w * fast_sin(cycles);
-            res_phase_ += 1.0f;
+            out += spec_.resonance * res_env_ * w * fast_sin(cyc_);
         }
 
         phase_ += inc_ * mod.pitch;
         if (phase_ >= 1.0f) {
             phase_ -= 1.0f;
-            res_phase_ = 0.0f;          // resonance restarts with the cycle
+            cyc_ = 0.0f;                // resonance restarts with the cycle
+            res_env_ = 1.0f;
         }
 
         const float amp = tva_.next();
@@ -157,7 +177,13 @@ private:
     float kf_shift_ = 0.0f;
     float inc_ = 0.0f;
     float phase_ = 0.0f;
-    float res_phase_ = 0.0f;
+    float inv_cutoff_ = 0.001f;
+    float cut_per_sr_ = 0.0f;
+    float decay_mul_ = 1.0f;
+    float pw_eff_ = 0.5f;
+    float cyc_ = 0.0f;
+    float res_env_ = 1.0f;
+    float q_ = 0.7f;
     float gain_ = 1.0f;
     bool active_ = false;
 };

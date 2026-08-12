@@ -75,6 +75,33 @@ public:
     // -1 .. +1, faded in over the delay time. The chip ramps rather than
     // switching on, which is why a delayed vibrato swells instead of
     // appearing.
+    // The block-rate step: value from the current phase, then advance by n.
+    float next_n(int32_t n) {
+        float v;
+        switch (spec_.wave) {
+            case LfoWave::kSawtooth: v = 2.0f * phase_ - 1.0f; break;
+            case LfoWave::kSquare:   v = phase_ < 0.5f ? 1.0f : -1.0f; break;
+            case LfoWave::kRandom:   v = sample_; break;
+            case LfoWave::kTriangle:
+            default: v = phase_ < 0.5f ? (4.0f * phase_ - 1.0f)
+                                       : (3.0f - 4.0f * phase_); break;
+        }
+        phase_ += inc_ * n;
+        while (phase_ >= 1.0f) {
+            phase_ -= 1.0f;
+            sample_ = next_random();
+        }
+        if (delay_left_ > 0.0f) {
+            delay_left_ -= n;
+            return 0.0f;
+        }
+        if (ramp_ < 1.0f) {
+            ramp_ += n / (0.05f * sr_);
+            if (ramp_ > 1.0f) ramp_ = 1.0f;
+        }
+        return v * ramp_;
+    }
+
     float next() {
         float v;
         switch (spec_.wave) {
@@ -158,6 +185,27 @@ public:
             held_ = false;
             arm(3, spec_.end);
         }
+    }
+
+    // Pitch factor, advanced n samples at once (control rate).
+    float next_n(int32_t n) {
+        while (n > 0) {
+            if (remaining_ > 0) {
+                const int32_t k = remaining_ < n ? remaining_ : n;
+                level_ += step_ * k;
+                remaining_ -= k;
+                n -= k;
+            } else if (held_ && seg_ < 2) {
+                arm(seg_ + 1, seg_ + 1 == 1 ? spec_.l2 : spec_.sustain);
+            } else if (held_) {
+                level_ = spec_.sustain;
+                break;
+            } else {
+                break;
+            }
+        }
+        const float cents = level_ * spec_.depth_cents;
+        return cents == 0.0f ? 1.0f : fast_exp2(cents * (1.0f / 1200.0f));
     }
 
     // Pitch factor to multiply the playback rate / frequency by.

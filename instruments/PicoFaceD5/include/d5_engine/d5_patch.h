@@ -15,6 +15,7 @@
 #include <cstdint>
 
 #include "d5_engine/d5_effects.h"
+#include "d5_engine/d5_hot.h"
 #include "d5_engine/d5_voice.h"
 
 namespace d5 {
@@ -63,7 +64,7 @@ public:
         }
     }
 
-    float next() {
+    float D5_HOT(next)() {
         float sum = 0.0f;
         for (int i = 0; i < kVoices; ++i) {
             if (!active_[i]) continue;
@@ -143,7 +144,7 @@ public:
         lower_.note_off(note);
     }
 
-    float next() {
+    float D5_HOT(next)() {
         const float b = spec_.balance < 0 ? 0 : (spec_.balance > 1 ? 1 : spec_.balance);
         const float mix = upper_.next() * (b > 0.5f ? 2.0f * (1.0f - b) : 1.0f) +
                           lower_.next() * (b < 0.5f ? 2.0f * b : 1.0f);

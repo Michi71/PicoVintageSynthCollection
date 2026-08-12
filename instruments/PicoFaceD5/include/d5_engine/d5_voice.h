@@ -29,6 +29,7 @@
 #include <cstdint>
 
 #include "d5_engine/d5_fastmath.h"
+#include "d5_engine/d5_hot.h"
 #include "d5_engine/d5_lfo.h"
 #include "d5_engine/d5_pcm_voice.h"
 #include "d5_engine/d5_synth_voice.h"
@@ -116,6 +117,11 @@ public:
         }
         penv_.start(spec_.penv, sample_rate);
 
+        mod_count_ = 0;
+        mod_[0] = Modulation{};
+        mod_[1] = Modulation{};
+        dpitch_[0] = dpitch_[1] = 0.0f;
+        damp_[0] = damp_[1] = 0.0f;
         for (int i = 0; i < 2; ++i) {
             const float n = 60.0f
                 + spec_.keyfollow[i] * static_cast<float>(note - 60)
@@ -154,18 +160,21 @@ public:
         return st.ring ? a : (a || b);
     }
 
-    float next() {
+    // Control rate: everything the LFOs and the pitch envelope feed changes
+    // at tens of hertz at most, so it is computed once per kModPeriod
+    // samples. Pitch and amplitude ramp linearly across the block so nothing
+    // steps; cutoff and pulse width hold, and the synth partial recomputes
+    // its own block-rate half from them at the same moment.
+    void update_block() {
+        mod_count_ = kModPeriod;
         const Structure& st = structure();
+        const float l[3] = {lfo_[0].next_n(kModPeriod), lfo_[1].next_n(kModPeriod),
+                            lfo_[2].next_n(kModPeriod)};
+        const float pitch_env = penv_.next_n(kModPeriod);
 
-        const float l[3] = {lfo_[0].next(), lfo_[1].next(), lfo_[2].next()};
-        const float pitch_env = penv_.next();
-
-        Modulation mod[2];
         for (int i = 0; i < 2; ++i) {
             const LfoRoute& pr = spec_.pitch_lfo[i];
             const float cents = 600.0f * pr.depth * lfo_value(l, pr);
-            // Per sample and per partial, so 32 of these a sample at full
-            // polyphony -- libm pow was not affordable here.
             float factor = cents != 0.0f
                                ? fast_exp2(cents * (1.0f / 1200.0f)) : 1.0f;
             if (spec_.penv_mode[i] == PEnvMode::kPositive) {
@@ -173,19 +182,33 @@ public:
             } else if (spec_.penv_mode[i] == PEnvMode::kNegative) {
                 factor /= pitch_env;
             }
-            mod[i].pitch = factor * bend_;
-            mod[i].pw = 0.5f * spec_.pw_lfo[i].depth * lfo_value(l, spec_.pw_lfo[i]);
-            mod[i].cutoff = 0.5f * spec_.tvf_lfo[i].depth * lfo_value(l, spec_.tvf_lfo[i]);
+            const float tgt_pitch = factor * bend_;
+            mod_[i].pw = 0.5f * spec_.pw_lfo[i].depth * lfo_value(l, spec_.pw_lfo[i]);
+            mod_[i].cutoff = 0.5f * spec_.tvf_lfo[i].depth * lfo_value(l, spec_.tvf_lfo[i]);
             // amplitude modulation only ever ducks, never boosts past unity
             const float am = spec_.tva_lfo[i].depth * lfo_value(l, spec_.tva_lfo[i]);
-            mod[i].amp = 1.0f + 0.5f * (am - std::fabs(spec_.tva_lfo[i].depth));
-            if (mod[i].amp < 0.0f) mod[i].amp = 0.0f;
+            float tgt_amp = 1.0f + 0.5f * (am - std::fabs(spec_.tva_lfo[i].depth));
+            if (tgt_amp < 0.0f) tgt_amp = 0.0f;
+            dpitch_[i] = (tgt_pitch - mod_[i].pitch) * (1.0f / kModPeriod);
+            damp_[i] = (tgt_amp - mod_[i].amp) * (1.0f / kModPeriod);
+            const PartialType t = (i == 0) ? st.p1 : st.p2;
+            if (t == PartialType::kSynth) synth_[i].block_mod(mod_[i]);
         }
+    }
 
-        float a = (st.p1 == PartialType::kPcm) ? pcm_[0].next(mod[0])
-                                               : synth_[0].next(mod[0]);
-        float b = (st.p2 == PartialType::kPcm) ? pcm_[1].next(mod[1])
-                                               : synth_[1].next(mod[1]);
+    float D5_HOT(next)() {
+        const Structure& st = structure();
+        if (mod_count_ == 0) update_block();
+        --mod_count_;
+        mod_[0].pitch += dpitch_[0];
+        mod_[0].amp += damp_[0];
+        mod_[1].pitch += dpitch_[1];
+        mod_[1].amp += damp_[1];
+
+        float a = (st.p1 == PartialType::kPcm) ? pcm_[0].next(mod_[0])
+                                               : synth_[0].next(mod_[0]);
+        float b = (st.p2 == PartialType::kPcm) ? pcm_[1].next(mod_[1])
+                                               : synth_[1].next(mod_[1]);
         if (!(spec_.partials_on & 0x1)) a = 0.0f;
         if (!(spec_.partials_on & 0x2)) b = 0.0f;
 
@@ -223,6 +246,10 @@ private:
     Lfo lfo_[3]{};
     PitchEnv penv_{};
     float bend_ = 1.0f;
+    Modulation mod_[2]{};
+    float dpitch_[2] = {0.0f, 0.0f};
+    float damp_[2] = {0.0f, 0.0f};
+    int mod_count_ = 0;
 };
 
 }  // namespace d5

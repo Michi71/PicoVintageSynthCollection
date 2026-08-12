@@ -9,6 +9,8 @@
 
 #include <cstdint>
 
+#include "d5_engine/d5_hot.h"
+
 namespace d5 {
 
 struct Env5Spec {
@@ -38,7 +40,33 @@ public:
     bool finished() const { return !held_ && seg_ >= 5; }
     float level() const { return level_ < 0.0f ? 0.0f : level_; }
 
-    float next() {
+    // Advance n samples at once -- the control-rate path. Segment changes
+    // land on block edges; the shortest documented segment (4 ms) still
+    // spans eight blocks, so nothing audible is lost.
+    float next_n(int32_t n) {
+        while (n > 0) {
+            if (remaining_ > 0) {
+                const int32_t k = remaining_ < n ? remaining_ : n;
+                level_ += step_ * k;
+                remaining_ -= k;
+                n -= k;
+            } else if (held_ && seg_ < 3) {
+                arm(seg_ + 1, seg_ + 1 < 3 ? spec_.l[seg_ + 1] : spec_.sustain);
+            } else if (held_) {
+                level_ = spec_.sustain;
+                break;
+            } else if (seg_ == 4) {
+                seg_ = 5;
+                level_ = spec_.end;
+                break;
+            } else {
+                break;
+            }
+        }
+        return level();
+    }
+
+    float D5_HOT(next)() {
         if (remaining_ > 0) {
             level_ += step_;
             --remaining_;

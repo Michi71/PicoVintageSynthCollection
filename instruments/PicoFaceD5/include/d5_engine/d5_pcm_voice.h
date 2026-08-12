@@ -19,6 +19,7 @@
 #include <cstdint>
 
 #include "d5_engine/d5_env.h"
+#include "d5_engine/d5_hot.h"
 #include "d5_engine/d5_mod.h"
 
 namespace d5 {
@@ -57,7 +58,7 @@ public:
     void note_off() { env_.release(); }
     bool active() const { return active_; }
 
-    float next(const Modulation& mod = Modulation{}) {
+    float D5_HOT(next)(const Modulation& mod = Modulation{}) {
         if (!active_) return 0.0f;
 
         const uint32_t i = index_;

@@ -24,6 +24,7 @@
 #include <cstdint>
 
 #include "d5_engine/d5_fastmath.h"
+#include "d5_engine/d5_hot.h"
 
 namespace d5 {
 
@@ -56,7 +57,7 @@ public:
 
     void reset() { z1_ = z2_ = 0.0f; }
 
-    float process(float x) {
+    float D5_HOT(process)(float x) {
         const float y = b0_ * x + z1_;
         z1_ = b1_ * x - a1_ * y + z2_;
         z2_ = b2_ * x - a2_ * y;
@@ -106,7 +107,7 @@ public:
         high_.reset();
     }
 
-    float process(float x) { return high_.process(low_.process(x)); }
+    float D5_HOT(process)(float x) { return high_.process(low_.process(x)); }
 
 private:
     static int clamp_index(int v, int n) { return v < 0 ? 0 : (v >= n ? n - 1 : v); }
@@ -161,7 +162,7 @@ public:
     // chord rings should not restart the chorus.
     void set_balance(float b) { spec_.balance = clamp01(b); }
 
-    float process(float x) {
+    float D5_HOT(process)(float x) {
         const ChorusType& t = kChorusTypes[clamp_index(spec_.type, 8)];
         float wet = 0.0f;
         for (int v = 0; v < t.voices; ++v) {
@@ -271,7 +272,7 @@ public:
 
     void note_activity() { age_ = 0; }      // a gate restarts with the note
 
-    float process(float x) {
+    float D5_HOT(process)(float x) {
         pre_[pre_i_] = x;
         int r = pre_i_ - predelay_;
         if (r < 0) r += kPre;
