@@ -9,9 +9,9 @@
    "start": 0,
    "end": 4096,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 2,
-   "root_hz": 250.0
+   "root_hz": 31.25
   },
   {
    "pcm": 2,
@@ -39,9 +39,9 @@
    "start": 12288,
    "end": 16384,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 2,
-   "root_hz": 125.0
+   "root_hz": 250.0
   },
   {
    "pcm": 5,
@@ -49,9 +49,9 @@
    "start": 16384,
    "end": 24576,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 4,
-   "root_hz": 500.0
+   "root_hz": 62.5
   },
   {
    "pcm": 6,
@@ -79,9 +79,9 @@
    "start": 28672,
    "end": 30720,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 1,
-   "root_hz": 250.0
+   "root_hz": 125.0
   },
   {
    "pcm": 9,
@@ -89,9 +89,9 @@
    "start": 30720,
    "end": 32768,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 1,
-   "root_hz": 125.0
+   "root_hz": 250.0
   },
   {
    "pcm": 10,
@@ -109,7 +109,7 @@
    "start": 34816,
    "end": 36864,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "native-rate root, proven by the Pizzagogo reference recording",
    "pages": 1,
    "root_hz": 125.0
   },
@@ -159,9 +159,9 @@
    "start": 49152,
    "end": 57344,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 4,
-   "root_hz": 500.0
+   "root_hz": 62.5
   },
   {
    "pcm": 17,
@@ -179,9 +179,9 @@
    "start": 65536,
    "end": 73728,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 4,
-   "root_hz": 62.5
+   "root_hz": 500.0
   },
   {
    "pcm": 19,
@@ -199,9 +199,9 @@
    "start": 81920,
    "end": 86016,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 2,
-   "root_hz": 125.0
+   "root_hz": 1000.0
   },
   {
    "pcm": 21,
@@ -209,9 +209,9 @@
    "start": 86016,
    "end": 90112,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 2,
-   "root_hz": 125.0
+   "root_hz": 250.0
   },
   {
    "pcm": 22,
@@ -229,9 +229,9 @@
    "start": 94208,
    "end": 98304,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 2,
-   "root_hz": 125.0
+   "root_hz": 250.0
   },
   {
    "pcm": 24,
@@ -279,9 +279,9 @@
    "start": 114688,
    "end": 118784,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 2,
-   "root_hz": 500.0
+   "root_hz": 62.5
   },
   {
    "pcm": 29,
@@ -289,9 +289,9 @@
    "start": 118784,
    "end": 122880,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 2,
-   "root_hz": 250.0
+   "root_hz": 125.0
   },
   {
    "pcm": 30,
@@ -299,9 +299,9 @@
    "start": 122880,
    "end": 126976,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 2,
-   "root_hz": 250.0
+   "root_hz": 125.0
   },
   {
    "pcm": 31,
@@ -319,9 +319,9 @@
    "start": 131072,
    "end": 135168,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 2,
-   "root_hz": 125.0
+   "root_hz": 1000.0
   },
   {
    "pcm": 33,
@@ -329,9 +329,9 @@
    "start": 135168,
    "end": 139264,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 2,
-   "root_hz": 125.0
+   "root_hz": 500.0
   },
   {
    "pcm": 34,
@@ -339,9 +339,9 @@
    "start": 139264,
    "end": 143360,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 2,
-   "root_hz": 125.0
+   "root_hz": 1000.0
   },
   {
    "pcm": 35,
@@ -349,9 +349,9 @@
    "start": 143360,
    "end": 147456,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 2,
-   "root_hz": 62.5
+   "root_hz": 500.0
   },
   {
    "pcm": 36,
@@ -369,9 +369,9 @@
    "start": 149504,
    "end": 151552,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 1,
-   "root_hz": 250.0
+   "root_hz": 1000.0
   },
   {
    "pcm": 38,
@@ -409,9 +409,9 @@
    "start": 159744,
    "end": 163840,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 2,
-   "root_hz": 62.5
+   "root_hz": 1000.0
   },
   {
    "pcm": 42,
@@ -419,9 +419,9 @@
    "start": 163840,
    "end": 167936,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 2,
-   "root_hz": 62.5
+   "root_hz": 1000.0
   },
   {
    "pcm": 43,
@@ -439,9 +439,9 @@
    "start": 172032,
    "end": 176128,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 2,
-   "root_hz": 250.0
+   "root_hz": 125.0
   },
   {
    "pcm": 45,
@@ -449,9 +449,9 @@
    "start": 176128,
    "end": 180224,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 2,
-   "root_hz": 125.0
+   "root_hz": 500.0
   },
   {
    "pcm": 46,
@@ -459,9 +459,9 @@
    "start": 180224,
    "end": 184320,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "measured, snapped to 32000/2^k",
    "pages": 2,
-   "root_hz": 62.5
+   "root_hz": 1000.0
   },
   {
    "pcm": 47,
@@ -469,7 +469,7 @@
    "start": 184320,
    "end": 188416,
    "looped": false,
-   "basis": "bank-implied octave on the 2^k series",
+   "basis": "native-rate root, proven by the Pizzagogo reference recording",
    "pages": 2,
    "root_hz": 62.5
   },
