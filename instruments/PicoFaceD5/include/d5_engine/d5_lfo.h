@@ -28,13 +28,35 @@ struct LfoSpec {
     bool key_sync = true;     // panel "Sync": restart the phase on note-on
 };
 
-// Panel 0..100 to Hz. The range spans five decades, so it has to be
-// exponential -- a linear map would put everything usable in the last
-// few steps.
+// Panel 0..100 to Hz, read from the D-05 firmware's own table (BQ3:Appli at
+// 0xE32B4: Q31 phase increments at 32 kHz, doubling every 8 steps of its
+// 128-step internal range). Its endpoints are the service notes' 0.0004 and
+// 27 Hz to the fourth digit, which is what earns it the place of the
+// hand-built exponential -- the two differed by at most a few percent, but
+// verbatim beats fitted.
+inline constexpr float kLfoRateHz[101] = {
+    0.000432134f, 0.000476837f, 0.000581145f, 0.00064075f, 0.000700355f, 0.000759959f,
+    0.000938773f, 0.00102818f, 0.00111759f, 0.00117719f, 0.00141561f, 0.00156462f,
+    0.00169873f, 0.00199676f, 0.00223517f, 0.00241399f, 0.0026226f, 0.00312924f,
+    0.00341237f, 0.00372529f, 0.00405312f, 0.00482798f, 0.00526011f, 0.00573695f,
+    0.00625849f, 0.00745058f, 0.00812113f, 0.00885129f, 0.0105351f, 0.0114888f,
+    0.012517f, 0.0136644f, 0.0162423f, 0.0177175f, 0.0193119f, 0.0210702f,
+    0.0250489f, 0.0273287f, 0.0298023f, 0.035435f, 0.0386387f, 0.0421405f,
+    0.0459552f, 0.0546575f, 0.0596046f, 0.0649989f, 0.0708699f, 0.084281f,
+    0.0919104f, 0.10024f, 0.119209f, 0.129998f, 0.141755f, 0.154585f,
+    0.183836f, 0.20048f, 0.21863f, 0.238419f, 0.283524f, 0.309184f,
+    0.337169f, 0.367686f, 0.43726f, 0.476837f, 0.519991f, 0.618368f,
+    0.674337f, 0.735372f, 0.801936f, 0.953674f, 1.03998f, 1.13411f,
+    1.23675f, 1.47076f, 1.60387f, 1.74904f, 2.07996f, 2.26822f,
+    2.47352f, 2.69739f, 3.20776f, 3.49809f, 3.8147f, 4.15994f,
+    4.94704f, 5.39479f, 5.88305f, 6.41552f, 7.62939f, 8.3199f,
+    9.07293f, 10.7896f, 11.7661f, 12.831f, 13.9924f, 16.6398f,
+    18.1459f, 19.7882f, 21.5792f, 25.6621f, 27.9847f};
+
 inline float lfo_rate_hz(float v) {
     if (v < 0.0f) v = 0.0f;
     if (v > 1.0f) v = 1.0f;
-    return 0.0004f * std::pow(27.0f / 0.0004f, v);
+    return kLfoRateHz[static_cast<int>(v * 100.0f + 0.5f)];
 }
 
 class Lfo {
