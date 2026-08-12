@@ -55,6 +55,18 @@ inline float env_time(uint8_t v, float lo = 0.004f, float hi = 80.0f,
 
 inline float level01(uint8_t v) { return v * 0.01f; }
 
+// Falling-segment decay rate in dB/s from the time byte. Two anchors from
+// reference recordings: Horn Section's release byte 37 measures -37.8 dB/s,
+// and Pizzagogo's body bytes around 50..59 measure a constant -34; the
+// exponential through them puts Soundtrack's byte 67 at -27, safely under
+// its Chapel reverb's -16.5, which is exactly what that recording shows.
+// Below byte 8 the duration path stays in charge -- those are the instant
+// releases, where a rate would drag.
+inline float env_rate_db_s(uint8_t v) {
+    if (v < 8) return 0.0f;
+    return 37.0f * fast_exp2(-(static_cast<float>(v) - 40.0f) * (1.0f / 60.0f));
+}
+
 // The bipolar panel values: 0..100 shown as -50..+50.
 inline float bipolar(uint8_t v) { return (v - 50) * 0.02f; }
 
@@ -251,6 +263,13 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
     s.tva_env.sustain = level01(p[47]) * level;
     s.tva_env.end = (p[48] ? 1.0f : 0.0f) * level;
     s.tva_env.log_segments = true;     // TVA decays in dB, see Env5Spec
+    for (int k = 0; k < 5; ++k) s.tva_env.r[k] = env_rate_db_s(p[39 + k]);
+    // The release runs on a scale of its own, three times the decay rates:
+    // Stereo Polysynth's release byte 52 measures about -100 dB/s where
+    // Pizzagogo's decay bytes 50..59 measure -34, and with the factor in
+    // place every one of the five reference tails comes out env- or
+    // reverb-limited exactly as recorded.
+    s.tva_env.r[4] *= 3.0f;
     v.pcm_env[index] = s.tva_env;      // the sampled partial shares it
 
     v.keyfollow[index] = keyfollow_ratio(p[2], 16);

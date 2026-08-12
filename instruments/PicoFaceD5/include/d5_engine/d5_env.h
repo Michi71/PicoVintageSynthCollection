@@ -25,6 +25,13 @@ struct Env5Spec {
     // dives. TVA envelopes set this; TVF keeps linear segments because its
     // output feeds a cutoff that is already exponential.
     bool log_segments = false;
+    // Per-segment decay RATES in dB/s, used for falling log segments when
+    // non-zero. The LA chip's time bytes set rates, not durations -- the
+    // proof is Horn Section, whose measured release of -37.8 dB/s equals
+    // its byte through the fitted map, while duration semantics predicted
+    // -108 -- and munt implements the MT-32 sibling the same way. Rising
+    // segments keep durations.
+    float r[5] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 };
 
 class Env5 {
@@ -116,6 +123,13 @@ private:
         if (!seg_log_) { factor_ = 1.0f; return; }
         const float from = level_ < kFloor ? kFloor : level_;
         const float to = target < kFloor ? kFloor : target;
+        if (spec_.r[seg] > 0.0f) {
+            // Rate semantics: duration follows from the distance in dB.
+            const float dist_db = 20.0f * std::log10(from / to);
+            remaining_ = static_cast<int32_t>(dist_db / spec_.r[seg] * sr_);
+            if (remaining_ < 1) remaining_ = 1;
+            step_ = (target - level_) / remaining_;
+        }
         factor_ = std::pow(to / from, 1.0f / static_cast<float>(remaining_));
         if (level_ < kFloor) level_ = kFloor;
     }

@@ -219,23 +219,47 @@ struct ReverbType {
     float gate_ms;      // 0 = no gate; otherwise the tail is cut there
 };
 
+// One entry per panel reverb type. The decay column is calibrated against
+// the reference recordings: three that share type 3 (Cathedral Organ,
+// Staccato Heaven, Pizzagogo) all decay at -10..-13 dB/s, so type 3 -- the
+// Large Hall -- carries T60 5.4 s; Soundtrack pins its Chapel, type 4, at
+// 3.6 s; and type 9 sits at 1.6 s so Horn Section's recorded -37.8 dB/s
+// tail reads as its reverb, which the numbers demand. The rest follows the
+// type list's character around those anchors. Damping, predelay and the
+// gated block's gates are the original values.
 inline constexpr ReverbType kReverbTypes[32] = {
-    {0.62f, 0.30f,  0.0f,   0.0f}, {0.68f, 0.30f,  8.0f,   0.0f},
-    {0.72f, 0.28f, 15.0f,   0.0f}, {0.76f, 0.26f, 22.0f,   0.0f},
-    {0.80f, 0.24f, 30.0f,   0.0f}, {0.84f, 0.22f, 38.0f,   0.0f},
-    {0.87f, 0.20f, 45.0f,   0.0f}, {0.90f, 0.18f, 55.0f,   0.0f},
-    {0.66f, 0.45f,  0.0f,   0.0f}, {0.71f, 0.42f, 10.0f,   0.0f},
-    {0.75f, 0.40f, 18.0f,   0.0f}, {0.79f, 0.38f, 26.0f,   0.0f},
-    {0.83f, 0.35f, 34.0f,   0.0f}, {0.86f, 0.33f, 42.0f,   0.0f},
-    {0.89f, 0.30f, 50.0f,   0.0f}, {0.92f, 0.28f, 60.0f,   0.0f},
-    {0.70f, 0.35f,  0.0f,  60.0f}, {0.74f, 0.33f,  5.0f,  90.0f},
-    {0.78f, 0.31f, 10.0f, 120.0f}, {0.82f, 0.29f, 15.0f, 160.0f},
-    {0.70f, 0.50f, 20.0f, 200.0f}, {0.74f, 0.48f, 25.0f, 260.0f},
-    {0.78f, 0.46f, 30.0f, 320.0f}, {0.82f, 0.44f, 35.0f, 400.0f},
-    {0.60f, 0.55f,  0.0f,   0.0f}, {0.64f, 0.52f, 12.0f,   0.0f},
-    {0.68f, 0.50f, 24.0f,   0.0f}, {0.72f, 0.48f, 36.0f,   0.0f},
-    {0.76f, 0.46f, 48.0f,   0.0f}, {0.80f, 0.44f, 60.0f,   0.0f},
-    {0.85f, 0.40f, 75.0f,   0.0f}, {0.93f, 0.15f, 90.0f,   0.0f},
+    {0.824f, 0.30f,   0.0f,   0.0f},   // 1: T60 1.0 s
+    {0.941f, 0.30f,   8.0f,   0.0f},   // 2: T60 3.2 s
+    {0.965f, 0.28f,  15.0f,   0.0f},   // 3: T60 5.4 s
+    {0.948f, 0.26f,  22.0f,   0.0f},   // 4: T60 3.6 s
+    {0.724f, 0.24f,  30.0f,   0.0f},   // 5: T60 0.6 s
+    {0.807f, 0.22f,  38.0f,   0.0f},   // 6: T60 0.9 s
+    {0.785f, 0.20f,  45.0f,   0.0f},   // 7: T60 0.8 s
+    {0.862f, 0.18f,  55.0f,   0.0f},   // 8: T60 1.3 s
+    {0.886f, 0.45f,   0.0f,   0.0f},   // 9: T60 1.6 s
+    {0.886f, 0.42f,  10.0f,   0.0f},   // 10: T60 1.6 s
+    {0.908f, 0.40f,  18.0f,   0.0f},   // 11: T60 2.0 s
+    {0.923f, 0.38f,  26.0f,   0.0f},   // 12: T60 2.4 s
+    {0.933f, 0.35f,  34.0f,   0.0f},   // 13: T60 2.8 s
+    {0.941f, 0.33f,  42.0f,   0.0f},   // 14: T60 3.2 s
+    {0.948f, 0.30f,  50.0f,   0.0f},   // 15: T60 3.6 s
+    {0.955f, 0.28f,  60.0f,   0.0f},   // 16: T60 4.2 s
+    {0.879f, 0.35f,   0.0f,  60.0f},   // 17: T60 1.5 s
+    {0.892f, 0.33f,   5.0f,  90.0f},   // 18: T60 1.7 s
+    {0.903f, 0.31f,  10.0f, 120.0f},   // 19: T60 1.9 s
+    {0.912f, 0.29f,  15.0f, 160.0f},   // 20: T60 2.1 s
+    {0.879f, 0.50f,  20.0f, 200.0f},   // 21: T60 1.5 s
+    {0.892f, 0.48f,  25.0f, 260.0f},   // 22: T60 1.7 s
+    {0.903f, 0.46f,  30.0f, 320.0f},   // 23: T60 1.9 s
+    {0.912f, 0.44f,  35.0f, 400.0f},   // 24: T60 2.1 s
+    {0.679f, 0.55f,   0.0f,   0.0f},   // 25: T60 0.5 s
+    {0.759f, 0.52f,  12.0f,   0.0f},   // 26: T60 0.7 s
+    {0.807f, 0.50f,  24.0f,   0.0f},   // 27: T60 0.9 s
+    {0.839f, 0.48f,  36.0f,   0.0f},   // 28: T60 1.1 s
+    {0.871f, 0.46f,  48.0f,   0.0f},   // 29: T60 1.4 s
+    {0.898f, 0.44f,  60.0f,   0.0f},   // 30: T60 1.8 s
+    {0.923f, 0.40f,  75.0f,   0.0f},   // 31: T60 2.4 s
+    {0.968f, 0.15f,  90.0f,   0.0f},   // 32: T60 6.0 s
 };
 
 struct ReverbSpec {
