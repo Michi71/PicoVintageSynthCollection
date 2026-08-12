@@ -85,6 +85,32 @@ inline LfoRoute lfo_route(uint8_t select, uint8_t depth) {
     return r;
 }
 
+// The second curve family, from the same battery: 101 entries spanning
+// exactly 0..1.0 in the firmware's Q15 unit, sitting immediately after the
+// keyfollow table at 0xE28D8. Roughly x^1.8 -- convex, but nothing like the
+// ten-octave depth law -- and quantized in the steps of Roland's original
+// resolution. Used for the TVF envelope depth: the bank's median setting of
+// 70 comes out at 46% effect instead of a linear 70%, which tames the
+// factory sweeps without flattening them the way the depth law would have.
+inline constexpr float kAmountCurve[101] = {
+    0.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f,
+    0.015991f, 0.015991f, 0.015991f, 0.031982f, 0.031982f, 0.031982f,
+    0.031982f, 0.047974f, 0.047974f, 0.047974f, 0.062988f, 0.062988f,
+    0.062988f, 0.079987f, 0.079987f, 0.079987f, 0.079987f, 0.095978f,
+    0.095978f, 0.095978f, 0.110992f, 0.110992f, 0.110992f, 0.127991f,
+    0.127991f, 0.127991f, 0.142975f, 0.142975f, 0.142975f, 0.158997f,
+    0.158997f, 0.174988f, 0.174988f, 0.174988f, 0.189972f, 0.189972f,
+    0.189972f, 0.206970f, 0.206970f, 0.206970f, 0.222992f, 0.222992f,
+    0.222992f, 0.237976f, 0.237976f, 0.254974f, 0.269989f, 0.284973f,
+    0.284973f, 0.301971f, 0.316986f, 0.316986f, 0.333984f, 0.350983f,
+    0.364990f, 0.364990f, 0.381989f, 0.396973f, 0.396973f, 0.411987f,
+    0.428986f, 0.428986f, 0.443970f, 0.443970f, 0.460999f, 0.475983f,
+    0.475983f, 0.491974f, 0.507996f, 0.507996f, 0.522980f, 0.539978f,
+    0.539978f, 0.554993f, 0.571991f, 0.588989f, 0.588989f, 0.603973f,
+    0.619995f, 0.619995f, 0.634979f, 0.665985f, 0.697998f, 0.714996f,
+    0.745972f, 0.761993f, 0.793976f, 0.824982f, 0.855988f, 0.872986f,
+    0.904999f, 0.919983f, 0.953979f, 0.984985f, 1.000000f};
+
 // A bipolar parameter through the same law: fine around its center.
 inline float bipolar_curved(uint8_t v) {
     const int d = (int)v - 50;
@@ -107,13 +133,16 @@ inline LfoRoute lfo_route(uint8_t select, uint8_t depth);
 // WG Pitch Keyfollow, parameter offset 2: seventeen ratios straight from the
 // parameter list. Index 11 is the 1:1 the guessed mapping silently assumed
 // for everything -- true for 176 of the bank's 256 partials, wrong for 80.
-// s1 and s2 are Roland's stretched tunings, slightly wider than 1:1 by a
-// curve the documentation does not give numerically; they are carried as 1.0
-// until someone measures them on hardware, which errs by a few cents where
-// ignoring the byte erred by whole scale degrees.
+// s1 and s2 are Roland's stretched tunings, and the D-05 firmware states
+// them outright: its keyfollow table (BQ3:Appli at 0xE2894, Q15) runs
+// -32768, -16384, -8192, 0, 4096..32768, 40960, 49152, 65536, then 32786
+// and 32862 -- s1 = 1.000549, s2 = 1.002869, about 1.3 and 6.9 cents of
+// stretch at two octaves from center. Every other entry matches the
+// fractions below exactly, which is also the proof they are read right.
 inline constexpr float kKeyfollow[17] = {
     -1.0f, -0.5f, -0.25f, 0.0f, 0.125f, 0.25f, 0.375f, 0.5f,
-    0.625f, 0.75f, 0.875f, 1.0f, 1.25f, 1.5f, 2.0f, 1.0f, 1.0f};
+    0.625f, 0.75f, 0.875f, 1.0f, 1.25f, 1.5f, 2.0f,
+    1.0005493f, 1.0028687f};
 
 inline float keyfollow_ratio(uint8_t v, int limit) {
     return kKeyfollow[v > limit ? 11 : v];
@@ -189,7 +218,7 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
     // ---- TVF: cutoff, resonance and its envelope
     s.cutoff = level01(p[13]);
     s.resonance = p[14] / 30.0f;
-    s.tvf_env_depth = level01(p[18]);
+    s.tvf_env_depth = kAmountCurve[p[18] > 100 ? 100 : p[18]];
     s.tvf_env.t[0] = env_time(p[22]);
     s.tvf_env.t[1] = env_time(p[23]);
     s.tvf_env.t[2] = env_time(p[24]);
