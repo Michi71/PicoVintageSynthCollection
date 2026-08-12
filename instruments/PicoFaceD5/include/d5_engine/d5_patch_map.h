@@ -50,13 +50,30 @@ inline float level01(uint8_t v) { return v * 0.01f; }
 // The bipolar panel values: 0..100 shown as -50..+50.
 inline float bipolar(uint8_t v) { return (v - 50) * 0.02f; }
 
-// LFO select 0..5 is +1,+2,+3,-1,-2,-3: which LFO, and in which direction.
+// LFO select 0..5 is +1,-1,+2,-2,+3,-3 -- interleaved, per the MIDI
+// implementation's parameter list. The first guess here was +1,+2,+3,-1,-2,-3,
+// which sent every second modulation to the wrong LFO with the wrong sign.
 inline LfoRoute lfo_route(uint8_t select, uint8_t depth) {
     LfoRoute r;
     const int s = select > 5 ? 0 : select;
-    r.lfo = s % 3;
-    r.depth = (s < 3 ? 1.0f : -1.0f) * level01(depth);
+    r.lfo = s / 2;
+    r.depth = ((s & 1) ? -1.0f : 1.0f) * level01(depth);
     return r;
+}
+
+// WG Pitch Keyfollow, parameter offset 2: seventeen ratios straight from the
+// parameter list. Index 11 is the 1:1 the guessed mapping silently assumed
+// for everything -- true for 176 of the bank's 256 partials, wrong for 80.
+// s1 and s2 are Roland's stretched tunings, slightly wider than 1:1 by a
+// curve the documentation does not give numerically; they are carried as 1.0
+// until someone measures them on hardware, which errs by a few cents where
+// ignoring the byte erred by whole scale degrees.
+inline constexpr float kKeyfollow[17] = {
+    -1.0f, -0.5f, -0.25f, 0.0f, 0.125f, 0.25f, 0.375f, 0.5f,
+    0.625f, 0.75f, 0.875f, 1.0f, 1.25f, 1.5f, 2.0f, 1.0f, 1.0f};
+
+inline float keyfollow_ratio(uint8_t v, int limit) {
+    return kKeyfollow[v > limit ? 11 : v];
 }
 
 // RAM residence for the sustained cycles. The 29 loops total 38528 words --
@@ -155,22 +172,23 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
     s.tva_env.end = (p[48] ? 1.0f : 0.0f) * level;
     v.pcm_env[index] = s.tva_env;      // the sampled partial shares it
 
+    v.keyfollow[index] = keyfollow_ratio(p[2], 16);
+    s.cutoff_keyfollow = keyfollow_ratio(p[15], 14);
+
     // ---- modulation routes
-    // WG Mod LFO Mode is off / positive / both ways / negative; the engine's
-    // route carries the sign, and "both ways" is simply the full swing.
+    // WG Mod LFO Mode, offset 3: OFF, (+), (-), A&L. The magnitude is not
+    // here -- it is the common block's P-Mod LFO Depth, applied in
+    // map_common once it has been read -- so the route carries the sign
+    // only. A&L means the depth comes from aftertouch and the bender lever
+    // alone; neither performance control is implemented yet, so those
+    // partials correctly get none, rather than a full-depth vibrato the
+    // player never asked for.
     const uint8_t mode = p[3];
-    if (mode == 0) {
+    if (mode == 0 || mode == 3) {
         v.pitch_lfo[index] = LfoRoute{};
     } else {
-        v.pitch_lfo[index].lfo = 0;                    // LFO-1 is the pitch LFO
-        // The mode byte says which way, not how far, and the byte that says
-        // how far is not identified in this dump. It used to assume a quarter
-        // of full swing, which is +-150 cents of vibrato applied to 201 of the
-        // bank's 256 partials -- that is not a reading of the patch, it is an
-        // invention, and it cost 15 of the 64 patches their tuning. Zero until
-        // the depth byte is known: a route that does nothing is wrong in a way
-        // that can be heard as missing, which is the honest kind.
-        v.pitch_lfo[index].depth = 0.0f;   // sign would be mode == 3 ? -1 : +1
+        v.pitch_lfo[index].lfo = 0;                    // P-Mod rides LFO-1
+        v.pitch_lfo[index].depth = (mode == 2) ? -1.0f : 1.0f;
     }
     v.penv_mode[index] = (p[4] == 0) ? PEnvMode::kOff
                                      : (p[4] == 2 ? PEnvMode::kNegative
@@ -193,10 +211,22 @@ inline void map_common(const uint8_t* c, ToneSpec& tone) {
     v.penv.l2 = bipolar(c[19]);
     v.penv.sustain = bipolar(c[20]);
     v.penv.end = bipolar(c[21]);
-    // Was pinned at the parameter's maximum, so any partial with the
-    // envelope switched on bent two octaves. Its depth byte is not identified
-    // either; zero for the same reason as the pitch LFO above.
-    v.penv.depth_cents = 0.0f;
+    // There is no separate P-ENV depth parameter -- the levels themselves
+    // are the depth, bipolar around 50, and full scale is two octaves. The
+    // 2400 here is the unit of those levels, not a guess; zeroing it (as an
+    // earlier revision did, distrusting its own constant) silenced the
+    // pitch envelope outright.
+    v.penv.depth_cents = 2400.0f;
+
+    // P-Mod LFO Depth, offset 22: the magnitude of the pitch vibrato whose
+    // sign map_partial read from each partial's mode byte. Full scale is
+    // +-600 cents, the service notes' LFO pitch range. This is the byte the
+    // guessed mapping never found, and its absence was first patched with an
+    // invented quarter-swing (audibly detuned) and then with zero (audibly
+    // sterile).
+    const float pmod = level01(c[22]);
+    v.pitch_lfo[0].depth *= pmod;
+    v.pitch_lfo[1].depth *= pmod;
 
     // ---- the three LFOs
     for (int i = 0; i < 3; ++i) {

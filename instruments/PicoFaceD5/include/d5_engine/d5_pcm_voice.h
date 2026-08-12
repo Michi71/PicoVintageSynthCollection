@@ -38,7 +38,7 @@ struct PcmSampleRef {
 
 class PcmVoice {
 public:
-    void note_on(const PcmSampleRef& s, int note, float velocity,
+    void note_on(const PcmSampleRef& s, float note, float velocity,
                  const TvaEnvSpec& env, float sample_rate,
                  float detune = 1.0f) {
         s_ = s;
@@ -46,7 +46,7 @@ public:
         frac_ = 0.0f;
         active_ = s.data != nullptr && s.length > 0;
         gain_ = velocity;
-        const float f = 440.0f * std::pow(2.0f, (note - 69) / 12.0f);
+        const float f = 440.0f * std::pow(2.0f, (note - 69.0f) / 12.0f);
         // Unpitched material has nothing to transpose from: play it as stored.
         rate_ = (s.root_hz > 0.0f) ? f / s.root_hz : 1.0f;
         rate_ *= sample_rate > 0.0f ? (32000.0f / sample_rate) : 1.0f;

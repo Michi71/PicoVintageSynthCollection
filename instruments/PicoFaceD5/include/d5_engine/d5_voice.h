@@ -75,6 +75,11 @@ struct VoiceSpec {
     // the second partial is what makes a ring structure inharmonic rather
     // than just brighter.
     int coarse[2] = {0, 0};
+    // WG Pitch Keyfollow as a ratio: how far the oscillator follows the
+    // keyboard, pivoted on C4. 1 is normal, 0 pins the partial to its coarse
+    // pitch (drum layers), 1/2 plays quarter-tone steps -- sound design the
+    // D-50 uses freely and the bank uses in 80 of 256 partials.
+    float keyfollow[2] = {1.0f, 1.0f};
     // Panel "WG Pitch Fine" per partial, plus the instrument's master tune;
     // both in cents, both continuous, so they can detune a pair against each
     // other without landing on a semitone.
@@ -112,7 +117,9 @@ public:
         penv_.start(spec_.penv, sample_rate);
 
         for (int i = 0; i < 2; ++i) {
-            const int n = note + spec_.coarse[i];
+            const float n = 60.0f
+                + spec_.keyfollow[i] * static_cast<float>(note - 60)
+                + static_cast<float>(spec_.coarse[i]);
             const float cents = spec_.fine_cents[i] + spec_.master_cents;
             const float detune = cents != 0.0f
                                      ? std::pow(2.0f, cents / 1200.0f) : 1.0f;

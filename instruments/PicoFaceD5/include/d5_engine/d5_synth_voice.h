@@ -35,13 +35,14 @@ struct SynthSpec {
     float cutoff = 0.7f;           // 0..1, panel "TVF Cutoff Frequency"
     float resonance = 0.3f;        // 0..1, panel "TVF Resonance"
     float tvf_env_depth = 0.4f;    // how far the TVF envelope moves cutoff
+    float cutoff_keyfollow = 0.0f; // ratio; the cutoff tracks the keyboard
     Env5Spec tvf_env{};
     Env5Spec tva_env{};
 };
 
 class SynthPartial {
 public:
-    void note_on(const SynthSpec& spec, int note, float velocity,
+    void note_on(const SynthSpec& spec, float note, float velocity,
                  float sample_rate, float detune = 1.0f) {
         spec_ = spec;
         sr_ = sample_rate;
@@ -49,7 +50,12 @@ public:
         phase_ = 0.0f;
         res_phase_ = 0.0f;
         active_ = true;
-        freq_ = 440.0f * std::pow(2.0f, (note - 69) / 12.0f) * detune;
+        freq_ = 440.0f * std::pow(2.0f, (note - 69.0f) / 12.0f) * detune;
+        // TVF keyfollow: the cutoff tracks the keyboard by its own ratio,
+        // also pivoted on C4. Precomputed here as an offset on the 0..1
+        // cutoff scale, whose exponent spans log2(400) octaves.
+        kf_shift_ = spec.cutoff_keyfollow
+                    * (note - 60.0f) / (12.0f * kLog2Range);
         inc_ = freq_ / sr_;
         tvf_.start(spec_.tvf_env, sr_);
         tva_.start(spec_.tva_env, sr_);
@@ -69,7 +75,7 @@ public:
         // period of the cutoff frequency, so a cutoff near the fundamental
         // leaves almost a sine, and a high one leaves nearly square edges.
         const float env = tvf_.next();
-        float c = spec_.cutoff + spec_.tvf_env_depth * env + mod.cutoff;
+        float c = spec_.cutoff + kf_shift_ + spec_.tvf_env_depth * env + mod.cutoff;
         if (c < 0.02f) c = 0.02f;
         if (c > 1.0f) c = 1.0f;
         // 40 Hz .. 16 kHz. Was std::pow once per sample per partial, which
@@ -148,6 +154,7 @@ private:
     Env5 tva_{};
     float sr_ = 32000.0f;
     float freq_ = 440.0f;
+    float kf_shift_ = 0.0f;
     float inc_ = 0.0f;
     float phase_ = 0.0f;
     float res_phase_ = 0.0f;
