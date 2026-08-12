@@ -64,11 +64,16 @@ public:
         cut_per_sr_ = 0.0f;
         decay_mul_ = 1.0f;
         pw_eff_ = spec.pulse_width;
-        // TVF keyfollow: the cutoff tracks the keyboard by its own ratio,
-        // also pivoted on C4. Precomputed here as an offset on the 0..1
-        // cutoff scale, whose exponent spans log2(400) octaves.
+        // TVF keyfollow: the cutoff tracks the keyboard by its ratio, but
+        // its pivot is NOT the C4 of the pitch keyfollow. Horn Section's
+        // recording settles it: at D#2 with keyfollow 7/8 a C4 pivot puts
+        // the cutoff at 228 Hz and three sounding harmonics, where the real
+        // machine holds ten. A pivot near C2 keeps the programmed cutoff
+        // meaningful in the bass register the patch actually plays in.
+        // Pivot and edge width are jointly anchored on that one recording;
+        // further references would separate them.
         kf_shift_ = spec.cutoff_keyfollow
-                    * (note - 60.0f) / (12.0f * kLog2Range);
+                    * (note - 36.0f) / (12.0f * kLog2Range);
         inc_ = freq_ / sr_;
         tvf_.start(spec_.tvf_env, sr_);
         tva_.start(spec_.tva_env, sr_);
@@ -112,9 +117,19 @@ public:
         // period of the cutoff frequency, so a cutoff near the fundamental
         // leaves almost a sine, and a high one leaves nearly square edges.
         const float freq = freq_ * mod.pitch;
-        float slope = freq * inv_cutoff_;                      // cycle fraction
+        // The cosine edge lasts about a third of the cutoff's period, not a
+        // whole one. With the full period the waveform rolled off from far
+        // below the cutoff -- Horn Section held three harmonics where the
+        // recording of the real machine holds ten. The 0.35 is anchored on
+        // that recording; it is the transition width of the chip's slope,
+        // not a resonance.
+        float slope = 0.35f * freq * inv_cutoff_;              // cycle fraction
         if (slope > 0.45f) slope = 0.45f;
-        if (slope < 1.0f / 64.0f) slope = 1.0f / 64.0f;
+        // The old floor of 1/64 meant a fully open filter still rounded its
+        // edges by 1.6% of the period -- the waveform could never become the
+        // true square or saw the chip produces at high cutoff. 1/512 is
+        // below audibility and merely keeps the cosine argument sane.
+        if (slope < 1.0f / 512.0f) slope = 1.0f / 512.0f;
 
         float out = segment(phase_, pw_eff_, slope);
 
