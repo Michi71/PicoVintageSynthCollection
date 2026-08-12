@@ -81,8 +81,13 @@ inline float fast_sin(float turns) {
     const float f = turns - static_cast<float>(static_cast<int>(turns)) +
                     (turns < 0.0f ? 1.0f : 0.0f);
     const float x = f * kSinSize;
-    const int i = static_cast<int>(x);
-    const float frac = x - static_cast<float>(i);
+    // A tiny negative argument makes f round to exactly 1.0, and then i
+    // indexes one past the last interpolation pair. The table has one spare
+    // entry so i+1 is always readable, but i itself has to stay inside it.
+    int i = static_cast<int>(x);
+    float frac = x - static_cast<float>(i);
+    if (i >= kSinSize) { i = kSinSize - 1; frac = 1.0f; }
+    if (i < 0) { i = 0; frac = 0.0f; }
     const float a = detail::kSin.v[i];
     return a + (detail::kSin.v[i + 1] - a) * frac;
 }
@@ -96,8 +101,10 @@ inline float fast_exp2(float x) {
     const int n = static_cast<int>(x) - (x < 0.0f ? 1 : 0);   // floor
     const float f = x - static_cast<float>(n);
     const float y = f * kExpSize;
-    const int i = static_cast<int>(y);
-    const float frac = y - static_cast<float>(i);
+    int i = static_cast<int>(y);
+    float frac = y - static_cast<float>(i);
+    if (i >= kExpSize) { i = kExpSize - 1; frac = 1.0f; }   // f rounded to 1.0
+    if (i < 0) { i = 0; frac = 0.0f; }
     const float a = detail::kExp2.v[i];
     const float m = a + (detail::kExp2.v[i + 1] - a) * frac;
     // scale by 2^n through the exponent field rather than a second table
