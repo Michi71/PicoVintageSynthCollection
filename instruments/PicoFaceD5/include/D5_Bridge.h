@@ -46,6 +46,8 @@ public:
 
     int activeVoices() const { return activeVoices_; }
     int cpuLoadPeakPercent() const { return cpuPeak_; }
+    int outputPeakPercent() const { return outPeak_; }
+    int bootBenchPercent();
 
 private:
     void applyPatch();
@@ -60,6 +62,7 @@ private:
     int voiceLimit_ = d5::kMaxVoicesPerTone;
     int activeVoices_ = 0;
     int cpuPeak_ = 0;
+    int outPeak_ = 0;
     float baseVolume_ = 1.0f;
     float baseReverb_ = 0.3f;
     float baseChorus_ = 0.0f;

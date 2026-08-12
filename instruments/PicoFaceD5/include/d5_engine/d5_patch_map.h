@@ -59,6 +59,39 @@ inline LfoRoute lfo_route(uint8_t select, uint8_t depth) {
     return r;
 }
 
+// RAM residence for the sustained cycles. The 29 loops total 38528 words --
+// 77 KiB -- and are read at rates up to 30 words per output sample, which
+// through XIP means a fresh flash line on nearly every read. The attacks
+// stay in flash: they play near-sequentially, which the cache handles.
+// Filled once at boot by install_loop_ram(); until then every reference
+// falls back to the blob, so the host tools work unchanged without it.
+struct LoopRamMap {
+    const int16_t* base = nullptr;
+    uint32_t start[kPcmCount] = {};
+};
+inline LoopRamMap g_loop_ram{};
+
+constexpr uint32_t loop_ram_words() {
+    uint32_t n = 0;
+    for (int i = 0; i < kPcmCount; ++i)
+        if (kPcmSamples[i].looped && kPcmSamples[i].length) n += kPcmSamples[i].length;
+    return n;
+}
+
+inline bool install_loop_ram(const int16_t* blob, int16_t* ram, uint32_t cap) {
+    uint32_t used = 0;
+    for (int i = 0; i < kPcmCount; ++i) {
+        const PcmSample& smp = kPcmSamples[i];
+        if (!smp.looped || smp.length == 0) continue;
+        if (used + smp.length > cap) return false;   // all or nothing
+        for (uint32_t k = 0; k < smp.length; ++k) ram[used + k] = blob[smp.start + k];
+        g_loop_ram.start[i] = used;
+        used += smp.length;
+    }
+    g_loop_ram.base = ram;
+    return true;
+}
+
 inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
                         const int16_t* blob) {
     // ---- wave generator
@@ -84,6 +117,10 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
         PcmSampleRef& r = v.pcm[index];
         r.data = blob;
         r.start = smp.start;
+        if (smp.looped && g_loop_ram.base) {
+            r.data = g_loop_ram.base;
+            r.start = g_loop_ram.start[wave];
+        }
         r.length = smp.length;
         r.looped = smp.looped;
         r.root_hz = smp.root_hz;

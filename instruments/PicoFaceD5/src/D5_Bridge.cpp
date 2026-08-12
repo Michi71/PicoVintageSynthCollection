@@ -15,6 +15,11 @@
 #include "d5_presets.h"
 #include "pico/time.h"
 
+// Host builds have no flash to stay out of.
+#ifndef __not_in_flash_func
+#define __not_in_flash_func(x) x
+#endif
+
 // A converted SysEx bank if the build found one, the hand-built patches
 // otherwise. The instrument plays either without knowing the difference.
 #if __has_include("d5_patch_data.h")
@@ -36,7 +41,35 @@ int g_structure = 1;
 }  // namespace
 
 void D5_Bridge::init() {
+#ifdef D5_HAVE_BANK
+    // The sustained cycles move to RAM before the first patch is built, so
+    // every PcmSampleRef the mapping hands out already points there.
+    static int16_t loopRam[d5::loop_ram_words()];
+    d5::install_loop_ram(d5_pcm_blob, loopRam, d5::loop_ram_words());
+#endif
     applyPatch();
+}
+
+// Worst block cost, measured at boot with four held notes and nothing else
+// running -- no UI, no USB, no settings writes. This is the honest per-block
+// price of the engine on this hardware; if the live P far exceeds it, the
+// overload is coming from outside the render.
+int D5_Bridge::bootBenchPercent() {
+    int32_t buf[2 * 64];
+    noteOn(48, 100); noteOn(60, 100); noteOn(67, 100); noteOn(72, 100);
+    int64_t worst = 0;
+    for (int b = 0; b < 96; ++b) {
+        const absolute_time_t t0 = get_absolute_time();
+        fillBufferI32(buf, 64);
+        const int64_t us = absolute_time_diff_us(t0, get_absolute_time());
+        if (b >= 2 && us > worst) worst = us;
+    }
+    allNotesOff();
+    for (int b = 0; b < 64; ++b) fillBufferI32(buf, 64);
+    cpuPeak_ = 0;
+    outPeak_ = 0;
+    const int64_t budget = 64 * 1000000LL / (int64_t)sampleRate();
+    return (int)(worst * 100 / (budget > 0 ? budget : 1));
 }
 
 void D5_Bridge::applyPatch() {
@@ -161,14 +194,25 @@ void D5_Bridge::allNotesOff() {
 void __not_in_flash_func(D5_Bridge::fillBufferI32)(int32_t* out, int frames) {
     const absolute_time_t t0 = get_absolute_time();
 
+    float pk = 0.0f;
     for (int i = 0; i < frames; ++i) {
         float v = patch_.next();
         if (v > 1.0f) v = 1.0f;
         if (v < -1.0f) v = -1.0f;
+        const float mag = v < 0.0f ? -v : v;
+        if (mag > pk) pk = mag;
         const int32_t s = static_cast<int32_t>(v * 32767.0f);
         out[2 * i] = s << 16;          // the pool wants the sample in the
         out[2 * i + 1] = s << 16;      // upper half, left then right
     }
+    // Peak of what the engine actually produced, before the I2S ever sees
+    // it. Silence with this at zero is the engine's fault; silence with it
+    // alive means the samples are being lost on the way out. NaN state also
+    // reads 0 here -- every comparison with NaN is false -- which is exactly
+    // the verdict it should read.
+    const int o = (int)(pk * 100.0f + 0.5f);
+    if (o > outPeak_) outPeak_ = o;
+    else if (outPeak_ > 0) --outPeak_;
 
     // Peak load as a percentage of the block's own budget, decayed slowly so
     // the footer shows the worst recent case rather than the last block.

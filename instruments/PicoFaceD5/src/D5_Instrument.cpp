@@ -28,6 +28,7 @@ public:
 
     void init() override {
         bridge_.init();
+        benchPct_ = bridge_.bootBenchPercent();
         D5SettingsV1 defaults{};
         controller_.exportSettings(defaults);
         controller_.importSettings(defaults);   // pushes them into the bridge
@@ -120,10 +121,10 @@ private:
         snprintf(m.page, sizeof m.page, "%s", controller_.pageName());
         controller_.lineA(m.lineA, sizeof m.lineA);
         controller_.lineB(m.lineB, sizeof m.lineB);
-        snprintf(m.footer, sizeof m.footer, "P%d%% U%lu A%d/%d",
-                 (int)bridge_.cpuLoadPeakPercent(),
-                 (unsigned long)g_i2s_underrun_count,
-                 bridge_.activeVoices(), bridge_.voiceLimit());
+        snprintf(m.footer, sizeof m.footer, "P%d B%d O%d U%lu A%d",
+                 bridge_.cpuLoadPeakPercent(), benchPct_,
+                 bridge_.outputPeakPercent(), g_i2s_underrun_count,
+                 bridge_.activeVoices());
         d5_display_page(d, m);
         // Arms the incremental push: the main loop only streams the buffer
         // while picoface_ui_flush_row < 16, and flush() resets that counter.
@@ -131,6 +132,7 @@ private:
     }
 
     static constexpr int kVoiceFloor = 2;
+    int benchPct_ = 0;
 
     D5_Bridge bridge_;
     D5_Controller controller_;
