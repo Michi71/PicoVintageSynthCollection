@@ -243,6 +243,13 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
     s.tvf_env.t[1] = env_time(p[23]);
     s.tvf_env.t[2] = env_time(p[24]);
     s.tvf_env.t[3] = env_time(p[25]);
+    // The TVF envelope runs on rates like the TVA (the LA32 ramp hardware
+    // is one design, munt's LA32Ramp), but its domain is the 0..1 cutoff
+    // scale, already logarithmic in frequency -- so the dB/s map divides by
+    // the 60 dB it spans there. The scale is munt-consistent semantics with
+    // a fitted unit, marked as such.
+    for (int k = 0; k < 5; ++k)
+        s.tvf_env.r[k] = env_rate_db_s(p[22 + k]) * (1.0f / 60.0f);
     s.tvf_env.t[4] = env_time(p[26]);
     s.tvf_env.l[0] = level01(p[27]);
     s.tvf_env.l[1] = level01(p[28]);
@@ -275,6 +282,7 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
     v.keyfollow[index] = keyfollow_ratio(p[2], 16);
     v.velo_sens[index] = (static_cast<int>(p[36]) - 50) * 0.02f;
     s.cutoff_keyfollow = keyfollow_ratio(p[15], 14);
+    s.pitch_keyfollow = v.keyfollow[index];
     s.tvf_velo = level01(p[19]);
 
     // ---- modulation routes
@@ -403,7 +411,12 @@ inline PatchSpec patch_from_bytes(const uint8_t* patch, const int16_t* blob) {
     p.lower.voice.coarse[0] += static_cast<int>(pb[23]) - 24;
     p.lower.voice.coarse[1] += static_cast<int>(pb[23]) - 24;
     p.reverb.type = pb[30];
-    p.reverb.balance = level01(pb[31]);
+    // Reverb Balance is another panel value on the amount family, and the
+    // reference recordings vouch for it: through this curve Cathedral
+    // Organ's byte 58 puts the tail 6 dB under the playing (recorded: 7.4)
+    // and Pizzagogo's byte 33 puts it at 15 (recorded: 13.6). Read linearly
+    // they were both practically as loud as the notes.
+    p.reverb.balance = kAmountCurve[pb[31] > 100 ? 100 : pb[31]];
     p.volume = level01(pb[32]);
     p.balance = level01(pb[33]);
 

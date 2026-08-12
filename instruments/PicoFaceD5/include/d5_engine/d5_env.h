@@ -108,6 +108,12 @@ private:
         seg_ = seg;
         remaining_ = static_cast<int32_t>(spec_.t[seg] * sr_);
         if (remaining_ <= 0) { level_ = target; step_ = 0.0f; factor_ = 1.0f; return; }
+        // Rate semantics for linear falling segments (the TVF): duration
+        // follows from the level distance and the per-second rate.
+        if (!spec_.log_segments && spec_.r[seg] > 0.0f && target < level_) {
+            remaining_ = static_cast<int32_t>((level_ - target) / spec_.r[seg] * sr_);
+            if (remaining_ < 1) remaining_ = 1;
+        }
         step_ = (target - level_) / remaining_;
         // Log-linear glide for FALLING segments only: a decay at constant
         // dB/s is what the reference recording shows, but a rise in the log

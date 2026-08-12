@@ -275,6 +275,14 @@ public:
         const ReverbType& t = kReverbTypes[clamp_index(spec.type, 32)];
         decay_ = t.decay;
         damping_ = t.damping;
+        // A comb's steady-state gain is 1/(1-feedback), so lengthening a
+        // T60 quietly turns the reverb up: raising type 3 from 0.72 to 0.95
+        // added fourteen decibels of wet, which is exactly the "everything
+        // is drowning" that followed the tail calibration. This normalizes
+        // the bank so loudness and decay time are independent; the absolute
+        // wet level is then set once, against the reference recordings'
+        // release steps of -5..-24 dB.
+        comb_gain_ = (1.0f - decay_) * 4.0f;
         predelay_ = static_cast<int>(t.predelay_ms * 0.001f * sr);
         if (predelay_ >= kPre) predelay_ = kPre - 1;
         gate_ = static_cast<int>(t.gate_ms * 0.001f * sr);
@@ -316,7 +324,7 @@ public:
             if (++comb_i_[c] >= kComb[c]) comb_i_[c] = 0;
             sum += y;
         }
-        sum *= 0.25f;
+        sum *= 0.25f * comb_gain_;
 
         for (int a = 0; a < 2; ++a) {
             const float y = all_[a][all_i_[a]];
@@ -342,6 +350,7 @@ private:
     ReverbSpec spec_{};
     float sr_ = 32000.0f;
     float decay_ = 0.8f;
+    float comb_gain_ = 1.0f;
     float damping_ = 0.3f;
     int predelay_ = 0;
     int gate_ = 0;

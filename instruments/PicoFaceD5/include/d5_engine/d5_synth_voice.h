@@ -39,6 +39,7 @@ struct SynthSpec {
     float tvf_env_depth = 0.4f;    // how far the TVF envelope moves cutoff
     float cutoff_keyfollow = 0.0f; // ratio; the cutoff tracks the keyboard
     float tvf_velo = 0.0f;         // 0..1: how far velocity opens the filter
+    float pitch_keyfollow = 1.0f;  // the WG ratio; the TVF tracks the difference
     Env5Spec tvf_env{};
     Env5Spec tva_env{};
 };
@@ -64,16 +65,15 @@ public:
         cut_per_sr_ = 0.0f;
         decay_mul_ = 1.0f;
         pw_eff_ = spec.pulse_width;
-        // TVF keyfollow: the cutoff tracks the keyboard by its ratio, but
-        // its pivot is NOT the C4 of the pitch keyfollow. Horn Section's
-        // recording settles it: at D#2 with keyfollow 7/8 a C4 pivot puts
-        // the cutoff at 228 Hz and three sounding harmonics, where the real
-        // machine holds ten. A pivot near C2 keeps the programmed cutoff
-        // meaningful in the bass register the patch actually plays in.
-        // Pivot and edge width are jointly anchored on that one recording;
-        // further references would separate them.
-        kf_shift_ = spec.cutoff_keyfollow
-                    * (note - 36.0f) / (12.0f * kLog2Range);
+        // TVF keyfollow is DIFFERENTIAL: the chip tracks the cutoff by the
+        // difference between the TVF keyfollow and the pitch keyfollow,
+        // pivoted on C4 -- munt's TVF.cpp line 66 states it outright
+        // (keyfollowMult[tvf.kf] - keyfollowMult[wg.pitchKeyfollow]). That
+        // is why Horn Section stays bright at D#2: TVF 7/8 against pitch 1
+        // tracks by -1/8, not by -7/8. The earlier C2-pivot hack was
+        // compensating for this missing subtraction and is retired.
+        kf_shift_ = (spec.cutoff_keyfollow - spec.pitch_keyfollow)
+                    * (note - 60.0f) / (12.0f * kLog2Range);
         inc_ = freq_ / sr_;
         tvf_.start(spec_.tvf_env, sr_);
         tva_.start(spec_.tva_env, sr_);
