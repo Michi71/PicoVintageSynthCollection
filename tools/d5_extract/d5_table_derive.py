@@ -148,9 +148,10 @@ def zero_run_boundaries(rs):
     starts. Only the attacks have this -- a sustained loop fills its slot,
     which is why the static zone carries no such marks.
 
-    Verified: all 46 boundaries this finds in the attack zone agree with the
+    Verified: all 22 boundaries this finds in the attack zone agree with the
     table, and the three positions measured against labeled rips (Steam,
-    Lips1, Pizz) are among them.
+    Lips1, Pizz) are among them. d5_attacks.py re-checks the same 22 from a
+    separate implementation.
     """
     a = rs._pcm_a
     b = rs._pcm_b
