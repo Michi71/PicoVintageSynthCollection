@@ -238,18 +238,21 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
     // ---- TVF: cutoff, resonance and its envelope
     s.cutoff = level01(p[13]);
     s.resonance = p[14] / 30.0f;
-    s.tvf_env_depth = kAmountCurve[p[18] > 100 ? 100 : p[18]];
-    s.tvf_env.t[0] = env_time(p[22]);
-    s.tvf_env.t[1] = env_time(p[23]);
-    s.tvf_env.t[2] = env_time(p[24]);
-    s.tvf_env.t[3] = env_time(p[25]);
-    // The TVF envelope runs on rates like the TVA (the LA32 ramp hardware
-    // is one design, munt's LA32Ramp), but its domain is the 0..1 cutoff
-    // scale, already logarithmic in frequency -- so the dB/s map divides by
-    // the 60 dB it spans there. The scale is munt-consistent semantics with
-    // a fitted unit, marked as such.
-    for (int k = 0; k < 5; ++k)
-        s.tvf_env.r[k] = env_rate_db_s(p[22 + k]) * (1.0f / 60.0f);
+    // Linear per munt's TVF.cpp levelMult chain -- the earlier kAmountCurve
+    // assignment (by table neighbourhood) is displaced by proven semantics.
+    s.tvf_env_depth = level01(p[18]);
+    // The TVF envelope times follow munt's proven ramp law: a phase lasts
+    // 4 ms times 2^(byte/8), independent of the level distance, because the
+    // chip's increment table adds 8 per doubling of distance and the ramp
+    // doubles speed per 8 -- the two cancel (envLogarithmicTime and
+    // LA32Ramp, closed form verified bit-exact). Byte 100 is 23.2 seconds,
+    // which is how Horn Section holds its brightness through a note: its
+    // decay bytes of 74 and 76 are two and three seconds a phase. The TVA
+    // keeps its reference-calibrated rates -- recordings outrank analogy.
+    for (int k = 0; k < 5; ++k) {
+        s.tvf_env.t[k] = 0.004f * fast_exp2(p[22 + k] * 0.125f);
+        s.tvf_env.r[k] = 0.0f;
+    }
     s.tvf_env.t[4] = env_time(p[26]);
     s.tvf_env.l[0] = level01(p[27]);
     s.tvf_env.l[1] = level01(p[28]);
@@ -283,6 +286,7 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
     v.velo_sens[index] = (static_cast<int>(p[36]) - 50) * 0.02f;
     s.cutoff_keyfollow = keyfollow_ratio(p[15], 14);
     s.pitch_keyfollow = v.keyfollow[index];
+    s.pw_velo = static_cast<float>(p[9]) - 7.0f;
     s.tvf_velo = level01(p[19]);
 
     // ---- modulation routes

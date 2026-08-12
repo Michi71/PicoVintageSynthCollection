@@ -16,6 +16,11 @@
 
 #ifdef __not_in_flash_func
 #  define D5_HOT(f) __not_in_flash_func(f)
+// Two D5_HOT(next) in different classes land in the same named section and
+// the linker rejects mixing a template's comdat with a plain function there.
+// Functions that share a name across classes take a unique tag instead.
+#  define D5_HOT_TAG(tag, f) __attribute__((section(".time_critical." #tag))) f
 #else
 #  define D5_HOT(f) f
+#  define D5_HOT_TAG(tag, f) f
 #endif

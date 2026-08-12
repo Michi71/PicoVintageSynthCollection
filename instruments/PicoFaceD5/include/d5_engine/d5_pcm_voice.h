@@ -58,7 +58,7 @@ public:
     void note_off() { env_.release(); }
     bool active() const { return active_; }
 
-    float D5_HOT(next)(const Modulation& mod = Modulation{}) {
+    float D5_HOT_TAG(d5_pcm_next, next)(const Modulation& mod = Modulation{}) {
         if (!active_) return 0.0f;
 
         const uint32_t i = index_;

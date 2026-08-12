@@ -87,7 +87,7 @@ public:
         return level();
     }
 
-    float D5_HOT(next)() {
+    float D5_HOT_TAG(d5_env_next, next)() {
         if (remaining_ > 0) {
             if (seg_log_) level_ *= factor_;
             else level_ += step_;

@@ -212,7 +212,7 @@ public:
         }
     }
 
-    float D5_HOT(next)() {
+    float D5_HOT_TAG(d5_voice_next, next)() {
         const Structure& st = structure();
         if (mod_count_ == 0) update_block();
         --mod_count_;

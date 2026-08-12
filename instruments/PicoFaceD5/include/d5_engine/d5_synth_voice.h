@@ -36,10 +36,11 @@ struct SynthSpec {
     float pulse_width = 0.5f;      // 0..1, panel "WG Pulse Width"
     float cutoff = 0.7f;           // 0..1, panel "TVF Cutoff Frequency"
     float resonance = 0.3f;        // 0..1, panel "TVF Resonance"
-    float tvf_env_depth = 0.4f;    // how far the TVF envelope moves cutoff
+    float tvf_env_depth = 0.4f;    // 0..1 of the panel byte; linear in chip units
     float cutoff_keyfollow = 0.0f; // ratio; the cutoff tracks the keyboard
-    float tvf_velo = 0.0f;         // 0..1: how far velocity opens the filter
+    float tvf_velo = 0.0f;         // 0..1 of the sensitivity byte
     float pitch_keyfollow = 1.0f;  // the WG ratio; the TVF tracks the difference
+    float pw_velo = 0.0f;          // -7..+7, PW Velocity Range (offset 9)
     Env5Spec tvf_env{};
     Env5Spec tva_env{};
 };
@@ -54,26 +55,43 @@ public:
         phase_ = 0.0f;
         active_ = true;
         freq_ = 440.0f * std::pow(2.0f, (note - 69.0f) / 12.0f) * detune;
-        q_ = 0.7f + 24.0f * spec.resonance * spec.resonance;
-        // TVF ENV Velocity Range: a soft strike sweeps less. Folded into the
-        // effective depth once per note; block_mod reads it from here.
-        tvf_depth_eff_ = spec.tvf_env_depth
-                         * (1.0f + spec.tvf_velo * (velocity - 1.0f));
-        cyc_ = 0.0f;
-        res_env_ = 1.0f;
-        inv_cutoff_ = 1.0f / 1000.0f;   // neutral until the first block_mod
-        cut_per_sr_ = 0.0f;
-        decay_mul_ = 1.0f;
-        pw_eff_ = spec.pulse_width;
-        // TVF keyfollow is DIFFERENTIAL: the chip tracks the cutoff by the
-        // difference between the TVF keyfollow and the pitch keyfollow,
-        // pivoted on C4 -- munt's TVF.cpp line 66 states it outright
-        // (keyfollowMult[tvf.kf] - keyfollowMult[wg.pitchKeyfollow]). That
-        // is why Horn Section stays bright at D#2: TVF 7/8 against pitch 1
-        // tracks by -1/8, not by -7/8. The earlier C2-pivot hack was
-        // compensating for this missing subtraction and is retired.
-        kf_shift_ = (spec.cutoff_keyfollow - spec.pitch_keyfollow)
-                    * (note - 60.0f) / (12.0f * kLog2Range);
+        // The whole cutoff path now runs in the LA32's own unit, ported
+        // from munt (LA32FloatWaveGenerator.cpp, TVF.cpp): one unit per
+        // panel cutoff step, neutral offset +78, chip middle at 128 (panel
+        // byte 50), ceiling 240.
+        //
+        // Keyfollow is differential against the pitch keyfollow at
+        // 21/16 units per semitone of ratio difference (TVF.cpp:65-68);
+        // the envelope adds its own units through a velocity term the
+        // chip computes as ((vel*sens)>>6)+109-sens, neutral near vel 64
+        // (TVF.cpp:130ff).
+        const float vel127 = velocity * 127.0f;
+        const float sens = spec.tvf_velo * 100.0f;
+        float velTerm = (109.0f + vel127 * sens * (1.0f / 64.0f) - sens)
+                        * (1.0f / 109.0f);
+        if (velTerm < 0.0f) velTerm = 0.0f;
+        env_units_ = spec.tvf_env_depth * 100.0f * (109.0f / 64.0f)
+                     * velTerm * (100.0f / 256.0f) * 0.01f;
+        // env_units_ is "chip units per unit of envelope level" -- the
+        // Env5 output 0..1 scales it below.
+        base_cv_ = spec.cutoff * 100.0f + 78.0f
+                   + (spec.cutoff_keyfollow - spec.pitch_keyfollow)
+                     * (21.0f / 16.0f) * (note - 60.0f);
+        // Pulse width: panel byte to the chip's 0..255, velocity-shifted
+        // (Partial.cpp:222-227); at or below 128 the wave is symmetric.
+        float pw255 = spec.pulse_width * 255.0f
+                      + (vel127 - 64.0f) * spec.pw_velo;
+        pw255_ = pw255 < 0.0f ? 0.0f : (pw255 > 255.0f ? 255.0f : pw255);
+        res_ = spec.resonance * 30.0f + 1.0f;              // chip range 1..31
+        res_amp_ = fast_exp2(1.0f - (32.0f - res_) * 0.25f);
+        static constexpr float kDecayFactors[8] = {31, 16, 12, 8, 5, 3, 2, 1};
+        res_decay_f_ = kDecayFactors[static_cast<int>(res_) >> 2 > 7
+                                         ? 7 : static_cast<int>(res_) >> 2];
+        edge_frac_ = 0.5f;              // neutral until the first block_mod
+        atten_ = 1.0f;
+        res_on_ = false;
+        h_frac_ = 0.0f;
+
         inc_ = freq_ / sr_;
         tvf_.start(spec_.tvf_env, sr_);
         tva_.start(spec_.tva_env, sr_);
@@ -86,80 +104,100 @@ public:
 
     bool active() const { return active_; }
 
-    // The block-rate half, called once per kModPeriod samples: the TVF
-    // envelope, the cutoff exponential, the slope reciprocal and the
-    // resonance decay constant. None of it moves at audio rate, and per
-    // sample it was most of what this partial cost.
+    // The block-rate half, in the chip's own cutoff unit (munt port).
+    // cutoffVal = base + envelope + LFO; above the middle (128) the cosine
+    // edge halves every 16 units, below it the whole wave attenuates by
+    // -0.75 dB per unit and the resonance is silent. All constants the
+    // per-sample code needs are refreshed here.
     void block_mod(const Modulation& mod) {
         if (!active_) return;
         const float env = tvf_.next_n(kModPeriod);
-        float c = spec_.cutoff + kf_shift_ + tvf_depth_eff_ * env + mod.cutoff;
-        if (c < 0.02f) c = 0.02f;
-        if (c > 1.0f) c = 1.0f;
-        // 40 Hz .. 16 kHz -- once std::pow per sample, the single most
-        // expensive thing this engine ever did, now one table read per block.
-        const float cutoff_hz = 40.0f * fast_exp2(kLog2Range * c);
-        inv_cutoff_ = 1.0f / cutoff_hz;
-        cut_per_sr_ = cutoff_hz / sr_;
-        pw_eff_ = clampf(spec_.pulse_width + mod.pw, 0.05f, 0.95f);
-        if (spec_.resonance > 0.0f) {
-            // The ring decays by exp(-pi*cycles/q); advancing cycles by
-            // cut_per_sr_ each sample makes that one multiply, and the
-            // constant needs the table only when the cutoff moves.
-            decay_mul_ = fast_exp_neg(kPi * cut_per_sr_ / q_);
+        // mod.cutoff arrives on the old 0..1 scale from the LFO routes;
+        // 100 units span that scale, same as the panel byte.
+        float cv = base_cv_ + env_units_ * 100.0f * env + mod.cutoff * 100.0f;
+        if (cv > 240.0f) cv = 240.0f;                       // the chip's clamp
+        edge_frac_ = 0.5f;
+        atten_ = 1.0f;
+        res_on_ = false;
+        if (cv > 128.0f) {
+            edge_frac_ = 0.5f * fast_exp2(-(cv - 128.0f) * (1.0f / 16.0f));
+            if (spec_.resonance > 0.0f) {
+                res_on_ = true;
+                // fade the resonance in over cutoff 128..144 (quarter sine)
+                res_amp_eff_ = res_amp_;
+                if (cv < 144.0f) {
+                    res_amp_eff_ *= fast_sin((cv - 128.0f) * (1.0f / 64.0f));
+                }
+            }
+        } else if (cv < 128.0f) {
+            atten_ = fast_exp2(-0.125f * (128.0f - cv));
         }
+        float pwf = 0.5f;
+        const float pw = pw255_ + mod.pw * 255.0f;
+        if (pw > 128.0f) pwf = fast_exp2((64.0f - pw) * (1.0f / 64.0f));
+        pulse_frac_ = pwf;
+        h_frac_ = pulse_frac_ - edge_frac_;
+        if (h_frac_ < 0.0f) h_frac_ = 0.0f;
     }
 
-    float D5_HOT(next)(const Modulation& mod = Modulation{}) {
+    float D5_HOT_TAG(d5_synth_next, next)(const Modulation& mod = Modulation{}) {
         if (!active_) return 0.0f;
 
-        // Cutoff in harmonics of the fundamental: the cosine slopes take one
-        // period of the cutoff frequency, so a cutoff near the fundamental
-        // leaves almost a sine, and a high one leaves nearly square edges.
-        const float freq = freq_ * mod.pitch;
-        // The cosine edge lasts about a third of the cutoff's period, not a
-        // whole one. With the full period the waveform rolled off from far
-        // below the cutoff -- Horn Section held three harmonics where the
-        // recording of the real machine holds ten. The 0.35 is anchored on
-        // that recording; it is the transition width of the chip's slope,
-        // not a resonance.
-        float slope = 0.35f * freq * inv_cutoff_;              // cycle fraction
-        if (slope > 0.45f) slope = 0.45f;
-        // The old floor of 1/64 meant a fully open filter still rounded its
-        // edges by 1.6% of the period -- the waveform could never become the
-        // true square or saw the chip produces at high cutoff. 1/512 is
-        // below audibility and merely keeps the cosine argument sane.
-        if (slope < 1.0f / 512.0f) slope = 1.0f / 512.0f;
+        // The chip's square: a rising cosine edge, a high shelf, a falling
+        // edge, a low shelf -- with playback starting in the centre of the
+        // first edge (munt shifts relWavePos by half the cosine). All
+        // lengths are fractions of the fundamental period here; the chip
+        // divides by waveLen in samples, which cancels out.
+        const float e = edge_frac_;
+        float rel = phase_ + 0.5f * e;
+        if (rel > 1.0f) rel -= 1.0f;
 
-        float out = segment(phase_, pw_eff_, slope);
+        float out;
+        if (rel < e) {
+            out = -fast_cos(0.5f * rel / e);
+        } else if (rel < e + h_frac_) {
+            out = 1.0f;
+        } else if (rel < 2.0f * e + h_frac_) {
+            out = fast_cos(0.5f * (rel - (e + h_frac_)) / e);
+        } else {
+            out = -1.0f;
+        }
+        out *= atten_;                     // sub-middle cutoff closes by fading
+
+        if (res_on_) {
+            // The resonance sine: period two edges, restarted each half of
+            // the pulse, decaying exponentially per edge-length travelled,
+            // the negative half slightly faster; a squared-sine window
+            // before each edge centre keeps the restarts click-free
+            // (munt LA32FloatWaveGenerator.cpp:202-253).
+            float rr = phase_;
+            float sgn = 1.0f;
+            float df = res_decay_f_;
+            const float half = e + h_frac_;
+            if (rr >= half) { sgn = -1.0f; rr -= half; df += 0.25f; }
+            const float over = rr / e;
+            float res = sgn * fast_sin(0.5f * over)
+                        * fast_exp2(-0.125f * df * over);
+            // sync window around the nearest edge centre
+            float r2 = phase_;
+            if (r2 >= 1.0f - 0.5f * e) r2 -= 1.0f;
+            else if (r2 >= half - 0.5f * e && r2 >= 0.5f * e) r2 -= half;
+            if (r2 < 0.5f * e) {
+                const float w = fast_sin(0.5f * r2 / e);
+                res *= (r2 < 0.0f) ? w * w : (w < 0.0f ? -w : w);
+            }
+            out += res * res_amp_eff_;
+        }
 
         if (spec_.waveform == Waveform::kSawtooth) {
-            // the chip's sawtooth: the square multiplied by a synchronous
-            // cosine, which cancels every other harmonic's mirror and leaves
-            // the asymmetric slope
+            // the chip's sawtooth: the finished square (resonance included)
+            // ring-modulated by a phase-locked cosine of the fundamental,
+            // on the UNSHIFTED phase (munt cpp:256-259)
             out *= fast_cos(phase_);
         }
 
-        if (spec_.resonance > 0.0f) {
-            // A sine at the cutoff, restarted every cycle of the fundamental
-            // and decaying inside it -- the chip's stand-in for a resonant
-            // filter. The decay counts in cycles of the cutoff, not samples.
-            cyc_ += cut_per_sr_;
-            res_env_ *= decay_mul_;
-            // fade the ring in over its first quarter cycle so its restart
-            // does not click
-            const float w = cyc_ < 0.25f
-                                ? 0.5f - 0.5f * fast_cos(2.0f * cyc_)
-                                : 1.0f;
-            out += spec_.resonance * res_env_ * w * fast_sin(cyc_);
-        }
-
         phase_ += inc_ * mod.pitch;
-        if (phase_ >= 1.0f) {
-            phase_ -= 1.0f;
-            cyc_ = 0.0f;                // resonance restarts with the cycle
-            res_env_ = 1.0f;
-        }
+        if (phase_ >= 1.0f) phase_ -= 1.0f;
 
         const float amp = tva_.next();
         if (tva_.finished()) active_ = false;
@@ -174,37 +212,26 @@ private:
         return v < lo ? lo : (v > hi ? hi : v);
     }
 
-    // One cycle: rise over `slope`, high until `pw`, fall over `slope`, low.
-    // The cosine slopes are what a low cutoff does to a square edge.
-    static float segment(float p, float pw, float slope) {
-        if (p < slope) {
-            return -fast_cos(0.5f * p / slope);           // -1 -> +1
-        }
-        if (p < pw) {
-            return 1.0f;
-        }
-        if (p < pw + slope) {
-            return fast_cos(0.5f * (p - pw) / slope);     // +1 -> -1
-        }
-        return -1.0f;
-    }
 
     SynthSpec spec_{};
     Env5 tvf_{};
     Env5 tva_{};
     float sr_ = 32000.0f;
     float freq_ = 440.0f;
-    float kf_shift_ = 0.0f;
     float inc_ = 0.0f;
     float phase_ = 0.0f;
-    float inv_cutoff_ = 0.001f;
-    float cut_per_sr_ = 0.0f;
-    float decay_mul_ = 1.0f;
-    float pw_eff_ = 0.5f;
-    float cyc_ = 0.0f;
-    float res_env_ = 1.0f;
-    float q_ = 0.7f;
-    float tvf_depth_eff_ = 0.0f;
+    float base_cv_ = 128.0f;       // cutoffVal at env 0, chip units
+    float env_units_ = 0.0f;       // chip units per unit of envelope level
+    float edge_frac_ = 0.5f;       // cosine edge as fraction of the period
+    float pulse_frac_ = 0.5f;
+    float h_frac_ = 0.0f;
+    float atten_ = 1.0f;           // sub-middle broadband attenuation
+    bool res_on_ = false;
+    float res_ = 1.0f;
+    float res_amp_ = 0.0f;
+    float res_amp_eff_ = 0.0f;
+    float res_decay_f_ = 8.0f;
+    float pw255_ = 128.0f;
     float gain_ = 1.0f;
     bool active_ = false;
 };
