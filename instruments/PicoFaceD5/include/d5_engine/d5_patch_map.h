@@ -39,10 +39,18 @@ inline const uint8_t* patch_block(const uint8_t* patch, int block) {
 
 // Panel 0..100 to seconds, exponentially: the envelope range spans four
 // decades, so the first half of the knob would be unusable otherwise.
+// The exponent is bent: gamma 1.5 was fitted against the reference
+// recording of the factory Pizzagogo, whose note bodies decay at a constant
+// -34 dB/s and reaches -40 dB in 1.2 s; gamma 1.15 with the -60 dB floor
+// lands the engine there. One parameter, one
+// measurement, said openly -- the firmware's own time tables have not been
+// identified, and this is the best calibration a real recording affords.
+// P-ENV passes gamma 1, its range having shown no such disagreement.
 inline float env_time(uint8_t v, float lo = 0.004f, float hi = 80.0f,
-                      float span = 100.0f) {
-    const float t = v / span;
-    return lo * std::pow(hi / lo, t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t));
+                      float span = 100.0f, float gamma = 1.15f) {
+    float t = v / span;
+    t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+    return lo * std::pow(hi / lo, std::pow(t, gamma));
 }
 
 inline float level01(uint8_t v) { return v * 0.01f; }
@@ -242,6 +250,7 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
     s.tva_env.l[2] = level01(p[46]) * level;
     s.tva_env.sustain = level01(p[47]) * level;
     s.tva_env.end = (p[48] ? 1.0f : 0.0f) * level;
+    s.tva_env.log_segments = true;     // TVA decays in dB, see Env5Spec
     v.pcm_env[index] = s.tva_env;      // the sampled partial shares it
 
     v.keyfollow[index] = keyfollow_ratio(p[2], 16);
@@ -278,7 +287,7 @@ inline void map_common(const uint8_t* c, ToneSpec& tone) {
 
     // ---- pitch envelope: four times, five bipolar levels
     for (int i = 0; i < 4; ++i) {
-        v.penv.t[i] = env_time(c[13 + i], 0.009f, 9.0f, 50.0f);
+        v.penv.t[i] = env_time(c[13 + i], 0.009f, 9.0f, 50.0f, 1.0f);
     }
     v.penv.l0 = bipolar_curved(c[17]);
     v.penv.l1 = bipolar_curved(c[18]);

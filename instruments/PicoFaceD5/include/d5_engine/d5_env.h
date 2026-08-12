@@ -7,6 +7,7 @@
 // chart under "Each partial block".
 #pragma once
 
+#include <cmath>
 #include <cstdint>
 
 #include "d5_engine/d5_hot.h"
@@ -18,6 +19,12 @@ struct Env5Spec {
     float l[3] = {1.0f, 0.85f, 0.7f};
     float sustain = 0.6f;
     float end = 0.0f;
+    // The LA envelopes run linear in decibels, not in amplitude: a single
+    // note of the reference recording decays at a constant -34 dB/s, which
+    // an amplitude-linear segment cannot do -- it holds energy up and then
+    // dives. TVA envelopes set this; TVF keeps linear segments because its
+    // output feeds a cutoff that is already exponential.
+    bool log_segments = false;
 };
 
 class Env5 {
@@ -38,7 +45,10 @@ public:
     }
 
     bool finished() const { return !held_ && seg_ >= 5; }
-    float level() const { return level_ < 0.0f ? 0.0f : level_; }
+    float level() const {
+        if (spec_.log_segments && level_ <= 1.05e-3f && remaining_ <= 0) return 0.0f;
+        return level_ < 0.0f ? 0.0f : level_;
+    }
 
     // Advance n samples at once -- the control-rate path. Segment changes
     // land on block edges; the shortest documented segment (4 ms) still
@@ -47,7 +57,11 @@ public:
         while (n > 0) {
             if (remaining_ > 0) {
                 const int32_t k = remaining_ < n ? remaining_ : n;
-                level_ += step_ * k;
+                if (seg_log_) {
+                    for (int32_t j = 0; j < k; ++j) level_ *= factor_;
+                } else {
+                    level_ += step_ * k;
+                }
                 remaining_ -= k;
                 n -= k;
             } else if (held_ && seg_ < 3) {
@@ -68,7 +82,8 @@ public:
 
     float D5_HOT(next)() {
         if (remaining_ > 0) {
-            level_ += step_;
+            if (seg_log_) level_ *= factor_;
+            else level_ += step_;
             --remaining_;
         } else if (held_ && seg_ < 3) {
             arm(seg_ + 1, seg_ + 1 < 3 ? spec_.l[seg_ + 1] : spec_.sustain);
@@ -85,14 +100,32 @@ private:
     void arm(int seg, float target) {
         seg_ = seg;
         remaining_ = static_cast<int32_t>(spec_.t[seg] * sr_);
-        step_ = remaining_ > 0 ? (target - level_) / remaining_ : 0.0f;
-        if (remaining_ <= 0) level_ = target;
+        if (remaining_ <= 0) { level_ = target; step_ = 0.0f; factor_ = 1.0f; return; }
+        step_ = (target - level_) / remaining_;
+        // Log-linear glide for FALLING segments only: a decay at constant
+        // dB/s is what the reference recording shows, but a rise in the log
+        // domain spends most of its time inaudibly near the floor -- a
+        // two-second pad swell would be silent for its first half. Attacks
+        // keep the linear ramp.
+        seg_log_ = spec_.log_segments && target < level_;
+        // -60 dB, not -96: the last segment glides to "zero" through this
+        // floor, and the deeper it lies the steeper that dive reads in dB/s.
+        // The reference recording puts the whole body decay near -34 dB/s;
+        // -60 keeps the final segment in that neighbourhood.
+        const float kFloor = 1.0e-3f;
+        if (!seg_log_) { factor_ = 1.0f; return; }
+        const float from = level_ < kFloor ? kFloor : level_;
+        const float to = target < kFloor ? kFloor : target;
+        factor_ = std::pow(to / from, 1.0f / static_cast<float>(remaining_));
+        if (level_ < kFloor) level_ = kFloor;
     }
 
     Env5Spec spec_{};
     float sr_ = 32000.0f;
     float level_ = 0.0f;
     float step_ = 0.0f;
+    float factor_ = 1.0f;
+    bool seg_log_ = false;
     int32_t remaining_ = 0;
     int seg_ = 0;
     bool held_ = false;
