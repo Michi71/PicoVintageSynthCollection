@@ -50,6 +50,41 @@ inline float level01(uint8_t v) { return v * 0.01f; }
 // The bipolar panel values: 0..100 shown as -50..+50.
 inline float bipolar(uint8_t v) { return (v - 50) * 0.02f; }
 
+// Roland's depth law, read verbatim from the D-05 firmware (BQ3:Appli at
+// file offset 0xE258E): 101 entries doubling exactly every 10 steps, so the
+// bottom of the range is fine and the top is full -- depth 8 is 0.17% of
+// full scale, not 8%. Read linearly, a factory patch asking for a breath of
+// vibrato got half a semitone of it; that was the rubber band in the tone.
+// The assignment of this particular table to the pitch depths rests on its
+// shape and its 0..100 span, not on a disassembled call site -- but the law
+// itself is Roland's own, which beats any curve we could have invented.
+inline constexpr float kDepthCurve[101] = {
+    0.000000f, 0.001047f, 0.001112f, 0.001177f, 0.001308f, 0.001374f,
+    0.001505f, 0.001570f, 0.001701f, 0.001832f, 0.001962f, 0.002093f,
+    0.002224f, 0.002420f, 0.002551f, 0.002747f, 0.002944f, 0.003205f,
+    0.003402f, 0.003663f, 0.003925f, 0.004187f, 0.004514f, 0.004841f,
+    0.005168f, 0.005495f, 0.005953f, 0.006345f, 0.006803f, 0.007261f,
+    0.007784f, 0.008373f, 0.008962f, 0.009616f, 0.010336f, 0.011055f,
+    0.011840f, 0.012691f, 0.013606f, 0.014588f, 0.015634f, 0.016746f,
+    0.017924f, 0.019232f, 0.020606f, 0.022110f, 0.023680f, 0.025381f,
+    0.027213f, 0.029175f, 0.031268f, 0.033493f, 0.035913f, 0.038464f,
+    0.041211f, 0.044221f, 0.047361f, 0.050762f, 0.054425f, 0.058285f,
+    0.062471f, 0.066985f, 0.071760f, 0.076928f, 0.082488f, 0.088376f,
+    0.094721f, 0.101524f, 0.108785f, 0.116635f, 0.125008f, 0.133970f,
+    0.143586f, 0.153922f, 0.164911f, 0.176751f, 0.189442f, 0.203048f,
+    0.217636f, 0.233270f, 0.250016f, 0.267940f, 0.287172f, 0.307778f,
+    0.329888f, 0.353568f, 0.378949f, 0.406097f, 0.435272f, 0.466540f,
+    0.499967f, 0.535880f, 0.574344f, 0.615556f, 0.659776f, 0.707071f,
+    0.757833f, 0.812259f, 0.870544f, 0.933015f, 1.000000f};
+
+// A bipolar parameter through the same law: fine around its center.
+inline float bipolar_curved(uint8_t v) {
+    const int d = (int)v - 50;
+    const int m = d < 0 ? -d : d;
+    const float c = kDepthCurve[m * 2 > 100 ? 100 : m * 2];
+    return d < 0 ? -c : c;
+}
+
 // LFO select 0..5 is +1,-1,+2,-2,+3,-3 -- interleaved, per the MIDI
 // implementation's parameter list. The first guess here was +1,+2,+3,-1,-2,-3,
 // which sent every second modulation to the wrong LFO with the wrong sign.
@@ -206,11 +241,11 @@ inline void map_common(const uint8_t* c, ToneSpec& tone) {
     for (int i = 0; i < 4; ++i) {
         v.penv.t[i] = env_time(c[13 + i], 0.009f, 9.0f, 50.0f);
     }
-    v.penv.l0 = bipolar(c[17]);
-    v.penv.l1 = bipolar(c[18]);
-    v.penv.l2 = bipolar(c[19]);
-    v.penv.sustain = bipolar(c[20]);
-    v.penv.end = bipolar(c[21]);
+    v.penv.l0 = bipolar_curved(c[17]);
+    v.penv.l1 = bipolar_curved(c[18]);
+    v.penv.l2 = bipolar_curved(c[19]);
+    v.penv.sustain = bipolar_curved(c[20]);
+    v.penv.end = bipolar_curved(c[21]);
     // There is no separate P-ENV depth parameter -- the levels themselves
     // are the depth, bipolar around 50, and full scale is two octaves. The
     // 2400 here is the unit of those levels, not a guess; zeroing it (as an
@@ -224,7 +259,7 @@ inline void map_common(const uint8_t* c, ToneSpec& tone) {
     // guessed mapping never found, and its absence was first patched with an
     // invented quarter-swing (audibly detuned) and then with zero (audibly
     // sterile).
-    const float pmod = level01(c[22]);
+    const float pmod = kDepthCurve[c[22] > 100 ? 100 : c[22]];
     v.pitch_lfo[0].depth *= pmod;
     v.pitch_lfo[1].depth *= pmod;
 
