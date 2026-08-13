@@ -93,6 +93,9 @@ void D5_Bridge::applyPatch() {
     // themselves with their next message, as the D-50's own switch does.
     portaSwitch_ = spec.upper.voice.porta_switch;
     portaTime_ = spec.upper.voice.porta_time;
+    // A patch change also ends the RPN bender-range override: the patch
+    // loader writes pb[26] over FE04/FE0C the same way (EPROM 0x5D60).
+    bendRange_ = spec.bend_range;
 
     patch_.configure(spec, static_cast<float>(sampleRate()));
     g_structure = spec.upper.voice.structure;
@@ -170,8 +173,14 @@ void D5_Bridge::setAftertouch(float a) {
     patch_.set_aftertouch(a);
 }
 
-void D5_Bridge::setPitchBendCents(float cents) {
-    patch_.set_bend(cents != 0.0f ? std::pow(2.0f, cents / 1200.0f) : 1.0f);
+void D5_Bridge::setPitchBendSemis(float semis) {
+    patch_.set_bend_semis(semis);
+}
+
+void D5_Bridge::setBendRange(int semis) {
+    // The D-50's own clamp (EPROM 0x4E9C): the wheel never reaches past
+    // 12 semitones, whatever the data entry asks.
+    bendRange_ = semis < 0 ? 0 : (semis > 12 ? 12 : semis);
 }
 
 void D5_Bridge::setPortamentoSwitch(bool on) {

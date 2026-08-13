@@ -33,6 +33,15 @@ void D5_Midi::onControlChange(uint8_t ch, uint8_t cc, uint8_t value) {
         case 65:                                    // portamento switch
             bridge_.setPortamentoSwitch(value >= 64);
             break;
+        // RPN 0 is pitch bend sensitivity. The D-50's own handler (EPROM
+        // 0x4E72-0x4EA4) reads only the data-entry MSB and clamps it to 12
+        // semitones; the override lasts until the next patch change.
+        case 6:
+            if (rpnMsb_ == 0 && rpnLsb_ == 0) bridge_.setBendRange(value);
+            break;
+        case 100: rpnLsb_ = value; break;           // RPN LSB
+        case 101: rpnMsb_ = value; break;           // RPN MSB
+
         case 7:                                     // channel volume
             bridge_.setVolume(value * 100 / 127);
             break;
@@ -53,11 +62,11 @@ void D5_Midi::onControlChange(uint8_t ch, uint8_t cc, uint8_t value) {
 
 void D5_Midi::onPitchBend(uint8_t ch, int16_t bend) {
     if (!accepts(ch)) return;
-    // The D-50's bender reaches +/-12 semitones and the engine takes cents,
-    // but the range is a patch parameter the preset table does not carry yet,
-    // so this holds at the MIDI default of two semitones.
-    const float semis = (bend / 8192.0f) * 2.0f;
-    bridge_.setPitchBendCents(semis * 100.0f);
+    // The bender range is a patch parameter (pb[26], 0..12 semitones,
+    // overrideable by RPN 0). 55 of the bank's 64 patches sit on the MIDI
+    // default of two; the other nine now get theirs.
+    const float semis = (bend / 8192.0f) * bridge_.bendRangeSemis();
+    bridge_.setPitchBendSemis(semis);
 }
 
 void D5_Midi::onChannelPressure(uint8_t ch, uint8_t value) {

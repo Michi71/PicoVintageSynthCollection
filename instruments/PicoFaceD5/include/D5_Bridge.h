@@ -41,7 +41,12 @@ public:
     void setReverb(int percent);           // scales the patch's reverb balance
     void setChorus(int percent);
     void setVoiceLimit(int voices);        // per tone, 1..8
-    void setPitchBendCents(float cents);
+    void setPitchBendSemis(float semis);   // wheel position x bender range
+    int bendRangeSemis() const { return bendRange_; }
+    // RPN 0 data entry (EPROM 0x4E72): overwrites the patch's bender range
+    // until the next patch change, exactly like the firmware's FE04/FE0C.
+    void setBendRange(int semis);
+
     void setModWheel(float w);             // CC1, the D-50 lever's near kin   // reaches sounding notes
     void setAftertouch(float a);           // channel pressure, 0..1; survives patch changes like the wheel
     void setPortamentoSwitch(bool on);     // CC65: overrides the patch's switch
@@ -73,6 +78,7 @@ private:
     // CC5 arriving before CC65 still lands when the switch does.
     bool portaSwitch_ = false;
     int portaTime_ = 0;
+    int bendRange_ = 2;             // bender range in semitones, pb[26]
     int activeVoices_ = 0;
     uint32_t noteOnTotal_ = 0;
     int cpuPeak_ = 0;

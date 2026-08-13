@@ -412,6 +412,16 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
     v.pw_at[index]  = static_cast<float>(atfold(p[12]));
     v.tvf_at[index] = static_cast<float>(atfold(p[34]));
     v.tva_at[index] = static_cast<float>(atfold(p[53]));
+    // WG Mod Bend Mode, offset 5: how far the pitch wheel reaches this
+    // partial at all (IC25 0x0E4D, mode & 3, zero skips). OFF mutes it --
+    // the bank's drum and fixed-pitch partials; NORM takes the bend whole
+    // (x0x5555 at 0x0E57); KF scales it by this partial's SIGNED pitch
+    // keyfollow (0x0E92 against the 0x01F1 table, split at index 3 so the
+    // negative keyfollows invert the wheel). KF is the factory default:
+    // 39 of 64 patches carry (1,1,1,1).
+    const uint8_t bmode = p[5] > 2 ? 2 : p[5];
+    v.bend_scale[index] = (bmode == 0) ? 0.0f
+                        : (bmode == 2) ? 1.0f : v.keyfollow[index];
 }
 
 inline void map_common(const uint8_t* c, ToneSpec& tone) {
@@ -565,6 +575,12 @@ inline PatchSpec patch_from_bytes(const uint8_t* patch, const int16_t* blob) {
         p.upper.voice.at_bend_semis = p.lower.voice.at_bend_semis =
             static_cast<float>(bend);
     }
+    // Bender Range, pb[26], 0..12 semitones, patch-common (the patch loader
+    // at 0x5D60 copies C59A to both tone slots FE04/FE0C; the bend merge at
+    // 0x5CC1 multiplies the wheel by it). The bank holds 2 in 55 of 64
+    // patches and 12 in seven -- the hardcoded MIDI default the bridge used
+    // to apply matched the majority by luck.
+    p.bend_range = pb[26] > 12 ? 12 : pb[26];
     return p;
 }
 

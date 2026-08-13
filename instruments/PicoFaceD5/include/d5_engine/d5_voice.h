@@ -138,6 +138,16 @@ struct VoiceSpec {
     // on every sounding voice, exactly (pb27-12)*AT/128 semitones (EPROM
     // 0x5C34-0x5D1C: 2*AT*|range| units of 1/256 st, clamp +/-0xC00).
     float at_bend_semis = 0.0f;
+    // WG Mod Bend Mode, partial byte p[5] (IC25 0x0E4D gates on mode & 3,
+    // zero skips the partial's bend entirely): OFF mutes the wheel here,
+    // NORM takes it at full range (x0x5555 at 0x0E57), KF scales it by the
+    // partial's SIGNED pitch keyfollow (0x0E92 against the 0x01F1 table;
+    // the CMP A,#03H split inverts the bend direction for the negative
+    // keyfollows below index 3 -- a partial whose pitch walks DOWN the
+    // keyboard must bend down when the wheel goes up). So kf 1/2 bends
+    // half way, kf 2 bends twice as far, OFF is 0. The wheel's own range
+    // is patch-common (pb[26]) and arrives through set_bend_semis.
+    float bend_scale[2] = {1.0f, 1.0f};
     // Panel "WG Pitch Fine" per partial, plus the instrument's master tune;
     // both in cents, both continuous, so they can detune a pair against each
     // other without landing on a semitone.
@@ -309,6 +319,15 @@ public:
                             lfo_[2].next_n(kModPeriod)};
         const float pitch_env = penv_.next_n(kModPeriod);
 
+        // Wheel bend plus AT bend, clamped once per voice the way the chip
+        // does it (EPROM 0x5D1C, +/-0xC00 = +/-12 st) BEFORE the per-partial
+        // bend-mode scale reads it.
+        float ctl = bend_semis_;
+        if (spec_.at_bend_semis != 0.0f && at_ != 0.0f) {
+            ctl += spec_.at_bend_semis * at_ * (127.0f / 128.0f);
+        }
+        ctl_bend_st_ = ctl > 12.0f ? 12.0f : (ctl < -12.0f ? -12.0f : ctl);
+
         for (int i = 0; i < 2; ++i) {
             // Advance the glide by one block, then fold its offset into the
             // pitch factor: T/64 semitones per 112-Hz tick, scaled to this
@@ -341,16 +360,17 @@ public:
             } else if (spec_.penv_mode[i] == PEnvMode::kNegative) {
                 factor /= pitch_env;
             }
-            // AT bend sits next to the wheel bend in the chip's own pitch
-            // word (0x5D1C adds it per voice), so it multiplies in here --
-            // its +/-12-semitone range needs no extra clamp: |pb27-12| <= 12
-            // and AT/128 stays under one.
-            float at_bend = 1.0f;
-            if (spec_.at_bend_semis != 0.0f && at_ != 0.0f) {
-                at_bend = fast_exp2(spec_.at_bend_semis * at_
-                                    * (127.0f / 128.0f) * (1.0f / 12.0f));
-            }
-            const float tgt_pitch = factor * bend_ * glide * at_bend;
+            // The chip merges wheel bend and AT bend into ONE pitch word per
+            // voice and clamps the sum to +/-12 semitones (EPROM 0x5D1C,
+            // +/-0xC00 of 1/256-st units); only then does the per-partial
+            // bend mode scale it (see VoiceSpec::bend_scale). The clamp
+            // order matters: a KF partial reads the same clamped source its
+            // OFF neighbour reads.
+            const float partial_st = ctl_bend_st_ * spec_.bend_scale[i];
+            const float ctl_bend =
+                partial_st != 0.0f ? fast_exp2(partial_st * (1.0f / 12.0f))
+                                   : 1.0f;
+            const float tgt_pitch = factor * ctl_bend * glide;
             mod_[i].pw = 0.5f * spec_.pw_lfo[i].depth * lfo_value(l, spec_.pw_lfo[i])
                        + 0.65f * spec_.pw_at[i] * at_;
             mod_[i].cutoff = 0.5f * spec_.tvf_lfo[i].depth * lfo_value(l, spec_.tvf_lfo[i])
@@ -418,7 +438,7 @@ public:
     // same kind of live control (CC65/CC5), and the firmware's slew gate
     // answers it within a tick: the switch going off snaps the sounding
     // pitch to its target mid-glide.
-    void set_bend(float factor) { bend_ = factor; }
+    void set_bend_semis(float st) { bend_semis_ = st; }
     void set_wheel(float w) { wheel_ = w < 0.0f ? 0.0f : (w > 1.0f ? 1.0f : w); }
     // Channel pressure, 0..1. Like the wheel it is a live control on the
     // sounding voices, and like the wheel it survives a patch change
@@ -465,7 +485,8 @@ private:
     SynthPartial synth_[2]{};
     Lfo lfo_[3]{};
     PitchEnv penv_{};
-    float bend_ = 1.0f;
+    float bend_semis_ = 0.0f;   // wheel position x patch range, in semitones
+    float ctl_bend_st_ = 0.0f;  // wheel + AT bend after the +/-12 st clamp
     float wheel_ = 0.0f;
     float at_ = 0.0f;
     Modulation mod_[2]{};

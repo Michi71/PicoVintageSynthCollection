@@ -97,8 +97,8 @@ public:
     void set_level(float v) { spec_.level = v; }
     void set_chorus_balance(float b) { chorus_.set_balance(b); }
     void set_master_cents(float c) { spec_.voice.master_cents = c; }
-    void set_bend(float factor) {
-        for (int i = 0; i < kVoices; ++i) voices_[i].set_bend(factor);
+    void set_bend_semis(float st) {
+        for (int i = 0; i < kVoices; ++i) voices_[i].set_bend_semis(st);
     }
     void set_aftertouch(float a) {
         for (int i = 0; i < kVoices; ++i) voices_[i].set_aftertouch(a);
@@ -132,6 +132,11 @@ struct PatchSpec {
     KeyMode key_mode = KeyMode::kWhole;
     int split_point = 60;         // panel "Split Point", C4 by default
     float balance = 0.5f;         // panel "Tone Balance", upper to lower
+    // Panel "Bender Range", pb[26], 0..12 semitones. Patch-common: the
+    // firmware copies it to both tone slots at load time (EPROM 0x5D60,
+    // C59A -> FE04/FE0C) and lets an RPN-0 data entry overwrite it until
+    // the next load (0x4E72, clamped to 12).
+    int bend_range = 2;
     ReverbSpec reverb{};
     float volume = 1.0f;
 };
@@ -213,9 +218,9 @@ public:
         upper_.set_master_cents(c);
         lower_.set_master_cents(c);
     }
-    void set_bend(float factor) {
-        upper_.set_bend(factor);
-        lower_.set_bend(factor);
+    void set_bend_semis(float st) {
+        upper_.set_bend_semis(st);
+        lower_.set_bend_semis(st);
     }
     void set_mod_wheel(float w) {
         upper_.set_wheel(w);

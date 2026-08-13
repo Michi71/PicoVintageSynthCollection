@@ -29,6 +29,8 @@ public:
 private:
     D5_Bridge& bridge_;
     D5_Controller& controller_;
+    uint8_t rpnMsb_ = 0;            // pending registered parameter
+    uint8_t rpnLsb_ = 0;
 };
 
 #endif // D5_MIDI_H
