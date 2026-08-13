@@ -231,14 +231,19 @@ void __not_in_flash_func(D5_Bridge::fillBufferI32)(int32_t* out, int frames) {
 
     float pk = 0.0f;
     for (int i = 0; i < frames; ++i) {
-        float v = patch_.next();
-        if (v > 1.0f) v = 1.0f;
-        if (v < -1.0f) v = -1.0f;
-        const float mag = v < 0.0f ? -v : v;
-        if (mag > pk) pk = mag;
-        const int32_t s = static_cast<int32_t>(v * 32767.0f);
-        out[2 * i] = s << 16;          // the pool wants the sample in the
-        out[2 * i + 1] = s << 16;      // upper half, left then right
+        float l, r;
+        patch_.next_stereo(l, r);
+        if (l > 1.0f) l = 1.0f;
+        if (l < -1.0f) l = -1.0f;
+        if (r > 1.0f) r = 1.0f;
+        if (r < -1.0f) r = -1.0f;
+        const float ml = l < 0.0f ? -l : l;
+        const float mr = r < 0.0f ? -r : r;
+        if (ml > pk) pk = ml;
+        if (mr > pk) pk = mr;
+        // the pool wants the sample in the upper half, left then right
+        out[2 * i] = static_cast<int32_t>(l * 32767.0f) << 16;
+        out[2 * i + 1] = static_cast<int32_t>(r * 32767.0f) << 16;
     }
     // Peak of what the engine actually produced, before the I2S ever sees
     // it. Silence with this at zero is the engine's fault; silence with it

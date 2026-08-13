@@ -162,14 +162,28 @@ public:
     // chord rings should not restart the chorus.
     void set_balance(float b) { spec_.balance = clamp01(b); }
 
+    // Mono is the L/MONO jack of the real unit: dry + wet, exactly what the
+    // left side carries. Averaging l and r would cancel the anti-phase wet
+    // and the chorus would vanish from every mono path.
     float D5_HOT(process)(float x) {
+        float l, r;
+        process(x, l, r);
+        return l;
+    }
+
+    // Stereo the way the Roland effects of the era do it: left gets
+    // dry + wet, right gets dry - wet. The same modulated wet, inverted --
+    // even a whisper of depth then opens the field around a steady center,
+    // which is the chorus width the instrument is known for. The mono path
+    // above takes the left side (dry + wet), identical to the fold a L/MONO
+    // jack hears on the real unit.
+    void D5_HOT(process)(float x, float& l, float& r) {
         const ChorusType& t = kChorusTypes[clamp_index(spec_.type, 8)];
         float wet = 0.0f;
         for (int v = 0; v < t.voices; ++v) {
             const float ph = phase_ + static_cast<float>(v) / t.voices;
-            const float lfo = fast_sin(ph);   // wraps on its own
             const float ms = t.base_ms + t.spread_ms * v +
-                             clamp01(spec_.depth) * 4.0f * lfo;
+                             clamp01(spec_.depth) * 4.0f * fast_sin(ph);   // wraps on its own
             wet += read(ms * 0.001f * sr_);
         }
         wet /= static_cast<float>(t.voices);
@@ -181,7 +195,9 @@ public:
         if (phase_ >= 1.0f) phase_ -= 1.0f;
 
         const float b = clamp01(spec_.balance);
-        return x * (1.0f - b) + wet * b;
+        const float dry = x * (1.0f - b);
+        l = dry + wet * b;
+        r = dry - wet * b;
     }
 
 private:
@@ -287,15 +303,17 @@ public:
         if (predelay_ >= kPre) predelay_ = kPre - 1;
         gate_ = static_cast<int>(t.gate_ms * 0.001f * sr);
         age_ = 0;
-        for (int i = 0; i < kPre; ++i) pre_[i] = 0.0f;
-        for (int c = 0; c < 4; ++c) {
-            for (int i = 0; i < kComb[c]; ++i) comb_[c][i] = 0.0f;
-            comb_i_[c] = 0;
-            store_[c] = 0.0f;
-        }
-        for (int a = 0; a < 2; ++a) {
-            for (int i = 0; i < kAll[a]; ++i) all_[a][i] = 0.0f;
-            all_i_[a] = 0;
+        for (int i = 0; i < kPre; ++i) { pre_[0][i] = 0.0f; pre_[1][i] = 0.0f; }
+        for (int n = 0; n < 2; ++n) {
+            for (int c = 0; c < 4; ++c) {
+                for (int i = 0; i < kComb[n][c]; ++i) comb_[n][c][i] = 0.0f;
+                comb_i_[n][c] = 0;
+                store_[n][c] = 0.0f;
+            }
+            for (int a = 0; a < 2; ++a) {
+                for (int i = 0; i < kAll[n][a]; ++i) all_[n][a][i] = 0.0f;
+                all_i_[n][a] = 0;
+            }
         }
         pre_i_ = 0;
     }
@@ -305,43 +323,64 @@ public:
     void note_activity() { age_ = 0; }      // a gate restarts with the note
 
     float D5_HOT(process)(float x) {
-        pre_[pre_i_] = x;
-        int r = pre_i_ - predelay_;
-        if (r < 0) r += kPre;
-        float in = pre_[r];
+        float l, r;
+        process(x, x, l, r);
+        return l;
+    }
+
+    // Stereo: each side runs its own predelay and its own comb/allpass
+    // network, whose lengths are coprime to the other's, so the two tails
+    // share the type's decay and damping but never share a resonance. The
+    // input is taken per side -- that is what lets the anti-phase chorus
+    // wet of the tones survive into the room instead of folding away on a
+    // shared mono bus.
+    void D5_HOT(process)(float xl, float xr, float& l, float& r) {
+        pre_[0][pre_i_] = xl;
+        pre_[1][pre_i_] = xr;
+        int pi = pre_i_ - predelay_;
+        if (pi < 0) pi += kPre;
+        float in[2] = {pre_[0][pi], pre_[1][pi]};
         if (++pre_i_ >= kPre) pre_i_ = 0;
 
         if (gate_ > 0) {
-            if (age_ > gate_) in = 0.0f;
+            if (age_ > gate_) { in[0] = 0.0f; in[1] = 0.0f; }
             ++age_;
         }
 
-        float sum = 0.0f;
+        float sum[2] = {0.0f, 0.0f};
         for (int c = 0; c < 4; ++c) {
-            const float y = comb_[c][comb_i_[c]];
-            store_[c] = y * (1.0f - damping_) + store_[c] * damping_;
-            comb_[c][comb_i_[c]] = in + store_[c] * decay_;
-            if (++comb_i_[c] >= kComb[c]) comb_i_[c] = 0;
-            sum += y;
+            for (int n = 0; n < 2; ++n) {
+                const float y = comb_[n][c][comb_i_[n][c]];
+                store_[n][c] = y * (1.0f - damping_) + store_[n][c] * damping_;
+                comb_[n][c][comb_i_[n][c]] = in[n] + store_[n][c] * decay_;
+                if (++comb_i_[n][c] >= kComb[n][c]) comb_i_[n][c] = 0;
+                sum[n] += y;
+            }
         }
-        sum *= 0.25f * comb_gain_;
+        sum[0] *= 0.25f * comb_gain_;
+        sum[1] *= 0.25f * comb_gain_;
 
         for (int a = 0; a < 2; ++a) {
-            const float y = all_[a][all_i_[a]];
-            const float v = sum + y * 0.5f;
-            all_[a][all_i_[a]] = v;
-            if (++all_i_[a] >= kAll[a]) all_i_[a] = 0;
-            sum = y - v * 0.5f;
+            for (int n = 0; n < 2; ++n) {
+                const float y = all_[n][a][all_i_[n][a]];
+                const float v = sum[n] + y * 0.5f;
+                all_[n][a][all_i_[n][a]] = v;
+                if (++all_i_[n][a] >= kAll[n][a]) all_i_[n][a] = 0;
+                sum[n] = y - v * 0.5f;
+            }
         }
 
         const float b = clamp01(spec_.balance);
-        return x * (1.0f - b) + sum * b;
+        l = xl * (1.0f - b) + sum[0] * b;
+        r = xr * (1.0f - b) + sum[1] * b;
     }
 
 private:
     // Prime-ish lengths at 32 kHz, so the comb resonances do not line up.
-    static constexpr int kComb[4] = {809, 863, 929, 983};
-    static constexpr int kAll[2] = {401, 317};
+    // The second network is coprime to the first: it is the stereo side.
+    static constexpr int kComb[2][4] = {{809, 863, 929, 983},
+                                        {839, 887, 941, 967}};
+    static constexpr int kAll[2][2] = {{401, 317}, {421, 337}};
     static constexpr int kPre = 3200;      // 100 ms of pre-delay
 
     static float clamp01(float v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
@@ -356,13 +395,13 @@ private:
     int gate_ = 0;
     int age_ = 0;
 
-    float pre_[kPre] = {};
+    float pre_[2][kPre] = {};
     int pre_i_ = 0;
-    float comb_[4][983] = {};
-    int comb_i_[4] = {};
-    float store_[4] = {};
-    float all_[2][401] = {};
-    int all_i_[2] = {};
+    float comb_[2][4][983] = {};
+    int comb_i_[2][4] = {};
+    float store_[2][4] = {};
+    float all_[2][2][421] = {};
+    int all_i_[2][2] = {};
 };
 
 }  // namespace d5

@@ -91,7 +91,18 @@ public:
         for (int i = 0; i < kVoices; ++i) voices_[i].set_wheel(w);
     }
 
+    // Mono fold takes the left side, the L/MONO jack: the chorus wet is
+    // anti-phase on the right, so a plain average would silence it.
     float D5_HOT(next)() {
+        float l, r;
+        next_stereo(l, r);
+        return l;
+    }
+
+    // The tone's stereo image comes entirely from its chorus: the voice
+    // sum and the EQ are a mono chain, and the chorus's two counter-swept
+    // wet reads open the field (the chip's effect stage does the same job).
+    void D5_HOT(next_stereo)(float& l, float& r) {
         // The shared LFOs walk every sample, silent or not -- the tick
         // engine's loop at 0x1508 runs unconditionally, which is why a
         // sync-off LFO never waits for a key.
@@ -104,7 +115,9 @@ public:
             sum += voices_[i].next();
             if (!voices_[i].active()) active_[i] = false;
         }
-        return chorus_.process(eq_.process(sum)) * spec_.level;
+        chorus_.process(eq_.process(sum), l, r);
+        l *= spec_.level;
+        r *= spec_.level;
     }
 
     bool sounding() const {
@@ -200,7 +213,18 @@ public:
         lower_.note_off(note);
     }
 
+    // Mono fold is the L/MONO jack again: the left side as it ships.
     float D5_HOT(next)() {
+        float l, r;
+        next_stereo(l, r);
+        return l;
+    }
+
+    // Stereo: the tones keep their own left and right through the balance
+    // weights into the reverb, whose two coprime networks take one side
+    // each -- the chorus width of a tone survives into the room. The laws
+    // themselves are unchanged from the mono path.
+    void D5_HOT(next_stereo)(float& l, float& r) {
         // Tone balance per the firmware's mixer (bank code 0xB397): each
         // tone's factor is min(4*b, 255)/200 of its side, so the center
         // is 1.0 each and a full tilt reaches +2.1 dB on the loud side --
@@ -214,8 +238,12 @@ public:
             uw = 2.0f * b; if (uw > 1.275f) uw = 1.275f;
             lw = 2.0f * (1.0f - b); if (lw > 1.275f) lw = 1.275f;
         }
-        const float mix = upper_.next() * uw + lower_.next() * lw;
-        return saturate(reverb_.process(mix) * spec_.volume);
+        float ul, ur, ll, lr;
+        upper_.next_stereo(ul, ur);
+        lower_.next_stereo(ll, lr);
+        reverb_.process(ul * uw + ll * lw, ur * uw + lr * lw, l, r);
+        l = saturate(l * spec_.volume);
+        r = saturate(r * spec_.volume);
     }
 
     // Sixteen voices plus a reverb tail can ask for more than full scale, and
