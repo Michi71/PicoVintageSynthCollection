@@ -153,16 +153,17 @@ inline LfoRoute lfo_route(uint8_t select, uint8_t depth);
 // WG Pitch Keyfollow, parameter offset 2: seventeen ratios straight from the
 // parameter list. Index 11 is the 1:1 the guessed mapping silently assumed
 // for everything -- true for 176 of the bank's 256 partials, wrong for 80.
-// s1 and s2 are Roland's stretched tunings, and the D-05 firmware states
-// them outright: its keyfollow table (BQ3:Appli at 0xE2894, Q15) runs
-// -32768, -16384, -8192, 0, 4096..32768, 40960, 49152, 65536, then 32786
-// and 32862 -- s1 = 1.000549, s2 = 1.002869, about 1.3 and 6.9 cents of
-// stretch at two octaves from center. Every other entry matches the
-// fractions below exactly, which is also the proof they are read right.
+// s1 and s2 are Roland's stretched tunings. The D-50's OWN mask ROM
+// (uPD78312 internal ROM, table at 0x01F1, scale 0x5555 = 1.0) states
+// 0x5568 and 0x55B1: s1 = 1.000870, s2 = 1.004210 -- about 2.1 and 10.1
+// cents at two octaves from center. The D-05 remake uses slightly gentler
+// values (1.000549/1.002869); the original hardware outranks the remake.
+// Every other entry of that table matches the fractions below exactly,
+// which is also the proof they are read right.
 inline constexpr float kKeyfollow[17] = {
     -1.0f, -0.5f, -0.25f, 0.0f, 0.125f, 0.25f, 0.375f, 0.5f,
     0.625f, 0.75f, 0.875f, 1.0f, 1.25f, 1.5f, 2.0f,
-    1.0005493f, 1.0028687f};
+    1.0008699f, 1.0042115f};
 
 inline float keyfollow_ratio(uint8_t v, int limit) {
     return kKeyfollow[v > limit ? 11 : v];
