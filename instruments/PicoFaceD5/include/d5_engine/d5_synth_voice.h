@@ -145,6 +145,8 @@ public:
         atten_ = 1.0f;
         res_on_ = false;
         h_frac_ = 0.0f;
+        dc_shape_ = 0.0f;
+        dc_out_ = 0.0f;
 
         inc_ = freq_ / sr_;
         tvf_.start(spec_.tvf_env, sr_);
@@ -199,10 +201,20 @@ public:
         pulse_frac_ = pwf;
         h_frac_ = pulse_frac_ - edge_frac_;
         if (h_frac_ < 0.0f) h_frac_ = 0.0f;
+        // The shape's DC: the half-cosine edges average to zero, so the
+        // mean is the duty imbalance of the shelves -- 2*pulse-1, or
+        // 2*edge-1 when a pulse narrower than the edge pair clamps its
+        // high shelf away. A narrow pulse carries almost a full unit of
+        // DC (Pipe Solo's byte-0 duty renders at -0.09 of full scale).
+        dc_shape_ = h_frac_ > 0.0f ? 2.0f * pulse_frac_ - 1.0f
+                                   : 2.0f * edge_frac_ - 1.0f;
     }
 
     float D5_HOT_TAG(d5_synth_next, next)(const Modulation& mod = Modulation{}) {
-        if (!active_) return 0.0f;
+        if (!active_) {
+            dc_out_ = 0.0f;
+            return 0.0f;
+        }
 
         // The chip's square: a rising cosine edge, a high shelf, a falling
         // edge, a low shelf -- with playback starting in the centre of the
@@ -262,8 +274,19 @@ public:
 
         const float amp = tva_.next();
         if (tva_.finished()) active_ = false;
+        // The partial's output DC with every scaling applied, for the
+        // voice's mix point: the chip's ring modulation reads the raw
+        // partial -- DC included -- but the D-50's line out is AC-coupled
+        // and never passes it. A saw keeps its shape mean on the cosine
+        // carrier (mean zero), so only the square reports one.
+        dc_out_ = spec_.waveform == Waveform::kSquare
+                      ? dc_shape_ * atten_ * amp * gain_ * mod.amp * 0.5f
+                      : 0.0f;
         return out * amp * gain_ * mod.amp * 0.5f;
     }
+
+    // DC of this partial's contribution next() just returned (see above).
+    float dc() const { return dc_out_; }
 
 private:
     static constexpr float kPi = 3.14159265358979323846f;
@@ -286,6 +309,8 @@ private:
     float edge_frac_ = 0.5f;       // cosine edge as fraction of the period
     float pulse_frac_ = 0.5f;
     float h_frac_ = 0.0f;
+    float dc_shape_ = 0.0f;        // mean of the bare shape (duty imbalance)
+    float dc_out_ = 0.0f;          // dc_shape_ with all output scaling on
     float atten_ = 1.0f;           // sub-middle broadband attenuation
     bool res_on_ = false;
     float res_ = 1.0f;

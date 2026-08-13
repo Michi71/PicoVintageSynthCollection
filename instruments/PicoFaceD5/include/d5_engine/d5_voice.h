@@ -433,13 +433,22 @@ public:
                                                : synth_[0].next(mod_[0]);
         float b = (st.p2 == PartialType::kPcm) ? pcm_[1].next(mod_[1])
                                                : synth_[1].next(mod_[1]);
-        if (!(spec_.partials_on & 0x1)) a = 0.0f;
-        if (!(spec_.partials_on & 0x2)) b = 0.0f;
+        // The asymmetric pulses carry a DC as large as the duty imbalance.
+        // Inside the chip that DC is real -- the pair's ring mod multiplies
+        // the raw partials -- but the D-50's line out is AC-coupled and
+        // never passes it. So the direct partials are stripped here at the
+        // mix point, and from the ring product only the pure dc*dc term
+        // comes out: the leakage terms (dc_a * b) are a level-modulated
+        // copy of the other partial, which the coupling keeps.
+        float dca = (st.p1 == PartialType::kPcm) ? 0.0f : synth_[0].dc();
+        float dcb = (st.p2 == PartialType::kPcm) ? 0.0f : synth_[1].dc();
+        if (!(spec_.partials_on & 0x1)) { a = 0.0f; dca = 0.0f; }
+        if (!(spec_.partials_on & 0x2)) { b = 0.0f; dcb = 0.0f; }
 
         // The chip multiplies in the log domain, which is an ordinary product
         // once decoded: sum and difference frequencies, and silence whenever
         // either side is silent.
-        const float second = st.ring ? a * b : b;
+        const float second = st.ring ? a * b - dca * dcb : b - dcb;
 
         // The firmware's balance curve (EPROM bank code 0xB450): the
         // quieter side falls linearly to zero, the louder side RISES from
@@ -455,7 +464,7 @@ public:
         const float fmax = 1.0f + (0.5f - mn) * 0.5f;
         const float w1 = bal < 0.5f ? fmax : fmin;
         const float w2 = bal < 0.5f ? fmin : fmax;
-        return a * w1 + second * w2;
+        return (a - dca) * w1 + second * w2;
     }
 
     // Pitch bend reaches notes that are already sounding, so it cannot go
