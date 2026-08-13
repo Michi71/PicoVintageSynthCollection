@@ -132,9 +132,16 @@ public:
         } else if (cv < 128.0f) {
             atten_ = fast_exp2(-0.125f * (128.0f - cv));
         }
-        float pwf = 0.5f;
-        const float pw = pw255_ + mod.pw * 255.0f;
-        if (pw > 128.0f) pwf = fast_exp2((64.0f - pw) * (1.0f / 64.0f));
+        // The D-50's pulse width byte is duty percent, NOT the MT-32's
+        // 0..255 scale with its symmetric lower half: the Pizzagogo
+        // reference shows even harmonics at -4..+6 dB against the
+        // fundamental for PW bytes 5 and 11, which only an asymmetric
+        // narrow pulse produces -- munt's rule would have made those plain
+        // squares with no even content at all. The velocity term keeps
+        // munt's scale on the D-50's own semantics.
+        float pwf = (pw255_ + mod.pw * 255.0f) * (1.0f / 255.0f);
+        if (pwf < 0.05f) pwf = 0.05f;
+        if (pwf > 0.95f) pwf = 0.95f;
         pulse_frac_ = pwf;
         h_frac_ = pulse_frac_ - edge_frac_;
         if (h_frac_ < 0.0f) h_frac_ = 0.0f;
