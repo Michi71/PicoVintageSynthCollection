@@ -144,6 +144,18 @@ public:
     float raw() const { return raw_; }
     float gate() const { return delay_left_ > 0.0f ? 0.0f : gate_; }
 
+    // The D-50's LFOs are tone-global: the 112-Hz tick walks exactly one
+    // phase word per LFO per tone (IC25 0x1508-0x160D), and every sounding
+    // voice reads the same words from the CD40 merge area. So the tone owns
+    // the LFOs and steps them once per sample...
+    float next() { return next_n(1); }
+
+    // ...while a voice's block rate only READS the shared state -- calling
+    // next_n() here would advance the phase once per listening voice.
+    float value() const { return raw_ * gate(); }
+
+    float phase() const { return phase_; }   // diagnostic handle
+
 private:
     float next_random() {
         rng_ ^= rng_ << 13;

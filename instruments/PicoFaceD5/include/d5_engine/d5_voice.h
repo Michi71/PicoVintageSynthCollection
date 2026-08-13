@@ -191,8 +191,19 @@ public:
         sr_ = sample_rate;
         const Structure& st = structure();
         const PartialType types[2] = {st.p1, st.p2};
-        for (int i = 0; i < 3; ++i) {
-            lfo_[i].start(spec_.lfo[i], sample_rate, 0x9E3779B9u * (i + 1));
+        // The LFOs belong to the TONE: the 112-Hz tick walks one phase word
+        // per LFO per tone (IC25 0x1508-0x160D) and every voice reads the
+        // shared words from the CD40 merge area -- notes in a chord vibrate
+        // together. bind_lfos() hands a real voice the tone's three
+        // instances; a voice that was never bound (unit tests on Voice
+        // alone) runs its own copies instead, advanced in next().
+        if (lfo_[0] == nullptr) {
+            lfo_local_ = true;
+            for (int i = 0; i < 3; ++i) {
+                local_lfo_[i].start(spec_.lfo[i], sample_rate,
+                                    0x9E3779B9u * (i + 1));
+                lfo_[i] = &local_lfo_[i];
+            }
         }
 
         // The effective key: shifted, C4-relative, folded into +/-48 by
@@ -282,9 +293,13 @@ public:
         }
     }
 
-    // Sync mode 2 on LFO-1: a new note anywhere in the tone restarts the
-    // vibrato of the voices already sounding.
-    void retrigger_lfo1() { lfo_[0].retrigger(); }
+    // Hands the voice the tone's three shared LFO instances (see note_on).
+    void bind_lfos(const Lfo shared[3]) {
+        lfo_[0] = &shared[0];
+        lfo_[1] = &shared[1];
+        lfo_[2] = &shared[2];
+        lfo_local_ = false;
+    }
 
     void note_off() {
         penv_.release();
@@ -315,8 +330,11 @@ public:
     void update_block() {
         mod_count_ = kModPeriod;
         const Structure& st = structure();
-        const float l[3] = {lfo_[0].next_n(kModPeriod), lfo_[1].next_n(kModPeriod),
-                            lfo_[2].next_n(kModPeriod)};
+        // The LFOs advance per sample (in the tone for shared instances, or
+        // at the top of next() for the standalone fallback); the block only
+        // reads the current gated values.
+        const float l[3] = {lfo_[0]->value(), lfo_[1]->value(),
+                            lfo_[2]->value()};
         const float pitch_env = penv_.next_n(kModPeriod);
 
         // Wheel bend plus AT bend, clamped once per voice the way the chip
@@ -349,10 +367,10 @@ public:
             // with the fade, the lever speaks at once -- the ROM multiplies
             // only the c[22] term by the fade ramp (IC25 0x177B-0x17A3),
             // the controller terms bypass it.
-            const float depth = pr.depth * lfo_[0].gate()
+            const float depth = pr.depth * lfo_[0]->gate()
                 + spec_.lever_gate[i] * spec_.lever_amount * wheel_
                 + spec_.at_gate[i] * spec_.at_amount * at_;
-            const float cents = 600.0f * depth * lfo_[0].raw();
+            const float cents = 600.0f * depth * lfo_[0]->raw();
             float factor = cents != 0.0f
                                ? fast_exp2(cents * (1.0f / 1200.0f)) : 1.0f;
             if (spec_.penv_mode[i] == PEnvMode::kPositive) {
@@ -397,6 +415,13 @@ public:
 
     float D5_HOT_TAG(d5_voice_next, next)() {
         const Structure& st = structure();
+        // Standalone voices advance their private LFOs themselves; a bound
+        // voice's LFOs are stepped by the tone above it.
+        if (lfo_local_) {
+            local_lfo_[0].next();
+            local_lfo_[1].next();
+            local_lfo_[2].next();
+        }
         if (mod_count_ == 0) update_block();
         --mod_count_;
         mod_[0].pitch += dpitch_[0];
@@ -483,7 +508,11 @@ private:
     VoiceSpec spec_{};
     PcmVoice pcm_[2]{};
     SynthPartial synth_[2]{};
-    Lfo lfo_[3]{};
+    // The LFOs the voice listens to: the tone's shared three when bound,
+    // its own copies otherwise (unit tests on Voice alone; see note_on).
+    const Lfo* lfo_[3] = {nullptr, nullptr, nullptr};
+    Lfo local_lfo_[3]{};
+    bool lfo_local_ = false;
     PitchEnv penv_{};
     float bend_semis_ = 0.0f;   // wheel position x patch range, in semitones
     float ctl_bend_st_ = 0.0f;  // wheel + AT bend after the +/-12 st clamp

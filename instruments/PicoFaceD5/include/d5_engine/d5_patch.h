@@ -36,9 +36,31 @@ public:
         sr_ = sample_rate;
         eq_.configure(spec.eq, sample_rate);
         chorus_.configure(spec.chorus, sample_rate);
+        // The tone's three LFOs are single shared instances -- the D-50's
+        // 112-Hz tick walks one phase word per LFO per tone (IC25
+        // 0x1508-0x160D), so a chord vibrates coherently and a legato note
+        // joins the running wobble. They free-run from here on.
+        for (int i = 0; i < 3; ++i) {
+            lfo_[i].start(spec.voice.lfo[i], sample_rate, 0x9E3779B9u * (i + 1));
+        }
     }
 
     void note_on(int note, float velocity) {
+        // Sync roles per the note-transition handler (EPROM 0x28FC-0x2991):
+        // a tone going from silence to sounding restarts the phase and
+        // delay of every LFO whose sync byte is nonzero (the 0x1655 loop
+        // gates on [UP+3] != 0); mid-phrase, only LFO-1 may restart, and
+        // only when its own byte is exactly 2 -- the KEY mode the panel
+        // offers on LFO-1 alone (the gates at 0x2929/0x294E/0x2981 read
+        // only C49C/C55C; a stray 2 on LFO-2/3 simply behaves as ON).
+        const bool from_silence = !sounding();
+        if (from_silence) {
+            for (int i = 0; i < 3; ++i) {
+                if (spec_.voice.lfo[i].sync != 0) lfo_[i].retrigger();
+            }
+        } else if (spec_.voice.lfo[0].sync == 2) {
+            lfo_[0].retrigger();
+        }
         int slot = -1;
         for (int i = 0; i < kVoices; ++i) {
             if (!active_[i]) { slot = i; break; }
@@ -49,20 +71,13 @@ public:
                 if (age_[i] > age_[slot]) slot = i;
             }
         }
+        voices_[slot].bind_lfos(lfo_);
         voices_[slot].note_on(spec_.voice, note, velocity, sr_);
         note_[slot] = note;
         active_[slot] = true;
         age_[slot] = 0;
         for (int i = 0; i < kVoices; ++i) {
             if (i != slot && active_[i]) ++age_[i];
-        }
-        // LFO-1 Sync 2: every new note restarts the vibrato of the voices
-        // already sounding, so legato play pulses together (EPROM
-        // 0x2929/0x2952/0x2981 gate this on the byte being exactly 2).
-        if (spec_.voice.lfo[0].sync == 2) {
-            for (int i = 0; i < kVoices; ++i) {
-                if (i != slot && active_[i]) voices_[i].retrigger_lfo1();
-            }
         }
     }
 
@@ -77,6 +92,12 @@ public:
     }
 
     float D5_HOT(next)() {
+        // The shared LFOs walk every sample, silent or not -- the tick
+        // engine's loop at 0x1508 runs unconditionally, which is why a
+        // sync-off LFO never waits for a key.
+        lfo_[0].next();
+        lfo_[1].next();
+        lfo_[2].next();
         float sum = 0.0f;
         for (int i = 0; i < kVoices; ++i) {
             if (!active_[i]) continue;
@@ -92,6 +113,11 @@ public:
         }
         return false;
     }
+
+    // Diagnostic handles for the host-side LFO sync test: the shared LFO's
+    // phase and its delay/fade gate, like Voice::glide_offset_semitones().
+    float lfo_phase(int i) const { return lfo_[(i < 0 || i > 2) ? 0 : i].phase(); }
+    float lfo_gate(int i) const { return lfo_[(i < 0 || i > 2) ? 0 : i].gate(); }
 
     // Live edits that must not interrupt sounding notes.
     void set_level(float v) { spec_.level = v; }
@@ -116,6 +142,7 @@ public:
 private:
     ToneSpec spec_{};
     float sr_ = 32000.0f;
+    Lfo lfo_[3]{};                  // the tone's shared three (see configure)
     Voice voices_[kVoices]{};
     Equalizer eq_{};
     Chorus<> chorus_{};
