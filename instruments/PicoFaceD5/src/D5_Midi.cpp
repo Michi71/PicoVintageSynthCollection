@@ -27,6 +27,12 @@ void D5_Midi::onControlChange(uint8_t ch, uint8_t cc, uint8_t value) {
         case 1:                                     // mod wheel -> P-Mod lever
             bridge_.setModWheel(value * (1.0f / 127.0f));
             break;
+        case 5:                                     // portamento time
+            bridge_.setPortamentoTime(value * 100 / 127);
+            break;
+        case 65:                                    // portamento switch
+            bridge_.setPortamentoSwitch(value >= 64);
+            break;
         case 7:                                     // channel volume
             bridge_.setVolume(value * 100 / 127);
             break;

@@ -65,6 +65,25 @@ struct LfoRoute {
 // off / rising with the envelope / inverted.
 enum class PEnvMode : uint8_t { kOff = 0, kPositive = 1, kNegative = 2 };
 
+// The portamento slew table, verbatim from the mask ROM (IC25 0x18E3, 101
+// bytes indexed by the time byte 0..100). Once per control tick -- the same
+// 112-Hz interrupt that walks the LFOs and envelopes, called from 0x27F3 --
+// the slew routine at 0x1866 steps every voice's sounding pitch word by
+// 4 * T[time] units of 1/256 semitone toward the note's target (ADDW/SUBW
+// RP3,RP0 after SHLW RP0,2) and snaps on overshoot. In seconds that reads:
+// T[time] / 64 semitones per tick, 1.75 * T[time] semitones per second --
+// time 0 is never looked up: the note-on path at 0x05B4 reads the rate
+// byte first and snaps whenever it is zero.
+inline constexpr uint8_t kPortaRate[101] = {
+    255, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243,
+    242, 241, 240, 238, 236, 234, 232, 230, 228, 226, 224, 222, 220, 218,
+    216, 214, 212, 210, 206, 202, 198, 194, 190, 186, 182, 178, 174, 170,
+    166, 162, 154, 146, 138, 132, 124, 116, 108, 100,  92,  86,  80,  74,
+     68,  62,  57,  52,  48,  44,  42,  39,  36,  33,  31,  29,  28,  27,
+     26,  25,  24,  24,  23,  22,  21,  20,  19,  18,  18,  17,  16,  15,
+     14,  13,  12,  12,  11,  10,   9,   8,   7,   6,   6,   5,   4,   3,
+      2,   1,   1};
+
 struct VoiceSpec {
     int structure = 1;              // 1..7, panel "Structure No."
     float balance = 0.5f;           // 0..1, panel "Partial Balance", .5 = even
@@ -104,6 +123,17 @@ struct VoiceSpec {
     float fine_cents[2] = {0.0f, 0.0f};
     float master_cents = 0.0f;
 
+    // Portamento is patch-common on the D-50 (MIDI chart: mode pb[20]
+    // U/L/UL picks the tones that glide, switch pb[41], time pb[28]); the
+    // mapper collapses the mode into porta_mode_on so the voice only asks
+    // switch && mode_on && time != 0. The firmware keeps the same split:
+    // FE33.0 is the switch, C5C6/C5C8 bit 0 the per-tone mode, FE01/FE09
+    // the time -- and the slew's global gate snaps the sounding pitch to
+    // target the tick the switch goes off.
+    bool porta_mode_on = false;
+    bool porta_switch = false;
+    int porta_time = 0;             // panel 0..100
+
     SynthSpec synth[2]{};           // used where the structure says S
     PcmSampleRef pcm[2]{};          // used where it says P
     Env5Spec pcm_env[2]{};
@@ -127,6 +157,7 @@ public:
     void note_on(const VoiceSpec& spec, int note, float velocity,
                  float sample_rate) {
         spec_ = spec;
+        sr_ = sample_rate;
         const Structure& st = structure();
         const PartialType types[2] = {st.p1, st.p2};
         for (int i = 0; i < 3; ++i) {
@@ -157,6 +188,23 @@ public:
             const float n = 60.0f
                 + spec_.keyfollow[i] * static_cast<float>(key)
                 + static_cast<float>(spec_.coarse[i]);
+
+            // Portamento: the firmware's slew keeps the slot's pitch word
+            // where the last note left it (CB20 survives note-off and keeps
+            // converging) and walks it to the new target from there -- so a
+            // glide always starts at wherever this voice's previous note
+            // ended, legato or not. A fresh voice has no such history, and
+            // switch off, tone excluded, or time 0 all snap instead; the
+            // ROM's note-on path makes the same three decisions at
+            // 0x05A7-0x05D1 (cold CB20 is zero, and the slew at 0x1866 does
+            // not touch a word whose rate reads zero either).
+            glide_tgt_[i] = n;
+            if (!spec_.porta_switch || !spec_.porta_mode_on ||
+                spec_.porta_time == 0 || !glide_warm_[i]) {
+                glide_pos_[i] = n;
+            }
+            glide_warm_[i] = true;
+            glide_step_[i] = porta_step(spec_.porta_time, sample_rate);
             const float cents = spec_.fine_cents[i] + spec_.master_cents;
             const float detune = cents != 0.0f
                                      ? std::pow(2.0f, cents / 1200.0f) : 1.0f;
@@ -241,6 +289,20 @@ public:
         const float pitch_env = penv_.next_n(kModPeriod);
 
         for (int i = 0; i < 2; ++i) {
+            // Advance the glide by one block, then fold its offset into the
+            // pitch factor: T/64 semitones per 112-Hz tick, scaled to this
+            // block. The walk is linear in pitch space, so its octave rate
+            // is constant -- the D-50's portamento is tempo-based, not the
+            // per-distance kind the envelopes are.
+            float glide = 1.0f;
+            if (glide_pos_[i] != glide_tgt_[i]) {
+                float off = glide_pos_[i] - glide_tgt_[i];
+                const float s = glide_step_[i];
+                off = off > 0.0f ? (off > s ? off - s : 0.0f)
+                                 : (off < -s ? off + s : 0.0f);
+                glide_pos_[i] = glide_tgt_[i] + off;
+                if (off != 0.0f) glide = fast_exp2(off * (1.0f / 12.0f));
+            }
             const LfoRoute& pr = spec_.pitch_lfo[i];
             // P-Mod rides LFO-1, and its two depth sources part ways at the
             // delay: the standing depth waits out the silence and swells
@@ -257,7 +319,7 @@ public:
             } else if (spec_.penv_mode[i] == PEnvMode::kNegative) {
                 factor /= pitch_env;
             }
-            const float tgt_pitch = factor * bend_;
+            const float tgt_pitch = factor * bend_ * glide;
             mod_[i].pw = 0.5f * spec_.pw_lfo[i].depth * lfo_value(l, spec_.pw_lfo[i]);
             mod_[i].cutoff = 0.5f * spec_.tvf_lfo[i].depth * lfo_value(l, spec_.tvf_lfo[i]);
             // amplitude modulation only ever ducks, never boosts past unity
@@ -310,9 +372,26 @@ public:
     }
 
     // Pitch bend reaches notes that are already sounding, so it cannot go
-    // through the spec the way coarse and fine tune do.
+    // through the spec the way coarse and fine tune do. Portamento is the
+    // same kind of live control (CC65/CC5), and the firmware's slew gate
+    // answers it within a tick: the switch going off snaps the sounding
+    // pitch to its target mid-glide.
     void set_bend(float factor) { bend_ = factor; }
     void set_wheel(float w) { wheel_ = w < 0.0f ? 0.0f : (w > 1.0f ? 1.0f : w); }
+    void set_porta(bool sw, int time) {
+        spec_.porta_switch = sw;
+        spec_.porta_time = time < 0 ? 0 : (time > 100 ? 100 : time);
+        for (int i = 0; i < 2; ++i) {
+            glide_step_[i] = porta_step(spec_.porta_time, sr_);
+            if (!sw || spec_.porta_time == 0) glide_pos_[i] = glide_tgt_[i];
+        }
+    }
+
+    // Diagnostic handle for the host-side glide test: how far the sounding
+    // pitch still sits from the target, in semitones.
+    float glide_offset_semitones(int i) const {
+        return glide_pos_[(i == 0) ? 0 : 1] - glide_tgt_[(i == 0) ? 0 : 1];
+    }
 
     const Structure& structure() const {
         const int i = (spec_.structure < 1 || spec_.structure > 7)
@@ -326,6 +405,15 @@ private:
         return l[i];
     }
 
+    // Semitones per control block at the panel time: the ROM's 4 * T[time]
+    // units of 1/256 semitone per 112-Hz tick, pre-multiplied for the
+    // block. T[0] is never reached (time 0 snaps at note_on), so indexing
+    // is safe for any byte.
+    static float porta_step(int time, float sr) {
+        const int t = time < 0 ? 0 : (time > 100 ? 100 : time);
+        return kPortaRate[t] * (4.0f / 256.0f) * (kTickHz * kModPeriod / sr);
+    }
+
     VoiceSpec spec_{};
     PcmVoice pcm_[2]{};
     SynthPartial synth_[2]{};
@@ -334,6 +422,14 @@ private:
     float bend_ = 1.0f;
     float wheel_ = 0.0f;
     Modulation mod_[2]{};
+    // The glide state survives note_on: the firmware's pitch word CB20 is
+    // per slot and keeps walking toward its target after release, so the
+    // next note always starts the glide where the last one stopped moving.
+    float glide_pos_[2] = {0.0f, 0.0f};
+    float glide_tgt_[2] = {0.0f, 0.0f};
+    float glide_step_[2] = {0.0f, 0.0f};
+    bool glide_warm_[2] = {false, false};
+    float sr_ = 32000.0f;
     float dpitch_[2] = {0.0f, 0.0f};
     float damp_[2] = {0.0f, 0.0f};
     int mod_count_ = 0;

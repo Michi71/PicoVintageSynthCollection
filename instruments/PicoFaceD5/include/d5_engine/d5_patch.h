@@ -101,6 +101,15 @@ public:
         for (int i = 0; i < kVoices; ++i) voices_[i].set_bend(factor);
     }
 
+    // CC65/CC5 override the patch's portamento while it plays; the mode
+    // stays the patch's, so this can only quiet a tone the patch excluded,
+    // never add one.
+    void set_porta(bool sw, int time) {
+        spec_.voice.porta_switch = sw;
+        spec_.voice.porta_time = time;
+        for (int i = 0; i < kVoices; ++i) voices_[i].set_porta(sw, time);
+    }
+
 private:
     ToneSpec spec_{};
     float sr_ = 32000.0f;
@@ -208,6 +217,10 @@ public:
     void set_mod_wheel(float w) {
         upper_.set_wheel(w);
         lower_.set_wheel(w);
+    }
+    void set_porta(bool sw, int time) {
+        upper_.set_porta(sw, time);
+        lower_.set_porta(sw, time);
     }
 
 private:

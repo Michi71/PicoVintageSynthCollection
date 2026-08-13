@@ -522,6 +522,19 @@ inline PatchSpec patch_from_bytes(const uint8_t* patch, const int16_t* blob) {
     // catches the few that the new law makes hotter.
     p.upper.level = 0.58f;
     p.lower.level = 0.58f;
+
+    // Portamento is patch-common: switch pb[41], time pb[28], and mode
+    // pb[20] -- 0 = upper only, 1 = lower only, 2 = both (the U/L/UL of
+    // the parameter list; the firmware carries the same three as the
+    // switch FE33.0, the per-tone mode bits C5C6/C5C8.0 and a single time
+    // copied to both tone slots FE01/FE09). No factory patch switches it
+    // on, so this only ever speaks through CC65 or an edited patch.
+    const int pmode = pb[20] > 2 ? 2 : pb[20];
+    const int ptime = pb[28] > 100 ? 100 : pb[28];
+    p.upper.voice.porta_mode_on = (pmode != 1);
+    p.lower.voice.porta_mode_on = (pmode != 0);
+    p.upper.voice.porta_switch = p.lower.voice.porta_switch = (pb[41] != 0);
+    p.upper.voice.porta_time = p.lower.voice.porta_time = ptime;
     return p;
 }
 

@@ -43,6 +43,8 @@ public:
     void setVoiceLimit(int voices);        // per tone, 1..8
     void setPitchBendCents(float cents);
     void setModWheel(float w);             // CC1, the D-50 lever's near kin   // reaches sounding notes
+    void setPortamentoSwitch(bool on);     // CC65: overrides the patch's switch
+    void setPortamentoTime(int percent);   // CC5, 0..100
     int voiceLimit() const { return voiceLimit_; }
 
     int activeVoices() const { return activeVoices_; }
@@ -66,6 +68,10 @@ private:
     int reverb_ = 100;
     int chorus_ = 100;
     int voiceLimit_ = d5::kMaxVoicesPerTone;
+    // CC65/CC5 state, kept so a patch change restores its own setting and a
+    // CC5 arriving before CC65 still lands when the switch does.
+    bool portaSwitch_ = false;
+    int portaTime_ = 0;
     int activeVoices_ = 0;
     uint32_t noteOnTotal_ = 0;
     int cpuPeak_ = 0;

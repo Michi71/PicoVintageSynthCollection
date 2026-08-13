@@ -89,6 +89,10 @@ void D5_Bridge::applyPatch() {
     baseReverb_ = spec.reverb.balance;
     baseChorus_ = spec.upper.chorus.balance;
     baseVolume_ = spec.volume;
+    // A patch change ends the CC65/CC5 override: the controllers reassert
+    // themselves with their next message, as the D-50's own switch does.
+    portaSwitch_ = spec.upper.voice.porta_switch;
+    portaTime_ = spec.upper.voice.porta_time;
 
     patch_.configure(spec, static_cast<float>(sampleRate()));
     g_structure = spec.upper.voice.structure;
@@ -164,6 +168,16 @@ void D5_Bridge::setModWheel(float w) {
 
 void D5_Bridge::setPitchBendCents(float cents) {
     patch_.set_bend(cents != 0.0f ? std::pow(2.0f, cents / 1200.0f) : 1.0f);
+}
+
+void D5_Bridge::setPortamentoSwitch(bool on) {
+    portaSwitch_ = on;
+    patch_.set_porta(on, portaTime_);
+}
+
+void D5_Bridge::setPortamentoTime(int percent) {
+    portaTime_ = percent < 0 ? 0 : (percent > 100 ? 100 : percent);
+    patch_.set_porta(portaSwitch_, portaTime_);
 }
 
 void D5_Bridge::noteOn(uint8_t note, uint8_t velocity) {
