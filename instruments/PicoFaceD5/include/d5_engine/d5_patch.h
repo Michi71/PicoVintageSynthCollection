@@ -157,9 +157,17 @@ public:
     }
 
     float D5_HOT(next)() {
-        const float b = spec_.balance < 0 ? 0 : (spec_.balance > 1 ? 1 : spec_.balance);
-        const float mix = upper_.next() * (b > 0.5f ? 2.0f * (1.0f - b) : 1.0f) +
-                          lower_.next() * (b < 0.5f ? 2.0f * b : 1.0f);
+        // Tone balance per the firmware's mixer (bank code 0xB397): each
+        // tone's factor is min(4*b, 255)/200 of its side, so the center
+        // is 1.0 each and a full tilt reaches +2.1 dB on the loud side --
+        // in whole mode both stay at 1.0 (the ROM forces factor 200).
+        float uw = 1.0f, lw = 1.0f;
+        if (spec_.key_mode != KeyMode::kWhole) {
+            const float b = spec_.balance < 0 ? 0 : (spec_.balance > 1 ? 1 : spec_.balance);
+            uw = 2.0f * b; if (uw > 1.275f) uw = 1.275f;
+            lw = 2.0f * (1.0f - b); if (lw > 1.275f) lw = 1.275f;
+        }
+        const float mix = upper_.next() * uw + lower_.next() * lw;
         return saturate(reverb_.process(mix) * spec_.volume);
     }
 

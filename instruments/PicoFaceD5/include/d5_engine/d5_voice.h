@@ -167,6 +167,7 @@ public:
             // the key and the velocity -- which is why this happens here
             // and not at patch load.
             SynthSpec& syn = spec_.synth[i];
+            const bool isPcm = types[i] == PartialType::kPcm;
             if (syn.env_from_bytes) {
                 const int v127 = static_cast<int>(vel127);
                 const int sens = static_cast<int>(syn.tvf_velo * 100.0f);
@@ -177,16 +178,27 @@ public:
                 int D = (depth * bias) >> 6;
                 if (D > 255) D = 255;
                 build_tvf_env(syn.tvf_bytes, D, key, syn.tvf_env);
-                build_tva_env(syn.tva_bytes, key, v127, syn.tva_level,
-                              syn.tva_env);
+                // The full level basis: p35, velocity range, resonance
+                // compensation, keyboard bias -- all additive in the
+                // chip's log unit, normalized so the 155-step design
+                // ceiling is 1.0.
+                const int chip = tva_chip_level(
+                    syn.tva_level_byte, syn.tva_velo_byte, syn.reso_byte,
+                    isPcm, syn.tva_bias_point, syn.tva_bias_level, key, v127);
+                const float lvl = chip <= 0
+                    ? 0.0f : fast_exp2((chip - 155) * 0.0625f);
+                build_tva_env(syn.tva_bytes, key, v127, lvl, syn.tva_env);
                 spec_.pcm_env[i] = syn.tva_env;
             }
 
-            if (types[i] == PartialType::kPcm) {
-                pcm_[i].note_on(spec_.pcm[i], n, vel,
+            if (isPcm) {
+                pcm_[i].note_on(spec_.pcm[i], n,
+                                syn.env_from_bytes ? 1.0f : vel,
                                 spec_.pcm_env[i], sample_rate, detune);
             } else {
-                synth_[i].note_on(syn, n, vel, sample_rate, detune, key);
+                synth_[i].note_on(syn, n,
+                                  syn.env_from_bytes ? velocity : vel,
+                                  sample_rate, detune, key);
             }
         }
     }
@@ -280,10 +292,17 @@ public:
         // either side is silent.
         const float second = st.ring ? a * b : b;
 
+        // The firmware's balance curve (EPROM bank code 0xB450): the
+        // quieter side falls linearly to zero, the louder side RISES from
+        // the 80/80 center to 100 at full tilt -- a +2 dB emphasis the
+        // linear crossfade lacked. Normalized to 1.0 at center.
         const float bal = spec_.balance < 0.0f ? 0.0f
                         : (spec_.balance > 1.0f ? 1.0f : spec_.balance);
-        const float w1 = bal > 0.5f ? 2.0f * (1.0f - bal) : 1.0f;
-        const float w2 = bal < 0.5f ? 2.0f * bal : 1.0f;
+        const float mn = bal < 0.5f ? bal : 1.0f - bal;
+        const float fmin = mn * 2.0f;
+        const float fmax = 1.0f + (0.5f - mn) * 0.5f;
+        const float w1 = bal < 0.5f ? fmax : fmin;
+        const float w2 = bal < 0.5f ? fmin : fmax;
         return a * w1 + second * w2;
     }
 

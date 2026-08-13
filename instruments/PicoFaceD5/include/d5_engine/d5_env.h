@@ -90,6 +90,42 @@ inline int env_kf_shift(int value, int kf, int base) {
     return value >> (base - kf);
 }
 
+// The TVA bias magnitude curve at IC25 0x0AB2, indexed by the bias level
+// byte p38 (0..12 = panel -12..0): level steps lost per semitone past the
+// bias point are (curve * distance) >> 5, with a hard mute once the
+// product reaches 0x1000 (workflow ws3rfxpjr, 0x09C4-0x09DB).
+inline constexpr uint8_t kTvaBiasCurve[13] = {
+    255, 187, 137, 100, 74, 54, 40, 29, 21, 15, 10, 5, 0};
+
+// The complete TVA level basis, byte-exact from the note-on chain
+// (0x040C tone-compile loop + 0x09E8 velocity term + 0x09C4 bias):
+// everything is additive in the chip's 16-per-octave log unit. p35+31
+// minus a velocity headroom of 1.5*|p36-50| minus half the resonance
+// (synth partials only -- the resonance term compensates the resonance
+// recipe's loudness), plus the velocity term, minus the keyboard bias.
+// Nominal full level (p35=100, neutral velocity range) is 131; a hot
+// strike on a full positive range reaches 155, which is the design
+// ceiling -- 155 + envelope 100 = 255, the chip's full scale.
+inline int tva_chip_level(int p35, int p36, int p14, bool is_pcm,
+                          int p37, int p38, int key, int vel127) {
+    const int d50 = p36 - 50;
+    const int mag = d50 < 0 ? -d50 : d50;
+    int base = p35 + 31 - (mag + (mag >> 1)) - (is_pcm ? 0 : p14 >> 1);
+    if (base < 0) base = 0;
+    const int velT = d50 >= 0 ? (4 * d50 * vel127) >> 8
+                              : (4 * (-d50) * (128 - vel127)) >> 8;
+    int bias = 0;
+    const int pt = (p37 & 0x3F) - 27;
+    const int dist = (p37 & 0x40) ? (key - pt) : (pt - key);
+    if (dist > 0) {
+        const int prod = kTvaBiasCurve[p38 > 12 ? 12 : p38] * dist;
+        if (prod >= 0x1000) return 0;      // hard mute past the curve
+        bias = prod >> 5;
+    }
+    int chip = base + velT - bias;
+    return chip < 0 ? 0 : chip;
+}
+
 // TVF envelope from bytes. D is the effective depth 0..255 the firmware
 // computes at note-on -- min(255, (p18 * velocity-bias) >> 6) -- and every
 // level distance is scaled by it before the law: the TVF ramp thinks in

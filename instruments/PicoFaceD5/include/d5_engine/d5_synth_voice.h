@@ -53,10 +53,17 @@ struct SynthSpec {
     EnvBytes tvf_bytes{};
     EnvBytes tva_bytes{};
     bool env_from_bytes = false;
-    // TVA Level p[35], linear as before -- its chip path runs through a
-    // tone-level table (0xCDA8) the disassembly has not extracted yet, so
-    // the panel-to-loudness curve stays the engine's until it is.
+    // Preset-path fallback level; the byte path below displaces it.
     float tva_level = 1.0f;
+    // The raw bytes of the TVA level basis (tva_chip_level in d5_env.h):
+    // level p35, velocity range p36, resonance p14 (its half compensates
+    // the resonance recipe's loudness on synth partials), bias point and
+    // level p37/p38.
+    uint8_t tva_level_byte = 100;
+    uint8_t tva_velo_byte = 50;
+    uint8_t reso_byte = 0;
+    uint8_t tva_bias_point = 0;
+    uint8_t tva_bias_level = 12;
     // TVF Bias (offsets 16/17): beyond the bias point the cutoff tilts by
     // bias_slope chip units per semitone -- the ROM multiplies a 15-entry
     // magnitude table (0x08EC, symmetric around index 7) by the key
@@ -75,7 +82,10 @@ public:
                  float sample_rate, float detune = 1.0f, int key_rel60 = 0) {
         spec_ = spec;
         sr_ = sample_rate;
-        gain_ = velocity;
+        // On the byte path the strike's loudness lives inside the chip
+        // level (velocity term of tva_chip_level); scaling the gain again
+        // would count it twice.
+        gain_ = spec.env_from_bytes ? 1.0f : velocity;
         phase_ = 0.0f;
         active_ = true;
         freq_ = 440.0f * std::pow(2.0f, (note - 69.0f) / 12.0f) * detune;

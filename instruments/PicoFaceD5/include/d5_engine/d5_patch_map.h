@@ -216,10 +216,19 @@ struct LoopRamMap {
 };
 inline LoopRamMap g_loop_ram{};
 
+// Only the single-cycle loops move to RAM. The combination waves 77..100
+// are firmware-decoded REGIONS over the same ROM material -- 2 to 32
+// pages, up to 65536 words each -- far past what RAM holds, and their
+// long revolutions read near-sequentially, which the XIP cache handles
+// the way it handles the attacks.
+constexpr bool loop_in_ram(const PcmSample& s) {
+    return s.looped && s.length != 0 && s.length <= 2048;
+}
+
 constexpr uint32_t loop_ram_words() {
     uint32_t n = 0;
     for (int i = 0; i < kPcmCount; ++i)
-        if (kPcmSamples[i].looped && kPcmSamples[i].length) n += kPcmSamples[i].length;
+        if (loop_in_ram(kPcmSamples[i])) n += kPcmSamples[i].length;
     return n;
 }
 
@@ -227,7 +236,7 @@ inline bool install_loop_ram(const int16_t* blob, int16_t* ram, uint32_t cap) {
     uint32_t used = 0;
     for (int i = 0; i < kPcmCount; ++i) {
         const PcmSample& smp = kPcmSamples[i];
-        if (!smp.looped || smp.length == 0) continue;
+        if (!loop_in_ram(smp)) continue;
         if (used + smp.length > cap) return false;   // all or nothing
         for (uint32_t k = 0; k < smp.length; ++k) ram[used + k] = blob[smp.start + k];
         g_loop_ram.start[i] = used;
@@ -262,7 +271,7 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
         PcmSampleRef& r = v.pcm[index];
         r.data = blob;
         r.start = smp.start;
-        if (smp.looped && g_loop_ram.base) {
+        if (loop_in_ram(smp) && g_loop_ram.base) {
             r.data = g_loop_ram.base;
             r.start = g_loop_ram.start[wave];
         }
@@ -345,6 +354,11 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
     s.tvf_bytes.time_kf = p[21] > 4 ? 4 : p[21];
     s.tva_bytes.time_kf = p[50] > 4 ? 4 : p[50];
     s.tva_bytes.vel_kf = p[49] > 4 ? 4 : p[49];
+    s.tva_level_byte = p[35] > 100 ? 100 : p[35];
+    s.tva_velo_byte = p[36] > 100 ? 100 : p[36];
+    s.reso_byte = p[14] > 30 ? 30 : p[14];
+    s.tva_bias_point = p[37];
+    s.tva_bias_level = p[38] > 12 ? 12 : p[38];
     // Bias point: values 0..63 are <A1..<C7 (the tilt reaches down the
     // keyboard), 64..127 the same notes reaching up; the ROM strips bit 6
     // for the direction and subtracts 27, putting A1 at -27 from C4
@@ -501,8 +515,13 @@ inline PatchSpec patch_from_bytes(const uint8_t* patch, const int16_t* blob) {
     // another 6 -- the bank had sunk to -28.6 dBFS RMS with the volume knob
     // already at 98. At 0.22 the bank peaks just under full scale and the
     // brutal 24-note legato pile stays clear of the saturator wall.
-    p.upper.level = 0.22f;
-    p.lower.level = 0.22f;
+    // 0.58 after the chip-level port: the firmware's TVA basis normalizes
+    // to its 155-step design ceiling, which sits a median 8.4 dB under
+    // the old linear reading across the bank -- this puts the median
+    // patch back where the approved build had it, and the saturator
+    // catches the few that the new law makes hotter.
+    p.upper.level = 0.58f;
+    p.lower.level = 0.58f;
     return p;
 }
 

@@ -766,218 +766,242 @@
   {
    "pcm": 77,
    "name": "Loop01",
-   "start": null,
-   "end": null,
+   "start": 200704,
+   "end": 204800,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0xa2, length class 1; region loops whole; root borrowed from first constituent HC_lp",
+   "pages": 2,
+   "root_hz": 62.5
   },
   {
    "pcm": 78,
    "name": "Loop02",
-   "start": null,
-   "end": null,
+   "start": 208896,
+   "end": 212992,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0xa6, length class 1; region loops whole; root borrowed from first constituent EB_lp3",
+   "pages": 2,
+   "root_hz": 62.5
   },
   {
    "pcm": 79,
    "name": "Loop03",
-   "start": null,
-   "end": null,
+   "start": 212992,
+   "end": 217088,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0xa8, length class 1; region loops whole; root borrowed from first constituent CELLlp",
+   "pages": 2,
+   "root_hz": 62.5
   },
   {
    "pcm": 80,
    "name": "Loop04",
-   "start": null,
-   "end": null,
+   "start": 217088,
+   "end": 221184,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0xaa, length class 1; region loops whole; root borrowed from first constituent Reedlp",
+   "pages": 2,
+   "root_hz": 62.5
   },
   {
    "pcm": 81,
    "name": "Loop05",
-   "start": null,
-   "end": null,
+   "start": 225280,
+   "end": 229376,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0xae, length class 1; region loops whole; root borrowed from first constituent Ooh_lp",
+   "pages": 2,
+   "root_hz": 31.25
   },
   {
    "pcm": 82,
    "name": "Loop06",
-   "start": null,
-   "end": null,
+   "start": 241664,
+   "end": 245760,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0xb6, length class 1; region loops whole; root borrowed from first constituent Spect7",
+   "pages": 2,
+   "root_hz": 15.625
   },
   {
    "pcm": 83,
    "name": "Loop07",
-   "start": null,
-   "end": null,
+   "start": 212992,
+   "end": 229376,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0xa8, length class 3; region loops whole; root borrowed from first constituent CELLlp",
+   "pages": 8,
+   "root_hz": 62.5
   },
   {
    "pcm": 84,
    "name": "Loop08",
-   "start": null,
-   "end": null,
+   "start": 229376,
+   "end": 245760,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0xb0, length class 3; region loops whole; root borrowed from first constituent Spect1",
+   "pages": 8,
+   "root_hz": 15.625
   },
   {
    "pcm": 85,
    "name": "Loop09",
-   "start": null,
-   "end": null,
+   "start": 49152,
+   "end": 65536,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0x58, length class 3; region loops whole; root borrowed from first constituent Lpiano",
+   "pages": 8,
+   "root_hz": 62.5
   },
   {
    "pcm": 86,
    "name": "Loop10",
-   "start": null,
-   "end": null,
+   "start": 32768,
+   "end": 49152,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0x50, length class 3; region loops whole; root borrowed from first constituent Chink",
+   "pages": 8,
+   "root_hz": 62.5
   },
   {
    "pcm": 87,
    "name": "Loop11",
-   "start": null,
-   "end": null,
+   "start": 131072,
+   "end": 139264,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0x80, length class 2; region loops whole; root borrowed from first constituent Breath",
+   "pages": 4,
+   "root_hz": 1000.0
   },
   {
    "pcm": 88,
    "name": "Loop12",
-   "start": null,
-   "end": null,
+   "start": 139264,
+   "end": 147456,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0x84, length class 2; region loops whole; root borrowed from first constituent FluteH",
+   "pages": 4,
+   "root_hz": 1000.0
   },
   {
    "pcm": 89,
    "name": "Loop13",
-   "start": null,
-   "end": null,
+   "start": 147456,
+   "end": 151552,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0x88, length class 1; region loops whole; root borrowed from first constituent Guiro",
+   "pages": 2,
+   "root_hz": 31.25
   },
   {
    "pcm": 90,
    "name": "Loop14",
-   "start": null,
-   "end": null,
+   "start": 131072,
+   "end": 147456,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0x80, length class 3; region loops whole; root borrowed from first constituent Breath",
+   "pages": 8,
+   "root_hz": 1000.0
   },
   {
    "pcm": 91,
    "name": "Loop15",
-   "start": null,
-   "end": null,
+   "start": 155648,
+   "end": 163840,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0x8c, length class 2; region loops whole; root borrowed from first constituent Lips1",
+   "pages": 4,
+   "root_hz": 125.0
   },
   {
    "pcm": 92,
    "name": "Loop16",
-   "start": null,
-   "end": null,
+   "start": 180224,
+   "end": 196608,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0x98, length class 3; region loops whole; root borrowed from first constituent Violns",
+   "pages": 8,
+   "root_hz": 1000.0
   },
   {
    "pcm": 93,
    "name": "Loop17",
-   "start": null,
-   "end": null,
+   "start": 188416,
+   "end": 196608,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0x9c, length class 2; region loops whole; root borrowed from first constituent Drawbr",
+   "pages": 4,
+   "root_hz": 62.5
   },
   {
    "pcm": 94,
    "name": "Loop18",
-   "start": null,
-   "end": null,
+   "start": 114688,
+   "end": 122880,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0x78, length class 2; region loops whole; root borrowed from first constituent Pop",
+   "pages": 4,
+   "root_hz": 62.5
   },
   {
    "pcm": 95,
    "name": "Loop19",
-   "start": null,
-   "end": null,
+   "start": 4096,
+   "end": 36864,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0x42, length class 4; region loops whole; root borrowed from first constituent Vibes",
+   "pages": 16,
+   "root_hz": 500.0
   },
   {
    "pcm": 96,
    "name": "Loop20",
-   "start": null,
-   "end": null,
+   "start": 163840,
+   "end": 196608,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0x90, length class 4; region loops whole; root borrowed from first constituent Bones",
+   "pages": 16,
+   "root_hz": 1000.0
   },
   {
    "pcm": 97,
    "name": "Loop21",
-   "start": null,
-   "end": null,
+   "start": 196608,
+   "end": 229376,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0xa0, length class 4; region loops whole; root borrowed from first constituent EP_lp2",
+   "pages": 16,
+   "root_hz": 125.0
   },
   {
    "pcm": 98,
    "name": "Loop22",
-   "start": null,
-   "end": null,
+   "start": 65536,
+   "end": 131072,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0x60, length class 5; region loops whole; root borrowed from first constituent Hpiano",
+   "pages": 32,
+   "root_hz": 500.0
   },
   {
    "pcm": 99,
    "name": "Loop23",
-   "start": null,
-   "end": null,
+   "start": 131072,
+   "end": 196608,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0x80, length class 5; region loops whole; root borrowed from first constituent Breath",
+   "pages": 32,
+   "root_hz": 1000.0
   },
   {
    "pcm": 100,
    "name": "Loop24",
-   "start": null,
-   "end": null,
+   "start": 196608,
+   "end": 262144,
    "looped": true,
-   "basis": "range-unresolved",
-   "pages": null
+   "basis": "firmware attribute tables ic22@0xFF00/0xFF80: start page 0xa0, length class 5; region loops whole; root borrowed from first constituent EP_lp2",
+   "pages": 32,
+   "root_hz": 125.0
   }
  ],
  "note": "PCM 1..47 are the attacks, gapless over pages 0..91. PCM 48..76 are one cycle each, taken from the head of the region that holds them; the ROM repeats that cycle to fill the region, so the loop is the entry itself. PCM 77..100 are combinations, unresolved."
