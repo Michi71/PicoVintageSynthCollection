@@ -256,11 +256,12 @@ inline bool install_loop_ram(const int16_t* blob, int16_t* ram, uint32_t cap) {
 inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
                         const int16_t* blob) {
     // ---- wave generator
-    // 0..72 = C1..C7 per the parameter list. Which of those is "no
-    // transposition" is not stated anywhere we have, and it is not free to
-    // guess: the factory bank puts 207 of its 256 coarse bytes on exact
-    // multiples of 12, so the wrong neutral detunes every patch by whole
-    // octaves plus whatever the remainder is.
+    // 0..72 = C1..C7 per the parameter list; neutral at 36 is proven, not
+    // guessed: ic25 0x0357-0x03E3 builds the pitch constant as
+    // (coarse*256 + scaler(fine)) - 0x2480 -- and 0x2480 = 36*256 + 128,
+    // i.e. coarse 36/fine 50 maps to zero. Fine and the per-tone fine (the
+    // C598/C599 bytes, panel "Fine Tune") enter in the same 1/256 semitone
+    // unit through the 0..255 scaler at 0x02EC.
 #ifndef D5_COARSE_NEUTRAL
 #define D5_COARSE_NEUTRAL 36
 #endif
