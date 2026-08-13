@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdint>
 
+#include "d5_engine/d5_fastmath.h"
 #include "d5_engine/d5_hot.h"
 
 namespace d5 {
@@ -33,6 +34,150 @@ struct Env5Spec {
     // segments keep durations.
     float r[5] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 };
+
+// ---------------------------------------------------------------------------
+// The firmware's own envelope arithmetic (IC25 disassembly, workflows
+// wgt50aax0 and wni28ji2j). The chip runs each segment as a hardware ramp:
+// the CPU computes ONE rate index per segment, the ramp doubles speed per
+// +8 on it, and the CPU's time-law table compensates the level distance so
+// inner segments come out time-constant. The release skips the law -- its
+// lookup is computed and then overwritten, dead code in the ROM -- so it
+// is rate-constant: release time grows with the level it starts from.
+//
+// The raw panel bytes of one envelope, as the conversion engine reads them.
+struct EnvBytes {
+    uint8_t t[5] = {0, 0, 0, 0, 0};    // T1..T5, panel 0..100
+    uint8_t l[4] = {0, 0, 0, 0};       // L1..L3 + sustain, panel 0..100
+    uint8_t end = 0;                   // 0: release to silence, else to full
+    uint8_t time_kf = 0;               // TVF p21 / TVA p50, 0..4
+    uint8_t vel_kf = 0;                // TVA p49 only, 0..4
+};
+
+// The time law at IC25 0x008C, byte-verified: law[0]=1, then
+// floor(8*log2(103/d)). Adding it to a rate index makes the ramp finish a
+// distance-d segment in (nearly) the same time as a distance-103 one.
+inline constexpr uint8_t kEnvLaw[102] = {
+    1, 53, 45, 40, 37, 34, 32, 31, 29, 28, 26, 25, 24, 23, 23, 22, 21,
+    20, 20, 19, 18, 18, 17, 17, 16, 16, 15, 15, 15, 14, 14, 13, 13, 13,
+    12, 12, 12, 11, 11, 11, 10, 10, 10, 10, 9, 9, 9, 9, 8, 8, 8,
+    8, 7, 7, 7, 7, 7, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 4,
+    4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2,
+    2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0};
+
+// The chip ramp's absolute clock: 64000 * 2^(-idx/8) units per second at
+// 32 kHz (munt LA32Ramp, increment 2^((k+24)/8) against a target<<18; the
+// fastest full 255-unit ramp lands at 4.36 ms, the service notes' "4 ms").
+inline float env_ramp_seconds(int dist_units, int idx) {
+    if (dist_units <= 0) return 0.0f;
+    return static_cast<float>(dist_units)
+           * fast_exp2(static_cast<float>(idx) * 0.125f) * (1.0f / 64000.0f);
+}
+
+inline int env_law(int dist) {
+    return kEnvLaw[dist < 0 ? 0 : (dist > 101 ? 101 : dist)];
+}
+
+inline int env_clamp_idx(int idx) {
+    return idx < 1 ? 1 : (idx > 127 ? 127 : idx);
+}
+
+// Arithmetic shift by a keyfollow byte's complement, zero-gated where the
+// ROM gates it. C++'s >> on a negative int is the arithmetic shift the
+// 78K/III performs (MOV1 CY,X.7; SUBC chains).
+inline int env_kf_shift(int value, int kf, int base) {
+    if (kf <= 0) return 0;
+    if (kf > 4) kf = 4;
+    return value >> (base - kf);
+}
+
+// TVF envelope from bytes. D is the effective depth 0..255 the firmware
+// computes at note-on -- min(255, (p18 * velocity-bias) >> 6) -- and every
+// level distance is scaled by it before the law: the TVF ramp thinks in
+// chip cutoff units, (L * D) >> 8. All five phases share the time
+// keyfollow; the attack byte has NO 1.25 factor, the inner segments and
+// the release do. Levels stay the engine's 0..1 of full depth -- the
+// distances here only shape the times.
+inline void build_tvf_env(const EnvBytes& b, int D, int key, Env5Spec& out) {
+    const int kf = env_kf_shift(key, b.time_kf, 5);
+    out.log_segments = false;
+    const int lp[5] = {0, b.l[0], b.l[1], b.l[2], b.l[3]};
+    for (int k = 0; k < 4; ++k) {
+        const int dist = ((lp[k + 1] > lp[k] ? lp[k + 1] - lp[k]
+                                             : lp[k] - lp[k + 1]) * D) >> 8;
+        int idx;
+        if (k == 0) {
+            if (b.t[0] == 0 || dist == 0) { out.t[0] = 0.0f; continue; }
+            idx = env_clamp_idx(env_law(dist) + b.t[0] - kf);
+        } else {
+            int u = b.t[k] - kf;
+            if (u < 1) u = 1;
+            int u125 = u + (u >> 2);
+            if (u125 > 127) u125 = 127;
+            idx = env_clamp_idx(env_law(dist) + u125);
+        }
+        out.t[k] = env_ramp_seconds(dist, idx);
+        out.r[k] = 0.0f;
+    }
+    // Release: no law term -- rate-constant, 1.25 on the byte. r[4] is in
+    // env-level units (0..1 of full depth) per second.
+    int u = b.t[4] - kf;
+    if (u < 0) u = 0;
+    const int idx5 = env_clamp_idx(u + (u >> 2));
+    const float rate_units = 64000.0f * fast_exp2(-idx5 * 0.125f);
+    const int full = (100 * (D < 1 ? 1 : D)) >> 8;
+    out.r[4] = rate_units / static_cast<float>(full < 1 ? 1 : full);
+    out.t[4] = ((b.end ? 100 - b.l[3] : b.l[3]) * D >> 8) / rate_units;
+}
+
+// TVA envelope from bytes. The ramp thinks in raw panel level units --
+// they ARE the chip's log-amp units, 16 per octave (0.376 dB each; the
+// ROM writes target = base + L with no conversion, and munt's LA32 pins
+// the exponent at 2^(value/16)). So the levels come out exponential, the
+// falling segments run at constant dB/s over the firmware's duration, and
+// a sustain of 0 is the one absolute silence the ROM special-cases.
+// Velocity shifts only the attack; the key keyfollow shifts every phase.
+inline void build_tva_env(const EnvBytes& b, int key, int vel127,
+                          float level, Env5Spec& out) {
+    const int kf = env_kf_shift(key, b.time_kf, 4);
+    const int voff = (vel127 - 64) >> (6 - (b.vel_kf > 4 ? 4 : b.vel_kf));
+    out.log_segments = true;
+    for (int k = 0; k < 3; ++k)
+        out.l[k] = fast_exp2((static_cast<int>(b.l[k]) - 100) * 0.0625f) * level;
+    out.sustain = b.l[3] == 0
+        ? 0.0f : fast_exp2((static_cast<int>(b.l[3]) - 100) * 0.0625f) * level;
+    out.end = b.end ? level : 0.0f;
+
+    // Attack: instant at byte 0 either way; otherwise the law on the
+    // target level. The ramp truly starts at chip zero, ~160 units below
+    // the base -- the nominal base keeps the duration honest while the
+    // audible part rises from the engine's floor.
+    if (b.t[0] == 0 || b.l[0] == 0) {
+        out.t[0] = 0.0f;
+    } else {
+        const int idx = env_clamp_idx(b.t[0] + env_law(b.l[0]) - voff - kf);
+        out.t[0] = env_ramp_seconds(160 + b.l[0], idx);
+    }
+    out.r[0] = 0.0f;
+    for (int k = 1; k < 4; ++k) {
+        const int dist = b.l[k] > b.l[k - 1] ? b.l[k] - b.l[k - 1]
+                                             : b.l[k - 1] - b.l[k];
+        int u = b.t[k] - kf;
+        if (u < 1) u = 1;
+        int u125 = u + (u >> 2);
+        if (u125 > 127) u125 = 127;
+        const int idx = env_clamp_idx(env_law(dist) + u125);
+        out.t[k] = env_ramp_seconds(dist, idx);
+        out.r[k] = 0.0f;
+    }
+    // Release: rate-constant, 1.25 on the byte, no law. In dB/s through
+    // the 0.376 dB chip unit; Env5's rate semantics resolve the duration
+    // from wherever the level actually is at note-off.
+    int u = b.t[4] - kf;
+    if (u < 0) u = 0;
+    const int idx5 = env_clamp_idx(u + (u >> 2));
+    out.r[4] = 64000.0f * fast_exp2(-idx5 * 0.125f) * (6.0206f / 16.0f);
+    out.t[4] = (b.end ? (100 - b.l[3]) : b.l[3]) * 0.376f / out.r[4];
+}
 
 class Env5 {
 public:

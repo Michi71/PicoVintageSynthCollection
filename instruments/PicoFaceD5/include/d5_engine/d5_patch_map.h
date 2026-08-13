@@ -139,6 +139,31 @@ inline float bipolar_curved(uint8_t v) {
     return d < 0 ? -c : c;
 }
 
+// The pitch-modulation depth curve, verbatim from the D-50's mask ROM
+// (IC25 0x17F4, 101 bytes to 0..127; readers at 0x155A/0x156E/0x17A3 bind
+// it to EXACTLY three parameters: P-Mod LFO Depth c[22], the lever c[23],
+// and aftertouch c[24]). Full scale is +-600 cents -- the x4 shift a
+// cluster agent thought it saw at the consumer was refuted in the listing.
+// This displaces both earlier readings: kDepthCurve (assigned by shape,
+// which made a mid vibrato of 43 into 11 cents where the ROM says 128)
+// and the linear lever fit against the Living Calliope recording (whose
+// 138 measured cents the ROM's 61 contradicts -- the firmware is the
+// master template, and the recording's vibrato has a player in the loop).
+inline constexpr float kPModCurve[101] = {
+    0.000000f, 0.000000f, 0.007874f, 0.007874f, 0.015748f, 0.015748f, 0.023622f, 0.023622f,
+    0.031496f, 0.039370f, 0.039370f, 0.047244f, 0.047244f, 0.055118f, 0.062992f, 0.062992f,
+    0.070866f, 0.070866f, 0.078740f, 0.086614f, 0.086614f, 0.094488f, 0.094488f, 0.102362f,
+    0.110236f, 0.110236f, 0.118110f, 0.125984f, 0.125984f, 0.133858f, 0.141732f, 0.141732f,
+    0.149606f, 0.157480f, 0.157480f, 0.165354f, 0.173228f, 0.181102f, 0.181102f, 0.188976f,
+    0.196850f, 0.196850f, 0.204724f, 0.212598f, 0.212598f, 0.220472f, 0.228346f, 0.228346f,
+    0.236220f, 0.244094f, 0.251969f, 0.259843f, 0.275591f, 0.291339f, 0.299213f, 0.307087f,
+    0.322835f, 0.330709f, 0.346457f, 0.354331f, 0.370079f, 0.377953f, 0.393701f, 0.401575f,
+    0.409449f, 0.417323f, 0.433071f, 0.440945f, 0.448819f, 0.456693f, 0.472441f, 0.480315f,
+    0.488189f, 0.496063f, 0.511811f, 0.519685f, 0.527559f, 0.543307f, 0.551181f, 0.566929f,
+    0.582677f, 0.590551f, 0.598425f, 0.614173f, 0.622047f, 0.629921f, 0.645669f, 0.669291f,
+    0.700787f, 0.724409f, 0.748031f, 0.771654f, 0.795276f, 0.826772f, 0.858268f, 0.881890f,
+    0.905512f, 0.929134f, 0.952756f, 0.984252f, 1.000000f};
+
 // A P-ENV level byte -- panel -50..+50 around 50 -- through the ROM's own
 // magnitude curve (kPEnvLevel, IC25 0x14D5), normalized to -1..+1. The
 // per-note velocity scale turns it into cents in PitchEnv::start.
@@ -273,6 +298,7 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
 
     // ---- TVA: level and its envelope
     const float level = level01(p[35]);
+    s.tva_level = level;
     s.tva_env.t[0] = env_time(p[39]);
     s.tva_env.t[1] = env_time(p[40]);
     s.tva_env.t[2] = env_time(p[41]);
@@ -300,13 +326,25 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
     s.pw_velo = static_cast<float>(p[9]) - 7.0f;
     s.tvf_velo = level01(p[19]);
 
-    // The four envelope keyfollows and the TVF bias, all newly bound by the
-    // IC25 disassembly (workflow wgt50aax0); the per-note arithmetic lives
-    // in Voice::note_on and SynthPartial::note_on.
+    // The envelope keyfollows and the TVF bias, bound by the IC25
+    // disassembly (workflows wgt50aax0/wni28ji2j). The raw bytes go to the
+    // spec; Voice::note_on resolves them per note through the firmware's
+    // segment arithmetic in d5_env.h.
     s.tvf_depth_kf = p[20] > 4 ? 4 : p[20];
-    s.tvf_time_kf = p[21] > 4 ? 4 : p[21];
-    s.tva_time_vkf = p[49] > 4 ? 4 : p[49];
-    s.tva_time_kkf = p[50] > 4 ? 4 : p[50];
+    s.env_from_bytes = true;
+    for (int k = 0; k < 5; ++k) {
+        s.tvf_bytes.t[k] = p[22 + k] > 100 ? 100 : p[22 + k];
+        s.tva_bytes.t[k] = p[39 + k] > 100 ? 100 : p[39 + k];
+    }
+    for (int k = 0; k < 4; ++k) {
+        s.tvf_bytes.l[k] = p[27 + k] > 100 ? 100 : p[27 + k];
+        s.tva_bytes.l[k] = p[44 + k] > 100 ? 100 : p[44 + k];
+    }
+    s.tvf_bytes.end = p[31];
+    s.tva_bytes.end = p[48];
+    s.tvf_bytes.time_kf = p[21] > 4 ? 4 : p[21];
+    s.tva_bytes.time_kf = p[50] > 4 ? 4 : p[50];
+    s.tva_bytes.vel_kf = p[49] > 4 ? 4 : p[49];
     // Bias point: values 0..63 are <A1..<C7 (the tilt reaches down the
     // keyboard), 64..127 the same notes reaching up; the ROM strips bit 6
     // for the direction and subtracts 27, putting A1 at -27 from C4
@@ -370,22 +408,12 @@ inline void map_common(const uint8_t* c, ToneSpec& tone) {
     v.penv.sustain = penv_level(c[20]);
     v.penv.end = penv_level(c[21]);
 
-    // P-Mod LFO Depth, offset 22: the magnitude of the pitch vibrato whose
-    // sign map_partial read from each partial's mode byte. Full scale is
-    // +-600 cents, the service notes' LFO pitch range. This is the byte the
-    // guessed mapping never found, and its absence was first patched with an
-    // invented quarter-swing (audibly detuned) and then with zero (audibly
-    // sterile).
-    const float pmod = kDepthCurve[c[22] > 100 ? 100 : c[22]];
+    // P-Mod LFO Depth, offset 22, and the lever, offset 23: both on the
+    // ROM's own depth curve (kPModCurve above), full scale +-600 cents.
+    const float pmod = kPModCurve[c[22] > 100 ? 100 : c[22]];
     v.pitch_lfo[0].depth *= pmod;
     v.pitch_lfo[1].depth *= pmod;
-    // The lever ceiling is linear, and the reference recording is the
-    // referee: Living Calliope's lever byte 23 gives 138 cents at full push
-    // on its one vibrating pipe, which reads as about +-50 apparent against
-    // the fixed pipe -- and the recording's hand vibrato of 25..34 cents
-    // sits right at a natural half-push. Both curved families undershoot by
-    // threefold; the performance control is simply not on the fine law.
-    v.lever_amount = level01(c[23]);
+    v.lever_amount = kPModCurve[c[23] > 100 ? 100 : c[23]];
 
     // ---- the three LFOs
     for (int i = 0; i < 3; ++i) {

@@ -161,31 +161,25 @@ public:
             const float detune = cents != 0.0f
                                      ? std::pow(2.0f, cents / 1200.0f) : 1.0f;
 
-            // Envelope time keyfollows, applied as byte shifts under each
-            // law's own exponent: the chip halves a phase per -8 on the
-            // byte, the TVA rate law gains 2^(1/60) per byte. Velocity's
-            // (vel-64) >> (6-p49) runs ungated -- the ROM has no zero
-            // check there -- the key terms are gated like their sources.
+            // The envelopes, resolved through the firmware's own segment
+            // arithmetic (d5_env.h): the effective TVF depth D scales its
+            // distances, the TVA thinks in raw panel units, and both need
+            // the key and the velocity -- which is why this happens here
+            // and not at patch load.
             SynthSpec& syn = spec_.synth[i];
-            const int voff = static_cast<int>(vel127 - 64.0f)
-                             >> (6 - (syn.tva_time_vkf > 4 ? 4 : syn.tva_time_vkf));
-            const int koff = syn.tva_time_kkf
-                ? (key >> (4 - (syn.tva_time_kkf > 4 ? 4 : syn.tva_time_kkf))) : 0;
-            const int tva_off = voff + koff;
-            if (tva_off != 0) {
-                const float tf = fast_exp2(-tva_off * 0.125f);
-                const float rf = fast_exp2(tva_off * (1.0f / 60.0f));
-                for (int k = 0; k < 5; ++k) {
-                    syn.tva_env.t[k] *= tf;
-                    syn.tva_env.r[k] *= rf;
-                    spec_.pcm_env[i].t[k] *= tf;
-                    spec_.pcm_env[i].r[k] *= rf;
-                }
-            }
-            if (syn.tvf_time_kf != 0) {
-                const int kf = syn.tvf_time_kf > 4 ? 4 : syn.tvf_time_kf;
-                const float tf = fast_exp2(-(key >> (5 - kf)) * 0.125f);
-                for (int k = 0; k < 5; ++k) syn.tvf_env.t[k] *= tf;
+            if (syn.env_from_bytes) {
+                const int v127 = static_cast<int>(vel127);
+                const int sens = static_cast<int>(syn.tvf_velo * 100.0f);
+                int bias = 109 - sens + ((sens * v127) >> 6);
+                if (syn.tvf_depth_kf) bias -= key >> (4 - syn.tvf_depth_kf);
+                bias = bias < 0 ? 0 : (bias > 255 ? 255 : bias);
+                const int depth = static_cast<int>(syn.tvf_env_depth * 100.0f);
+                int D = (depth * bias) >> 6;
+                if (D > 255) D = 255;
+                build_tvf_env(syn.tvf_bytes, D, key, syn.tvf_env);
+                build_tva_env(syn.tva_bytes, key, v127, syn.tva_level,
+                              syn.tva_env);
+                spec_.pcm_env[i] = syn.tva_env;
             }
 
             if (types[i] == PartialType::kPcm) {

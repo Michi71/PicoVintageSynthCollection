@@ -41,18 +41,22 @@ struct SynthSpec {
     float tvf_velo = 0.0f;         // 0..1 of the sensitivity byte
     float pitch_keyfollow = 1.0f;  // the WG ratio; the TVF tracks the difference
     float pw_velo = 0.0f;          // -7..+7, PW Velocity Range (offset 9)
-    // TVF ENV Depth Keyfollow (offset 20) and Time Keyfollow (offset 21):
-    // the key subtracts from the depth's velocity term (>> 4-value) and
-    // from every time byte (>> 5-value); both are hard zero at 0
-    // (IC25 0x1986-0x19A4 and 0x19C9-0x19E2). The subtraction happens per
-    // note, in note_on and in Voice::note_on respectively.
+    // TVF ENV Depth Keyfollow (offset 20): the key subtracts from the
+    // depth's velocity term (>> 4-value), hard zero at 0 (IC25
+    // 0x1986-0x19A4; Roland patched this term's sign from ADD to SUB in
+    // the mask ROM -- the dead original still sits at 0x08FE).
     uint8_t tvf_depth_kf = 0;      // 0..4
-    uint8_t tvf_time_kf = 0;       // 0..4
-    // TVA ENV Time Velocity- and Keyfollow (offsets 49/50, IC25
-    // 0x0A1F-0x0A55). The velocity one has NO zero gate in the ROM:
-    // (vel-64) >> (6-value) is live even at 0, a crumb of one byte.
-    uint8_t tva_time_vkf = 0;      // 0..4, from velocity
-    uint8_t tva_time_kkf = 0;      // 0..4, from key, zero-gated
+    // The raw envelope bytes; when env_from_bytes is set, Voice::note_on
+    // resolves them through the firmware's own segment arithmetic
+    // (build_tvf_env / build_tva_env) and the Env5Specs below are only
+    // the hand-built preset path's fallback.
+    EnvBytes tvf_bytes{};
+    EnvBytes tva_bytes{};
+    bool env_from_bytes = false;
+    // TVA Level p[35], linear as before -- its chip path runs through a
+    // tone-level table (0xCDA8) the disassembly has not extracted yet, so
+    // the panel-to-loudness curve stays the engine's until it is.
+    float tva_level = 1.0f;
     // TVF Bias (offsets 16/17): beyond the bias point the cutoff tilts by
     // bias_slope chip units per semitone -- the ROM multiplies a 15-entry
     // magnitude table (0x08EC, symmetric around index 7) by the key
