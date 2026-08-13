@@ -22,6 +22,7 @@ public:
     void onNoteOff(uint8_t ch, uint8_t note);
     void onControlChange(uint8_t ch, uint8_t cc, uint8_t value);
     void onPitchBend(uint8_t ch, int16_t bend);
+    void onChannelPressure(uint8_t ch, uint8_t value);
 
     bool accepts(uint8_t ch) const;
 

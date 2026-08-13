@@ -55,6 +55,7 @@ public:
     void noteOff(uint8_t ch, uint8_t note, uint8_t) override { midi_.onNoteOff(ch, note); }
     void controlChange(uint8_t ch, uint8_t cc, uint8_t v) override { midi_.onControlChange(ch, cc, v); }
     void pitchBend(uint8_t ch, int16_t bend) override { midi_.onPitchBend(ch, bend); }
+    void channelPressure(uint8_t ch, uint8_t v) override { midi_.onChannelPressure(ch, v); }
     void programChange(uint8_t, uint8_t p) override {
         D5SettingsV1 s{};
         controller_.exportSettings(s);

@@ -43,6 +43,7 @@ public:
     void setVoiceLimit(int voices);        // per tone, 1..8
     void setPitchBendCents(float cents);
     void setModWheel(float w);             // CC1, the D-50 lever's near kin   // reaches sounding notes
+    void setAftertouch(float a);           // channel pressure, 0..1; survives patch changes like the wheel
     void setPortamentoSwitch(bool on);     // CC65: overrides the patch's switch
     void setPortamentoTime(int percent);   // CC5, 0..100
     int voiceLimit() const { return voiceLimit_; }

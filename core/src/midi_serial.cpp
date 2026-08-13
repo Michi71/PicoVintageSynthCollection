@@ -273,6 +273,12 @@ void MIDISerial::dispatch()
             }
             break;
 
+        case 0xD0:
+            if (channelPressureCb_) {
+                channelPressureCb_(data_[0], ch);
+            }
+            break;
+
         case 0xE0:
             if (pitchBendCb_) {
                 pitchBendCb_((uint16_t)(data_[0] | (data_[1] << 7)), ch);
@@ -280,7 +286,7 @@ void MIDISerial::dispatch()
             break;
 
         default:
-            // poly and channel aftertouch are not used by any instrument here
+            // poly aftertouch is not used by any instrument here
             break;
     }
 }

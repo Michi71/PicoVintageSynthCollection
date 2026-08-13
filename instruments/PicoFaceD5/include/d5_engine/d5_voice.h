@@ -117,6 +117,27 @@ struct VoiceSpec {
     // Living Calliope reads depth 0 and lever 23: the "living" is the hand.
     float lever_amount = 0.0f;
     float lever_gate[2] = {0.0f, 0.0f};
+    // Aftertouch (channel pressure) feeds the same lanes the lever feeds.
+    // P-Mod: common c[24] is the AT twin of the lever depth c[23] -- the ROM
+    // adds kPModCurve[c24] * AT to the vibrato value additively, clamped at
+    // 0x0FFF, and bypasses the LFO fade exactly like the lever (IC25
+    // 0x1552-0x158E). at_gate mirrors lever_gate.
+    float at_amount = 0.0f;
+    float at_gate[2] = {0.0f, 0.0f};
+    // Per-partial AT ranges, the panel's "...AT Range" bytes folded to
+    // (raw-7)/7: PW p[12], TVF p[34], TVA p[53]. PW and TVF offset their
+    // lanes by up to +/-full-scale at the keybed's hardest press (chip
+    // transforms at 0x10CE/0x113B: s = raw-7, PW |s|*AT*48, TVF *16 -- the
+    // engine's 0.65 lane scale is the PLAUSIBLE reading, hearing test
+    // pending); TVA attenuates (0x11A9): a positive range rests quiet and
+    // rises under pressure, a negative one ducks.
+    float pw_at[2] = {0.0f, 0.0f};
+    float tvf_at[2] = {0.0f, 0.0f};
+    float tva_at[2] = {0.0f, 0.0f};
+    // Patch-common AT bend (pb[27]-12): up to +/-12 semitones of press-bend
+    // on every sounding voice, exactly (pb27-12)*AT/128 semitones (EPROM
+    // 0x5C34-0x5D1C: 2*AT*|range| units of 1/256 st, clamp +/-0xC00).
+    float at_bend_semis = 0.0f;
     // Panel "WG Pitch Fine" per partial, plus the instrument's master tune;
     // both in cents, both continuous, so they can detune a pair against each
     // other without landing on a semitone.
@@ -310,7 +331,8 @@ public:
             // only the c[22] term by the fade ramp (IC25 0x177B-0x17A3),
             // the controller terms bypass it.
             const float depth = pr.depth * lfo_[0].gate()
-                + spec_.lever_gate[i] * spec_.lever_amount * wheel_;
+                + spec_.lever_gate[i] * spec_.lever_amount * wheel_
+                + spec_.at_gate[i] * spec_.at_amount * at_;
             const float cents = 600.0f * depth * lfo_[0].raw();
             float factor = cents != 0.0f
                                ? fast_exp2(cents * (1.0f / 1200.0f)) : 1.0f;
@@ -319,12 +341,32 @@ public:
             } else if (spec_.penv_mode[i] == PEnvMode::kNegative) {
                 factor /= pitch_env;
             }
-            const float tgt_pitch = factor * bend_ * glide;
-            mod_[i].pw = 0.5f * spec_.pw_lfo[i].depth * lfo_value(l, spec_.pw_lfo[i]);
-            mod_[i].cutoff = 0.5f * spec_.tvf_lfo[i].depth * lfo_value(l, spec_.tvf_lfo[i]);
+            // AT bend sits next to the wheel bend in the chip's own pitch
+            // word (0x5D1C adds it per voice), so it multiplies in here --
+            // its +/-12-semitone range needs no extra clamp: |pb27-12| <= 12
+            // and AT/128 stays under one.
+            float at_bend = 1.0f;
+            if (spec_.at_bend_semis != 0.0f && at_ != 0.0f) {
+                at_bend = fast_exp2(spec_.at_bend_semis * at_
+                                    * (127.0f / 128.0f) * (1.0f / 12.0f));
+            }
+            const float tgt_pitch = factor * bend_ * glide * at_bend;
+            mod_[i].pw = 0.5f * spec_.pw_lfo[i].depth * lfo_value(l, spec_.pw_lfo[i])
+                       + 0.65f * spec_.pw_at[i] * at_;
+            mod_[i].cutoff = 0.5f * spec_.tvf_lfo[i].depth * lfo_value(l, spec_.tvf_lfo[i])
+                           + 0.65f * spec_.tvf_at[i] * at_;
             // amplitude modulation only ever ducks, never boosts past unity
             const float am = spec_.tva_lfo[i].depth * lfo_value(l, spec_.tva_lfo[i]);
             float tgt_amp = 1.0f + 0.5f * (am - std::fabs(spec_.tva_lfo[i].depth));
+            // TVA aftertouch (ROM 0x11A9): a positive range rests ~3 dB down
+            // and rises to unity at full press; a negative one ducks ~3 dB
+            // (the ROM's scale is 2|s| chip units of 0.376 dB, i.e. ~5.3 dB
+            // at s=7 -- the 3-dB reading is PLAUSIBLE, hearing test pending).
+            const float g = spec_.tva_at[i];
+            if (g != 0.0f) {
+                const float x = (g > 0.0f ? g * (at_ - 1.0f) : g * at_) * 0.5f;
+                tgt_amp *= fast_exp2(x);
+            }
             if (tgt_amp < 0.0f) tgt_amp = 0.0f;
             dpitch_[i] = (tgt_pitch - mod_[i].pitch) * (1.0f / kModPeriod);
             damp_[i] = (tgt_amp - mod_[i].amp) * (1.0f / kModPeriod);
@@ -378,6 +420,10 @@ public:
     // pitch to its target mid-glide.
     void set_bend(float factor) { bend_ = factor; }
     void set_wheel(float w) { wheel_ = w < 0.0f ? 0.0f : (w > 1.0f ? 1.0f : w); }
+    // Channel pressure, 0..1. Like the wheel it is a live control on the
+    // sounding voices, and like the wheel it survives a patch change
+    // (the firmware's FE03/FE0B mirrors do).
+    void set_aftertouch(float a) { at_ = a < 0.0f ? 0.0f : (a > 1.0f ? 1.0f : a); }
     void set_porta(bool sw, int time) {
         spec_.porta_switch = sw;
         spec_.porta_time = time < 0 ? 0 : (time > 100 ? 100 : time);
@@ -421,6 +467,7 @@ private:
     PitchEnv penv_{};
     float bend_ = 1.0f;
     float wheel_ = 0.0f;
+    float at_ = 0.0f;
     Modulation mod_[2]{};
     // The glide state survives note_on: the firmware's pitch word CB20 is
     // per slot and keeps walking toward its target after release, so the

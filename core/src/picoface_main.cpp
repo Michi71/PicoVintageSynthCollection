@@ -92,6 +92,11 @@ static void pf_pb(uint16_t bend14, uint8_t c)
     picoface::instrument().pitchBend(c, (int16_t)((int32_t)bend14 - 8192));
 }
 
+static void pf_at(uint8_t v, uint8_t c)
+{
+    picoface::instrument().channelPressure(c, v);
+}
+
 static void pf_sysex(const uint8_t* d, uint16_t len)
 {
     picoface::instrument().sysEx(d, len);
@@ -216,6 +221,7 @@ int main(void)
     g_usbmidi.setCCCallback(pf_cc);
     g_usbmidi.setProgramChangeCallback(pf_pc);
     g_usbmidi.setPitchBendCallback(pf_pb);
+    g_usbmidi.setChannelPressureCallback(pf_at);
     g_usbmidi.setSysExCallback(pf_sysex);
     g_usbmidi.setRealtimeCallback(pf_realtime);
     g_usbmidi.setActivityCallback(pf_activity);
@@ -228,6 +234,7 @@ int main(void)
     midiSerial().setCCCallback(pf_cc);
     midiSerial().setProgramChangeCallback(pf_pc);
     midiSerial().setPitchBendCallback(pf_pb);
+    midiSerial().setChannelPressureCallback(pf_at);
     midiSerial().setSysExCallback(pf_sysex);
     midiSerial().setRealtimeCallback(pf_realtime);
     midiSerial().setActivityCallback(pf_activity);

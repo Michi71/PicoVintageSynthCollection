@@ -105,6 +105,13 @@ inline LfoRoute lfo_route(uint8_t select, uint8_t depth) {
     return r;
 }
 
+// The aftertouch range bytes are panel -7..+7 stored as 0..14 with 7 the
+// resting zero; fold them to a signed full-scale fraction.
+inline float atfold(uint8_t v) {
+    const int raw = v > 14 ? 14 : v;
+    return static_cast<float>(raw - 7) * (1.0f / 7.0f);
+}
+
 // The second curve family, from the same battery: 101 entries spanning
 // exactly 0..1.0 in the firmware's Q15 unit, sitting immediately after the
 // keyfollow table at 0xE28D8. Roughly x^1.8 -- convex, but nothing like the
@@ -377,9 +384,8 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
     // here -- it is the common block's P-Mod LFO Depth, applied in
     // map_common once it has been read -- so the route carries the sign
     // only. A&L means the depth comes from aftertouch and the bender lever
-    // alone; neither performance control is implemented yet, so those
-    // partials correctly get none, rather than a full-depth vibrato the
-    // player never asked for.
+    // alone: those partials carry no standing depth and answer only the
+    // player's hands.
     const uint8_t mode = p[3];
     if (mode == 0) {
         v.pitch_lfo[index] = LfoRoute{};
@@ -392,12 +398,20 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
         v.pitch_lfo[index].depth = (mode == 3) ? 0.0f : sign;
         v.lever_gate[index] = sign;
     }
+    // Aftertouch answers wherever the lever answers -- the ROM's merge
+    // (0x1552) adds the c[24] term through the same per-partial gate.
+    v.at_gate[index] = v.lever_gate[index];
     v.penv_mode[index] = (p[4] == 0) ? PEnvMode::kOff
                                      : (p[4] == 2 ? PEnvMode::kNegative
                                                   : PEnvMode::kPositive);
     v.pw_lfo[index] = lfo_route(p[10], p[11]);
     v.tvf_lfo[index] = lfo_route(p[32], p[33]);
     v.tva_lfo[index] = lfo_route(p[51], p[52]);
+    // The three aftertouch ranges, panel -7..+7 stored 0..14, folded to
+    // -1..+1: PW depth (offset 12), TVF (34), TVA (53).
+    v.pw_at[index]  = static_cast<float>(atfold(p[12]));
+    v.tvf_at[index] = static_cast<float>(atfold(p[34]));
+    v.tva_at[index] = static_cast<float>(atfold(p[53]));
 }
 
 inline void map_common(const uint8_t* c, ToneSpec& tone) {
@@ -422,12 +436,16 @@ inline void map_common(const uint8_t* c, ToneSpec& tone) {
     v.penv.sustain = penv_level(c[20]);
     v.penv.end = penv_level(c[21]);
 
-    // P-Mod LFO Depth, offset 22, and the lever, offset 23: both on the
-    // ROM's own depth curve (kPModCurve above), full scale +-600 cents.
+    // P-Mod LFO Depth, offset 22, the lever, offset 23, and the aftertouch,
+    // offset 24: all three on the ROM's own depth curve (kPModCurve above),
+    // full scale +-600 cents. The ROM merges the two controller terms
+    // additively at 0x1552, ahead of the same 0x0FFF clamp that caps the
+    // LFO depth -- a lever and a hard press can overdrive into one clamp.
     const float pmod = kPModCurve[c[22] > 100 ? 100 : c[22]];
     v.pitch_lfo[0].depth *= pmod;
     v.pitch_lfo[1].depth *= pmod;
     v.lever_amount = kPModCurve[c[23] > 100 ? 100 : c[23]];
+    v.at_amount = kPModCurve[c[24] > 100 ? 100 : c[24]];
 
     // ---- the three LFOs
     for (int i = 0; i < 3; ++i) {
@@ -535,6 +553,18 @@ inline PatchSpec patch_from_bytes(const uint8_t* patch, const int16_t* blob) {
     p.lower.voice.porta_mode_on = (pmode != 0);
     p.upper.voice.porta_switch = p.lower.voice.porta_switch = (pb[41] != 0);
     p.upper.voice.porta_time = p.lower.voice.porta_time = ptime;
+
+    // Aftertouch bend is likewise patch-common (pb[27], stored as range+12,
+    // so 12 is neutral and the range reads +-12 semitones). The EPROM's
+    // transform at 0x5C34 turns it into +-2*AT*|range| units of 1/256 st
+    // per sounding voice; the engine stores the semitone full scale.
+    {
+        int bend = static_cast<int>(pb[27]) - 12;
+        if (bend > 12) bend = 12;
+        if (bend < -12) bend = -12;
+        p.upper.voice.at_bend_semis = p.lower.voice.at_bend_semis =
+            static_cast<float>(bend);
+    }
     return p;
 }
 

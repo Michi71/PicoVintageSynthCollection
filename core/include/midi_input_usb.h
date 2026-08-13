@@ -16,6 +16,7 @@ public:
     using CCCallback           = void (*)(uint8_t, uint8_t, uint8_t);
     using ProgramChangeCallback = void (*)(uint8_t, uint8_t);
     using PitchBendCallback    = void (*)(uint16_t, uint8_t);
+    using ChannelPressureCallback = void (*)(uint8_t, uint8_t);
     using RealtimeCallback     = void (*)(uint8_t);
     using SysExCallback        = void (*)(const uint8_t*, uint16_t);
     using ActivityCallback     = void (*)(void);
@@ -29,6 +30,7 @@ public:
     void setCCCallback(CCCallback cb)                    { MIDICCCallback = cb; }
     void setProgramChangeCallback(ProgramChangeCallback cb) { MIDIProgramChangeCallback = cb; }
     void setPitchBendCallback(PitchBendCallback cb)      { MIDIPitchBendCallback = cb; }
+    void setChannelPressureCallback(ChannelPressureCallback cb) { MIDIChannelPressureCallback = cb; }
     void setRealtimeCallback(RealtimeCallback cb)        { MIDIRealtimeCallback = cb; }
     void setSysExCallback(SysExCallback cb)              { MIDISysExCallback = cb; }
     void setActivityCallback(ActivityCallback cb)        { MIDIActivityCallback = cb; }
@@ -43,6 +45,7 @@ private:
     CCCallback           MIDICCCallback           = nullptr;
     ProgramChangeCallback MIDIProgramChangeCallback = nullptr;
     PitchBendCallback    MIDIPitchBendCallback    = nullptr;
+    ChannelPressureCallback MIDIChannelPressureCallback = nullptr;
     RealtimeCallback     MIDIRealtimeCallback     = nullptr;
     SysExCallback        MIDISysExCallback        = nullptr;
     ActivityCallback     MIDIActivityCallback     = nullptr;

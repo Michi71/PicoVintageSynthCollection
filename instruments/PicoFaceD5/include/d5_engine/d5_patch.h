@@ -100,6 +100,9 @@ public:
     void set_bend(float factor) {
         for (int i = 0; i < kVoices; ++i) voices_[i].set_bend(factor);
     }
+    void set_aftertouch(float a) {
+        for (int i = 0; i < kVoices; ++i) voices_[i].set_aftertouch(a);
+    }
 
     // CC65/CC5 override the patch's portamento while it plays; the mode
     // stays the patch's, so this can only quiet a tone the patch excluded,
@@ -217,6 +220,10 @@ public:
     void set_mod_wheel(float w) {
         upper_.set_wheel(w);
         lower_.set_wheel(w);
+    }
+    void set_aftertouch(float a) {
+        upper_.set_aftertouch(a);
+        lower_.set_aftertouch(a);
     }
     void set_porta(bool sw, int time) {
         upper_.set_porta(sw, time);

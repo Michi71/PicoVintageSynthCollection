@@ -59,3 +59,8 @@ void D5_Midi::onPitchBend(uint8_t ch, int16_t bend) {
     const float semis = (bend / 8192.0f) * 2.0f;
     bridge_.setPitchBendCents(semis * 100.0f);
 }
+
+void D5_Midi::onChannelPressure(uint8_t ch, uint8_t value) {
+    if (!accepts(ch)) return;
+    bridge_.setAftertouch(value * (1.0f / 127.0f));
+}

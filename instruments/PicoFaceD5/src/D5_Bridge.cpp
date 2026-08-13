@@ -166,6 +166,10 @@ void D5_Bridge::setModWheel(float w) {
     patch_.set_mod_wheel(w);
 }
 
+void D5_Bridge::setAftertouch(float a) {
+    patch_.set_aftertouch(a);
+}
+
 void D5_Bridge::setPitchBendCents(float cents) {
     patch_.set_bend(cents != 0.0f ? std::pow(2.0f, cents / 1200.0f) : 1.0f);
 }
