@@ -188,24 +188,27 @@ public:
         } else if (cv < 128.0f) {
             atten_ = fast_exp2(-0.125f * (128.0f - cv));
         }
-        // The D-50's pulse width byte is duty percent, NOT the MT-32's
-        // 0..255 scale with its symmetric lower half: the Pizzagogo
-        // reference shows even harmonics at -4..+6 dB against the
-        // fundamental for PW bytes 5 and 11, which only an asymmetric
-        // narrow pulse produces -- munt's rule would have made those plain
-        // squares with no even content at all. The velocity term keeps
-        // munt's scale on the D-50's own semantics.
-        float pwf = (pw255_ + mod.pw * 255.0f) * (1.0f / 255.0f);
-        if (pwf < 0.05f) pwf = 0.05f;
-        if (pwf > 0.95f) pwf = 0.95f;
-        pulse_frac_ = pwf;
+        // Pulse width follows the chip's own law (LA32FloatWaveGenerator
+        // LA32Partial pair): the ROM maps the panel byte through the plain
+        // 0..100 -> 0..255 scaler (IC25 0x02EC: T[k] = round(2.55k)), and
+        // the chip answers with a positive-segment fraction of one half
+        // (an honest square) at or below 128, contracting exponentially
+        // above. The panel's lower dozen bytes therefore all render as the
+        // same hollow square -- which is exactly what the Pipe Solo
+        // reference shows (its held octave rank is odd-harmonic; a narrow
+        // pulse would put even harmonics within a dB of the fundamental).
+        float pw = pw255_ + mod.pw * 255.0f;
+        if (pw < 0.0f) pw = 0.0f;
+        if (pw > 255.0f) pw = 255.0f;
+        pulse_frac_ = pw > 128.0f ? fast_exp2((64.0f - pw) * (1.0f / 64.0f))
+                                  : 0.5f;
         h_frac_ = pulse_frac_ - edge_frac_;
         if (h_frac_ < 0.0f) h_frac_ = 0.0f;
         // The shape's DC: the half-cosine edges average to zero, so the
         // mean is the duty imbalance of the shelves -- 2*pulse-1, or
         // 2*edge-1 when a pulse narrower than the edge pair clamps its
-        // high shelf away. A narrow pulse carries almost a full unit of
-        // DC (Pipe Solo's byte-0 duty renders at -0.09 of full scale).
+        // high shelf away. Only the contracted pulses (panel bytes above
+        // 50) carry one; a square's mean is zero.
         dc_shape_ = h_frac_ > 0.0f ? 2.0f * pulse_frac_ - 1.0f
                                    : 2.0f * edge_frac_ - 1.0f;
     }
