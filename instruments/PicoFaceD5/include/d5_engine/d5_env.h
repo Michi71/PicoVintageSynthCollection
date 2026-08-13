@@ -252,37 +252,48 @@ private:
     void arm(int seg, float target) {
         seg_ = seg;
         remaining_ = static_cast<int32_t>(spec_.t[seg] * sr_);
-        if (remaining_ <= 0) { level_ = target; step_ = 0.0f; factor_ = 1.0f; return; }
-        // Rate semantics for linear falling segments (the TVF): duration
-        // follows from the level distance and the per-second rate.
-        if (!spec_.log_segments && spec_.r[seg] > 0.0f && target < level_) {
+        // Rate semantics OUTRANK the stored duration: a rate-constant
+        // release runs from wherever the level is now, and its duration
+        // cannot be precomputed. The instant-jump shortcut used to be
+        // checked first, so a sustain of 0 -- whose release duration
+        // precomputes to zero -- cut held notes to silence in one sample.
+        // That was the light pop on every pluck released early.
+        //
+        // Log-linear glide for FALLING segments only: a decay at constant
+        // dB/s is what the chip's linear log-domain ramp produces, but a
+        // rise in the log domain spends most of its time inaudibly near
+        // the floor -- attacks keep the linear ramp.
+        seg_log_ = spec_.log_segments && target < level_;
+        // -60 dB, not -96: the last segment glides to "zero" through this
+        // floor, and the deeper it lies the steeper that dive reads in
+        // dB/s against what a recording shows.
+        const float kFloor = 1.0e-3f;
+        if (seg_log_) {
+            const float from = level_ < kFloor ? kFloor : level_;
+            const float to = target < kFloor ? kFloor : target;
+            if (spec_.r[seg] > 0.0f) {
+                // Rate semantics: duration follows from the dB distance.
+                const float dist_db = 20.0f * std::log10(from / to);
+                remaining_ = static_cast<int32_t>(dist_db / spec_.r[seg] * sr_);
+            }
+            if (remaining_ <= 0) {
+                level_ = target; step_ = 0.0f; factor_ = 1.0f;
+                remaining_ = 0; seg_log_ = false;
+                return;
+            }
+            step_ = 0.0f;
+            factor_ = std::pow(to / from, 1.0f / static_cast<float>(remaining_));
+            if (level_ < kFloor) level_ = kFloor;
+            return;
+        }
+        if (spec_.r[seg] > 0.0f && target < level_) {
+            // Linear falling with a rate (the TVF release).
             remaining_ = static_cast<int32_t>((level_ - target) / spec_.r[seg] * sr_);
             if (remaining_ < 1) remaining_ = 1;
         }
+        if (remaining_ <= 0) { level_ = target; step_ = 0.0f; factor_ = 1.0f; return; }
         step_ = (target - level_) / remaining_;
-        // Log-linear glide for FALLING segments only: a decay at constant
-        // dB/s is what the reference recording shows, but a rise in the log
-        // domain spends most of its time inaudibly near the floor -- a
-        // two-second pad swell would be silent for its first half. Attacks
-        // keep the linear ramp.
-        seg_log_ = spec_.log_segments && target < level_;
-        // -60 dB, not -96: the last segment glides to "zero" through this
-        // floor, and the deeper it lies the steeper that dive reads in dB/s.
-        // The reference recording puts the whole body decay near -34 dB/s;
-        // -60 keeps the final segment in that neighbourhood.
-        const float kFloor = 1.0e-3f;
-        if (!seg_log_) { factor_ = 1.0f; return; }
-        const float from = level_ < kFloor ? kFloor : level_;
-        const float to = target < kFloor ? kFloor : target;
-        if (spec_.r[seg] > 0.0f) {
-            // Rate semantics: duration follows from the distance in dB.
-            const float dist_db = 20.0f * std::log10(from / to);
-            remaining_ = static_cast<int32_t>(dist_db / spec_.r[seg] * sr_);
-            if (remaining_ < 1) remaining_ = 1;
-            step_ = (target - level_) / remaining_;
-        }
-        factor_ = std::pow(to / from, 1.0f / static_cast<float>(remaining_));
-        if (level_ < kFloor) level_ = kFloor;
+        factor_ = 1.0f;
     }
 
     Env5Spec spec_{};
