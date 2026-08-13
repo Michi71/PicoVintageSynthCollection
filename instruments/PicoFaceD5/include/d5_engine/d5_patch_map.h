@@ -139,6 +139,16 @@ inline float bipolar_curved(uint8_t v) {
     return d < 0 ? -c : c;
 }
 
+// A P-ENV level byte -- panel -50..+50 around 50 -- through the ROM's own
+// magnitude curve (kPEnvLevel, IC25 0x14D5), normalized to -1..+1. The
+// per-note velocity scale turns it into cents in PitchEnv::start.
+inline float penv_level(uint8_t v) {
+    const int d = (int)v - 50;
+    const int m = d < 0 ? (d < -50 ? 50 : -d) : (d > 50 ? 50 : d);
+    const float c = kPEnvLevel[m] * (1.0f / 252.0f);
+    return d < 0 ? -c : c;
+}
+
 // LFO select 0..5 is +1,-1,+2,-2,+3,-3 -- interleaved, per the MIDI
 // implementation's parameter list. The first guess here was +1,+2,+3,-1,-2,-3,
 // which sent every second modulation to the wrong LFO with the wrong sign.
@@ -290,6 +300,26 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
     s.pw_velo = static_cast<float>(p[9]) - 7.0f;
     s.tvf_velo = level01(p[19]);
 
+    // The four envelope keyfollows and the TVF bias, all newly bound by the
+    // IC25 disassembly (workflow wgt50aax0); the per-note arithmetic lives
+    // in Voice::note_on and SynthPartial::note_on.
+    s.tvf_depth_kf = p[20] > 4 ? 4 : p[20];
+    s.tvf_time_kf = p[21] > 4 ? 4 : p[21];
+    s.tva_time_vkf = p[49] > 4 ? 4 : p[49];
+    s.tva_time_kkf = p[50] > 4 ? 4 : p[50];
+    // Bias point: values 0..63 are <A1..<C7 (the tilt reaches down the
+    // keyboard), 64..127 the same notes reaching up; the ROM strips bit 6
+    // for the direction and subtracts 27, putting A1 at -27 from C4
+    // (IC25 0x080C-0x0834). Level 0..14 is -7..+7 through the magnitude
+    // table at 0x08EC.
+    static constexpr float kBiasMag[15] = {170, 120, 85, 54, 34, 21, 11, 0,
+                                           11, 21, 34, 54, 85, 120, 170};
+    s.bias_note_rel = static_cast<int8_t>((p[16] & 0x3F) - 27);
+    s.bias_above = (p[16] >> 6) & 1;
+    const int bias_lv = p[17] > 14 ? 14 : p[17];
+    s.bias_slope = (bias_lv < 7 ? -1.0f : 1.0f)
+                   * kBiasMag[bias_lv] * (1.0f / 128.0f);
+
     // ---- modulation routes
     // WG Mod LFO Mode, offset 3: OFF, (+), (-), A&L. The magnitude is not
     // here -- it is the common block's P-Mod LFO Depth, applied in
@@ -323,20 +353,22 @@ inline void map_common(const uint8_t* c, ToneSpec& tone) {
     v.structure = c[10] + 1;                     // panel 1..7, stored 0..6
 
     // ---- pitch envelope: four times, five bipolar levels
+    // All of it now the tick engine's own reading (IC25, workflow
+    // wgt50aax0): the times are table indices resolved per note against
+    // the time keyfollow c[12], the levels go through the 0x14D5 curve and
+    // are scaled per note by velocity mode c[11]. The earlier
+    // kDepthCurve/2400-cents pairing was two guesses that happened to
+    // nearly cancel for small settings; the proven chain replaces both.
     for (int i = 0; i < 4; ++i) {
-        v.penv.t[i] = env_time(c[13 + i], 0.009f, 9.0f, 50.0f, 1.0f);
+        v.penv.t_idx[i] = c[13 + i] > 50 ? 50 : c[13 + i];
     }
-    v.penv.l0 = bipolar_curved(c[17]);
-    v.penv.l1 = bipolar_curved(c[18]);
-    v.penv.l2 = bipolar_curved(c[19]);
-    v.penv.sustain = bipolar_curved(c[20]);
-    v.penv.end = bipolar_curved(c[21]);
-    // There is no separate P-ENV depth parameter -- the levels themselves
-    // are the depth, bipolar around 50, and full scale is two octaves. The
-    // 2400 here is the unit of those levels, not a guess; zeroing it (as an
-    // earlier revision did, distrusting its own constant) silenced the
-    // pitch envelope outright.
-    v.penv.depth_cents = 2400.0f;
+    v.penv.time_kf = c[12] > 4 ? 4 : c[12];
+    v.penv.velo_mode = c[11] > 2 ? 2 : c[11];
+    v.penv.l0 = penv_level(c[17]);
+    v.penv.l1 = penv_level(c[18]);
+    v.penv.l2 = penv_level(c[19]);
+    v.penv.sustain = penv_level(c[20]);
+    v.penv.end = penv_level(c[21]);
 
     // P-Mod LFO Depth, offset 22: the magnitude of the pitch vibrato whose
     // sign map_partial read from each partial's mode byte. Full scale is
@@ -361,8 +393,8 @@ inline void map_common(const uint8_t* c, ToneSpec& tone) {
         LfoSpec& spec = v.lfo[i];
         spec.wave = static_cast<LfoWave>(l[0] > 3 ? 0 : l[0]);
         spec.rate = level01(l[1]);
-        spec.delay = level01(l[2]);
-        spec.key_sync = l[3] != 0;
+        spec.delay_byte = l[2] > 100 ? 100 : l[2];
+        spec.sync = l[3] > 2 ? 0 : l[3];
     }
 
     // ---- equalizer and chorus
@@ -411,10 +443,12 @@ inline PatchSpec patch_from_bytes(const uint8_t* patch, const int16_t* blob) {
     p.split_point = 36 + pb[19];                 // panel C2..C7
     p.upper.voice.master_cents = static_cast<float>(pb[24]) - 50.0f;
     p.lower.voice.master_cents = static_cast<float>(pb[25]) - 50.0f;
-    p.upper.voice.coarse[0] += static_cast<int>(pb[22]) - 24;   // key shift
-    p.upper.voice.coarse[1] += static_cast<int>(pb[22]) - 24;
-    p.lower.voice.coarse[0] += static_cast<int>(pb[23]) - 24;
-    p.lower.voice.coarse[1] += static_cast<int>(pb[23]) - 24;
+    // Key Shift moves the KEY, not the oscillator: the ROM adds it before
+    // the keyfollow multiply (see VoiceSpec::key_shift). Adding it to
+    // coarse -- the previous reading -- was only equivalent at keyfollow
+    // 1.0, which 80 of the bank's partials do not use.
+    p.upper.voice.key_shift = static_cast<int>(pb[22]) - 24;
+    p.lower.voice.key_shift = static_cast<int>(pb[23]) - 24;
     p.reverb.type = pb[30];
     // Reverb Balance is another panel value on the amount family, and the
     // reference recordings vouch for it: through this curve Cathedral

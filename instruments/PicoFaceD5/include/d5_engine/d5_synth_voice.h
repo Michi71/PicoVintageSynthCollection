@@ -41,6 +41,26 @@ struct SynthSpec {
     float tvf_velo = 0.0f;         // 0..1 of the sensitivity byte
     float pitch_keyfollow = 1.0f;  // the WG ratio; the TVF tracks the difference
     float pw_velo = 0.0f;          // -7..+7, PW Velocity Range (offset 9)
+    // TVF ENV Depth Keyfollow (offset 20) and Time Keyfollow (offset 21):
+    // the key subtracts from the depth's velocity term (>> 4-value) and
+    // from every time byte (>> 5-value); both are hard zero at 0
+    // (IC25 0x1986-0x19A4 and 0x19C9-0x19E2). The subtraction happens per
+    // note, in note_on and in Voice::note_on respectively.
+    uint8_t tvf_depth_kf = 0;      // 0..4
+    uint8_t tvf_time_kf = 0;       // 0..4
+    // TVA ENV Time Velocity- and Keyfollow (offsets 49/50, IC25
+    // 0x0A1F-0x0A55). The velocity one has NO zero gate in the ROM:
+    // (vel-64) >> (6-value) is live even at 0, a crumb of one byte.
+    uint8_t tva_time_vkf = 0;      // 0..4, from velocity
+    uint8_t tva_time_kkf = 0;      // 0..4, from key, zero-gated
+    // TVF Bias (offsets 16/17): beyond the bias point the cutoff tilts by
+    // bias_slope chip units per semitone -- the ROM multiplies a 15-entry
+    // magnitude table (0x08EC, symmetric around index 7) by the key
+    // distance in the direction the point's bit 6 selects
+    // (IC25 0x080C-0x0834). Slope carries the level's sign.
+    int8_t bias_note_rel = -27;    // bias point, semitones from C4
+    uint8_t bias_above = 0;        // 1: applies above the point, 0: below
+    float bias_slope = 0.0f;       // chip cutoff units per semitone
     Env5Spec tvf_env{};
     Env5Spec tva_env{};
 };
@@ -48,7 +68,7 @@ struct SynthSpec {
 class SynthPartial {
 public:
     void note_on(const SynthSpec& spec, float note, float velocity,
-                 float sample_rate, float detune = 1.0f) {
+                 float sample_rate, float detune = 1.0f, int key_rel60 = 0) {
         spec_ = spec;
         sr_ = sample_rate;
         gain_ = velocity;
@@ -67,8 +87,18 @@ public:
         // (TVF.cpp:130ff).
         const float vel127 = velocity * 127.0f;
         const float sens = spec.tvf_velo * 100.0f;
-        float velTerm = (109.0f + vel127 * sens * (1.0f / 64.0f) - sens)
-                        * (1.0f / 109.0f);
+        // The D-50's own ROM computes this exact term -- 109 + vel*sens/64
+        // - sens stands verbatim at IC25 0x1974-0x1984, which is the
+        // pleasant proof that munt read the chip right. The depth keyfollow
+        // subtracts from it in the same units before the depth multiply
+        // (0x1986-0x19A4): the key, arithmetic-shifted right by 4 minus the
+        // panel value, zero-gated at panel 0.
+        float velUnits = 109.0f + vel127 * sens * (1.0f / 64.0f) - sens;
+        if (spec.tvf_depth_kf != 0) {
+            const int kf = spec.tvf_depth_kf > 4 ? 4 : spec.tvf_depth_kf;
+            velUnits -= static_cast<float>(key_rel60 >> (4 - kf));
+        }
+        float velTerm = velUnits * (1.0f / 109.0f);
         if (velTerm < 0.0f) velTerm = 0.0f;
         env_units_ = spec.tvf_env_depth * 100.0f * (109.0f / 64.0f)
                      * velTerm * (100.0f / 256.0f) * 0.01f;
@@ -77,6 +107,16 @@ public:
         base_cv_ = spec.cutoff * 100.0f + 78.0f
                    + (spec.cutoff_keyfollow - spec.pitch_keyfollow)
                      * (21.0f / 16.0f) * (note - 60.0f);
+        // TVF bias: past the bias point, in its direction, the cutoff
+        // tilts. The table maxima give 170/128 = 1.33 units per semitone,
+        // which sits right beside the 21/16 the keyfollow uses -- the two
+        // unit systems agree.
+        if (spec.bias_slope != 0.0f) {
+            const int rel = key_rel60 - spec.bias_note_rel;
+            const int dist = spec.bias_above ? (rel > 0 ? rel : 0)
+                                             : (rel < 0 ? -rel : 0);
+            base_cv_ += spec.bias_slope * static_cast<float>(dist);
+        }
         // Pulse width: panel byte to the chip's 0..255, velocity-shifted
         // (Partial.cpp:222-227); at or below 128 the wave is symmetric.
         float pw255 = spec.pulse_width * 255.0f

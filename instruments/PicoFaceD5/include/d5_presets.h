@@ -186,9 +186,10 @@ inline Preset preset(int index) {
             v.synth[0].tvf_env_depth = 0.55f;
             v.synth[0].tvf_env.t[0] = 0.5f;
             v.synth[1] = v.synth[0];
-            v.penv.l0 = -0.4f;
-            v.penv.t[0] = 0.05f;
-            v.penv.depth_cents = 700.0f;
+            // -280 cents scooping in over ~50 ms, in the ROM-derived spec:
+            // mode 0 puts one unit of level at 1200 cents.
+            v.penv.l0 = -0.233f;
+            v.penv.t_idx[0] = 6;
             v.penv_mode[0] = PEnvMode::kPositive;
             v.penv_mode[1] = PEnvMode::kPositive;
             p.upper.chorus.type = 7;

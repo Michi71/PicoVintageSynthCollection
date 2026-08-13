@@ -56,6 +56,14 @@ public:
         for (int i = 0; i < kVoices; ++i) {
             if (i != slot && active_[i]) ++age_[i];
         }
+        // LFO-1 Sync 2: every new note restarts the vibrato of the voices
+        // already sounding, so legato play pulses together (EPROM
+        // 0x2929/0x2952/0x2981 gate this on the byte being exactly 2).
+        if (spec_.voice.lfo[0].sync == 2) {
+            for (int i = 0; i < kVoices; ++i) {
+                if (i != slot && active_[i]) voices_[i].retrigger_lfo1();
+            }
+        }
     }
 
     void note_off(int note) {

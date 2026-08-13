@@ -76,6 +76,12 @@ struct VoiceSpec {
     // the second partial is what makes a ring structure inharmonic rather
     // than just brighter.
     int coarse[2] = {0, 0};
+    // The patch's Key Shift, in semitones. Not folded into coarse: the ROM
+    // adds it to the key BEFORE the keyfollow multiply (IC25 0x0561-0x059D
+    // feeding the MULUW at 0x0F09), so a partial with keyfollow 1/2 moves
+    // by half the shift -- through coarse it moved by all of it. Past +/-48
+    // the ROM folds by octaves rather than clamping (0x195C-0x196C).
+    int key_shift = 0;
     // WG Pitch Keyfollow as a ratio: how far the oscillator follows the
     // keyboard, pivoted on C4. 1 is normal, 0 pins the partial to its coarse
     // pitch (drum layers), 1/2 plays quarter-tone steps -- sound design the
@@ -126,7 +132,18 @@ public:
         for (int i = 0; i < 3; ++i) {
             lfo_[i].start(spec_.lfo[i], sample_rate, 0x9E3779B9u * (i + 1));
         }
-        penv_.start(spec_.penv, sample_rate);
+
+        // The effective key: shifted, C4-relative, folded into +/-48 by
+        // octaves the way the ROM does it. This one number feeds the pitch
+        // keyfollow, the P-ENV's time keyfollow, the TVF's depth and time
+        // keyfollows, the TVA's time keyfollow and the bias distance --
+        // the firmware keeps it at 0xFE79 for exactly that reason.
+        int key = note - 60 + spec_.key_shift;
+        while (key > 48) key -= 12;
+        while (key < -48) key += 12;
+
+        const float vel127 = velocity * 127.0f;
+        penv_.start(spec_.penv, sample_rate, key, vel127);
 
         mod_count_ = 0;
         mod_[0] = Modulation{};
@@ -138,20 +155,51 @@ public:
             const float vel = sv >= 0.0f ? 1.0f + sv * (velocity - 1.0f)
                                          : 1.0f + sv * velocity;
             const float n = 60.0f
-                + spec_.keyfollow[i] * static_cast<float>(note - 60)
+                + spec_.keyfollow[i] * static_cast<float>(key)
                 + static_cast<float>(spec_.coarse[i]);
             const float cents = spec_.fine_cents[i] + spec_.master_cents;
             const float detune = cents != 0.0f
                                      ? std::pow(2.0f, cents / 1200.0f) : 1.0f;
+
+            // Envelope time keyfollows, applied as byte shifts under each
+            // law's own exponent: the chip halves a phase per -8 on the
+            // byte, the TVA rate law gains 2^(1/60) per byte. Velocity's
+            // (vel-64) >> (6-p49) runs ungated -- the ROM has no zero
+            // check there -- the key terms are gated like their sources.
+            SynthSpec& syn = spec_.synth[i];
+            const int voff = static_cast<int>(vel127 - 64.0f)
+                             >> (6 - (syn.tva_time_vkf > 4 ? 4 : syn.tva_time_vkf));
+            const int koff = syn.tva_time_kkf
+                ? (key >> (4 - (syn.tva_time_kkf > 4 ? 4 : syn.tva_time_kkf))) : 0;
+            const int tva_off = voff + koff;
+            if (tva_off != 0) {
+                const float tf = fast_exp2(-tva_off * 0.125f);
+                const float rf = fast_exp2(tva_off * (1.0f / 60.0f));
+                for (int k = 0; k < 5; ++k) {
+                    syn.tva_env.t[k] *= tf;
+                    syn.tva_env.r[k] *= rf;
+                    spec_.pcm_env[i].t[k] *= tf;
+                    spec_.pcm_env[i].r[k] *= rf;
+                }
+            }
+            if (syn.tvf_time_kf != 0) {
+                const int kf = syn.tvf_time_kf > 4 ? 4 : syn.tvf_time_kf;
+                const float tf = fast_exp2(-(key >> (5 - kf)) * 0.125f);
+                for (int k = 0; k < 5; ++k) syn.tvf_env.t[k] *= tf;
+            }
+
             if (types[i] == PartialType::kPcm) {
                 pcm_[i].note_on(spec_.pcm[i], n, vel,
                                 spec_.pcm_env[i], sample_rate, detune);
             } else {
-                synth_[i].note_on(spec_.synth[i], n, vel, sample_rate,
-                                  detune);
+                synth_[i].note_on(syn, n, vel, sample_rate, detune, key);
             }
         }
     }
+
+    // Sync mode 2 on LFO-1: a new note anywhere in the tone restarts the
+    // vibrato of the voices already sounding.
+    void retrigger_lfo1() { lfo_[0].retrigger(); }
 
     void note_off() {
         penv_.release();
@@ -188,9 +236,14 @@ public:
 
         for (int i = 0; i < 2; ++i) {
             const LfoRoute& pr = spec_.pitch_lfo[i];
-            const float depth = pr.depth
+            // P-Mod rides LFO-1, and its two depth sources part ways at the
+            // delay: the standing depth waits out the silence and swells
+            // with the fade, the lever speaks at once -- the ROM multiplies
+            // only the c[22] term by the fade ramp (IC25 0x177B-0x17A3),
+            // the controller terms bypass it.
+            const float depth = pr.depth * lfo_[0].gate()
                 + spec_.lever_gate[i] * spec_.lever_amount * wheel_;
-            const float cents = 600.0f * depth * lfo_value(l, pr);
+            const float cents = 600.0f * depth * lfo_[0].raw();
             float factor = cents != 0.0f
                                ? fast_exp2(cents * (1.0f / 1200.0f)) : 1.0f;
             if (spec_.penv_mode[i] == PEnvMode::kPositive) {
