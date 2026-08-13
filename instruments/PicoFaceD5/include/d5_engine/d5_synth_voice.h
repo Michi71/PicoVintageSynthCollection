@@ -10,7 +10,9 @@
 // cosine segments are -- a low cutoff means long, soft slopes and few
 // harmonics. Resonance is a decaying sine at the cutoff frequency, restarted
 // every cycle and windowed so it does not click. A sawtooth is that square
-// multiplied by a cosine at the fundamental. This follows the model munt
+// multiplied by a cosine at the fundamental -- which doubles the comb -- so
+// the saw partial's base note runs one octave down to land on the panel's
+// pitch (the chip's own compensation). This follows the model munt
 // documents for the chip (mt32emu, LA32WaveGenerator); no code is taken from
 // it -- LGPL-2.1 upstream, and the description is what matters here.
 //
@@ -89,6 +91,16 @@ public:
         phase_ = 0.0f;
         active_ = true;
         freq_ = 440.0f * std::pow(2.0f, (note - 69.0f) / 12.0f) * detune;
+        // The chip pitches a saw one octave below a square of the same
+        // note: the saw is the square ring-modulated by a cosine of the
+        // fundamental, so the ring comb carries only the even harmonics of
+        // the base -- an octave down, those become the full harmonics of
+        // the note. munt TVP.cpp:116-121: basePitch += 33037 for the saw
+        // vs 37133 for the square ("effectively double the frequency"),
+        // confirmed there against digital captures. Without the halving
+        // every saw partial sounds an octave high with the note's
+        // fundamental missing entirely.
+        if (spec.waveform == Waveform::kSawtooth) freq_ *= 0.5f;
         // The whole cutoff path now runs in the LA32's own unit, ported
         // from munt (LA32FloatWaveGenerator.cpp, TVF.cpp): one unit per
         // panel cutoff step, neutral offset +78, chip middle at 128 (panel
