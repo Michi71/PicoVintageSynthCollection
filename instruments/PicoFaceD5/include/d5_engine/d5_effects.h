@@ -13,11 +13,19 @@
 // The reverb does not, and cannot. The D-50 puts it in a dedicated chip
 // (M8B7126-006 in the parts list) whose 32 types are 188 coefficients each;
 // those live in silicon and in the patch data, not in anything readable here.
-// What follows is an ordinary Schroeder reverb whose 32 slots are mapped onto
-// plausible room, plate and gate settings, so a patch that asks for reverb 12
-// gets reverb, of roughly the right character and length -- not the original's
-// impulse response. Anyone who measures the real thing can replace the table
-// without touching the rest.
+// What stands in for it is the reverb of its sister machine: the MT-32's
+// board carries a Boss reverb chip (the RRV-10 family) whose data lines
+// have been read out and modelled exactly (the munt project's
+// BReverbModel, thanks to Lord_Nightmare, balrog and Mok, LGPL-2.1+). The
+// topology below follows that model -- an entrance delay with damped
+// injection, three series allpasses with half gain, three parallel combs
+// carrying one-pole damping and per-time feedback, and left/right read at
+// different tap positions inside the three loops, which is where the
+// stereo field of these machines comes from. The thirty-two panel types of
+// the D-50 map onto the Boss room, hall and plate cores plus a tapped
+// delay line for the delay family; the calibrated T60 anchors from the
+// reference recordings carry over. It remains a stand-in for the real
+// chip, but now a stand-in with a Roland-era circuit in it.
 #pragma once
 
 #include <cmath>
@@ -226,56 +234,63 @@ private:
 
 // ------------------------------------------------------------------ reverb
 
-// One entry per panel reverb type. See the file header: these are plausible
-// settings, not the chip's coefficients.
+// The thirty-two panel types, mapped onto the Boss core of the sister
+// machine (see the file header) plus a tapped delay line for the delay
+// family. Type names follow the panel list; the T60 anchors measured from
+// the reference recordings (type 3 Large Hall 5.4 s, type 4 Chapel 3.6 s,
+// type 2 Medium Hall 3.2 s, type 9 1.6 s, type 32 6.0 s) pick the time
+// index inside each mode. The wet column normalizes the steady-state wet
+// level to a constant across time settings (measured on the model: -13.0
+// to -6.5 dBFS over time 0..7, normalized to -11).
 struct ReverbType {
-    float decay;        // feedback of the comb bank, 0..1
-    float damping;      // how fast the tail loses its highs
-    float predelay_ms;
-    float gate_ms;      // 0 = no gate; otherwise the tail is cut there
+    int mode;               // 0 room, 1 hall, 2 plate, 3 tapped delay
+    int time;               // Boss feedback index 0..7 (modes 0..2)
+    float wet;              // steady-state level normalization
+    float tap_l_ms;         // mode 3: echo positions
+    float tap_r_ms;
+    float fb;               // mode 3: feedback of the trailing echo
+    float gate_ms;          // >0: wet is cut this long after the note starts
+    float reverse_ms;       // >0: wet rises over this window, then cuts
+    float fb_ov;            // >0, modes 0..2: fine feedback override. The Boss
+                            // chip quantizes time to eight steps; the D-50
+                            // decay anchors (measured tail dB/s of the
+                            // reference recordings) land between them, so
+                            // these interpolate while keeping the geometry.
 };
 
-// One entry per panel reverb type. The decay column is calibrated against
-// the reference recordings: three that share type 3 (Cathedral Organ,
-// Staccato Heaven, Pizzagogo) all decay at -10..-13 dB/s, so type 3 -- the
-// Large Hall -- carries T60 5.4 s; Soundtrack pins its Chapel, type 4, at
-// 3.6 s; and type 9 sits at 1.6 s so Horn Section's recorded -37.8 dB/s
-// tail reads as its reverb, which the numbers demand. The rest follows the
-// type list's character around those anchors. Damping, predelay and the
-// gated block's gates are the original values.
 inline constexpr ReverbType kReverbTypes[32] = {
-    {0.824f, 0.30f,   0.0f,   0.0f},   // 1: T60 1.0 s
-    {0.941f, 0.30f,   8.0f,   0.0f},   // 2: T60 3.2 s
-    {0.965f, 0.28f,  15.0f,   0.0f},   // 3: T60 5.4 s
-    {0.948f, 0.26f,  22.0f,   0.0f},   // 4: T60 3.6 s
-    {0.724f, 0.24f,  30.0f,   0.0f},   // 5: T60 0.6 s
-    {0.807f, 0.22f,  38.0f,   0.0f},   // 6: T60 0.9 s
-    {0.785f, 0.20f,  45.0f,   0.0f},   // 7: T60 0.8 s
-    {0.862f, 0.18f,  55.0f,   0.0f},   // 8: T60 1.3 s
-    {0.886f, 0.45f,   0.0f,   0.0f},   // 9: T60 1.6 s
-    {0.886f, 0.42f,  10.0f,   0.0f},   // 10: T60 1.6 s
-    {0.908f, 0.40f,  18.0f,   0.0f},   // 11: T60 2.0 s
-    {0.923f, 0.38f,  26.0f,   0.0f},   // 12: T60 2.4 s
-    {0.933f, 0.35f,  34.0f,   0.0f},   // 13: T60 2.8 s
-    {0.941f, 0.33f,  42.0f,   0.0f},   // 14: T60 3.2 s
-    {0.948f, 0.30f,  50.0f,   0.0f},   // 15: T60 3.6 s
-    {0.955f, 0.28f,  60.0f,   0.0f},   // 16: T60 4.2 s
-    {0.879f, 0.35f,   0.0f,  60.0f},   // 17: T60 1.5 s
-    {0.892f, 0.33f,   5.0f,  90.0f},   // 18: T60 1.7 s
-    {0.903f, 0.31f,  10.0f, 120.0f},   // 19: T60 1.9 s
-    {0.912f, 0.29f,  15.0f, 160.0f},   // 20: T60 2.1 s
-    {0.879f, 0.50f,  20.0f, 200.0f},   // 21: T60 1.5 s
-    {0.892f, 0.48f,  25.0f, 260.0f},   // 22: T60 1.7 s
-    {0.903f, 0.46f,  30.0f, 320.0f},   // 23: T60 1.9 s
-    {0.912f, 0.44f,  35.0f, 400.0f},   // 24: T60 2.1 s
-    {0.679f, 0.55f,   0.0f,   0.0f},   // 25: T60 0.5 s
-    {0.759f, 0.52f,  12.0f,   0.0f},   // 26: T60 0.7 s
-    {0.807f, 0.50f,  24.0f,   0.0f},   // 27: T60 0.9 s
-    {0.839f, 0.48f,  36.0f,   0.0f},   // 28: T60 1.1 s
-    {0.871f, 0.46f,  48.0f,   0.0f},   // 29: T60 1.4 s
-    {0.898f, 0.44f,  60.0f,   0.0f},   // 30: T60 1.8 s
-    {0.923f, 0.40f,  75.0f,   0.0f},   // 31: T60 2.4 s
-    {0.968f, 0.15f,  90.0f,   0.0f},   // 32: T60 6.0 s
+    {1, 1, 1.23f,   0,   0, 0.0f,   0.0f,   0.0f, 0.0000f}, //  1 Small Hall
+    {1, 6, 0.85f,   0,   0, 0.0f,   0.0f,   0.0f, 0.5469f}, //  2 Medium Hall  (anchor -10.5 dB/s, fb 8C)
+    {1, 5, 0.89f,   0,   0, 0.0f,   0.0f,   0.0f, 0.5312f}, //  3 Large Hall   (anchor -12 dB/s, fb 88)
+    {1, 5, 0.95f,   0,   0, 0.0f,   0.0f,   0.0f, 0.5078f}, //  4 Chapel       (T60 3.6, anchor 3.6, fb 82)
+    {0, 0, 1.26f,   0,   0, 0.0f,   0.0f,   0.0f, 0.0000f}, //  5 Box
+    {2, 2, 1.02f,   0,   0, 0.0f,   0.0f,   0.0f, 0.0000f}, //  6 Small Metal Room (plate ring)
+    {0, 1, 1.20f,   0,   0, 0.0f,   0.0f,   0.0f, 0.0000f}, //  7 Small Room   (T60 0.9)
+    {0, 3, 1.00f,   0,   0, 0.0f,   0.0f,   0.0f, 0.4609f}, //  8 Medium Room  (anchor -28 dB/s, fb 76)
+    {1, 2, 1.15f,   0,   0, 0.0f,   0.0f,   0.0f, 0.0000f}, //  9 Medium Large Room (T60 1.65, anchor 1.6)
+    {0, 3, 0.92f,   0,   0, 0.0f,   0.0f,   0.0f, 0.5000f}, // 10 Large Room   (T60 2.8, fb 80)
+    {3, 0, 2.50f, 102, 102, 0.20f,  0.0f,   0.0f, 0.0000f}, // 11 Single Delay (102 ms)
+    {3, 0, 2.50f, 180, 360, 0.30f,  0.0f,   0.0f, 0.0000f}, // 12 Cross Delay (180 ms)
+    {3, 0, 2.50f, 224, 448, 0.30f,  0.0f,   0.0f, 0.0000f}, // 13 Cross Delay (224 ms)
+    {3, 0, 2.50f, 148, 296, 0.30f,  0.0f,   0.0f, 0.0000f}, // 14 Cross Delay (148/296 ms)
+    {1, 3, 1.05f,   0,   0, 0.0f, 200.0f,   0.0f, 0.0000f}, // 15 Short Gate (200 ms)
+    {1, 3, 1.05f,   0,   0, 0.0f, 480.0f,   0.0f, 0.0000f}, // 16 Long Gate (480 ms)
+    {1, 5, 0.89f,   0,   0, 0.0f,   0.0f,   0.0f, 0.5312f}, // 17 Bright Hall (brighter injection, fb 88)
+    {1, 6, 0.80f,   0,   0, 0.0f,   0.0f,   0.0f, 0.0000f}, // 18 Large Cave (dark, long)
+    {2, 5, 0.77f,   0,   0, 0.0f,   0.0f,   0.0f, 0.0000f}, // 19 Steel Pan (plate, metallic)
+    {3, 0, 2.50f, 248, 248, 0.25f,  0.0f,   0.0f, 0.0000f}, // 20 Delay (248 ms)
+    {3, 0, 2.50f, 338, 338, 0.25f,  0.0f,   0.0f, 0.0000f}, // 21 Delay (338 ms)
+    {3, 0, 2.50f, 157, 314, 0.30f,  0.0f,   0.0f, 0.0000f}, // 22 Cross Delay (157 ms)
+    {3, 0, 2.50f, 252, 504, 0.30f,  0.0f,   0.0f, 0.0000f}, // 23 Cross Delay (252 ms)
+    {3, 0, 2.50f, 274, 137, 0.30f,  0.0f,   0.0f, 0.0000f}, // 24 Cross Delay (274/137 ms)
+    {1, 4, 0.98f,   0,   0, 0.0f, 300.0f,   0.0f, 0.0000f}, // 25 Gate Reverb
+    {1, 4, 0.98f,   0,   0, 0.0f,   0.0f, 360.0f, 0.0000f}, // 26 Reverse Gate (360 ms)
+    {1, 4, 0.98f,   0,   0, 0.0f,   0.0f, 480.0f, 0.0000f}, // 27 Reverse Gate (480 ms)
+    {3, 0, 2.50f,  80,  80, 0.00f,  0.0f,   0.0f, 0.0000f}, // 28 Slap Back (short)
+    {3, 0, 2.50f, 160, 160, 0.00f,  0.0f,   0.0f, 0.0000f}, // 29 Slap Back (mid)
+    {3, 0, 2.50f, 240, 240, 0.00f,  0.0f,   0.0f, 0.0000f}, // 30 Slap Back (long)
+    {1, 7, 0.65f,   0,   0, 0.0f,   0.0f,   0.0f, 0.0000f}, // 31 Twisted Space (T60 ~14 s)
+    {1, 6, 0.84f,   0,   0, 0.0f,   0.0f,   0.0f, 0.5508f}, // 32 Space (T60 ~6.0, anchor 6.0, fb 8D)
 };
 
 struct ReverbSpec {
@@ -283,39 +298,150 @@ struct ReverbSpec {
     float balance = 0.3f;     // 0..1, panel "Reverb Balance"
 };
 
+// Delay-line slices carved from one pool, so the tapped-delay types can use
+// the same memory as the comb banks (only one mode is ever live).
+class ReverbLine {
+public:
+    void bind(float* buf, int size) { buf_ = buf; size_ = size; i_ = 0; }
+    void clear() { for (int i = 0; i < size_; ++i) buf_[i] = 0.0f; i_ = 0; }
+    float next() {
+        if (++i_ >= size_) i_ = 0;
+        return buf_[i_];
+    }
+    float at(int pos) const {
+        int j = i_ - pos;
+        if (j < 0) j += size_;
+        return buf_[j];
+    }
+    float* buf_ = nullptr;
+    int size_ = 0;
+    int i_ = 0;
+};
+
+// Boss allpass, both gains one half: store in - out/2, emit out + stored/2.
+class ReverbAllpass {
+public:
+    void bind(float* buf, int size) { line_.bind(buf, size); line_.clear(); }
+    float process(float in) {
+        const float out = line_.next();
+        line_.buf_[line_.i_] = in - 0.5f * out;
+        return out + 0.5f * line_.buf_[line_.i_];
+    }
+private:
+    ReverbLine line_;
+};
+
+// Boss comb: one-pole damped feedback loop; the output taps can read any
+// position, and the two channels read different ones.
+class ReverbComb {
+public:
+    void bind(float* buf, int size, float filter, float feedback) {
+        line_.bind(buf, size);
+        line_.clear();
+        filt_ = filter;
+        fb_ = feedback;
+    }
+    void process(float in) {
+        const float last = line_.buf_[line_.i_];
+        const float filter_in = in + fb_ * line_.next();
+        line_.buf_[line_.i_] = filt_ * last - filter_in;
+    }
+    float out_at(int pos) const { return line_.at(pos); }
+private:
+    ReverbLine line_;
+    float filt_ = 0.375f, fb_ = 0.5f;
+};
+
+// Entrance: delay with a damped injection (what the chip does with one of
+// its combs).
+class ReverbEntrance {
+public:
+    void bind(float* buf, int size, float filter, float amp) {
+        line_.bind(buf, size);
+        line_.clear();
+        filt_ = filter;
+        amp_ = amp;
+    }
+    void process(float in) {
+        const float last = line_.buf_[line_.i_];
+        line_.next();
+        line_.buf_[line_.i_] = amp_ * (filt_ * last + in);
+    }
+    float out_at(int pos) const { return line_.at(pos); }
+private:
+    ReverbLine line_;
+    float filt_ = 0.5f, amp_ = 0.375f;
+};
+
+// CM-32L / LAPC-I geometry, the newer revision of the Boss chip: three
+// modes (0 room, 1 hall, 2 plate), feedback by time index 0..7.
+struct BossMode {
+    int all_sizes[3];
+    int comb_sizes[4];        // entrance + three tail loops
+    int out_l[3];
+    int out_r[3];
+    uint8_t filter[4];        // per loop, /256
+    uint8_t feedback[8];      // by time index (same for the three loops)
+    uint8_t lpf_amp;
+};
+
+inline const BossMode& boss_mode(int mode) {
+    static constexpr BossMode kModes[3] = {
+        {{994, 729, 78}, {706, 2349, 2839, 3632}, {2349, 141, 1960},
+         {1174, 1570, 145}, {0xA0, 0x60, 0x60, 0x60},
+         {0x28, 0x48, 0x60, 0x78, 0x80, 0x88, 0x90, 0x98}, 0x60},
+        {{1324, 809, 176}, {962, 2619, 3545, 4519}, {2618, 1760, 4518},
+         {1300, 3532, 2274}, {0x80, 0x60, 0x60, 0x60},
+         {0x28, 0x48, 0x60, 0x70, 0x78, 0x80, 0x90, 0x98}, 0x60},
+        {{969, 644, 157}, {117, 2259, 2839, 3539}, {2259, 718, 1769},
+         {1136, 2128, 1}, {0, 0x20, 0x20, 0x20},
+         {0x30, 0x58, 0x78, 0x88, 0xA0, 0xB8, 0xC0, 0xD0}, 0x80},
+    };
+    return kModes[(mode < 0 || mode > 2) ? 1 : mode];
+}
+
 class Reverb {
 public:
     void configure(const ReverbSpec& spec, float sr) {
         spec_ = spec;
         sr_ = sr;
         const ReverbType& t = kReverbTypes[clamp_index(spec.type, 32)];
-        decay_ = t.decay;
-        damping_ = t.damping;
-        // A comb's steady-state gain is 1/(1-feedback), so lengthening a
-        // T60 quietly turns the reverb up: raising type 3 from 0.72 to 0.95
-        // added fourteen decibels of wet, which is exactly the "everything
-        // is drowning" that followed the tail calibration. This normalizes
-        // the bank so loudness and decay time are independent; the absolute
-        // wet level is then set once, against the reference recordings'
-        // release steps of -5..-24 dB.
-        comb_gain_ = (1.0f - decay_) * 4.0f;
-        predelay_ = static_cast<int>(t.predelay_ms * 0.001f * sr);
-        if (predelay_ >= kPre) predelay_ = kPre - 1;
-        gate_ = static_cast<int>(t.gate_ms * 0.001f * sr);
+        wet_ = t.wet;
+        mode_ = t.mode < 3 ? t.mode : 3;
         age_ = 0;
-        for (int i = 0; i < kPre; ++i) { pre_[0][i] = 0.0f; pre_[1][i] = 0.0f; }
-        for (int n = 0; n < 2; ++n) {
-            for (int c = 0; c < 4; ++c) {
-                for (int i = 0; i < kComb[n][c]; ++i) comb_[n][c][i] = 0.0f;
-                comb_i_[n][c] = 0;
-                store_[n][c] = 0.0f;
+        gate_ = static_cast<int>(t.gate_ms * 0.001f * sr);
+        reverse_ = static_cast<int>(t.reverse_ms * 0.001f * sr);
+        if (mode_ < 3) {
+            const BossMode& m = boss_mode(mode_);
+            // Types 17 and 18 tune the injection: the bright hall eases the
+            // entrance damping, the cave tightens the loop damping.
+            const float filt_scale = spec.type == 17 ? 0.85f
+                                   : (spec.type == 16 ? 1.25f : 1.0f);
+            const float lpf = (spec.type == 16 ? 0x80 : m.lpf_amp) / 256.0f;
+            const float scale = sr / 32000.0f;  // geometry is 32 kHz native
+            for (int a = 0; a < 3; ++a) {
+                ap_[a].bind(pool_ + 1950 * a,
+                            static_cast<int>(m.all_sizes[a] * scale));
             }
-            for (int a = 0; a < 2; ++a) {
-                for (int i = 0; i < kAll[n][a]; ++i) all_[n][a][i] = 0.0f;
-                all_i_[n][a] = 0;
+            entr_.bind(pool_ + 5850, static_cast<int>(m.comb_sizes[0] * scale),
+                       m.filter[0] / 256.0f, lpf);
+            const float fb = t.fb_ov > 0.0f
+                ? t.fb_ov
+                : m.feedback[t.time < 0 ? 0 : (t.time > 7 ? 7 : t.time)] / 256.0f;
+            for (int c = 0; c < 3; ++c) {
+                comb_[c].bind(pool_ + 6900 + 4600 * c,
+                              static_cast<int>(m.comb_sizes[1 + c] * scale),
+                              m.filter[1 + c] / 256.0f * filt_scale, fb);
             }
+            boss_ = &m;
+            sr_scale_ = scale;
+        } else {
+            tap_l_ = static_cast<int>(t.tap_l_ms * 0.001f * sr);
+            tap_r_ = static_cast<int>(t.tap_r_ms * 0.001f * sr);
+            tap_fb_ = t.fb;
+            tap_line_.bind(pool_, 16200);
+            tap_line_.clear();
         }
-        pre_i_ = 0;
     }
 
     void set_balance(float b) { spec_.balance = clamp01(b); }
@@ -328,80 +454,75 @@ public:
         return l;
     }
 
-    // Stereo: each side runs its own predelay and its own comb/allpass
-    // network, whose lengths are coprime to the other's, so the two tails
-    // share the type's decay and damping but never share a resonance. The
-    // input is taken per side -- that is what lets the anti-phase chorus
-    // wet of the tones survive into the room instead of folding away on a
-    // shared mono bus.
+    // The chip folds its stereo input to mono and builds the field of the
+    // reverb from tap positions; the dry side passes straight through, so
+    // the chorus width of the tones lives in the dry part of the mix.
     void D5_HOT(process)(float xl, float xr, float& l, float& r) {
-        pre_[0][pre_i_] = xl;
-        pre_[1][pre_i_] = xr;
-        int pi = pre_i_ - predelay_;
-        if (pi < 0) pi += kPre;
-        float in[2] = {pre_[0][pi], pre_[1][pi]};
-        if (++pre_i_ >= kPre) pre_i_ = 0;
+        float wl, wr;
+        const float x = 0.25f * (xl + xr);
+        if (mode_ < 3) {
+            const BossMode& m = *boss_;
+            entr_.process(x);
+            float link = entr_.out_at(static_cast<int>(m.comb_sizes[0] * sr_scale_) - 1);
+            link = ap_[0].process(link);
+            link = ap_[1].process(link);
+            link = ap_[2].process(link);
+            const float out_l1 = comb_[0].out_at(static_cast<int>(m.out_l[0] * sr_scale_) - 1);
+            for (int c = 0; c < 3; ++c) comb_[c].process(link);
+            wl = 1.5f * (out_l1 + comb_[1].out_at(static_cast<int>(m.out_l[1] * sr_scale_)))
+                     + comb_[2].out_at(static_cast<int>(m.out_l[2] * sr_scale_));
+            wr = 1.5f * (comb_[0].out_at(static_cast<int>(m.out_r[0] * sr_scale_))
+                     + comb_[1].out_at(static_cast<int>(m.out_r[1] * sr_scale_)))
+                     + comb_[2].out_at(static_cast<int>(m.out_r[2] * sr_scale_));
+        } else {
+            // Tapped delay: one line, two read positions, the left tap feeds
+            // back so cross delays alternate sides.
+            tap_line_.buf_[tap_line_.i_] = x + tap_fb_ * tap_line_.at(tap_l_);
+            tap_line_.next();
+            wl = tap_line_.at(tap_l_);
+            wr = tap_line_.at(tap_r_);
+        }
 
+        // Gates work on the wet part, the way a gated reverb does: Short
+        // and Long Gate hold full level and then cut; the reverse gates
+        // rise over their window and cut at its end.
+        float g = 1.0f;
         if (gate_ > 0) {
-            if (age_ > gate_) { in[0] = 0.0f; in[1] = 0.0f; }
+            g = age_ < gate_ ? 1.0f : 0.0f;
+            ++age_;
+        } else if (reverse_ > 0) {
+            g = age_ < reverse_ ? static_cast<float>(age_) / reverse_ : 0.0f;
             ++age_;
         }
 
-        float sum[2] = {0.0f, 0.0f};
-        for (int c = 0; c < 4; ++c) {
-            for (int n = 0; n < 2; ++n) {
-                const float y = comb_[n][c][comb_i_[n][c]];
-                store_[n][c] = y * (1.0f - damping_) + store_[n][c] * damping_;
-                comb_[n][c][comb_i_[n][c]] = in[n] + store_[n][c] * decay_;
-                if (++comb_i_[n][c] >= kComb[n][c]) comb_i_[n][c] = 0;
-                sum[n] += y;
-            }
-        }
-        sum[0] *= 0.25f * comb_gain_;
-        sum[1] *= 0.25f * comb_gain_;
-
-        for (int a = 0; a < 2; ++a) {
-            for (int n = 0; n < 2; ++n) {
-                const float y = all_[n][a][all_i_[n][a]];
-                const float v = sum[n] + y * 0.5f;
-                all_[n][a][all_i_[n][a]] = v;
-                if (++all_i_[n][a] >= kAll[n][a]) all_i_[n][a] = 0;
-                sum[n] = y - v * 0.5f;
-            }
-        }
-
         const float b = clamp01(spec_.balance);
-        l = xl * (1.0f - b) + sum[0] * b;
-        r = xr * (1.0f - b) + sum[1] * b;
+        l = xl * (1.0f - b) + wl * b * wet_ * g;
+        r = xr * (1.0f - b) + wr * b * wet_ * g;
     }
 
 private:
-    // Prime-ish lengths at 32 kHz, so the comb resonances do not line up.
-    // The second network is coprime to the first: it is the stereo side.
-    static constexpr int kComb[2][4] = {{809, 863, 929, 983},
-                                        {839, 887, 941, 967}};
-    static constexpr int kAll[2][2] = {{401, 317}, {421, 337}};
-    static constexpr int kPre = 3200;      // 100 ms of pre-delay
+    static constexpr int kPool = 21000;  // floats: 3x1950 allpass, 1050 entrance, 3x4600 combs (up to 20700), or 16.2k tap line
 
     static float clamp01(float v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
     static int clamp_index(int v, int n) { return v < 0 ? 0 : (v >= n ? n - 1 : v); }
 
     ReverbSpec spec_{};
     float sr_ = 32000.0f;
-    float decay_ = 0.8f;
-    float comb_gain_ = 1.0f;
-    float damping_ = 0.3f;
-    int predelay_ = 0;
+    float sr_scale_ = 1.0f;
+    int mode_ = 1;
+    float wet_ = 1.0f;
     int gate_ = 0;
+    int reverse_ = 0;
     int age_ = 0;
 
-    float pre_[2][kPre] = {};
-    int pre_i_ = 0;
-    float comb_[2][4][983] = {};
-    int comb_i_[2][4] = {};
-    float store_[2][4] = {};
-    float all_[2][2][421] = {};
-    int all_i_[2][2] = {};
+    float pool_[kPool] = {};
+    ReverbAllpass ap_[3];
+    ReverbEntrance entr_;
+    ReverbComb comb_[3];
+    const BossMode* boss_ = &boss_mode(1);
+    ReverbLine tap_line_;
+    int tap_l_ = 0, tap_r_ = 0;
+    float tap_fb_ = 0.0f;
 };
 
 }  // namespace d5
