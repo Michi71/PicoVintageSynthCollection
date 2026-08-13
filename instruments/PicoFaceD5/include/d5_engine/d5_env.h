@@ -64,13 +64,20 @@ inline constexpr uint8_t kEnvLaw[102] = {
     4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2,
     2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0};
 
-// The chip ramp's absolute clock: 64000 * 2^(-idx/8) units per second at
-// 32 kHz (munt LA32Ramp, increment 2^((k+24)/8) against a target<<18; the
-// fastest full 255-unit ramp lands at 4.36 ms, the service notes' "4 ms").
+// The chip ramp's absolute clock: kRampClock * 2^(-idx/8) units per
+// second. munt's MT-32 derivation gives 64000 at 32 kHz; the D-50
+// references demand exactly sqrt(2) more -- four independent measurements
+// (Soundtrack's opening swell slope AND depth, Staccato's release,
+// Pizzagogo's body segment) converge on X*CLK = 33500 +/- 1800 with the
+// dB unit pinned at 0.376 by the swell's 28.4 dB over 75 steps, so the
+// clock carries the factor: 64000 * 2^(4/8). Equivalently the D-50 reads
+// the increment exponent as (k+28)/8 where the MT-32 uses (k+24)/8.
+inline constexpr float kRampClock = 90509.7f;
+
 inline float env_ramp_seconds(int dist_units, int idx) {
     if (dist_units <= 0) return 0.0f;
     return static_cast<float>(dist_units)
-           * fast_exp2(static_cast<float>(idx) * 0.125f) * (1.0f / 64000.0f);
+           * fast_exp2(static_cast<float>(idx) * 0.125f) * (1.0f / kRampClock);
 }
 
 inline int env_law(int dist) {
@@ -159,7 +166,7 @@ inline void build_tvf_env(const EnvBytes& b, int D, int key, Env5Spec& out) {
     int u = b.t[4] - kf;
     if (u < 0) u = 0;
     const int idx5 = env_clamp_idx(u + (u >> 2));
-    const float rate_units = 64000.0f * fast_exp2(-idx5 * 0.125f);
+    const float rate_units = kRampClock * fast_exp2(-idx5 * 0.125f);
     const int full = (100 * (D < 1 ? 1 : D)) >> 8;
     out.r[4] = rate_units / static_cast<float>(full < 1 ? 1 : full);
     out.t[4] = ((b.end ? 100 - b.l[3] : b.l[3]) * D >> 8) / rate_units;
@@ -211,7 +218,7 @@ inline void build_tva_env(const EnvBytes& b, int key, int vel127,
     int u = b.t[4] - kf;
     if (u < 0) u = 0;
     const int idx5 = env_clamp_idx(u + (u >> 2));
-    out.r[4] = 64000.0f * fast_exp2(-idx5 * 0.125f) * (6.0206f / 16.0f);
+    out.r[4] = kRampClock * fast_exp2(-idx5 * 0.125f) * (6.0206f / 16.0f);
     out.t[4] = (b.end ? (100 - b.l[3]) : b.l[3]) * 0.376f / out.r[4];
 }
 

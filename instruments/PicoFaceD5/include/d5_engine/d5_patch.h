@@ -161,6 +161,9 @@ public:
         // tone's factor is min(4*b, 255)/200 of its side, so the center
         // is 1.0 each and a full tilt reaches +2.1 dB on the loud side --
         // in whole mode both stay at 1.0 (the ROM forces factor 200).
+        // Direction PROVEN: the copy routine at 0x686E feeds pb33's
+        // factor into the gain words written to the upper tone's DSP
+        // slots -- above 50 the upper tone wins.
         float uw = 1.0f, lw = 1.0f;
         if (spec_.key_mode != KeyMode::kWhole) {
             const float b = spec_.balance < 0 ? 0 : (spec_.balance > 1 ? 1 : spec_.balance);

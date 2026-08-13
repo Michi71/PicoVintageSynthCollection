@@ -296,6 +296,9 @@ public:
         // quieter side falls linearly to zero, the louder side RISES from
         // the 80/80 center to 100 at full tilt -- a +2 dB emphasis the
         // linear crossfade lacked. Normalized to 1.0 at center.
+        // Direction PROVEN: balance 0 puts the full factor on the slot
+        // that c46's bit 0 mutes, and that bit is partial 1 in the MIDI
+        // chart -- low values favor partial 1.
         const float bal = spec_.balance < 0.0f ? 0.0f
                         : (spec_.balance > 1.0f ? 1.0f : spec_.balance);
         const float mn = bal < 0.5f ? bal : 1.0f - bal;
