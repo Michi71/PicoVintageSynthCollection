@@ -133,11 +133,11 @@ private:
         snprintf(m.page, sizeof m.page, "%s", controller_.pageName());
         controller_.lineA(m.lineA, sizeof m.lineA);
         controller_.lineB(m.lineB, sizeof m.lineB);
-        // The last field is the note counter until the CPU governor has had
-        // to retire a tail; from then on it shows that count instead, which
-        // is the number worth watching when a patch is at the render's
-        // limit. The footer has no room for both.
-        const unsigned long shed = (unsigned long)bridge_.shedCount();
+        // The last field is the note counter while the render has room, and
+        // the governor's rate -- tails retired per second -- whenever it is
+        // working. A rate rather than a running total: the total only ever
+        // climbs and cannot say whether the machine is coping now.
+        const unsigned long shed = (unsigned long)bridge_.shedRate();
         snprintf(m.footer, sizeof m.footer, "P%d B%d U%lu A%d/%d %c%lu",
                  bridge_.cpuLoadPeakPercent(), benchPct_,
                  (unsigned long)(g_i2s_underrun_count > 999 ? 999 : g_i2s_underrun_count),

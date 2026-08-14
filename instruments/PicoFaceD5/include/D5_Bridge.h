@@ -58,9 +58,13 @@ public:
     // 16-against-8 polyphony (bank driver 0x8003: all sixteen slots go to
     // the upper tone when the key mode is whole).
     int noteLimit() const { return wholeMode_ ? 2 * voiceLimit_ : voiceLimit_; }
-    // How many ringing tails the CPU governor has had to retire. Zero on a
-    // healthy patch; climbing means the render is at its limit.
-    uint32_t shedCount() const { return shedTotal_; }
+    // Tails the CPU governor retired in the last second. A RATE, not a
+    // total: a running total only ever climbs, so it says nothing about
+    // whether the machine is coping right now. Zero means the render has
+    // room; a handful means dense passages are being trimmed at their
+    // quietest end; tens mean the patch is living at the limit.
+    uint32_t shedRate() const { return shedRate_; }
+    uint32_t shedTotal() const { return shedTotal_; }
 
     int activeVoices() const { return activeVoices_; }
     // Every note-on that reached this bridge since boot -- the footer shows
@@ -86,6 +90,9 @@ private:
     bool wholeMode_ = false;        // set from the patch's key mode
     int shedHoldoff_ = 0;           // blocks since the last governor shed
     uint32_t shedTotal_ = 0;        // tails retired for the CPU, since boot
+    uint32_t shedWindow_ = 0;       // ... in the second being counted
+    uint32_t shedRate_ = 0;         // ... in the second before that
+    uint32_t blockCount_ = 0;       // blocks into the current second
     // CC65/CC5 state, kept so a patch change restores its own setting and a
     // CC5 arriving before CC65 still lands when the switch does.
     bool portaSwitch_ = false;

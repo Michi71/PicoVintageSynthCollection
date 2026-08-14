@@ -272,14 +272,25 @@ void __not_in_flash_func(D5_Bridge::fillBufferI32)(int32_t* out, int frames) {
     if (load > 92) {
         // Already near the line: shed every block until it is not.
         shedHoldoff_ = 0;
-        if (patch_.shed_voice()) ++shedTotal_;
-    } else if (load > 82) {
+        if (patch_.shed_voice()) { ++shedTotal_; ++shedWindow_; }
+    } else if (load > 86) {
+        // The precautionary rung. It sat at 82% while the resonance path
+        // still cost a third of the render; with that path down to a
+        // quarter there is measured room to let a voice or two more
+        // stand, and the 92% rung is the actual safety net.
         if (++shedHoldoff_ >= 6) {
             shedHoldoff_ = 0;
-            if (patch_.shed_voice()) ++shedTotal_;
+            if (patch_.shed_voice()) { ++shedTotal_; ++shedWindow_; }
         }
     } else if (shedHoldoff_ > 0) {
         --shedHoldoff_;
+    }
+
+    // Sheds per second, latched once a second (500 blocks of 64 at 32 kHz).
+    if (++blockCount_ >= (uint32_t)sampleRate() / (uint32_t)(frames ? frames : 1)) {
+        blockCount_ = 0;
+        shedRate_ = shedWindow_;
+        shedWindow_ = 0;
     }
     if (load > cpuPeak_) cpuPeak_ = load;
     else if (cpuPeak_ > 0) --cpuPeak_;
