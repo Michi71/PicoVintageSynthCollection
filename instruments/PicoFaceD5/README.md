@@ -2,8 +2,9 @@
 
 A native LA engine over the D-50's own PCM data: sampled attacks dovetailed
 with synthesized sustains, the seven structures with their ring modulator, the
-three LFOs and the pitch envelope, and the common block's equalizer, chorus
-and reverb.
+three tone-global LFOs and the pitch envelope, and the common block's
+equalizer, chorus and reverb. Sixteen voices on one tone, eight and eight when
+both play -- the machine's own polyphony, out of its own allocator.
 
 Like PicoFaceJV, this instrument **needs a local ROM set** and is therefore not
 in the release binaries. Without one the configure step skips it with a note
@@ -31,23 +32,80 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
 cmake --build build
 ```
 
-The result is 662 KB of flash - 512 KB of it sample data, 29 KB the patch
-bank - and 79 KB of RAM,
-which fits any RP2350 board including the 4 MB ones. Of the collection's four
-sample-based instruments this is the only one that does.
+The result is 884 KB of flash - 512 KB of it sample data, 168 KB the six patch
+banks - and 264 KB of RAM, which fits any RP2350 board including the 4 MB ones.
+Of the collection's four sample-based instruments this is the only one that
+does.
 
 ## Playing it
 
-| Encoder | Patch page | Mix page | Tune page |
-|---|---|---|---|
-| Select | switches pages | | |
-| A | patch | volume | master tune |
-| B | polyphony cap | reverb | MIDI channel |
+The select encoder walks nine pages; A and B are the two value knobs. Every
+parameter below the first two rows is a D-50 parameter in the D-50's own
+units, and the ranges are the firmware's own -- they are read out of the
+maximum-value table in its EPROM rather than guessed:
 
-The footer shows peak load, the I2S underrun counter and active/allowed
-voices, as everywhere in the collection. MIDI arrives over USB and DIN alike;
-channel volume, reverb send, chorus send, all-notes-off and pitch bend are
-recognised.
+| Page | Encoder A | Encoder B | D-50 parameter |
+|---|---|---|---|
+| Patch | patch | polyphony cap | - |
+| Mix | master volume | tone balance | pb33 |
+| Reverb | balance | type 1-32 | pb31 / pb30 |
+| Chorus | balance | type 1-8 | c45 / c42 |
+| Cho Mod | rate | depth | c43 / c44 |
+| EQ Low | frequency (shown in Hz) | gain +/-12 dB | c37 / c38 |
+| EQ High | frequency (shown in Hz) | gain +/-12 dB | c39 / c41 |
+| EQ Q | Q | - | c40 |
+| Tune | master tune | MIDI channel | - |
+
+The patch parameters follow the patch when it changes and are not written to
+the settings: they belong to the patch, not to the panel. Chorus and equalizer
+are per tone on the real machine; these pages edit both tones together and
+read the upper one back.
+
+The footer reads `P B U A/limit N`: peak load, the boot benchmark, the I2S
+underrun counter, sounding voices against what the governor allows, and the
+note counter -- which turns into `S<n>` while the CPU governor is trimming
+tails, n being how many it retired in the last second. Zero, or an `N`, means
+the render has room.
+
+### MIDI
+
+The D-50's own control-change list is short, and it is known exactly: its
+receive dispatcher indexes a table in the EPROM, and that table reads 1, 5, 6,
+7, 38, 64, 65, 98, 99, 100, 101, plus the mode messages 122-127. Implemented
+here: **CC1** (modulation lever), **CC5** and **CC65** (portamento time and
+switch), **CC6** with **CC100/101** (RPN 0, bender range), **CC7** (volume),
+**CC64** (hold pedal), all-notes-off, program change, pitch bend and channel
+pressure. CC38 and the NRPN pair are received by the original but have nothing
+here to act on.
+
+Two controls are ours and **not** on the original, worth knowing when
+comparing against real hardware: **CC91/CC93** move reverb and chorus balance
+(General MIDI sends, four years younger than this machine), and **CC0** picks
+the bank ahead of a program change, without which the six banks cannot be
+reached at all.
+
+### SysEx
+
+Roland's one-way exclusive, `F0 41 <device> 14 <command> <address> <data>
+<checksum> F7`, is spoken in both directions:
+
+- **DT1 into the temporary area** (address `00 00 00`, 448 bytes in the same
+  seven 64-byte blocks a bulk dump carries) -- a single parameter or a whole
+  patch. This is how an editor programs the instrument, and it takes effect
+  while notes are sounding: no delay line is cleared and no LFO phase
+  restarted, so a stream of edits does not click.
+- **DT1 into internal memory** (`02 00 00`, 448 bytes a slot) -- a librarian
+  can send a whole bank of 64. They are held in RAM, shadowing the flash bank,
+  and each announces itself with the name in its own bytes. They survive patch
+  changes but not a power cycle: the D-50 keeps its sixty-four in
+  battery-backed memory, ours would be flash, and a flash write per message
+  would stall the render and wear the part.
+- **RQ1** is answered with DT1 messages of 256 data bytes each, the same
+  chunking the machine itself uses, from the temporary area or from internal
+  memory -- so a bank can be pulled back out for backup.
+
+Not implemented: the handshake protocol (WSD/RQD/DAT/ACK/EOD) that some older
+librarians use instead of RQ1/DT1.
 
 ## The patches
 
@@ -85,22 +143,61 @@ one.
 
 ## How the engine works, and what is not the original
 
-The sample table - which PCM sound starts where, how long it is and whether it
-loops - is not in any ROM. The D-50 resolves it inside the MB87136, and that
-mask ROM cannot be read out. The table this instrument uses was reconstructed
-from the decoded audio and verified by ear over ten review rounds;
-[`tools/d5_extract/README.md`](../../tools/d5_extract/README.md) documents both
-the evidence and the two open points.
+**The firmware is the master template.** The D-50's program EPROM and the
+internal ROM of its uPD78312 were disassembled for this port, and where the
+machine's own code answers a question, that answer wins over any measurement
+taken by ear. Read out of it and implemented byte-exactly: the envelope
+arithmetic (a rate index per segment, a time law that compensates the level
+distance so inner segments are time-constant, a release that is rate-constant
+because its distance lookup is computed and then overwritten -- dead code in
+the ROM), the pitch constant and its neutral coarse value, the keyfollow and
+depth tables, the LFO rate law and its two-phase delay, portamento, aftertouch
+and the bender modes, the TVA level basis, and the voice allocation: one pool
+of sixteen slots, all sixteen to the upper tone in whole mode, and a free list
+that makes the machine **drop** a new note when it is empty rather than steal a
+held one.
 
-Two more places where this deliberately differs from the machine:
+The sample table -- which PCM sound starts where, how long it is and whether it
+loops -- is not in the program ROM either; the D-50 resolves it inside the
+MB87136. It was reconstructed from the decoded audio, and later **confirmed
+from the firmware**: a bank window in the EPROM holds a start-page and a
+length-class byte per wave, which reproduce all 76 known geometries exactly and
+resolve the 24 combination waves as loops over larger regions of the same
+material. The wave-name table next to them matches this instrument's own
+numbering 100 out of 100.
+[`tools/d5_extract/README.md`](../../tools/d5_extract/README.md) documents the
+derivation.
 
-- **Root pitch per sample.** The real table carries one; ours is measured from
-  the material, so individual samples can be an octave off until someone
-  calibrates them against a recording.
-- **The reverb.** The D-50 has a dedicated reverb chip whose 32 types are 188
-  coefficients each. This is an ordinary Schroeder reverb with the 32 slots
-  mapped onto room, plate, gate and long settings - reverb of the right
-  character and length, not the original's impulse response.
+Where this still differs from the machine:
+
+- **The reverb** is the biggest one. The D-50's reverb chip holds 32 types of
+  188 coefficients each, in silicon, and the firmware says nothing about them.
+  What stands in for it is the reverb of the MT-32 -- the same era, the same
+  Roland department, a Boss RRV-10 whose data lines the munt project read out
+  and modelled. Its topology is here (entrance delay, three series allpasses,
+  three parallel combs, left and right taken from different taps), with the 32
+  panel types mapped onto its room, hall and plate cores plus a tapped delay
+  line for the delay family, and their decay times calibrated against
+  recordings of the real machine. Reverb of the right era and character, not
+  the original's impulse response.
+- **Chorus and equalizer** sit in the same effect chip and are modelled the
+  same way: the panel's parameters do what they say, the algorithm is not the
+  chip's.
+- **The absolute envelope clock.** Every ratio in the envelope arithmetic comes
+  from the ROM; the one constant that scales all of them was calibrated against
+  four measurements in reference recordings, and is good to a few percent
+  rather than exact.
+- **Root pitch of the attack samples.** The sustained loops are exact (each is
+  one cycle, so the root is the sample rate divided by its length); the attacks
+  carry a measured estimate.
+- **Sixteen voices are allocated, not always rendered.** The allocator is the
+  machine's, but the RP2350 is not the LA32: on the heaviest patches -- two
+  resonant synth partials and a three-second release, Spacious Sweep being the
+  worst of the factory bank -- eleven or twelve of them fit inside the audio
+  block. Rather than let that turn into dropouts, a governor watches the block
+  load and retires the longest-ringing *released* tail with a 20 ms fade; held
+  keys are never touched. The original trims too when a phrase outruns its
+  sixteen slots, only later. The footer's `S` shows when it is happening.
 
 Everything else follows the machine's own documentation: the structure table
 and the parameter ranges come from the Advanced Course manual and the service
@@ -110,6 +207,7 @@ notes, which are named here rather than shipped.
 
 [`tools/d5_extract/`](../../tools/d5_extract/README.md) holds the ROM
 identification, the decoder, the sample table and its derivation, the blob
-generator, and a host harness that renders the engine to WAV -
-`--synth`, `--la`, `--structures`, `--mod` and `--fx` - so the sound can be
-judged without flashing anything.
+generator, the SysEx converter that turns bulk dumps into patch banks, the
+extractor that lifts five more banks out of the D-05 update image, and a host
+harness that renders the engine to WAV - `--synth`, `--la`, `--structures`,
+`--mod` and `--fx` - so the sound can be judged without flashing anything.

@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Michi71
 
-// d5_presets.h -- the patches the instrument boots with.
+// d5_presets.h -- the fallback patches, for a build without a bank dump.
 //
-// These are NOT the D-50's factory sixty-four. Those exist as SysEx bulk dumps
-// and the format for reading them is fully documented in the machine's MIDI
-// implementation (patch 64 bytes, common 64, partial 64 per structure), so
-// importing them is a host-side tool waiting to be written, in the same shape
-// as tools/dx_syx_to_patches. Until then the instrument ships eight patches
-// built by hand from the engine's own parameters, chosen to cover the ground:
-// every structure appears at least once, both waveforms, ring modulation, the
-// pitch envelope and each effect.
+// These are NOT the D-50's factory patches. Those are read by
+// tools/d5_extract/d5_syx_to_patches.py out of SysEx bulk dumps and reach the
+// firmware as the generated d5_patch_data.h; when that header is present the
+// bridge uses it and nothing here is played. What remains here is the case
+// where somebody builds with the ROM set but without a single bank dump:
+// eight patches built by hand from the engine's own parameters, chosen to
+// cover the ground -- every structure appears at least once, both waveforms,
+// ring modulation, the pitch envelope and each effect.
 
 #pragma once
 
