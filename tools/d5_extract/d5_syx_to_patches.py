@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Turn a D-50 SysEx bulk dump into a patch bank the firmware can embed.
+"""Turn D-50 SysEx bulk dumps into a patch bank the firmware can embed.
 
-    python3 tools/d5_extract/d5_syx_to_patches.py <bank.syx> <out_dir>
+    python3 tools/d5_extract/d5_syx_to_patches.py <bank.syx> [more.syx ...] <out_dir>
 
-Writes `d5_patch_data.h`: the 64 patches as raw D-50 parameter bytes, 448 per
+With several dump files the banks concatenate in argument order -- order is
+the bank order the firmware will present, so put the factory bank first.
+
+Writes `d5_patch_data.h`: the patches as raw D-50 parameter bytes, 448 per
 patch, plus their names for the UI. The bytes stay raw on purpose. The
 firmware converts them with `d5_patch_map.h`, so exactly one piece of code
 knows what parameter 22 of a partial means -- and the same conversion can
@@ -24,7 +27,9 @@ import sys
 
 PATCH_BASE = 0x8000        # 02-00-00 in the D-50's 7-bit address space
 PATCH_SIZE = 448
-PATCH_COUNT = 64
+PATCH_COUNT = 64           # the patch area's own 64 slots; several dumps
+                           # make several banks, one dump never does --
+                           # what follows the 64th slot is the temp area
 BLOCK = 64
 
 # ' ', 'A'-'Z', 'a'-'z', '1'-'9', '0', '-' -- the panel's own character set
@@ -112,24 +117,30 @@ def name_of(mem, base, length):
 
 
 def main():
-    if len(sys.argv) != 3:
+    if len(sys.argv) < 3:
         sys.exit(__doc__)
-    src, outdir = sys.argv[1], sys.argv[2]
-    mem, messages = parse_sysex(open(src, "rb").read())
-    print(f"{messages} data messages, {len(mem)} bytes, checksums all valid")
-
+    srcs, outdir = sys.argv[1:-1], sys.argv[-1]
     patches = []
     names = []
-    for p in range(PATCH_COUNT):
-        base = PATCH_BASE + p * PATCH_SIZE
-        if base + PATCH_SIZE - 1 not in mem:
-            break
-        body = bytes(mem[base + i] for i in range(PATCH_SIZE))
-        patches.append(body)
-        names.append(name_of(mem, base + 6 * BLOCK, 18))
+    for src in srcs:
+        mem, messages = parse_sysex(open(src, "rb").read())
+        print(f"{os.path.basename(src)}: {messages} data messages, "
+              f"{len(mem)} bytes, checksums all valid")
+        found = 0
+        p = 0
+        while p < PATCH_COUNT and \
+                PATCH_BASE + p * PATCH_SIZE + PATCH_SIZE - 1 in mem:
+            base = PATCH_BASE + p * PATCH_SIZE
+            patches.append(bytes(mem[base + i] for i in range(PATCH_SIZE)))
+            names.append(name_of(mem, base + 6 * BLOCK, 18))
+            found += 1
+            p += 1
+        if not found:
+            sys.exit(f"{src} has no patch memory at address 02-00-00")
+        print(f"  {found} patches")
 
     if not patches:
-        sys.exit("the dump has no patch memory at address 02-00-00")
+        sys.exit("no patches in any input")
 
     for label, blk, off, hi in CHECKS:
         vals = [b[blk * BLOCK + off] for b in patches]
@@ -147,7 +158,8 @@ def main():
     path = os.path.join(outdir, "d5_patch_data.h")
     with open(path, "w") as f:
         f.write(HEADER.format(count=len(patches),
-                              source=os.path.basename(src),
+                              source=", ".join(os.path.basename(s)
+                                               for s in srcs),
                               names=name_rows,
                               data=",\n".join(data_rows)))
     print(f"wrote {path} ({os.path.getsize(path) // 1024} KiB)")

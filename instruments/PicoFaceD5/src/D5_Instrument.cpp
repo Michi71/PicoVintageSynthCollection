@@ -29,7 +29,7 @@ public:
     void init() override {
         bridge_.init();
         benchPct_ = bridge_.bootBenchPercent();
-        D5SettingsV1 defaults{};
+        D5SettingsV2 defaults{};
         controller_.exportSettings(defaults);
         controller_.importSettings(defaults);   // pushes them into the bridge
     }
@@ -53,13 +53,24 @@ public:
 
     void noteOn(uint8_t ch, uint8_t note, uint8_t vel) override { midi_.onNoteOn(ch, note, vel); }
     void noteOff(uint8_t ch, uint8_t note, uint8_t) override { midi_.onNoteOff(ch, note); }
-    void controlChange(uint8_t ch, uint8_t cc, uint8_t v) override { midi_.onControlChange(ch, cc, v); }
+    void controlChange(uint8_t ch, uint8_t cc, uint8_t v) override {
+        // CC0, bank select: ahead of the next program change. The D-50
+        // itself answers neither -- its memory ends at 64 -- but with the
+        // D-05's six banks aboard this is how a host reaches past the
+        // factory bank. Channel-blind, like programChange below.
+        if (cc == 0) bankSel_ = v;
+        midi_.onControlChange(ch, cc, v);
+    }
     void pitchBend(uint8_t ch, int16_t bend) override { midi_.onPitchBend(ch, bend); }
     void channelPressure(uint8_t ch, uint8_t v) override { midi_.onChannelPressure(ch, v); }
     void programChange(uint8_t, uint8_t p) override {
-        D5SettingsV1 s{};
+        D5SettingsV2 s{};
         controller_.exportSettings(s);
-        s.patch = (uint8_t)(p % bridge_.patchCount());
+        const int count = bridge_.patchCount();
+        const int banks = (count + 63) / 64;
+        int idx = (bankSel_ % banks) * 64 + p;
+        if (idx >= count) idx = p % count;   // program byte beyond the table
+        s.patch = (uint16_t)idx;
         controller_.importSettings(s);
         dirty_ = true;
     }
@@ -98,18 +109,18 @@ public:
 
     // -------------------------------------------------------- Persistence
     uint16_t settingsVersion() const override { return D5_SETTINGS_VERSION; }
-    size_t settingsSize() const override { return sizeof(D5SettingsV1); }
+    size_t settingsSize() const override { return sizeof(D5SettingsV2); }
 
     void settingsSave(uint8_t* buffer, size_t size) const override {
-        if (size < sizeof(D5SettingsV1)) return;
-        D5SettingsV1 s{};
+        if (size < sizeof(D5SettingsV2)) return;
+        D5SettingsV2 s{};
         controller_.exportSettings(s);
         memcpy(buffer, &s, sizeof(s));
     }
 
     void settingsLoad(const uint8_t* buffer, size_t size) override {
-        if (size < sizeof(D5SettingsV1)) return;   // short record: keep defaults
-        D5SettingsV1 s{};
+        if (size < sizeof(D5SettingsV2)) return;   // short record: keep defaults
+        D5SettingsV2 s{};
         memcpy(&s, buffer, sizeof(s));
         controller_.importSettings(s);
         dirty_ = true;
@@ -135,6 +146,7 @@ private:
 
     static constexpr int kVoiceFloor = 2;
     int benchPct_ = 0;
+    uint8_t bankSel_ = 0;          // CC0, pending on the next program change
 
     D5_Bridge bridge_;
     D5_Controller controller_;

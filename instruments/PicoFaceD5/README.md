@@ -51,20 +51,32 @@ recognised.
 
 ## The patches
 
-Drop a D-50 SysEx bulk dump (`*.syx`) into `roms/` beside the ROM images and
-the build converts it: 64 patches, played with the machine's own parameters.
+Drop D-50 SysEx bulk dumps (`*.syx`) into `roms/` beside the ROM images and
+the build converts them: **several dumps make several banks of 64** - the
+factory card leads, the rest follow in filename order, up to 384 patches.
 The converter verifies every checksum and eight documented parameter ranges,
 so it will not silently accept a file that is not a D-50 bank.
+
+With more than one bank aboard, the display shows the patch as `bank-number`
+("2-37 Nightfall"), and MIDI **CC 0 (bank select)** ahead of a program change
+reaches past the factory bank - CC0 0..5 picks the bank, the program byte the
+slot within it. The front-panel encoder walks the whole range linearly.
 
 Without a bank the instrument falls back to eight patches built by hand from
 the engine's parameters, chosen to cover the ground: every structure appears,
 both waveforms, ring modulation, the pitch envelope and each effect.
 
-The bank to use is the dump of **PN-D50-00**, the ROM card the D-50 shipped
-with: Fantasia, Digital Native Dance, Soundtrack, Pizzagogo, Glass Voices,
-Staccato Heaven, Shakuhachi, Nightmare -- the sixty-four sounds that made the
-machine. Two of those names turn up inside Roland's own D-05 firmware, which
-is as close to a signature as this gets.
+The bank to lead with is the dump of **PN-D50-00**, the ROM card the D-50
+shipped with: Fantasia, Digital Native Dance, Soundtrack, Pizzagogo, Glass
+Voices, Staccato Heaven, Shakuhachi, Nightmare -- the sixty-four sounds that
+made the machine. Two of those names turn up inside Roland's own D-05
+firmware, which is as close to a signature as this gets.
+
+Five more banks come from that same D-05 firmware: its update image holds the
+whole 384-slot table (the factory card byte-identically, Roland's 64 new D-05
+presets, and the four D-50 card-library banks), and
+`tools/d5_extract/d5_bq3_extract_banks.py` turns banks two to six into card
+dumps for `roms/`, round-trip-verified against the image.
 
 A bank is somebody's work, and not every file called "factory" is one: a
 second dump tried here announced itself in its tone names ("by SG", "By Sven

@@ -501,14 +501,24 @@ inline PatchSpec patch_from_bytes(const uint8_t* patch, const int16_t* blob) {
     map_common(patch_block(patch, kBlkLowerCommon), p.lower);
 
     const uint8_t* pb = patch_block(patch, kBlkPatch);
-    // Key modes 3..8 are the separate and solo variants; they differ in voice
-    // assignment rather than in sound, so they fold onto the three the engine
-    // knows until the allocator grows monophonic modes.
+    // Key modes 0..8 (D-05 UI strings at BQ3 0x164628: WHOLE, DUAL, SEP,
+    // DUAL-S, WHOL-S, SEP-S, SPL-LS, SPL-US, SPLIT -- the string order is
+    // the panel menu, not the byte: drums-set splits sit on byte 2, so byte
+    // 2 must be SPLIT, and the bank's solo leads sit on 4/5 with names like
+    // "Monophonic Lead"). The -S bytes are the monophonic family; byte 5
+    // must route both tones, because four factory patches on it carry the
+    // upper tone muted -- with upper-only routing they would be dead
+    // presets (they were, before this mapping). Separate folds onto dual:
+    // its difference is the output jack, not the sound.
     switch (pb[18]) {
+        case 3:                                   // SEPARATE
         case 1:  p.key_mode = KeyMode::kDual;  break;
         case 2:
-        case 6:
-        case 7:  p.key_mode = KeyMode::kSplit; break;
+        case 6:                                   // SPL-LS
+        case 7:  p.key_mode = KeyMode::kSplit; break;   // SPL-US
+        case 4:  p.key_mode = KeyMode::kWhole; p.solo = true; break;  // WHOL-S
+        case 5:                                   // DUAL-S
+        case 8:  p.key_mode = KeyMode::kDual;  p.solo = true; break;  // SEP-S
         default: p.key_mode = KeyMode::kWhole; break;
     }
     p.split_point = 36 + pb[19];                 // panel C2..C7

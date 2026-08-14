@@ -440,15 +440,23 @@ public:
         // mix point, and from the ring product only the pure dc*dc term
         // comes out: the leakage terms (dc_a * b) are a level-modulated
         // copy of the other partial, which the coupling keeps.
+        const float a_raw = a;                    // ring reads pre-mute values:
+        const float b_raw = b;                    // the mute buttons gate the
         float dca = (st.p1 == PartialType::kPcm) ? 0.0f : synth_[0].dc();
         float dcb = (st.p2 == PartialType::kPcm) ? 0.0f : synth_[1].dc();
+        const float dca_raw = dca, dcb_raw = dcb; // direct terms only
         if (!(spec_.partials_on & 0x1)) { a = 0.0f; dca = 0.0f; }
         if (!(spec_.partials_on & 0x2)) { b = 0.0f; dcb = 0.0f; }
 
         // The chip multiplies in the log domain, which is an ordinary product
         // once decoded: sum and difference frequencies, and silence whenever
-        // either side is silent.
-        const float second = st.ring ? a * b - dca * dcb : b - dcb;
+        // either side is silent. The product uses the raw partials -- the
+        // bank forces this reading: Glockenspiel (bank 4) mutes partial 1 of
+        // a ring structure, a dead preset if the mute reached the product,
+        // whereas gating only the direct path is exactly the classic trick
+        // of hiding the carrier and keeping the metallic product.
+        const float second = st.ring ? a_raw * b_raw - dca_raw * dcb_raw
+                                     : b - dcb;
 
         // The firmware's balance curve (EPROM bank code 0xB450): the
         // quieter side falls linearly to zero, the louder side RISES from

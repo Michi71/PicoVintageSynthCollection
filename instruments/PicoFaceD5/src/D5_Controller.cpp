@@ -67,7 +67,15 @@ const char* D5_Controller::pageName() const {
 void D5_Controller::lineA(char* out, size_t n) const {
     switch (page_) {
         case kPagePatch:
-            snprintf(out, n, "%d %s", bridge_.patch() + 1, bridge_.patchName());
+            // With one bank aboard the plain number stays (a D-50 owns 64);
+            // with the D-05's six banks the panel convention bank-patch
+            // tells "2-37 Nightfall" from "5-37".
+            if (bridge_.patchCount() > 64)
+                snprintf(out, n, "%d-%d %s", bridge_.patch() / 64 + 1,
+                         bridge_.patch() % 64 + 1, bridge_.patchName());
+            else
+                snprintf(out, n, "%d %s", bridge_.patch() + 1,
+                         bridge_.patchName());
             break;
         case kPageMix:
             snprintf(out, n, "Vol %d  Cho %d", volume_, chorus_);
@@ -99,8 +107,8 @@ void D5_Controller::lineB(char* out, size_t n) const {
     }
 }
 
-void D5_Controller::exportSettings(D5SettingsV1& s) const {
-    s.patch = (uint8_t)bridge_.patch();
+void D5_Controller::exportSettings(D5SettingsV2& s) const {
+    s.patch = (uint16_t)bridge_.patch();
     s.volume = (uint8_t)volume_;
     s.voices = (uint8_t)voices_;
     s.midiCh = (uint8_t)midiCh_;
@@ -109,7 +117,7 @@ void D5_Controller::exportSettings(D5SettingsV1& s) const {
     s.chorus = (uint8_t)chorus_;
 }
 
-void D5_Controller::importSettings(const D5SettingsV1& s) {
+void D5_Controller::importSettings(const D5SettingsV2& s) {
     volume_ = clampi(s.volume, 0, 100);
     voices_ = clampi(s.voices, 1, d5::kMaxVoicesPerTone);
     midiCh_ = clampi(s.midiCh, 0, 16);

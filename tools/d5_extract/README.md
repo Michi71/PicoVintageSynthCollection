@@ -369,7 +369,8 @@ confirm or correct the hypothesis table sample by sample.
 | `d5_probe_midi.py` | probe MIDI generator for measuring a real D-50. |
 | `d5_match.py` | matches a probe recording against the ROM audio, emits the measured table (needs numpy). |
 | `d5_make_blob.py` | decodes the ROM set into `d5_pcm.bin` (512 KiB, 16-bit) plus `d5_blob.S` and `d5_pcm_table.h` for the firmware. |
-| `d5_syx_to_patches.py` | converts a D-50 SysEx bulk dump into `d5_patch_data.h`: 64 patches as raw parameter bytes, checksums and parameter ranges verified. |
+| `d5_syx_to_patches.py` | converts D-50 SysEx bulk dumps into `d5_patch_data.h`, one input file per bank of 64 patches, in order: raw parameter bytes, checksums and parameter ranges verified. |
+| `d5_bq3_extract_banks.py` | extracts banks 2..6 from a D-05 firmware update (`BQ3_Appli.bin`, 384-slot patch table at file offset 0xA09B1) into card-style SysEx dumps for the converter -- checksum-correct DT1, round-trip-verified against the image. Bank 1 is skipped: it is the PN-D50-00 card, byte for byte. |
 | `d5_bq3_decompress.py` | unpacks a Roland Boutique BQ3 firmware update (D-05) into its components -- Okumura LZSS, verified against the loader's own routine. |
 | `d5_review_render.py` | renders the frozen table for review by ear: one-shots padded with silence, loops tiled and pitch-normalised, plus one file with all of them in order, and the unprocessed cuts under `raw/`. |
 | `d5_loop_audit.py` | judges every static loop with `cp_sampleprep/FindLoopPoints`. Superseded by the exact-repetition test in `d5_loops.py`; kept because it is what showed the general-purpose loop finder to be the wrong judge here. |
@@ -405,6 +406,9 @@ upper common, lower partial 1 and 2, lower common, patch). Roland's own manual
 lists those addresses with a gap in them; the layout above is what the data
 shows, and the converter proves it -- it checks eight parameters whose ranges
 are documented, and a wrong block assignment puts them out of range at once.
+Passed several dumps, it emits several banks in argument order, 64 patches
+each -- one dump never holds more than 64, because what a longer dump carries
+past the 64th slot is the temporary area, not more patches.
 
 The bytes stay raw in the generated header. `d5_patch_map.h` in the instrument
 converts them into engine specs, so one piece of code knows what parameter 22

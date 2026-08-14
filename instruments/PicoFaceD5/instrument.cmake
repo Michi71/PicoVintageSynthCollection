@@ -59,19 +59,37 @@ if(NOT EXISTS ${_d5_blob_s})
     message(STATUS "PicoFaceD5: ${_d5_out}")
 endif()
 
-# A patch bank is optional: with a .syx in roms/ the instrument plays those
-# patches, without one it falls back to the hand-built presets in the source
-# tree. Any D-50 bulk dump works -- the converter checks its checksums and
-# parameter ranges and refuses anything that is not one.
+# Patch banks are optional: with .syx dumps in roms/ the instrument plays
+# those patches, without any it falls back to the hand-built presets in the
+# source tree. Any D-50 bulk dump works -- the converter checks its checksums
+# and parameter ranges and refuses anything that is not one. Several dumps
+# concatenate into banks in file order; the factory card (PND50-00) leads,
+# so patch 1 never moves when further banks join.
 file(GLOB _d5_syx ${_d5_roms}/*.syx ${_d5_roms}/*.SYX)
 if(_d5_syx)
-    list(GET _d5_syx 0 _d5_bank)
-    if(NOT EXISTS ${_d5_gen}/d5_patch_data.h)
-        message(STATUS "PicoFaceD5: converting patch bank")
+    list(SORT _d5_syx)
+    set(_d5_factory ${_d5_roms}/PND50-00.syx)
+    if(EXISTS ${_d5_factory})
+        list(REMOVE_ITEM _d5_syx ${_d5_factory})
+        list(PREPEND _d5_syx ${_d5_factory})
+    endif()
+    # Regenerate when the header is missing or any dump is newer -- the old
+    # not-exists guard kept a stale single-bank header after banks joined.
+    set(_d5_stale TRUE)
+    if(EXISTS ${_d5_gen}/d5_patch_data.h)
+        set(_d5_stale FALSE)
+        foreach(_f ${_d5_syx})
+            if(${_f} IS_NEWER_THAN ${_d5_gen}/d5_patch_data.h)
+                set(_d5_stale TRUE)
+            endif()
+        endforeach()
+    endif()
+    if(_d5_stale)
+        message(STATUS "PicoFaceD5: converting patch banks")
         execute_process(
             COMMAND ${Python3_EXECUTABLE}
                     ${CMAKE_SOURCE_DIR}/tools/d5_extract/d5_syx_to_patches.py
-                    ${_d5_bank} ${_d5_gen}
+                    ${_d5_syx} ${_d5_gen}
             RESULT_VARIABLE _d5_syx_rc
             OUTPUT_VARIABLE _d5_syx_out
             ERROR_VARIABLE  _d5_syx_err)

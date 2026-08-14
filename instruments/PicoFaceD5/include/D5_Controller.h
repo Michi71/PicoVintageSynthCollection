@@ -26,8 +26,8 @@ public:
     void lineA(char* out, size_t n) const;
     void lineB(char* out, size_t n) const;
 
-    void exportSettings(D5SettingsV1& s) const;
-    void importSettings(const D5SettingsV1& s);
+    void exportSettings(D5SettingsV2& s) const;
+    void importSettings(const D5SettingsV2& s);
 
     int midiChannel() const { return midiCh_; }
 

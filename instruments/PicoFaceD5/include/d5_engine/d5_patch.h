@@ -170,6 +170,9 @@ struct PatchSpec {
     ToneSpec upper{};
     ToneSpec lower{};
     KeyMode key_mode = KeyMode::kWhole;
+    // The "-S" key modes (WHOL-S, DUAL-S, SEP-S) play monophonically: one
+    // note at a time, the new note ends the old one's hold at once.
+    bool solo = false;
     int split_point = 60;         // panel "Split Point", C4 by default
     float balance = 0.5f;         // panel "Tone Balance", upper to lower
     // Panel "Bender Range", pb[26], 0..12 semitones. Patch-common: the
@@ -192,6 +195,15 @@ public:
 
     void note_on(int note, float velocity) {
         reverb_.note_activity();
+        // Solo modes: the D-50's -S family shares one voice; a new note
+        // supersedes the held one. We release the previous note into its
+        // release segment rather than cutting it -- close enough to the
+        // steal that no factory patch tells them apart, and it cannot
+        // click.
+        if (spec_.solo && solo_note_ >= 0 && solo_note_ != note) {
+            upper_.note_off(solo_note_);
+            lower_.note_off(solo_note_);
+        }
         switch (spec_.key_mode) {
             case KeyMode::kDual:
                 upper_.note_on(note, velocity);
@@ -206,11 +218,13 @@ public:
                 upper_.note_on(note, velocity);
                 break;
         }
+        if (spec_.solo) solo_note_ = note;
     }
 
     void note_off(int note) {
         upper_.note_off(note);
         lower_.note_off(note);
+        if (note == solo_note_) solo_note_ = -1;
     }
 
     // Mono fold is the L/MONO jack again: the left side as it ships.
@@ -295,6 +309,7 @@ private:
     Tone<8> upper_{};
     Tone<8> lower_{};
     Reverb reverb_{};
+    int solo_note_ = -1;          // the solo modes' single held note
 };
 
 }  // namespace d5
