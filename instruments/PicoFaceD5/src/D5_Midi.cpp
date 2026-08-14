@@ -191,10 +191,13 @@ void D5_Midi::onSysEx(const uint8_t* d, uint16_t n) {
         if (addr >= kTempBase && addr < kTempBase + kPatchLen) {
             bridge_.sysexWriteTemp((int)(addr - kTempBase), d + 8, (int)len);
         }
-        // Writes to internal memory are accepted on the wire and ignored:
-        // that memory is flash here, not the battery-backed RAM the D-50
-        // keeps its sixty-four in. Sending a patch to the temporary area
-        // plays it immediately, which is what an editor does anyway.
+        // Internal memory: kept in RAM, shadowing the flash bank, so a
+        // librarian can send a whole sixty-four and play them without
+        // reflashing. The D-50's own sixty-four sit in battery-backed
+        // memory; ours do not survive a power cycle.
+        else if (addr >= kIntBase) {
+            bridge_.sysexWriteStored(addr - kIntBase, d + 8, (int)len);
+        }
         return;
     }
 

@@ -120,8 +120,17 @@ public:
     // streams, and configure() would click on every one.
     void sysexWriteTemp(int offset, const uint8_t* data, int len);
     // Read any stored patch, for answering a request. Returns null outside
-    // the bank.
+    // the bank. Prefers a patch received over MIDI to the one in flash.
     const uint8_t* storedPatch(int index) const;
+    // Write into internal memory. `off` counts bytes from the start of the
+    // area (02-00-00), so a bulk message that straddles two slots is split
+    // here rather than by the caller. The patches live in RAM: the D-50
+    // keeps its sixty-four in battery-backed memory, ours would be flash,
+    // and a flash write per DT1 would stall the render and wear the part.
+    // What is received plays at once and survives patch changes; it does
+    // not survive a power cycle.
+    void sysexWriteStored(uint32_t off, const uint8_t* data, int len);
+    int receivedPatchCount() const { return overlayUsed_; }
 
 private:
     void applyPatch();
@@ -157,6 +166,22 @@ private:
     int toneBal_ = 50;
     void applyEq();
     uint8_t temp_[448] = {};        // the D-50's temporary area
+    // Patches received over MIDI, shadowing the flash bank. Sixty-four of
+    // them, the size of a D-50's internal memory, addressed by absolute
+    // patch index so they can come from any of the six banks; oldest is
+    // reused when a sixty-fifth arrives.
+    static constexpr int kOverlaySlots = 64;
+    uint8_t overlay_[kOverlaySlots][448] = {};
+    // Absolute patch index PLUS ONE, so that zero -- what the array starts
+    // as -- means free. The D-50's own free list uses exactly this trick on
+    // its voice slots; here it stops an all-zero table from claiming that
+    // patch 1 has been overwritten, which silenced it outright.
+    uint16_t overlayFor_[kOverlaySlots] = {};
+    int overlayUsed_ = 0;
+    int overlayNext_ = 0;                      // round-robin replacement
+    char nameBuf_[20] = {};
+    int overlayFind(int index) const;
+    void applyStored(int index, int off, const uint8_t* data, int len);
     uint8_t held_[128] = {};
     bool sustain_ = false;
     uint8_t sustained_[128] = {};   // keys released under a held pedal

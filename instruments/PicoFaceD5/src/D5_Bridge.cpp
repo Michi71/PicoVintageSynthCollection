@@ -86,9 +86,25 @@ void D5_Bridge::applyPatch() {
     const int i = patchIndex_ % d5::kPatchCount;
     // Into the temporary area first, and built from there: that is where
     // the D-50 plays from, and where SysEx edits land.
-    for (int k = 0; k < kPatchBytes; ++k) temp_[k] = d5::kPatchData[i][k];
+    const uint8_t* src = storedPatch(i);
+    for (int k = 0; k < kPatchBytes; ++k) temp_[k] = src[k];
     d5::PatchSpec spec = d5::patch_from_bytes(temp_, d5_pcm_blob);
-    g_patch_name = d5::kPatchNames[i];
+    if (overlayFind(i) >= 0) {
+        // A received patch carries its own name, eighteen characters in the
+        // patch block on the panel's own alphabet.
+        static const char kChars[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                     "abcdefghijklmnopqrstuvwxyz1234567890-";
+        int end = 0;
+        for (int k = 0; k < 18; ++k) {
+            const int v = temp_[6 * 64 + k] & 0x3F;
+            nameBuf_[k] = (v < (int)sizeof(kChars) - 1) ? kChars[v] : ' ';
+            if (nameBuf_[k] != ' ') end = k + 1;
+        }
+        nameBuf_[end] = 0;
+        g_patch_name = nameBuf_;
+    } else {
+        g_patch_name = d5::kPatchNames[i];
+    }
 #else
     d5::Preset pr = d5::preset(patchIndex_ % d5::kPresetCount);
     d5::preset_bind(pr.spec, d5_pcm_blob, pr.pcm1, pr.pcm2);
@@ -302,13 +318,70 @@ void D5_Bridge::noteOn(uint8_t note, uint8_t velocity) {
     held_[note] = 1;
 }
 
+int D5_Bridge::overlayFind(int index) const {
+    const uint16_t want = (uint16_t)(index + 1);
+    for (int k = 0; k < kOverlaySlots; ++k) {
+        if (overlayFor_[k] == want) return k;
+    }
+    return -1;
+}
+
 const uint8_t* D5_Bridge::storedPatch(int index) const {
 #ifdef D5_HAVE_BANK
     if (index < 0 || index >= d5::kPatchCount) return nullptr;
-    return d5::kPatchData[index];
+    const int k = overlayFind(index);
+    return k >= 0 ? overlay_[k] : d5::kPatchData[index];
 #else
     (void)index;
     return nullptr;
+#endif
+}
+
+// One slot's worth of a received patch. A slot is seeded from flash the
+// first time it is touched, so a message that carries only a few bytes
+// leaves the rest of the patch intact instead of zeroing it.
+void D5_Bridge::applyStored(int index, int off, const uint8_t* data, int len) {
+#ifdef D5_HAVE_BANK
+    if (index < 0 || index >= d5::kPatchCount) return;
+    int k = overlayFind(index);
+    if (k < 0) {
+        k = -1;
+        for (int i = 0; i < kOverlaySlots; ++i) {
+            if (overlayFor_[i] == 0) { k = i; break; }
+        }
+        if (k < 0) {
+            k = overlayNext_;
+            overlayNext_ = (overlayNext_ + 1) % kOverlaySlots;
+        } else if (overlayUsed_ < kOverlaySlots) {
+            ++overlayUsed_;
+        }
+        for (int b = 0; b < kPatchBytes; ++b) overlay_[k][b] = d5::kPatchData[index][b];
+        overlayFor_[k] = (uint16_t)(index + 1);
+    }
+    for (int b = 0; b < len; ++b) overlay_[k][off + b] = data[b] & 0x7F;
+    // Playing this one? Then it takes effect now, without a rebuild that
+    // would clear the effects.
+    if (index == patchIndex_) sysexWriteTemp(off, data, len);
+#else
+    (void)index; (void)off; (void)data; (void)len;
+#endif
+}
+
+void D5_Bridge::sysexWriteStored(uint32_t off, const uint8_t* data, int len) {
+#ifdef D5_HAVE_BANK
+    // Which sixty-four the panel is on -- the same window the requests use.
+    const int bank = patchIndex_ / 64;
+    while (len > 0) {
+        const int slot = (int)(off / kPatchBytes);
+        const int inSlot = (int)(off % kPatchBytes);
+        if (slot >= 64) return;
+        int n = kPatchBytes - inSlot;
+        if (n > len) n = len;
+        applyStored(bank * 64 + slot, inSlot, data, n);
+        off += n; data += n; len -= n;
+    }
+#else
+    (void)off; (void)data; (void)len;
 #endif
 }
 
