@@ -424,7 +424,19 @@ public:
     // Panel controls that apply while the patch is playing. Anything that
     // would resize a delay line or restart a voice belongs in configure().
     void set_volume(float v) { spec_.volume = v; }
-    void set_reverb_balance(float b) { reverb_.set_balance(b); }
+    // Kept in the spec as well, so a later type change (which rebuilds the
+    // reverb) does not quietly restore the patch's original balance.
+    void set_reverb_balance(float b) {
+        spec_.reverb.balance = b;
+        reverb_.set_balance(b);
+    }
+    // Rebuilding empties the delay lines -- a tail in flight is lost, which
+    // is what a type change on the original does too.
+    void set_reverb_type(int t) {
+        spec_.reverb.type = t < 0 ? 0 : (t > 31 ? 31 : t);
+        reverb_.configure(spec_.reverb, sr_);
+    }
+    int reverb_type() const { return spec_.reverb.type; }
     void set_chorus_balance(float b) {
         upper_.set_chorus_balance(b);
         lower_.set_chorus_balance(b);

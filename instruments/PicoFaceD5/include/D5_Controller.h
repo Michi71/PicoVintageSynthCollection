@@ -32,13 +32,14 @@ public:
     int midiChannel() const { return midiCh_; }
 
 private:
-    enum Page { kPagePatch = 0, kPageMix, kPageTune, kPageCount };
+    // The D-50 keeps chorus and reverb in patch data, not on the panel --
+    // there is no global "reverb amount" knob on the original. These two
+    // pages edit the patch's own Balance parameters, in its own 0..100.
+    enum Page { kPagePatch = 0, kPageMix, kPageFx, kPageTune, kPageCount };
 
     D5_Bridge& bridge_;
     int page_ = kPagePatch;
     int volume_ = 80;
-    int reverb_ = 100;
-    int chorus_ = 100;
     int voices_ = 8;
     int midiCh_ = 16;      // 16 = Omni
     int tune_ = 0;

@@ -93,11 +93,26 @@ void D5_Bridge::applyPatch() {
     g_patch_name = pr.name;
 #endif
 
-    // Remember what the patch itself asks for: the UI's global controls scale
-    // these, so a dry patch stays drier than a wet one at the same setting.
-    baseReverb_ = spec.reverb.balance;
-    baseChorus_ = spec.upper.chorus.balance;
+    // The patch's own level; the panel's master volume scales it.
     baseVolume_ = spec.volume;
+    // The patch's OWN reverb and chorus balance, in the D-50's own 0..100,
+    // straight from the bytes. The panel knobs set these outright rather
+    // than scaling them: scaling could only ever take away, so on a dry
+    // patch the knob did nothing at all -- which is exactly what it looked
+    // like from the outside. On the real machine these are patch data
+    // (Reverb Balance in the patch block, Chorus Balance per tone), so the
+    // knobs follow the patch whenever it changes.
+#ifdef D5_HAVE_BANK
+    const uint8_t* pb = d5::patch_block(d5::kPatchData[i], d5::kBlkPatch);
+    const uint8_t* uc = d5::patch_block(d5::kPatchData[i], d5::kBlkUpperCommon);
+    patchReverbBal_ = pb[31] > 100 ? 100 : pb[31];
+    patchChorusBal_ = uc[45] > 100 ? 100 : uc[45];
+#else
+    patchReverbBal_ = 30;
+    patchChorusBal_ = 50;
+#endif
+    reverb_ = patchReverbBal_;
+    chorus_ = patchChorusBal_;
     wholeMode_ = spec.key_mode == d5::KeyMode::kWhole;
     // A patch change ends the CC65/CC5 override: the controllers reassert
     // themselves with their next message, as the D-50's own switch does.
@@ -145,8 +160,11 @@ void D5_Bridge::selectPatch(int index) {
 // mid-chord, which on hardware reads as a fault in the knob.
 void D5_Bridge::applyLevels() {
     patch_.set_volume(baseVolume_ * volume_ * 0.01f);
-    patch_.set_reverb_balance(baseReverb_ * reverb_ * 0.01f);
-    patch_.set_chorus_balance(baseChorus_ * chorus_ * 0.01f);
+    // Through the same curves the patch mapping uses, so the panel's number
+    // means what the D-50's own parameter means: the reverb balance rides
+    // the amount family (x^1.8), the chorus balance is linear.
+    patch_.set_reverb_balance(d5::kAmountCurve[reverb_ > 100 ? 100 : reverb_]);
+    patch_.set_chorus_balance(chorus_ * 0.01f);
     patch_.set_master_cents(static_cast<float>(tune_));
 }
 
@@ -164,6 +182,12 @@ void D5_Bridge::setReverb(int percent) {
     reverb_ = percent < 0 ? 0 : (percent > 100 ? 100 : percent);
     applyLevels();
 }
+
+void D5_Bridge::setReverbType(int t) {
+    patch_.set_reverb_type(t);
+}
+
+int D5_Bridge::reverbType() const { return patch_.reverb_type(); }
 
 void D5_Bridge::setChorus(int percent) {
     chorus_ = percent < 0 ? 0 : (percent > 100 ? 100 : percent);

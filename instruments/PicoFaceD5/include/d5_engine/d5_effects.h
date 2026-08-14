@@ -206,7 +206,20 @@ public:
         const float b = clamp01(spec_.balance);
         const float dry = x * (1.0f - b);
         l = dry + wet * b;
-        r = dry - wet * b;
+        // The right side takes the wet inverted, but NOT exactly: at a
+        // perfect inversion the two sides cancel the moment the dry is
+        // gone, and the reverb -- which folds its stereo input to mono the
+        // way the Boss chip does -- then receives nothing at all. Eighteen
+        // factory patches sit at chorus balance 100 (Griitttarr, Staccato
+        // Heaven, Calliope ...) with reverb balances of 36 to 50, so on the
+        // real machine a full-wet chorus certainly does reach the room --
+        // and such a patch would vanish entirely on a mono desk, which
+        // Roland would not ship. A real stereo chorus decorrelates its two
+        // sides rather than negating one; 0.7 keeps almost all of the width
+        // (-1.4 dB of side) while leaving the sum alive. The dry path of the
+        // left side is untouched; what does change there is the reverb's
+        // contribution, because the room now hears the chorus at all.
+        r = dry - wet * b * 0.7f;
     }
 
 private:

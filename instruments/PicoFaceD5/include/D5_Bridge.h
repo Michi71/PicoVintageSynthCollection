@@ -52,6 +52,15 @@ public:
     void setPortamentoSwitch(bool on);     // CC65: overrides the patch's switch
     void setPortamentoTime(int percent);   // CC5, 0..100
     int voiceLimit() const { return voiceLimit_; }
+    // The reverb and chorus balance in force, in the D-50's own 0..100.
+    // They follow the patch on every change, so the panel always starts
+    // from what the patch itself asks for.
+    int reverbBalance() const { return reverb_; }
+    // Reverb Type, the D-50's 32 rooms/halls/delays/gates (patch data,
+    // panel numbering 1..32).
+    void setReverbType(int t);
+    int reverbType() const;
+    int chorusBalance() const { return chorus_; }
     // What the governor actually allows in notes. A whole-mode patch runs
     // one tone, so a note costs one voice instead of two and the same
     // silicon carries twice as many -- which is exactly the D-50's own
@@ -103,8 +112,8 @@ private:
     int cpuPeak_ = 0;
     int outPeak_ = 0;
     float baseVolume_ = 1.0f;
-    float baseReverb_ = 0.3f;
-    float baseChorus_ = 0.0f;
+    int patchReverbBal_ = 30;      // what the patch itself asks for, 0..100
+    int patchChorusBal_ = 50;
     uint8_t held_[128] = {};
 };
 
