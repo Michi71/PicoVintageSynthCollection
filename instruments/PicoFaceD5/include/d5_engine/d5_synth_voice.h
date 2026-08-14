@@ -161,6 +161,9 @@ public:
         inv_edge_ = 2.0f;
         atten_ = 1.0f;
         res_on_ = false;
+        res_half_ = -1;
+        res_sin_ = 0.0f;
+        res_cos_ = 0.0f;
         h_frac_ = 0.0f;
         dc_shape_ = 0.0f;
         dc_out_ = 0.0f;
@@ -201,6 +204,18 @@ public:
             inv_edge_ = 1.0f / edge_frac_;
             if (spec_.resonance > 0.0f) {
                 res_on_ = true;
+                // One sample's worth of decay, for each half of the pulse.
+                // The step in `over` is the phase step scaled by the edge;
+                // pitch modulation moves it by well under a percent inside
+                // a block, which the envelope cannot show.
+                const float dover = inc_ * mod.pitch * inv_edge_;
+                const float kp = fast_exp2(-0.125f * res_decay_f_ * dover);
+                const float kn = fast_exp2(-0.125f * (res_decay_f_ + 0.25f) * dover);
+                const float dc = fast_cos(0.5f * dover);   // one sample of turn
+                const float ds = fast_sin(0.5f * dover);
+                res_a_pos_ = dc * kp;  res_b_pos_ = ds * kp;
+                res_a_neg_ = dc * kn;  res_b_neg_ = ds * kn;
+                res_half_ = -1;          // re-seed exactly on the next sample
                 // fade the resonance in over cutoff 128..144 (quarter sine)
                 res_amp_eff_ = res_amp_;
                 if (cv < 144.0f) {
@@ -276,10 +291,32 @@ public:
             float sgn = 1.0f;
             float df = res_decay_f_;
             const float half = e + h_frac_;
-            if (rr >= half) { sgn = -1.0f; rr -= half; df += 0.25f; }
+            int hi = 0;
+            if (rr >= half) { sgn = -1.0f; rr -= half; df += 0.25f; hi = 1; }
             const float over = rr * inv_e;
-            float res = sgn * fast_sin(0.5f * over)
-                        * fast_exp2(-0.125f * df * over);
+            // A decaying sine is a damped rotation, and both of its
+            // arguments advance by a fixed step per sample within one half
+            // of the pulse. So instead of a sine table and an exponential
+            // every sample, the pair (sin, cos) -- already carrying the
+            // decay -- is rotated forward with four multiplies, and the
+            // tables are touched only where the run starts: at each half
+            // boundary and after a block changes the cutoff. The restart
+            // is frequent enough that the rotation's own drift never
+            // accumulates (a few hundred steps at most, well under a part
+            // in ten thousand).
+            if (hi != res_half_) {
+                res_half_ = hi;
+                const float d0 = fast_exp2(-0.125f * df * over);
+                res_sin_ = fast_sin(0.5f * over) * d0;
+                res_cos_ = fast_cos(0.5f * over) * d0;
+            } else {
+                const float a = hi ? res_a_neg_ : res_a_pos_;
+                const float b = hi ? res_b_neg_ : res_b_pos_;
+                const float s = res_sin_ * a + res_cos_ * b;
+                res_cos_ = res_cos_ * a - res_sin_ * b;
+                res_sin_ = s;
+            }
+            float res = sgn * res_sin_;
             // sync window around the nearest edge centre
             float r2 = phase_;
             if (r2 >= 1.0f - 0.5f * e) r2 -= 1.0f;
@@ -343,6 +380,13 @@ private:
     float dc_out_ = 0.0f;          // dc_shape_ with all output scaling on
     float atten_ = 1.0f;           // sub-middle broadband attenuation
     bool res_on_ = false;
+    int res_half_ = -1;            // which half of the pulse the run is in
+    float res_sin_ = 0.0f;         // damped sine and its quadrature partner,
+    float res_cos_ = 0.0f;         // rotated forward one sample at a time
+    float res_a_pos_ = 1.0f;       // cos(step) * decay, positive half
+    float res_b_pos_ = 0.0f;       // sin(step) * decay, positive half
+    float res_a_neg_ = 1.0f;       // ... and the negative half, which the
+    float res_b_neg_ = 0.0f;       //     chip decays a quarter faster
     float res_ = 1.0f;
     float res_amp_ = 0.0f;
     float res_amp_eff_ = 0.0f;
