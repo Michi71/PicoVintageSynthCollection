@@ -35,9 +35,9 @@ codebase. Same board, same core, one firmware image per instrument.
 The JV-880 and the D-50 are the exceptions to "download and flash": they only
 build where the respective ROM set is present, and those ROMs are not
 distributable, so neither is in the release binaries. Without them the
-configure step skips them and the eight above are unaffected. The JV-880 runs
-on the hardware; see the flash note below for the one build option it needs on
-a small board. The D-50 is new and has not been on the hardware yet.
+configure step skips them and the eight above are unaffected. Both run on the
+hardware; see the flash note below for the one build option the JV-880 needs
+on a small board.
 
 ## Hardware
 
@@ -62,7 +62,7 @@ Raspberry Pi Pico 2 and many other RP2350 boards provide:
 | YC, DX, J6, MD, SM, OB | 90-190 KB | fits anywhere |
 | PicoFaceCP | 4.22 MB | does not fit |
 | PicoFaceJV | 4.34 MB | only with `-DPICOFACEJV_4MB=ON` (3.76 MB, banks A+B) |
-| PicoFaceD5 | 1.19 MB | fits |
+| PicoFaceD5 | 0.86 MB | fits |
 | PicoFaceRD | 5.07 MB | does not fit |
 
 CP carries the Rhodes, Clavinet and E-piano sample sets, RD the MKS-20 sample
@@ -151,22 +151,22 @@ instrument's README names the document so it can be obtained separately.
 ## Status
 
 **All ten instruments build from a single configure run, each with its own USB
-PID.** Eight are in the release binaries and confirmed on the hardware; the
-JV-880 runs on the hardware but needs a local ROM set, and the D-50 is new -
-it builds and its engine is verified on the host, but it has not been on the
-hardware yet. Open points are listed in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), section 8.
+PID, and all ten run on the hardware.** Eight are in the release binaries; the
+JV-880 and the D-50 need a local ROM set and are therefore built locally only.
+Open points are listed in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
+section 8.
 
 ## License
 
 **GNU General Public License, version 3 or later** - see [LICENSE](LICENSE).
 Copyright (C) 2026 Michi71.
 
-That is what every one of the seven single-instrument repositories this
-collection was assembled from already declared: all seven shipped the identical
-GPL-3 licence text, and every instrument README states GPL-3. It is also the
-lowest common denominator of what the engines are built on. Where an instrument
-derives from someone else's work:
+The collection was assembled in August 2026 from seven single-instrument
+repositories -- YC, CP, DX, RD, J6, MD and SM; OB, JV and D5 were written here
+afterwards, which is why the number is seven and not ten. Each of those seven
+already shipped the identical GPL-3 licence text, and every instrument README
+states GPL-3. It is also the lowest common denominator of what the engines are
+built on. Where an instrument derives from someone else's work:
 
 | Part | Upstream it derives from | That upstream's license |
 |---|---|---|
@@ -179,6 +179,8 @@ derives from someone else's work:
 | PicoFaceMD | [BelaMiniMoogEmulation](https://github.com/lbros96/BelaMiniMoogEmulation) (ladder filter) | stated by its author to be under no copyright |
 | PicoFaceSM | [string-machine](https://github.com/jpcima/string-machine) (DSP models) | Boost Software License 1.0 |
 | PicoFaceOB | [OB-Xf](https://github.com/surge-synthesizer/OB-Xf) (engine) | GPL-3.0-or-later |
+| PicoFaceJV | own work, over the machine's own PCM data | - |
+| PicoFaceD5 | [munt](https://github.com/munt/munt) - the LA32's wave generation and the Boss reverb topology as that project *documents* them, no code | LGPL-2.1-or-later upstream, does not reach here; see below |
 
 `instruments/PicoFaceOB/` additionally carries its own `LICENSE`, identical in
 text, because that instrument's engine is a direct port of OB-Xf and its files
@@ -196,6 +198,17 @@ it out of the way of the code. Three kinds exist:
   MAME's `mame_utils.h` and `mcu_ops.h`, the SDK-derived `usb_descriptors.c`,
   `get_serial.*` and `tusb_config.h`): untouched, they keep the header they
   came with. The last four are MIT and BSD-3-Clause, not GPL.
+
+**On PicoFaceD5 and munt.** The D-50 and the MT-32 share the LA32 sound chip,
+and the MT-32 emulator [munt](https://github.com/munt/munt) has read that chip
+out and written down what it does: how a cutoff becomes the width of a cosine
+edge, how the resonance decays, and - from the same era's Boss reverb chip,
+whose data lines were traced by Lord_Nightmare, balrog and Mok - the topology
+the reverb here follows. munt is LGPL-2.1-or-later. Nothing was copied: the
+engine under `instruments/PicoFaceD5/include/d5_engine/` was written for this
+project from that written description and from the D-50's own firmware, which
+is why no file there carries an upstream copyright header. The description is
+what mattered, and a description is not the program.
 
 **On PicoFaceYC and the AGPL.** OpenB3 / BeatrixCPP, whose tone generation
 concepts the YC drawbar engine follows, is AGPL-3.0 - stricter than GPL-3, and

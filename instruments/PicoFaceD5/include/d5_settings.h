@@ -20,11 +20,13 @@
 struct __attribute__((packed)) D5SettingsV2 {
     uint16_t patch;      // absolute index, 0..patchCount-1; 64 per bank
     uint8_t volume;      // 0..100
-    uint8_t voices;      // polyphony cap per tone, 1..8
+    uint8_t voices;      // polyphony cap per tone, 1..8; whole mode gets twice
     uint8_t midiCh;      // 0..15, 16 = Omni
     int8_t  masterTune;  // -50..+50 cents
-    uint8_t reverb;      // 0..100, scales the patch's own reverb balance
-    uint8_t chorus;      // 0..100, scales the patch's own chorus balance
+    // Reverb and chorus balance are the patch's own parameters and are re-read
+    // from it on every change. Written out for diagnostics, ignored on import.
+    uint8_t reverb;      // 0..100
+    uint8_t chorus;      // 0..100
 };
 
 static_assert(sizeof(D5SettingsV2) == 8, "D5SettingsV2 layout drifted");
