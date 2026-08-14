@@ -116,6 +116,7 @@ public:
     virtual void controlChange(uint8_t channel, uint8_t cc, uint8_t value) {}
     virtual void programChange(uint8_t channel, uint8_t program) {}
     virtual void pitchBend(uint8_t channel, int16_t value) {}
+    virtual void channelPressure(uint8_t channel, uint8_t value) {}
     virtual void sysEx(const uint8_t* data, size_t length) {}
 
     // Realtime status bytes (0xF8..0xFF) from either wire. Needed by an

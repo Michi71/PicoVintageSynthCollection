@@ -152,6 +152,7 @@ cmake --build build
 | PicoFaceOB | 0x1056 |
 | PicoFaceDX | 0x1057 |
 | PicoFaceJV | 0x1058 |
+| PicoFaceD5 | 0x1059 |
 
 The VID stays 0x2E8A. Before the merge all seven original firmwares carried the same PID 0x104C, so hosts could not tell them apart; PicoFaceYC additionally identified itself as "PicoFaceDX" - which, with the real PicoFaceDX on the same host, would have been a double misunderstanding. `core/src/usb_descriptors.c` is now parameterized through the compile definitions `PICOFACE_INSTRUMENT_NAME` and `PICOFACE_USB_PID`, which removes both faults.
 

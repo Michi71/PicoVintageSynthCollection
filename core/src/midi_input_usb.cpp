@@ -39,6 +39,12 @@ void MIDIInputUSB::process()
                 }
                 break;
 
+            case 0xD:
+                if (MIDIChannelPressureCallback) {
+                    MIDIChannelPressureCallback(p[2] & 0x7F, p[1] & 0x0F);
+                }
+                break;
+
             case 0xE: {
                 uint16_t bend14 = (uint16_t)(p[2] & 0x7F) | ((uint16_t)(p[3] & 0x7F) << 7);
                 if (MIDIPitchBendCallback) {

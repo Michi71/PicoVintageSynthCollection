@@ -22,6 +22,7 @@ public:
     using CCCallback = void (*)(uint8_t, uint8_t, uint8_t);          // cc, value, channel
     using ProgramChangeCallback = void (*)(uint8_t, uint8_t);        // program, channel
     using PitchBendCallback = void (*)(uint16_t, uint8_t);           // 0..16383, channel
+    using ChannelPressureCallback = void (*)(uint8_t, uint8_t);      // value, channel
     using RealtimeCallback = void (*)(uint8_t);
     using SysExCallback = void (*)(const uint8_t*, uint16_t);
     using ActivityCallback = void (*)(void);
@@ -48,6 +49,7 @@ public:
     void setCCCallback(CCCallback cb)                       { ccCb_ = cb; }
     void setProgramChangeCallback(ProgramChangeCallback cb) { programChangeCb_ = cb; }
     void setPitchBendCallback(PitchBendCallback cb)         { pitchBendCb_ = cb; }
+    void setChannelPressureCallback(ChannelPressureCallback cb) { channelPressureCb_ = cb; }
     void setRealtimeCallback(RealtimeCallback cb)           { realtimeCb_ = cb; }
     void setSysExCallback(SysExCallback cb)                 { sysexCb_ = cb; }
     void setActivityCallback(ActivityCallback cb)           { activityCb_ = cb; }
@@ -56,13 +58,16 @@ private:
     void dispatch();   // act on a complete channel message in status_/data_
     void txPump();     // move queued bytes into the UART FIFO, never waiting
 
-    static constexpr uint16_t kSysExMax = 256;
+    // 512: a D-50 bulk message is 266 bytes (256 data plus Roland framing),
+    // and anything longer than this buffer is dropped rather than truncated.
+    static constexpr uint16_t kSysExMax = 512;
 
     NoteOnCallback       noteOnCb_ = nullptr;
     NoteOffCallback      noteOffCb_ = nullptr;
     CCCallback           ccCb_ = nullptr;
     ProgramChangeCallback programChangeCb_ = nullptr;
     PitchBendCallback    pitchBendCb_ = nullptr;
+    ChannelPressureCallback channelPressureCb_ = nullptr;
     RealtimeCallback     realtimeCb_ = nullptr;
     SysExCallback        sysexCb_ = nullptr;
     ActivityCallback     activityCb_ = nullptr;
