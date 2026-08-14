@@ -84,6 +84,7 @@ public:
         q_head_ = (q_head_ + 1) % kVoices;
         --q_count_;
         freed_[slot] = false;
+        shedding_[slot] = false;
         // Sync roles per the note-transition handler (EPROM 0x28FC-0x2991):
         // a tone going from silence to sounding restarts the phase and
         // delay of every LFO whose sync byte is nonzero (the 0x1655 loop
@@ -186,11 +187,17 @@ public:
     bool shed_oldest_tail() {
         int victim = -1;
         for (int i = 0; i < kVoices; ++i) {
-            if (!active_[i] || key_[i]) continue;
+            // Skipping the ones already fading is the whole point: a voice
+            // stays the oldest tail for the length of its fade, so without
+            // this flag the governor re-picks it every block, restarts the
+            // fade from its lower level each time, and nothing ever
+            // actually stops. That was 500 sheds and no relief.
+            if (!active_[i] || key_[i] || shedding_[i]) continue;
             if (victim < 0 || age_[i] > age_[victim]) victim = i;
         }
         if (victim < 0) return false;
         voices_[victim].quick_release();
+        shedding_[victim] = true;
         return true;
     }
 
@@ -228,7 +235,7 @@ private:
     void refill_free_list() {
         q_head_ = 0;
         q_count_ = 0;
-        for (int i = 0; i < kVoices; ++i) freed_[i] = false;
+        for (int i = 0; i < kVoices; ++i) { freed_[i] = false; shedding_[i] = false; }
         for (int i = 0; i < limit_ && i < kVoices; ++i) {
             if (key_[i]) continue;             // a finger still owns it
             free_q_[q_count_++] = static_cast<uint8_t>(i);
@@ -243,6 +250,7 @@ private:
     int q_count_ = 0;
     bool freed_[kVoices] = {};      // slot is sitting in the free list
     bool key_[kVoices] = {};        // its key is still down
+    bool shedding_[kVoices] = {};   // governor is already fading it out
     Equalizer eq_{};
     Chorus<> chorus_{};
     int note_[kVoices] = {};

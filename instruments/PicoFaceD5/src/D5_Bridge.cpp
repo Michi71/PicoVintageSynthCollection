@@ -269,13 +269,12 @@ void __not_in_flash_func(D5_Bridge::fillBufferI32)(int32_t* out, int frames) {
     // to one per eight blocks (~16 ms) so the relief is heard before the
     // next decision, and armed only above 88% where there is still room
     // for the block to finish.
-    if (load > 97) {
-        // Already over the line: every block sheds until it is not, which
-        // clears an eight-voice pile-up in about a sixth of a second.
+    if (load > 92) {
+        // Already near the line: shed every block until it is not.
         shedHoldoff_ = 0;
         if (patch_.shed_voice()) ++shedTotal_;
-    } else if (load > 88) {
-        if (++shedHoldoff_ >= 8) {
+    } else if (load > 82) {
+        if (++shedHoldoff_ >= 6) {
             shedHoldoff_ = 0;
             if (patch_.shed_voice()) ++shedTotal_;
         }
