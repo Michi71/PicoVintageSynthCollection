@@ -192,6 +192,7 @@ public:
             const float ph = phase_ + static_cast<float>(v) / t.voices;
             const float ms = t.base_ms + t.spread_ms * v +
                              clamp01(spec_.depth) * 4.0f * fast_sin(ph);   // wraps on its own
+            const float ds = ms * 0.001f * sr_;
             wet += read(ms * 0.001f * sr_);
         }
         wet /= static_cast<float>(t.voices);
@@ -218,6 +219,11 @@ private:
         if (delay_samples > kMaxDelay - 2) delay_samples = kMaxDelay - 2;
         float pos = static_cast<float>(write_) - delay_samples;
         while (pos < 0.0f) pos += kMaxDelay;
+        // A hair below zero rounds UP to exactly kMaxDelay in float32 (the
+        // ulp at 1536 is ~1.2e-4, wider than the negative numbers that
+        // land here), and pos == kMaxDelay would index one slot past the
+        // ring -- a single garbage sample, audible as a pop. Wrap it back.
+        if (pos >= kMaxDelay) pos -= kMaxDelay;
         const int i0 = static_cast<int>(pos);
         const int i1 = (i0 + 1) % kMaxDelay;
         const float f = pos - static_cast<float>(i0);
@@ -485,13 +491,23 @@ public:
 
         // Gates work on the wet part, the way a gated reverb does: Short
         // and Long Gate hold full level and then cut; the reverse gates
-        // rise over their window and cut at its end.
+        // rise over their window and cut at its end. The cut is a 5 ms
+        // close, not a switch: the analog gate has a closing time, and a
+        // one-sample cut of a sounding tail reads as a pop.
         float g = 1.0f;
         if (gate_ > 0) {
-            g = age_ < gate_ ? 1.0f : 0.0f;
+            const int fade = static_cast<int>(sr_ * 0.005f);
+            g = age_ < gate_ ? 1.0f
+                : (age_ < gate_ + fade
+                       ? 1.0f - static_cast<float>(age_ - gate_) / fade
+                       : 0.0f);
             ++age_;
         } else if (reverse_ > 0) {
-            g = age_ < reverse_ ? static_cast<float>(age_) / reverse_ : 0.0f;
+            const int fade = static_cast<int>(sr_ * 0.005f);
+            g = age_ < reverse_ ? static_cast<float>(age_) / reverse_
+                : (age_ < reverse_ + fade
+                       ? static_cast<float>(reverse_ + fade - age_) / fade
+                       : 0.0f);
             ++age_;
         }
 

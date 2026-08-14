@@ -149,7 +149,12 @@ inline void build_tvf_env(const EnvBytes& b, int D, int key, Env5Spec& out) {
                                              : lp[k] - lp[k + 1]) * D) >> 8;
         int idx;
         if (k == 0) {
-            if (b.t[0] == 0 || dist == 0) { out.t[0] = 0.0f; continue; }
+            // Byte 0 is the fastest RAMP, not an instant jump: the chip's
+            // rate table has a floor (idx 1 tops out near 3 ms for a
+            // full-scale swing). Snapping here made every percussive
+            // attack a single-sample step -- the dust-grain pop in fast
+            // sequences.
+            if (dist == 0) { out.t[0] = 0.0f; continue; }
             idx = env_clamp_idx(env_law(dist) + b.t[0] - kf);
         } else {
             int u = b.t[k] - kf;
@@ -190,11 +195,12 @@ inline void build_tva_env(const EnvBytes& b, int key, int vel127,
         ? 0.0f : fast_exp2((static_cast<int>(b.l[3]) - 100) * 0.0625f) * level;
     out.end = b.end ? level : 0.0f;
 
-    // Attack: instant at byte 0 either way; otherwise the law on the
-    // target level. The ramp truly starts at chip zero, ~160 units below
-    // the base -- the nominal base keeps the duration honest while the
-    // audible part rises from the engine's floor.
-    if (b.t[0] == 0 || b.l[0] == 0) {
+    // Attack: the law on the target level either way. Byte 0 is the
+    // fastest ramp the chip has (idx clamps to 1, a full-scale swing in
+    // ~3 ms), NOT an instant jump -- a snapped attack steps the sample by
+    // a quarter of full scale and crackles in sequences. Only a zero
+    // target has no distance to travel.
+    if (b.l[0] == 0) {
         out.t[0] = 0.0f;
     } else {
         const int idx = env_clamp_idx(b.t[0] + env_law(b.l[0]) - voff - kf);
@@ -227,7 +233,12 @@ public:
     void start(const Env5Spec& spec, float sample_rate) {
         spec_ = spec;
         sr_ = sample_rate;
-        level_ = 0.0f;
+        // No level reset here: a retriggered voice keeps what the ramp
+        // currently holds and glides into its new attack from there. That
+        // is the chip's behaviour -- munt's LA32Ramp: "the starting point
+        // of the ramp is whatever internal value the LA-32 had when the
+        // registers were set". Zeroing levels on a stolen voice cut a
+        // sounding note in one sample. Only construction starts at 0.
         held_ = true;
         arm(0, spec_.l[0]);
     }
