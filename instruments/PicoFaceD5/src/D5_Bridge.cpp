@@ -89,6 +89,7 @@ void D5_Bridge::applyPatch() {
     baseReverb_ = spec.reverb.balance;
     baseChorus_ = spec.upper.chorus.balance;
     baseVolume_ = spec.volume;
+    wholeMode_ = spec.key_mode == d5::KeyMode::kWhole;
     // A patch change ends the CC65/CC5 override: the controllers reassert
     // themselves with their next message, as the D-50's own switch does.
     portaSwitch_ = spec.upper.voice.porta_switch;
@@ -199,7 +200,7 @@ void D5_Bridge::noteOn(uint8_t note, uint8_t velocity) {
     // Re-striking a held note replaces its own voice inside the tone; only a
     // genuinely new note may steal, or full-polyphony retriggers eat a
     // neighbour for nothing.
-    if (activeVoices_ >= voiceLimit_ && !held_[note]) {
+    if (activeVoices_ >= noteLimit() && !held_[note]) {
         // The tone steals internally, but the governor's limit is ours: past
         // it we drop the oldest held note first so the count stays honest.
         for (int n = 0; n < 128; ++n) {

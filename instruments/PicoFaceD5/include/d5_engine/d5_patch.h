@@ -31,6 +31,13 @@ struct ToneSpec {
 template <int kVoices = 8>
 class Tone {
 public:
+    // How many of this tone's slots the key mode grants it. Voices past
+    // the limit keep sounding until their release ends -- the render walks
+    // every slot regardless, so a mode change never cuts a held note.
+    void set_voice_limit(int n) {
+        limit_ = n < 1 ? 1 : (n > kVoices ? kVoices : n);
+    }
+
     void configure(const ToneSpec& spec, float sample_rate) {
         spec_ = spec;
         sr_ = sample_rate;
@@ -61,13 +68,22 @@ public:
         } else if (spec_.voice.lfo[0].sync == 2) {
             lfo_[0].retrigger();
         }
+        // Only the slots this tone currently owns: the D-50 runs ONE pool
+        // of sixteen, and the key mode decides how it is cut. The engine
+        // cycle walks all sixteen and hands slots 0..7 to the upper tone;
+        // at slot 8 it re-reads the key mode and gives the second half to
+        // the upper tone as well in whole mode, to the lower tone
+        // otherwise (bank driver 0x8003-0x80FE, and the slot search at
+        // 0x2B90 windows itself the same way: sixteen wide when the whole
+        // flag is set, eight from 0 or from 8 when it is not).
+        const int n = limit_ < kVoices ? limit_ : kVoices;
         int slot = -1;
-        for (int i = 0; i < kVoices; ++i) {
+        for (int i = 0; i < n; ++i) {
             if (!active_[i]) { slot = i; break; }
         }
         if (slot < 0) {                 // steal the oldest sounding voice
             slot = 0;
-            for (int i = 1; i < kVoices; ++i) {
+            for (int i = 1; i < n; ++i) {
                 if (age_[i] > age_[slot]) slot = i;
             }
         }
@@ -157,6 +173,7 @@ private:
     float sr_ = 32000.0f;
     Lfo lfo_[3]{};                  // the tone's shared three (see configure)
     Voice voices_[kVoices]{};
+    int limit_ = kVoices;           // slots the key mode grants this tone
     Equalizer eq_{};
     Chorus<> chorus_{};
     int note_[kVoices] = {};
@@ -191,6 +208,11 @@ public:
         upper_.configure(spec.upper, sample_rate);
         lower_.configure(spec.lower, sample_rate);
         reverb_.configure(spec.reverb, sample_rate);
+        // The sixteen-slot pool, cut the way the key mode cuts it: whole
+        // gives all of them to the upper tone (the D-50's sixteen-note
+        // polyphony), every other mode gives eight to each (its eight).
+        upper_.set_voice_limit(spec.key_mode == KeyMode::kWhole ? 16 : 8);
+        lower_.set_voice_limit(8);
     }
 
     void note_on(int note, float velocity) {
@@ -306,7 +328,9 @@ public:
 
 private:
     PatchSpec spec_{};
-    Tone<8> upper_{};
+    // Sixteen slots on the upper tone, eight on the lower: the pool is the
+    // D-50's own, and only the upper tone can ever be handed all of it.
+    Tone<16> upper_{};
     Tone<8> lower_{};
     Reverb reverb_{};
     int solo_note_ = -1;          // the solo modes' single held note

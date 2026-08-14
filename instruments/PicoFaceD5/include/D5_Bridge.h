@@ -52,6 +52,12 @@ public:
     void setPortamentoSwitch(bool on);     // CC65: overrides the patch's switch
     void setPortamentoTime(int percent);   // CC5, 0..100
     int voiceLimit() const { return voiceLimit_; }
+    // What the governor actually allows in notes. A whole-mode patch runs
+    // one tone, so a note costs one voice instead of two and the same
+    // silicon carries twice as many -- which is exactly the D-50's own
+    // 16-against-8 polyphony (bank driver 0x8003: all sixteen slots go to
+    // the upper tone when the key mode is whole).
+    int noteLimit() const { return wholeMode_ ? 2 * voiceLimit_ : voiceLimit_; }
 
     int activeVoices() const { return activeVoices_; }
     // Every note-on that reached this bridge since boot -- the footer shows
@@ -74,6 +80,7 @@ private:
     int reverb_ = 100;
     int chorus_ = 100;
     int voiceLimit_ = d5::kMaxVoicesPerTone;
+    bool wholeMode_ = false;        // set from the patch's key mode
     // CC65/CC5 state, kept so a patch change restores its own setting and a
     // CC5 arriving before CC65 still lands when the switch does.
     bool portaSwitch_ = false;

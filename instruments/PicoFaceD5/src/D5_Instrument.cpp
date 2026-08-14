@@ -136,7 +136,7 @@ private:
         snprintf(m.footer, sizeof m.footer, "P%d B%d U%lu A%d/%d N%lu",
                  bridge_.cpuLoadPeakPercent(), benchPct_,
                  (unsigned long)(g_i2s_underrun_count > 999 ? 999 : g_i2s_underrun_count),
-                 bridge_.activeVoices(), bridge_.voiceLimit(),
+                 bridge_.activeVoices(), bridge_.noteLimit(),
                  (unsigned long)(bridge_.noteOnTotal() % 1000u));
         d5_display_page(d, m);
         // Arms the incremental push: the main loop only streams the buffer
