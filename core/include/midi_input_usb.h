@@ -50,10 +50,13 @@ private:
     SysExCallback        MIDISysExCallback        = nullptr;
     ActivityCallback     MIDIActivityCallback     = nullptr;
 
-    // 256 bytes: the largest message any instrument expects is a reface DX
-    // common-block bulk dump at 51 bytes, but an oversized message is dropped
-    // silently in sysexFinish(), so keep headroom rather than lose it unseen.
-    uint8_t  _syx[256]     = {0};
+    // 512 bytes. It was 256, sized for a reface DX common block of 51; the
+    // D-50 raises the bar -- its own bulk dumps carry 256 DATA bytes per
+    // message, which with the Roland header, address, checksum and F7 is a
+    // 266-byte message, and an oversized one is dropped silently in
+    // sysexFinish(). 512 leaves room above the largest thing any instrument
+    // here sends or receives.
+    uint8_t  _syx[512]     = {0};
     uint16_t _syxLen       = 0;
     bool     _syxActive    = false;
     bool     _syxOverflow  = false;

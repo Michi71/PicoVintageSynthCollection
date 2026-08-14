@@ -63,6 +63,9 @@ public:
     }
     void pitchBend(uint8_t ch, int16_t bend) override { midi_.onPitchBend(ch, bend); }
     void channelPressure(uint8_t ch, uint8_t v) override { midi_.onChannelPressure(ch, v); }
+    void sysEx(const uint8_t* data, size_t length) override {
+        midi_.onSysEx(data, (uint16_t)length);
+    }
     void programChange(uint8_t, uint8_t p) override {
         D5SettingsV2 s{};
         controller_.exportSettings(s);

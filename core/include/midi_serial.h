@@ -58,7 +58,9 @@ private:
     void dispatch();   // act on a complete channel message in status_/data_
     void txPump();     // move queued bytes into the UART FIFO, never waiting
 
-    static constexpr uint16_t kSysExMax = 256;
+    // 512: a D-50 bulk message is 266 bytes (256 data plus Roland framing),
+    // and anything longer than this buffer is dropped rather than truncated.
+    static constexpr uint16_t kSysExMax = 512;
 
     NoteOnCallback       noteOnCb_ = nullptr;
     NoteOffCallback      noteOffCb_ = nullptr;

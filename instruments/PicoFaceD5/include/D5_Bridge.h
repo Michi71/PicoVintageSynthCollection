@@ -108,6 +108,21 @@ public:
     int outputPeakPercent() const { return outPeak_; }
     int bootBenchPercent();
 
+    // ---- SysEx, the D-50's own address space -------------------------
+    // The machine keeps the patch it is playing in a "temporary area" that
+    // MIDI can read and write; the 448 bytes there are the same seven
+    // 64-byte blocks a bulk dump carries. Writing them is how an editor
+    // programs the instrument, and it is what stage one of this does.
+    static constexpr int kPatchBytes = 448;
+    const uint8_t* tempPatch() const { return temp_; }
+    // Write into the temporary area and rebuild the sounding patch without
+    // clearing effects or restarting LFOs -- an editor sends these in
+    // streams, and configure() would click on every one.
+    void sysexWriteTemp(int offset, const uint8_t* data, int len);
+    // Read any stored patch, for answering a request. Returns null outside
+    // the bank.
+    const uint8_t* storedPatch(int index) const;
+
 private:
     void applyPatch();
     void applyLevels();
@@ -141,6 +156,7 @@ private:
     int eqLoF_ = 8, eqLoG_ = 12, eqHiF_ = 12, eqHiQ_ = 3, eqHiG_ = 12;
     int toneBal_ = 50;
     void applyEq();
+    uint8_t temp_[448] = {};        // the D-50's temporary area
     uint8_t held_[128] = {};
     bool sustain_ = false;
     uint8_t sustained_[128] = {};   // keys released under a held pedal

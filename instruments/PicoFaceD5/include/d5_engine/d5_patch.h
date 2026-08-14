@@ -53,6 +53,20 @@ public:
         }
     }
 
+    // New parameters for a tone that is already sounding: specs replaced,
+    // filter coefficients retuned, chorus settings handed over -- but no
+    // delay line cleared and no LFO phase restarted. This is what an editor
+    // sending a parameter every few milliseconds needs; configure() would
+    // click on every one of them.
+    void reconfigure(const ToneSpec& spec) {
+        spec_ = spec;
+        eq_.retune(spec.eq, sr_);
+        chorus_.set_type(spec.chorus.type);
+        chorus_.set_rate(spec.chorus.rate);
+        chorus_.set_depth(spec.chorus.depth);
+        chorus_.set_balance(spec.chorus.balance);
+    }
+
     // Returns false when the pool had nothing to give and the note was
     // dropped -- the caller uses that to leave everything else alone too.
     bool note_on(int note, float velocity) {
@@ -303,6 +317,23 @@ struct PatchSpec {
 
 class Patch {
 public:
+    // Live edit: everything except the reverb's geometry, which only has to
+    // be rebuilt when the TYPE changes -- and rebuilding it empties the
+    // lines, so it happens only then.
+    void reconfigure(const PatchSpec& spec) {
+        const bool mode_changed = spec.key_mode != spec_.key_mode;
+        const int old_type = spec_.reverb.type;
+        spec_ = spec;
+        upper_.reconfigure(spec.upper);
+        lower_.reconfigure(spec.lower);
+        if (spec.reverb.type != old_type) reverb_.configure(spec.reverb, sr_);
+        else reverb_.set_balance(spec.reverb.balance);
+        if (mode_changed) {
+            upper_.set_voice_limit(spec.key_mode == KeyMode::kWhole ? 16 : 8);
+            lower_.set_voice_limit(8);
+        }
+    }
+
     // Everything quiet, and the effect lines emptied (see Tone::silence).
     void silence() {
         upper_.silence();

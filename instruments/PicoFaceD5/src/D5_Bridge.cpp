@@ -84,7 +84,10 @@ int D5_Bridge::bootBenchPercent() {
 void D5_Bridge::applyPatch() {
 #ifdef D5_HAVE_BANK
     const int i = patchIndex_ % d5::kPatchCount;
-    d5::PatchSpec spec = d5::patch_from_bytes(d5::kPatchData[i], d5_pcm_blob);
+    // Into the temporary area first, and built from there: that is where
+    // the D-50 plays from, and where SysEx edits land.
+    for (int k = 0; k < kPatchBytes; ++k) temp_[k] = d5::kPatchData[i][k];
+    d5::PatchSpec spec = d5::patch_from_bytes(temp_, d5_pcm_blob);
     g_patch_name = d5::kPatchNames[i];
 #else
     d5::Preset pr = d5::preset(patchIndex_ % d5::kPresetCount);
@@ -103,8 +106,8 @@ void D5_Bridge::applyPatch() {
     // (Reverb Balance in the patch block, Chorus Balance per tone), so the
     // knobs follow the patch whenever it changes.
 #ifdef D5_HAVE_BANK
-    const uint8_t* pb = d5::patch_block(d5::kPatchData[i], d5::kBlkPatch);
-    const uint8_t* uc = d5::patch_block(d5::kPatchData[i], d5::kBlkUpperCommon);
+    const uint8_t* pb = d5::patch_block(temp_, d5::kBlkPatch);
+    const uint8_t* uc = d5::patch_block(temp_, d5::kBlkUpperCommon);
     patchReverbBal_ = pb[31] > 100 ? 100 : pb[31];
     patchChorusBal_ = uc[45] > 100 ? 100 : uc[45];
 #else
@@ -297,6 +300,47 @@ void D5_Bridge::noteOn(uint8_t note, uint8_t velocity) {
     patch_.note_on(note, velocity * (1.0f / 127.0f));
     if (!held_[note]) ++activeVoices_;
     held_[note] = 1;
+}
+
+const uint8_t* D5_Bridge::storedPatch(int index) const {
+#ifdef D5_HAVE_BANK
+    if (index < 0 || index >= d5::kPatchCount) return nullptr;
+    return d5::kPatchData[index];
+#else
+    (void)index;
+    return nullptr;
+#endif
+}
+
+void D5_Bridge::sysexWriteTemp(int offset, const uint8_t* data, int len) {
+    if (offset < 0 || offset >= kPatchBytes || len <= 0) return;
+    if (offset + len > kPatchBytes) len = kPatchBytes - offset;
+    for (int k = 0; k < len; ++k) temp_[offset + k] = data[k] & 0x7F;
+#ifdef D5_HAVE_BANK
+    d5::PatchSpec spec = d5::patch_from_bytes(temp_, d5_pcm_blob);
+    // The panel's own copies of the patch parameters follow the edit, so
+    // the display keeps telling the truth about what is sounding.
+    const uint8_t* pb = d5::patch_block(temp_, d5::kBlkPatch);
+    const uint8_t* uc = d5::patch_block(temp_, d5::kBlkUpperCommon);
+    reverb_ = pb[31] > 100 ? 100 : pb[31];
+    chorus_ = uc[45] > 100 ? 100 : uc[45];
+    choType_ = uc[42] > 7 ? 7 : uc[42];
+    choRate_ = uc[43] > 100 ? 100 : uc[43];
+    choDepth_ = uc[44] > 100 ? 100 : uc[44];
+    eqLoF_ = uc[37] > 15 ? 15 : uc[37];
+    eqLoG_ = uc[38] > 24 ? 24 : uc[38];
+    eqHiF_ = uc[39] > 21 ? 21 : uc[39];
+    eqHiQ_ = uc[40] > 8 ? 8 : uc[40];
+    eqHiG_ = uc[41] > 24 ? 24 : uc[41];
+    toneBal_ = pb[33] > 100 ? 100 : pb[33];
+    baseVolume_ = spec.volume;
+    wholeMode_ = spec.key_mode == d5::KeyMode::kWhole;
+    bendRange_ = spec.bend_range;
+    g_structure = spec.upper.voice.structure;
+    patch_.reconfigure(spec);
+#else
+    (void)data;
+#endif
 }
 
 void D5_Bridge::setSustain(bool on) {
