@@ -299,13 +299,32 @@ void D5_Bridge::noteOn(uint8_t note, uint8_t velocity) {
     held_[note] = 1;
 }
 
+void D5_Bridge::setSustain(bool on) {
+    if (sustain_ == on) return;
+    sustain_ = on;
+    if (on) return;
+    // Pedal up: every key that was let go while it was down releases now.
+    for (int n = 0; n < 128; ++n) {
+        if (!sustained_[n]) continue;
+        sustained_[n] = 0;
+        patch_.note_off(n);
+        if (held_[n]) { held_[n] = 0; if (activeVoices_ > 0) --activeVoices_; }
+    }
+}
+
 void D5_Bridge::noteOff(uint8_t note) {
     if (note > 127) return;
+    // Under a held pedal the key-up is remembered, not performed: the slot
+    // stays out of the free list exactly as it does on the original, whose
+    // key array keeps the note until the pedal lifts.
+    if (sustain_ && held_[note]) { sustained_[note] = 1; return; }
     patch_.note_off(note);
     if (held_[note]) { held_[note] = 0; if (activeVoices_ > 0) --activeVoices_; }
 }
 
 void D5_Bridge::allNotesOff() {
+    sustain_ = false;
+    for (int n = 0; n < 128; ++n) sustained_[n] = 0;
     for (int n = 0; n < 128; ++n) {
         if (held_[n]) { patch_.note_off(n); held_[n] = 0; }
     }

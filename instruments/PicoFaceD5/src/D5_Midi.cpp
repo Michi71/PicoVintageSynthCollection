@@ -30,6 +30,9 @@ void D5_Midi::onControlChange(uint8_t ch, uint8_t cc, uint8_t value) {
         case 5:                                     // portamento time
             bridge_.setPortamentoTime(value * 100 / 127);
             break;
+        case 64:                                    // hold pedal
+            bridge_.setSustain(value >= 64);
+            break;
         case 65:                                    // portamento switch
             bridge_.setPortamentoSwitch(value >= 64);
             break;
@@ -42,6 +45,12 @@ void D5_Midi::onControlChange(uint8_t ch, uint8_t cc, uint8_t value) {
         case 100: rpnLsb_ = value; break;           // RPN LSB
         case 101: rpnMsb_ = value; break;           // RPN MSB
 
+        // The D-50's own CC list, read from its dispatch table (EPROM
+        // 0x4E33): 1, 5, 6, 7, 38, 64, 65, 98, 99, 100, 101. Everything
+        // below this line is ours, not the machine's -- 91 and 93 are
+        // General MIDI sends from 1991, four years after the D-50, and CC0
+        // is how the six D-05 banks are reached at all. Harmless, useful,
+        // and not original: worth knowing when comparing against a real one.
         case 7:                                     // channel volume
             bridge_.setVolume(value * 100 / 127);
             break;

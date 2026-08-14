@@ -49,6 +49,12 @@ public:
 
     void setModWheel(float w);             // CC1, the D-50 lever's near kin   // reaches sounding notes
     void setAftertouch(float a);           // channel pressure, 0..1; survives patch changes like the wheel
+    // CC64, the hold pedal. The D-50 receives it (its CC table lists 1, 5,
+    // 6, 7, 38, 64, 65, 98, 99, 100, 101 and nothing else) and gates it on
+    // a system switch at 0xC5C7; a held pedal defers every key-up until it
+    // lifts.
+    void setSustain(bool on);
+    bool sustain() const { return sustain_; }
     void setPortamentoSwitch(bool on);     // CC65: overrides the patch's switch
     void setPortamentoTime(int percent);   // CC5, 0..100
     int voiceLimit() const { return voiceLimit_; }
@@ -136,6 +142,8 @@ private:
     int toneBal_ = 50;
     void applyEq();
     uint8_t held_[128] = {};
+    bool sustain_ = false;
+    uint8_t sustained_[128] = {};   // keys released under a held pedal
 };
 
 #endif // D5_BRIDGE_H
