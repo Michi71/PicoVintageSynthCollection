@@ -36,6 +36,7 @@ public:
     // every slot regardless, so a mode change never cuts a held note.
     void set_voice_limit(int n) {
         limit_ = n < 1 ? 1 : (n > kVoices ? kVoices : n);
+        refill_free_list();
     }
 
     void configure(const ToneSpec& spec, float sample_rate) {
@@ -52,7 +53,37 @@ public:
         }
     }
 
-    void note_on(int note, float velocity) {
+    // Returns false when the pool had nothing to give and the note was
+    // dropped -- the caller uses that to leave everything else alone too.
+    bool note_on(int note, float velocity) {
+        // The slot comes off a free list, first in first out -- the D-50
+        // keeps one per tone at 0xC330/0xC338, entries holding slot+1 with
+        // zero for empty, and a note-on pops its head (0x2DA1 called from
+        // 0x2B6F). A key-up appends its slot back immediately (0x2B8C ->
+        // 0x63B9 -> 0x2DC5), before the release has finished, so the next
+        // note lands on the slot that was released longest ago and cuts
+        // whatever tail it still had. And when the head is zero the
+        // firmware simply raises its no-voice flag and starts nothing:
+        // the machine drops the new note rather than stealing a held one.
+        //
+        // This runs BEFORE the LFO work: the note-transition handler
+        // builds its masks from the slots that actually took a note, so a
+        // dropped note is invisible to it -- no phase reset, no delay
+        // restart, nothing.
+        const bool from_silence = !sounding();
+        if (q_count_ == 0) {
+            // Cannot happen while note-offs arrive in pairs -- the pool
+            // and the governor's limit are the same number. If a note-off
+            // was ever lost and no finger is down, take the pool back.
+            bool any_key = false;
+            for (int i = 0; i < kVoices; ++i) any_key = any_key || key_[i];
+            if (any_key) return false;
+            refill_free_list();
+        }
+        const int slot = free_q_[q_head_];
+        q_head_ = (q_head_ + 1) % kVoices;
+        --q_count_;
+        freed_[slot] = false;
         // Sync roles per the note-transition handler (EPROM 0x28FC-0x2991):
         // a tone going from silence to sounding restarts the phase and
         // delay of every LFO whose sync byte is nonzero (the 0x1655 loop
@@ -60,7 +91,6 @@ public:
         // only when its own byte is exactly 2 -- the KEY mode the panel
         // offers on LFO-1 alone (the gates at 0x2929/0x294E/0x2981 read
         // only C49C/C55C; a stray 2 on LFO-2/3 simply behaves as ON).
-        const bool from_silence = !sounding();
         if (from_silence) {
             for (int i = 0; i < 3; ++i) {
                 if (spec_.voice.lfo[i].sync != 0) lfo_[i].retrigger();
@@ -68,38 +98,36 @@ public:
         } else if (spec_.voice.lfo[0].sync == 2) {
             lfo_[0].retrigger();
         }
-        // Only the slots this tone currently owns: the D-50 runs ONE pool
-        // of sixteen, and the key mode decides how it is cut. The engine
-        // cycle walks all sixteen and hands slots 0..7 to the upper tone;
-        // at slot 8 it re-reads the key mode and gives the second half to
-        // the upper tone as well in whole mode, to the lower tone
-        // otherwise (bank driver 0x8003-0x80FE, and the slot search at
-        // 0x2B90 windows itself the same way: sixteen wide when the whole
-        // flag is set, eight from 0 or from 8 when it is not).
-        const int n = limit_ < kVoices ? limit_ : kVoices;
-        int slot = -1;
-        for (int i = 0; i < n; ++i) {
-            if (!active_[i]) { slot = i; break; }
-        }
-        if (slot < 0) {                 // steal the oldest sounding voice
-            slot = 0;
-            for (int i = 1; i < n; ++i) {
-                if (age_[i] > age_[slot]) slot = i;
-            }
-        }
         voices_[slot].bind_lfos(lfo_);
         voices_[slot].note_on(spec_.voice, note, velocity, sr_);
         note_[slot] = note;
         active_[slot] = true;
+        key_[slot] = true;
         age_[slot] = 0;
         for (int i = 0; i < kVoices; ++i) {
             if (i != slot && active_[i]) ++age_[i];
         }
+        return true;
     }
 
     void note_off(int note) {
         for (int i = 0; i < kVoices; ++i) {
-            if (active_[i] && note_[i] == note) voices_[i].note_off();
+            // Keyed by the KEY, not by whether the voice still sounds:
+            // the firmware's key array outlives the envelope, so a
+            // percussive voice that fell silent under a held finger still
+            // owns its slot until the finger lifts -- and still gives it
+            // back when it does.
+            if (!key_[i] || note_[i] != note) continue;
+            key_[i] = false;
+            if (active_[i]) voices_[i].note_off();
+            // The slot rejoins the pool at key-up, not when its release
+            // ends -- that is what lets a fast passage keep taking voices
+            // whose tails are still audible.
+            if (!freed_[i]) {
+                freed_[i] = true;
+                free_q_[(q_head_ + q_count_) % kVoices] = static_cast<uint8_t>(i);
+                ++q_count_;
+            }
         }
     }
 
@@ -172,8 +200,26 @@ private:
     ToneSpec spec_{};
     float sr_ = 32000.0f;
     Lfo lfo_[3]{};                  // the tone's shared three (see configure)
+    // The free list: slot numbers waiting to be handed out, oldest
+    // release first. Slots outside the current limit simply never enter.
+    void refill_free_list() {
+        q_head_ = 0;
+        q_count_ = 0;
+        for (int i = 0; i < kVoices; ++i) freed_[i] = false;
+        for (int i = 0; i < limit_ && i < kVoices; ++i) {
+            if (key_[i]) continue;             // a finger still owns it
+            free_q_[q_count_++] = static_cast<uint8_t>(i);
+            freed_[i] = true;
+        }
+    }
+
     Voice voices_[kVoices]{};
     int limit_ = kVoices;           // slots the key mode grants this tone
+    uint8_t free_q_[kVoices] = {};
+    int q_head_ = 0;
+    int q_count_ = 0;
+    bool freed_[kVoices] = {};      // slot is sitting in the free list
+    bool key_[kVoices] = {};        // its key is still down
     Equalizer eq_{};
     Chorus<> chorus_{};
     int note_[kVoices] = {};
@@ -216,7 +262,6 @@ public:
     }
 
     void note_on(int note, float velocity) {
-        reverb_.note_activity();
         // Solo modes: the D-50's -S family shares one voice; a new note
         // supersedes the held one. We release the previous note into its
         // release segment rather than cutting it -- close enough to the
@@ -226,20 +271,28 @@ public:
             upper_.note_off(solo_note_);
             lower_.note_off(solo_note_);
         }
+        bool sounded = false;
         switch (spec_.key_mode) {
-            case KeyMode::kDual:
-                upper_.note_on(note, velocity);
-                lower_.note_on(note, velocity);
+            case KeyMode::kDual: {
+                const bool u = upper_.note_on(note, velocity);
+                const bool l = lower_.note_on(note, velocity);
+                sounded = u || l;
                 break;
+            }
             case KeyMode::kSplit:
-                if (note >= spec_.split_point) upper_.note_on(note, velocity);
-                else lower_.note_on(note, velocity);
+                sounded = (note >= spec_.split_point)
+                              ? upper_.note_on(note, velocity)
+                              : lower_.note_on(note, velocity);
                 break;
             case KeyMode::kWhole:
             default:
-                upper_.note_on(note, velocity);
+                sounded = upper_.note_on(note, velocity);
                 break;
         }
+        // The gate and reverse reverbs time their wet envelope against the
+        // note; a note the pool refused never reached the chip, so it must
+        // not re-arm them either.
+        if (sounded) reverb_.note_activity();
         if (spec_.solo) solo_note_ = note;
     }
 
