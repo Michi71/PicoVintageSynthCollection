@@ -227,6 +227,11 @@ public:
     // Live edits that must not interrupt sounding notes.
     void set_level(float v) { spec_.level = v; }
     void set_chorus_balance(float b) { chorus_.set_balance(b); }
+    void set_chorus_type(int t) { spec_.chorus.type = t; chorus_.set_type(t); }
+    void set_chorus_rate(float r) { spec_.chorus.rate = r; chorus_.set_rate(r); }
+    void set_chorus_depth(float d) { spec_.chorus.depth = d; chorus_.set_depth(d); }
+    void set_eq(const EqSpec& e) { spec_.eq = e; eq_.retune(e, sr_); }
+    const EqSpec& eq() const { return spec_.eq; }
     void set_master_cents(float c) { spec_.voice.master_cents = c; }
     void set_bend_semis(float st) {
         for (int i = 0; i < kVoices; ++i) voices_[i].set_bend_semis(st);
@@ -437,10 +442,29 @@ public:
         reverb_.configure(spec_.reverb, sr_);
     }
     int reverb_type() const { return spec_.reverb.type; }
+    // Chorus and EQ are per TONE on the real machine; the panel here edits
+    // both at once and reads the upper tone back, the same simplification
+    // the balance has always used.
     void set_chorus_balance(float b) {
         upper_.set_chorus_balance(b);
         lower_.set_chorus_balance(b);
     }
+    void set_chorus_type(int t) {
+        upper_.set_chorus_type(t);
+        lower_.set_chorus_type(t);
+    }
+    void set_chorus_rate(float r) {
+        upper_.set_chorus_rate(r);
+        lower_.set_chorus_rate(r);
+    }
+    void set_chorus_depth(float d) {
+        upper_.set_chorus_depth(d);
+        lower_.set_chorus_depth(d);
+    }
+    void set_eq(const EqSpec& e) { upper_.set_eq(e); lower_.set_eq(e); }
+    const EqSpec& eq() const { return upper_.eq(); }
+    // Tone Balance, pb[33]: read straight by next_stereo each sample.
+    void set_tone_balance(float b) { spec_.balance = b; }
     void set_master_cents(float c) {
         upper_.set_master_cents(c);
         lower_.set_master_cents(c);

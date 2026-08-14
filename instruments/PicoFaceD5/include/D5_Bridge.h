@@ -60,6 +60,23 @@ public:
     // panel numbering 1..32).
     void setReverbType(int t);
     int reverbType() const;
+    // The rest of the D-50's own effect and mix parameters, in its own
+    // units, with the firmware's own maxima (EPROM max table 0x7E10/0x7E50):
+    // chorus type 0..7, rate/depth 0..100; EQ low freq 0..15, gain 0..24
+    // (-12..+12 dB), high freq 0..21, Q 0..8, gain 0..24; tone balance
+    // 0..100. All follow the patch on a change.
+    void setChorusType(int v);      int chorusType() const  { return choType_; }
+    void setChorusRate(int v);      int chorusRate() const  { return choRate_; }
+    void setChorusDepth(int v);     int chorusDepth() const { return choDepth_; }
+    void setEqLowFreq(int v);       int eqLowFreq() const   { return eqLoF_; }
+    void setEqLowGain(int v);       int eqLowGain() const   { return eqLoG_; }
+    void setEqHighFreq(int v);      int eqHighFreq() const  { return eqHiF_; }
+    void setEqHighQ(int v);         int eqHighQ() const     { return eqHiQ_; }
+    void setEqHighGain(int v);      int eqHighGain() const  { return eqHiG_; }
+    void setToneBalance(int v);     int toneBalance() const { return toneBal_; }
+    // Hz and dB behind those indices, for the display.
+    float eqLowHz() const;
+    float eqHighHz() const;
     int chorusBalance() const { return chorus_; }
     // What the governor actually allows in notes. A whole-mode patch runs
     // one tone, so a note costs one voice instead of two and the same
@@ -114,6 +131,10 @@ private:
     float baseVolume_ = 1.0f;
     int patchReverbBal_ = 30;      // what the patch itself asks for, 0..100
     int patchChorusBal_ = 50;
+    int choType_ = 0, choRate_ = 35, choDepth_ = 50;
+    int eqLoF_ = 8, eqLoG_ = 12, eqHiF_ = 12, eqHiQ_ = 3, eqHiG_ = 12;
+    int toneBal_ = 50;
+    void applyEq();
     uint8_t held_[128] = {};
 };
 

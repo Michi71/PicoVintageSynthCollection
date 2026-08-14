@@ -106,13 +106,19 @@ struct EqSpec {
 class Equalizer {
 public:
     void configure(const EqSpec& spec, float sr) {
+        retune(spec, sr);
+        low_.reset();
+        high_.reset();
+    }
+
+    // New coefficients, same filter state: turning an EQ knob while a chord
+    // rings must not restart the filters, which would step the output.
+    void retune(const EqSpec& spec, float sr) {
         const int lf = clamp_index(spec.low_freq, 16);
         const int hf = clamp_index(spec.high_freq, 22);
         const int hq = clamp_index(spec.high_q, 9);
         low_.set_low_shelf(kLowEqFreq[lf], spec.low_gain_db, sr);
         high_.set_peaking(kHighEqFreq[hf], kHighEqQ[hq], spec.high_gain_db, sr);
-        low_.reset();
-        high_.reset();
     }
 
     float D5_HOT(process)(float x) { return high_.process(low_.process(x)); }
@@ -169,6 +175,14 @@ public:
     // Changing the mix must not touch the delay line: turning a knob while a
     // chord rings should not restart the chorus.
     void set_balance(float b) { spec_.balance = clamp01(b); }
+    // Type and depth are read per sample, the rate only sets the LFO step:
+    // none of them needs the delay line cleared, so a knob turn is silent.
+    void set_type(int t) { spec_.type = t < 0 ? 0 : (t > 7 ? 7 : t); }
+    void set_depth(float d) { spec_.depth = clamp01(d); }
+    void set_rate(float r) {
+        spec_.rate = clamp01(r);
+        inc_ = (0.098f * std::pow(20.0f / 0.098f, spec_.rate)) / sr_;
+    }
 
     // Mono is the L/MONO jack of the real unit: dry + wet, exactly what the
     // left side carries. Averaging l and r would cancel the anti-phase wet

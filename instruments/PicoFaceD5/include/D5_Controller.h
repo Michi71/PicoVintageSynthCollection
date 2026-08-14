@@ -35,7 +35,18 @@ private:
     // The D-50 keeps chorus and reverb in patch data, not on the panel --
     // there is no global "reverb amount" knob on the original. These two
     // pages edit the patch's own Balance parameters, in its own 0..100.
-    enum Page { kPagePatch = 0, kPageMix, kPageFx, kPageTune, kPageCount };
+    enum Page {
+        kPagePatch = 0,   // patch          | voice limit
+        kPageMix,         // master volume  | tone balance   (pb33)
+        kPageReverb,      // reverb balance | reverb type    (pb31/pb30)
+        kPageChorus,      // chorus balance | chorus type    (c45/c42)
+        kPageChorusMod,   // chorus rate    | chorus depth   (c43/c44)
+        kPageEqLow,       // low freq       | low gain       (c37/c38)
+        kPageEqHigh,      // high freq      | high gain      (c39/c41)
+        kPageEqQ,         // high Q         | -              (c40)
+        kPageTune,        // master tune    | MIDI channel
+        kPageCount
+    };
 
     D5_Bridge& bridge_;
     int page_ = kPagePatch;

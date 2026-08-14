@@ -113,6 +113,17 @@ void D5_Bridge::applyPatch() {
 #endif
     reverb_ = patchReverbBal_;
     chorus_ = patchChorusBal_;
+#ifdef D5_HAVE_BANK
+    choType_ = uc[42] > 7 ? 7 : uc[42];
+    choRate_ = uc[43] > 100 ? 100 : uc[43];
+    choDepth_ = uc[44] > 100 ? 100 : uc[44];
+    eqLoF_ = uc[37] > 15 ? 15 : uc[37];
+    eqLoG_ = uc[38] > 24 ? 24 : uc[38];
+    eqHiF_ = uc[39] > 21 ? 21 : uc[39];
+    eqHiQ_ = uc[40] > 8 ? 8 : uc[40];
+    eqHiG_ = uc[41] > 24 ? 24 : uc[41];
+    toneBal_ = pb[33] > 100 ? 100 : pb[33];
+#endif
     wholeMode_ = spec.key_mode == d5::KeyMode::kWhole;
     // A patch change ends the CC65/CC5 override: the controllers reassert
     // themselves with their next message, as the D-50's own switch does.
@@ -188,6 +199,49 @@ void D5_Bridge::setReverbType(int t) {
 }
 
 int D5_Bridge::reverbType() const { return patch_.reverb_type(); }
+
+static int clampTo(int v, int hi) { return v < 0 ? 0 : (v > hi ? hi : v); }
+
+void D5_Bridge::setChorusType(int v) {
+    choType_ = clampTo(v, 7);
+    patch_.set_chorus_type(choType_);
+}
+
+void D5_Bridge::setChorusRate(int v) {
+    choRate_ = clampTo(v, 100);
+    patch_.set_chorus_rate(choRate_ * 0.01f);
+}
+
+void D5_Bridge::setChorusDepth(int v) {
+    choDepth_ = clampTo(v, 100);
+    // The depth family the whole machine uses: read linearly, a patch
+    // asking for a breath of chorus got half a semitone of it.
+    patch_.set_chorus_depth(d5::kDepthCurve[choDepth_]);
+}
+
+void D5_Bridge::applyEq() {
+    d5::EqSpec e;
+    e.low_freq = eqLoF_;
+    e.low_gain_db = static_cast<float>(eqLoG_) - 12.0f;
+    e.high_freq = eqHiF_;
+    e.high_q = eqHiQ_;
+    e.high_gain_db = static_cast<float>(eqHiG_) - 12.0f;
+    patch_.set_eq(e);
+}
+
+void D5_Bridge::setEqLowFreq(int v)  { eqLoF_ = clampTo(v, 15); applyEq(); }
+void D5_Bridge::setEqLowGain(int v)  { eqLoG_ = clampTo(v, 24); applyEq(); }
+void D5_Bridge::setEqHighFreq(int v) { eqHiF_ = clampTo(v, 21); applyEq(); }
+void D5_Bridge::setEqHighQ(int v)    { eqHiQ_ = clampTo(v, 8);  applyEq(); }
+void D5_Bridge::setEqHighGain(int v) { eqHiG_ = clampTo(v, 24); applyEq(); }
+
+float D5_Bridge::eqLowHz() const  { return d5::kLowEqFreq[clampTo(eqLoF_, 15)]; }
+float D5_Bridge::eqHighHz() const { return d5::kHighEqFreq[clampTo(eqHiF_, 21)]; }
+
+void D5_Bridge::setToneBalance(int v) {
+    toneBal_ = clampTo(v, 100);
+    patch_.set_tone_balance(toneBal_ * 0.01f);
+}
 
 void D5_Bridge::setChorus(int percent) {
     chorus_ = percent < 0 ? 0 : (percent > 100 ? 100 : percent);
