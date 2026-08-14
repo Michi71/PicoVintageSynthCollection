@@ -64,10 +64,19 @@ int D5_Bridge::bootBenchPercent() {
         const int64_t us = absolute_time_diff_us(t0, get_absolute_time());
         if (b >= 2 && us > worst) worst = us;
     }
+    // Leave nothing behind. The chord above went to a scratch buffer, but
+    // the chorus and reverb lines kept every sample of it, and a hall runs
+    // for seconds -- so the instrument used to sing a few notes to itself
+    // as soon as the real output started, right after the splash screen.
+    // Releasing the notes is not enough; the lines have to be emptied.
     allNotesOff();
-    for (int b = 0; b < 64; ++b) fillBufferI32(buf, 64);
+    patch_.silence();
     cpuPeak_ = 0;
     outPeak_ = 0;
+    shedTotal_ = 0;
+    shedWindow_ = 0;
+    shedRate_ = 0;
+    noteOnTotal_ = 0;
     const int64_t budget = 64 * 1000000LL / (int64_t)sampleRate();
     return (int)(worst * 100 / (budget > 0 ? budget : 1));
 }

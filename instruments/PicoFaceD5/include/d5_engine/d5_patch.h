@@ -165,6 +165,24 @@ public:
         r *= spec_.level;
     }
 
+    // Stop everything at once and wipe what the effects still hold. Not a
+    // performance action -- there is no panel button for it -- but the boot
+    // benchmark needs it: it plays a chord to time the render, and while
+    // its samples go to a scratch buffer, the chorus and reverb lines keep
+    // what they were fed. Without this the instrument sings a little by
+    // itself once the real output starts.
+    void silence() {
+        for (int i = 0; i < kVoices; ++i) {
+            active_[i] = false;
+            key_[i] = false;
+            note_[i] = -1;
+            age_[i] = 0;
+        }
+        refill_free_list();
+        eq_.configure(spec_.eq, sr_);            // both clear their state
+        chorus_.configure(spec_.chorus, sr_);
+    }
+
     bool sounding() const {
         for (int i = 0; i < kVoices; ++i) {
             if (active_[i]) return true;
@@ -280,8 +298,17 @@ struct PatchSpec {
 
 class Patch {
 public:
+    // Everything quiet, and the effect lines emptied (see Tone::silence).
+    void silence() {
+        upper_.silence();
+        lower_.silence();
+        reverb_.configure(spec_.reverb, sr_);
+        solo_note_ = -1;
+    }
+
     void configure(const PatchSpec& spec, float sample_rate) {
         spec_ = spec;
+        sr_ = sample_rate;
         upper_.configure(spec.upper, sample_rate);
         lower_.configure(spec.lower, sample_rate);
         reverb_.configure(spec.reverb, sample_rate);
@@ -430,6 +457,7 @@ private:
     Tone<16> upper_{};
     Tone<8> lower_{};
     Reverb reverb_{};
+    float sr_ = 32000.0f;
     int solo_note_ = -1;          // the solo modes' single held note
 };
 
