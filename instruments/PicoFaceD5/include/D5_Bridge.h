@@ -58,6 +58,9 @@ public:
     // 16-against-8 polyphony (bank driver 0x8003: all sixteen slots go to
     // the upper tone when the key mode is whole).
     int noteLimit() const { return wholeMode_ ? 2 * voiceLimit_ : voiceLimit_; }
+    // How many ringing tails the CPU governor has had to retire. Zero on a
+    // healthy patch; climbing means the render is at its limit.
+    uint32_t shedCount() const { return shedTotal_; }
 
     int activeVoices() const { return activeVoices_; }
     // Every note-on that reached this bridge since boot -- the footer shows
@@ -81,6 +84,8 @@ private:
     int chorus_ = 100;
     int voiceLimit_ = d5::kMaxVoicesPerTone;
     bool wholeMode_ = false;        // set from the patch's key mode
+    int shedHoldoff_ = 0;           // blocks since the last governor shed
+    uint32_t shedTotal_ = 0;        // tails retired for the CPU, since boot
     // CC65/CC5 state, kept so a patch change restores its own setting and a
     // CC5 arriving before CC65 still lands when the switch does.
     bool portaSwitch_ = false;

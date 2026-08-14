@@ -171,6 +171,29 @@ public:
         return false;
     }
 
+    // Diagnostic: how many slots are actually rendering right now.
+    int voices_sounding() const {
+        int n = 0;
+        for (int i = 0; i < kVoices; ++i) n += active_[i] ? 1 : 0;
+        return n;
+    }
+
+    // CPU governor: retire the tail that has been ringing longest, i.e.
+    // the oldest voice whose key is already up. Returns false when every
+    // sounding voice is still under a finger -- those are never touched,
+    // because cutting a note the player is holding is the one thing worse
+    // than an underrun.
+    bool shed_oldest_tail() {
+        int victim = -1;
+        for (int i = 0; i < kVoices; ++i) {
+            if (!active_[i] || key_[i]) continue;
+            if (victim < 0 || age_[i] > age_[victim]) victim = i;
+        }
+        if (victim < 0) return false;
+        voices_[victim].quick_release();
+        return true;
+    }
+
     // Diagnostic handles for the host-side LFO sync test: the shared LFO's
     // phase and its delay/fade gate, like Voice::glide_offset_semitones().
     float lfo_phase(int i) const { return lfo_[(i < 0 || i > 2) ? 0 : i].phase(); }
@@ -349,6 +372,19 @@ public:
     }
 
     bool sounding() const { return upper_.sounding() || lower_.sounding(); }
+    // Diagnostic: how many slots are actually rendering right now.
+    int voices_sounding() const {
+        return upper_.voices_sounding() + lower_.voices_sounding();
+    }
+
+    // CPU governor: retire one ringing tail, taking it from whichever tone
+    // is carrying more of them.
+    bool shed_voice() {
+        if (upper_.voices_sounding() >= lower_.voices_sounding()) {
+            return upper_.shed_oldest_tail() || lower_.shed_oldest_tail();
+        }
+        return lower_.shed_oldest_tail() || upper_.shed_oldest_tail();
+    }
 
     // Panel controls that apply while the patch is playing. Anything that
     // would resize a delay line or restart a voice belongs in configure().

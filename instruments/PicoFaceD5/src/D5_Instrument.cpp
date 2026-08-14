@@ -133,11 +133,18 @@ private:
         snprintf(m.page, sizeof m.page, "%s", controller_.pageName());
         controller_.lineA(m.lineA, sizeof m.lineA);
         controller_.lineB(m.lineB, sizeof m.lineB);
-        snprintf(m.footer, sizeof m.footer, "P%d B%d U%lu A%d/%d N%lu",
+        // The last field is the note counter until the CPU governor has had
+        // to retire a tail; from then on it shows that count instead, which
+        // is the number worth watching when a patch is at the render's
+        // limit. The footer has no room for both.
+        const unsigned long shed = (unsigned long)bridge_.shedCount();
+        snprintf(m.footer, sizeof m.footer, "P%d B%d U%lu A%d/%d %c%lu",
                  bridge_.cpuLoadPeakPercent(), benchPct_,
                  (unsigned long)(g_i2s_underrun_count > 999 ? 999 : g_i2s_underrun_count),
                  bridge_.activeVoices(), bridge_.noteLimit(),
-                 (unsigned long)(bridge_.noteOnTotal() % 1000u));
+                 shed ? 'S' : 'N',
+                 shed ? (shed % 1000u)
+                      : (unsigned long)(bridge_.noteOnTotal() % 1000u));
         d5_display_page(d, m);
         // Arms the incremental push: the main loop only streams the buffer
         // while picoface_ui_flush_row < 16, and flush() resets that counter.

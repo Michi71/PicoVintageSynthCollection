@@ -260,6 +260,28 @@ void __not_in_flash_func(D5_Bridge::fillBufferI32)(int32_t* out, int frames) {
     const int64_t us = absolute_time_diff_us(t0, get_absolute_time());
     const int64_t budget = (int64_t)frames * 1000000 / (int64_t)sampleRate();
     const int load = budget > 0 ? (int)(us * 100 / budget) : 0;
+
+    // The CPU governor, ahead of the damage. Sixteen voices of a pad with
+    // a three-second tail is more than this silicon renders in real time,
+    // and the D-50's own polyphony is worth having wherever it fits -- so
+    // instead of capping it, retire the longest-ringing TAIL whenever a
+    // block runs hot. Keys under fingers are never touched. Rate-limited
+    // to one per eight blocks (~16 ms) so the relief is heard before the
+    // next decision, and armed only above 88% where there is still room
+    // for the block to finish.
+    if (load > 97) {
+        // Already over the line: every block sheds until it is not, which
+        // clears an eight-voice pile-up in about a sixth of a second.
+        shedHoldoff_ = 0;
+        if (patch_.shed_voice()) ++shedTotal_;
+    } else if (load > 88) {
+        if (++shedHoldoff_ >= 8) {
+            shedHoldoff_ = 0;
+            if (patch_.shed_voice()) ++shedTotal_;
+        }
+    } else if (shedHoldoff_ > 0) {
+        --shedHoldoff_;
+    }
     if (load > cpuPeak_) cpuPeak_ = load;
     else if (cpuPeak_ > 0) --cpuPeak_;
 }

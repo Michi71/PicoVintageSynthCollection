@@ -311,6 +311,18 @@ public:
         }
     }
 
+    // CPU governor: fade this voice out over a few milliseconds. Only ever
+    // applied to a voice whose key is already up, so what fades is a tail,
+    // not a note under a finger.
+    void quick_release() {
+        const Structure& st = structure();
+        const PartialType types[2] = {st.p1, st.p2};
+        for (int i = 0; i < 2; ++i) {
+            if (types[i] == PartialType::kPcm) pcm_[i].quick_release();
+            else synth_[i].quick_release();
+        }
+    }
+
     bool active() const {
         const Structure& st = structure();
         const bool a = (st.p1 == PartialType::kPcm) ? pcm_[0].active()

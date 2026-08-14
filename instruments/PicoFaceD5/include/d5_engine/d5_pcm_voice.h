@@ -52,10 +52,12 @@ public:
         rate_ = (s.root_hz > 0.0f) ? f / s.root_hz : 1.0f;
         rate_ *= sample_rate > 0.0f ? (32000.0f / sample_rate) : 1.0f;
         rate_ *= detune;
+        sr_ = sample_rate;
         env_.start(env, sample_rate);
     }
 
     void note_off() { env_.release(); }
+    void quick_release() { env_.quick_release(sr_); }
     bool active() const { return active_; }
 
     float D5_HOT_TAG(d5_pcm_next, next)(const Modulation& mod = Modulation{}) {
@@ -109,6 +111,7 @@ private:
     TvaEnv env_{};
     uint32_t index_ = 0;
     float frac_ = 0.0f;
+    float sr_ = 32000.0f;
     float rate_ = 1.0f;
     float gain_ = 1.0f;
     bool active_ = false;

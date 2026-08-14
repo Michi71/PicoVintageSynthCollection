@@ -158,6 +158,7 @@ public:
         res_decay_f_ = kDecayFactors[static_cast<int>(res_) >> 2 > 7
                                          ? 7 : static_cast<int>(res_) >> 2];
         edge_frac_ = 0.5f;              // neutral until the first block_mod
+        inv_edge_ = 2.0f;
         atten_ = 1.0f;
         res_on_ = false;
         h_frac_ = 0.0f;
@@ -168,6 +169,9 @@ public:
         tvf_.start(spec_.tvf_env, sr_);
         tva_.start(spec_.tva_env, sr_);
     }
+
+    // CPU governor: fade this partial out and let it finish.
+    void quick_release() { tva_.quick_release(sr_); }
 
     void note_off() {
         tvf_.release();
@@ -189,10 +193,12 @@ public:
         float cv = base_cv_ + env_units_ * 100.0f * env + mod.cutoff * 100.0f;
         if (cv > 240.0f) cv = 240.0f;                       // the chip's clamp
         edge_frac_ = 0.5f;
+        inv_edge_ = 2.0f;
         atten_ = 1.0f;
         res_on_ = false;
         if (cv > 128.0f) {
             edge_frac_ = 0.5f * fast_exp2(-(cv - 128.0f) * (1.0f / 16.0f));
+            inv_edge_ = 1.0f / edge_frac_;
             if (spec_.resonance > 0.0f) {
                 res_on_ = true;
                 // fade the resonance in over cutoff 128..144 (quarter sine)
@@ -240,17 +246,21 @@ public:
         // first edge (munt shifts relWavePos by half the cosine). All
         // lengths are fractions of the fundamental period here; the chip
         // divides by waveLen in samples, which cancels out.
+        // The reciprocal is a block constant; dividing by it per sample
+        // per partial cost three VDIVs a sample on the M33, which at
+        // sixteen voices is a fifth of the render.
         const float e = edge_frac_;
+        const float inv_e = inv_edge_;
         float rel = phase_ + 0.5f * e;
         if (rel > 1.0f) rel -= 1.0f;
 
         float out;
         if (rel < e) {
-            out = -fast_cos(0.5f * rel / e);
+            out = -fast_cos(0.5f * rel * inv_e);
         } else if (rel < e + h_frac_) {
             out = 1.0f;
         } else if (rel < 2.0f * e + h_frac_) {
-            out = fast_cos(0.5f * (rel - (e + h_frac_)) / e);
+            out = fast_cos(0.5f * (rel - (e + h_frac_)) * inv_e);
         } else {
             out = -1.0f;
         }
@@ -267,7 +277,7 @@ public:
             float df = res_decay_f_;
             const float half = e + h_frac_;
             if (rr >= half) { sgn = -1.0f; rr -= half; df += 0.25f; }
-            const float over = rr / e;
+            const float over = rr * inv_e;
             float res = sgn * fast_sin(0.5f * over)
                         * fast_exp2(-0.125f * df * over);
             // sync window around the nearest edge centre
@@ -275,7 +285,7 @@ public:
             if (r2 >= 1.0f - 0.5f * e) r2 -= 1.0f;
             else if (r2 >= half - 0.5f * e && r2 >= 0.5f * e) r2 -= half;
             if (r2 < 0.5f * e) {
-                const float w = fast_sin(0.5f * r2 / e);
+                const float w = fast_sin(0.5f * r2 * inv_e);
                 res *= (r2 < 0.0f) ? w * w : (w < 0.0f ? -w : w);
             }
             out += res * res_amp_eff_;
@@ -326,6 +336,7 @@ private:
     float base_cv_ = 128.0f;       // cutoffVal at env 0, chip units
     float env_units_ = 0.0f;       // chip units per unit of envelope level
     float edge_frac_ = 0.5f;       // cosine edge as fraction of the period
+    float inv_edge_ = 2.0f;        // 1/edge_frac_, a block constant
     float pulse_frac_ = 0.5f;
     float h_frac_ = 0.0f;
     float dc_shape_ = 0.0f;        // mean of the bare shape (duty imbalance)

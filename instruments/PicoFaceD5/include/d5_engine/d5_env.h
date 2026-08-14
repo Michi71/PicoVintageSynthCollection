@@ -250,6 +250,23 @@ public:
         }
     }
 
+    // The CPU governor's exit: fade what is left to nothing over a few
+    // milliseconds and be done. Not a D-50 behaviour -- the chip had the
+    // silicon to let every tail run -- but a tail already on its way down,
+    // faded over 20 ms, is inaudible, and an underrun is not.
+    void quick_release(float sample_rate, float ms = 20.0f) {
+        held_ = false;
+        seg_ = 4;
+        remaining_ = static_cast<int32_t>(sample_rate * ms * 0.001f);
+        if (remaining_ < 1) remaining_ = 1;
+        const float kFloor = 1.0e-3f;
+        const float from = level_ < kFloor ? kFloor : level_;
+        seg_log_ = true;
+        factor_ = std::pow(kFloor / from, 1.0f / static_cast<float>(remaining_));
+        step_ = -level_ / static_cast<float>(remaining_);
+        if (level_ < kFloor) level_ = kFloor;
+    }
+
     bool finished() const { return !held_ && seg_ >= 5; }
     float level() const {
         if (spec_.log_segments && level_ <= 1.05e-3f && remaining_ <= 0) return 0.0f;
