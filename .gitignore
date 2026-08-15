@@ -32,6 +32,11 @@ tools/rd_extract/.xip_probe_build/
 # licence permits linking and running it, not redistribution.
 tools/jv_extract/.fx_taps_build/
 
+# rendered preview of the D5 demo. The .mid and its generator are tracked; the
+# audio is reproducible from them and would only bloat the history.
+tools/d5_midi/*.mp3
+tools/d5_midi/*.wav
+
 # local test material for tools/rd_midi. Named individually on purpose: the
 # other .mid files in that folder are tracked and belong to the repository.
 tools/rd_midi/DieTaenzerin.mid
