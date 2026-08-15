@@ -20,11 +20,17 @@
 #define __not_in_flash_func(x) x
 #endif
 
+// The byte mapping is needed either way: it carries Roland's parameter curves,
+// which the panel uses for chorus depth and reverb balance whether or not a
+// bank was converted into the build. It lived inside the guard below until a
+// build without a bank dump -- ROM images present, no .syx -- failed to compile
+// on somebody else's machine (issue #29). Nothing here depends on the bank.
+#include "d5_engine/d5_patch_map.h"
+
 // A converted SysEx bank if the build found one, the hand-built patches
 // otherwise. The instrument plays either without knowing the difference.
 #if __has_include("d5_patch_data.h")
 #include "d5_patch_data.h"
-#include "d5_engine/d5_patch_map.h"
 #define D5_HAVE_BANK 1
 #endif
 
