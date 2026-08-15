@@ -559,8 +559,31 @@ inline PatchSpec patch_from_bytes(const uint8_t* patch, const int16_t* blob) {
     // the old linear reading across the bank -- this puts the median
     // patch back where the approved build had it, and the saturator
     // catches the few that the new law makes hotter.
-    p.upper.level = 0.58f;
-    p.lower.level = 0.58f;
+    //
+    // 0.37, because "the few" was 97 of 384. That constant was fitted to the
+    // MEDIAN of the bank and the top of the distribution was never checked:
+    // an eight-note chord at full velocity drove a quarter of the patches
+    // past full scale before the saturator, the worst (Synth Bass, 1-59) by
+    // 12.8 dB, which the knee turned into 16% distortion. Not a fault anyone
+    // hears as a fault -- a bass through a soft knee sounds driven, not broken
+    // -- which is why it survived until a listener on the internet called the
+    // demo video "a bit crackly" and the difference signal proved him right.
+    //
+    // The value is measured, not chosen. Distortion against how far a patch
+    // drives the knee: raw peak 0.64 -> 0.0%, 1.02 -> 2.2%, 1.63 -> 10.9%,
+    // 2.61 -> 24.0%. So the audibility threshold is full scale BEFORE the
+    // saturator, and the constant is the one that puts the bank's 95th
+    // percentile there under the demanding case (eight notes, velocity 127):
+    //
+    //          4 notes v127   8 notes v127   8 notes v100   over full scale
+    //   0.58      P95 1.14       P95 1.66       P95 1.17     97 of 384
+    //   0.37      P95 0.73       P95 1.06       P95 0.75     26 of 384
+    //
+    // -3.9 dB across the whole bank. Roland's own level relationships are
+    // untouched -- the spread from Glockenspiel to Power Key Bs is theirs and
+    // stays -- this only moves the ceiling out of the way of it.
+    p.upper.level = 0.37f;
+    p.lower.level = 0.37f;
 
     // Portamento is patch-common: switch pb[41], time pb[28], and mode
     // pb[20] -- 0 = upper only, 1 = lower only, 2 = both (the U/L/UL of

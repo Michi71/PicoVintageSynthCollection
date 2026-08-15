@@ -47,7 +47,7 @@ inline PatchSpec preset_common() {
     p.key_mode = KeyMode::kWhole;
     p.balance = 0.0f;                     // upper tone only until patches use both
     p.volume = 0.9f;
-    p.upper.level = 0.55f;
+    p.upper.level = 0.35f;      // same headroom the bank path took, see d5_patch_map.h
     p.upper.voice.balance = 0.5f;
     // a partial pair with an attack that decays and a sustain that holds
     p.upper.voice.pcm_env[0].t[0] = 0.002f;
