@@ -99,6 +99,15 @@ if(_d5_syx)
         endif()
         message(STATUS "PicoFaceD5: ${_d5_syx_out}")
     endif()
+else()
+    # Say so. A ROM set alone builds a working instrument, but one that plays
+    # eight hand-built presets instead of the factory sixty-four, and somebody
+    # who does not know a bank is a separate file has no way to tell that from
+    # the build (issue #29).
+    message(STATUS
+        "PicoFaceD5: no patch bank in ${_d5_roms} - building with the eight "
+        "fallback presets. Put a D-50 SysEx bulk dump (*.syx) there for the "
+        "factory patches; see instruments/PicoFaceD5/README.md")
 endif()
 
 picoface_add_instrument(
