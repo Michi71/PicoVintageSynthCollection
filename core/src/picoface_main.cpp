@@ -13,6 +13,7 @@
 
 #include "pico/stdlib.h"
 #include "hardware/irq.h"
+#include "pico/bootrom.h"
 
 #include "project_config.h"
 #include "pico_hw.h"
@@ -162,6 +163,100 @@ static void pf_build_input(picoface::ui::InputState& in, uint32_t nowMs)
             g_btLongFired[i] = false;
         }
     }
+}
+
+// -----------------------------------------------------------------------------
+// firmware update: into the UF2 bootloader from the panel
+// -----------------------------------------------------------------------------
+// Ten firmware images share one board, so choosing a different instrument is
+// something a user does, not something a factory does once. That makes the
+// route into the bootloader part of the interface, and it belongs here rather
+// than in a menu: a menu entry would have to be added to all ten instruments,
+// while the core already owns the buttons and the display.
+//
+// The gesture is all three encoder buttons together. No instrument uses that
+// combination -- they read single presses and long presses -- and it cannot be
+// reached by resting a hand on one knob. After half a second the core takes the
+// screen and counts down, so nothing happens invisibly and letting go cancels.
+//
+// Two details worth knowing:
+//
+//   The audio pipeline is drained before the jump. All-sound-off is sent first
+//   and the main loop keeps rendering for a further 150 ms, so the five buffers
+//   already queued in the DMA play out silent. Jumping straight away would
+//   leave whatever was queued mid-note in the DAC as the clock stops.
+//
+//   reset_usb_boot's first argument is a GPIO mask for a USB activity LED, and
+//   passing PIN_LED here would be the obvious thing to do. It is deliberately 0:
+//   on RP2350 A2 silicon the SDK works around an activity-LED bug by rebooting
+//   into RISC-V mode when a LED is named (see PICO_BOOTROM_WORKAROUND_RP2350_
+//   A2_ACTIVITY_LED_BUG), which is not what anyone wants from a firmware
+//   update. No LED, no workaround, Arm bootloader.
+//
+// Settings are NOT written on the way out. A flash write stalls execution and
+// this is not a normal shutdown; the debounced save in the main loop has had
+// two seconds of idle to run long before anyone holds three buttons down.
+static constexpr uint32_t PF_FW_ARM_MS   = 500;    // core takes the screen
+static constexpr uint32_t PF_FW_HOLD_MS  = 2500;   // committed
+static constexpr uint32_t PF_FW_DRAIN_MS = 150;    // silence reaches the DAC
+static uint32_t g_fwHoldSince = 0;
+static uint32_t g_fwCommitted = 0;
+static int32_t  g_fwShown     = -1;                // last second drawn
+
+// Returns true while the core owns the display, so the caller skips uiTick.
+static bool pf_firmware_update(picoface::Instrument& inst,
+                               const picoface::ui::InputState& in,
+                               uint32_t nowMs)
+{
+    if (g_fwCommitted) {
+        if ((nowMs - g_fwCommitted) >= PF_FW_DRAIN_MS) reset_usb_boot(0, 0);
+        return true;                                  // never returns from that
+    }
+
+    const bool all = in.buttonDown[0] && in.buttonDown[1] && in.buttonDown[2];
+    if (!all) { g_fwHoldSince = 0; g_fwShown = -1; return false; }
+    if (g_fwHoldSince == 0) { g_fwHoldSince = nowMs; return false; }
+
+    const uint32_t held = nowMs - g_fwHoldSince;
+    if (held < PF_FW_ARM_MS) return false;
+
+    if (held < PF_FW_HOLD_MS) {
+        // Redraw only when the digit changes -- three times, not once every
+        // 20 ms. The countdown goes out through the incremental flush like
+        // everything else, because a blocking full-buffer transfer costs more
+        // than the audio lead has (see section 2 of the main loop) and two and
+        // a half seconds of stutter is a poor thing to hand someone who is
+        // about to let go and cancel.
+        const int32_t left = (int32_t)((PF_FW_HOLD_MS - held + 999) / 1000);
+        if (left != g_fwShown) {
+            g_fwShown = left;
+            char line[16];
+            snprintf(line, sizeof line, "%ld", (long)left);
+            g_display.clear();
+            g_display.setFont(u8g2_font_7x13B_tf);
+            g_display.drawTextCentered(20, "FIRMWARE");
+            g_display.drawTextCentered(42, line);
+            g_display.setFont(u8g2_font_6x10_tf);
+            g_display.drawTextCentered(58, "let go to cancel");
+            g_display.flush();
+        }
+        return true;
+    }
+
+    // Committed: silence every channel, say so, and let the loop drain the
+    // queued buffers. Here the blocking transfer is right -- the audio is
+    // deliberately over, and the message has to be on the glass before the
+    // chip resets.
+    for (uint8_t ch = 0; ch < 16; ++ch) inst.controlChange(ch, 120, 0);
+    u8g2_ClearBuffer(&g_u8g2);
+    u8g2_SetFont(&g_u8g2, u8g2_font_7x13B_tf);
+    u8g2_DrawStr(&g_u8g2, (128 - u8g2_GetStrWidth(&g_u8g2, "BOOTLOADER")) / 2, 28, "BOOTLOADER");
+    u8g2_SetFont(&g_u8g2, u8g2_font_6x10_tf);
+    u8g2_DrawStr(&g_u8g2, (128 - u8g2_GetStrWidth(&g_u8g2, "drop a .uf2 on it")) / 2, 46,
+                 "drop a .uf2 on it");
+    u8g2_SendBuffer(&g_u8g2);
+    g_fwCommitted = nowMs;
+    return true;
 }
 
 int main(void)
@@ -330,7 +425,9 @@ int main(void)
         if (picoface_ui_flush_row >= 16 && (now - last_ui_ms) >= 20) {
             pf_build_input(input, now);
             const bool edited = input.encoderDelta[0] || input.encoderDelta[1] || input.encoderDelta[2] || input.buttonPressed[0] || input.buttonPressed[1] || input.buttonPressed[2];
-            inst.uiTick(g_display, input);
+            // The three-button gesture owns the screen while it is held, so the
+            // instrument does not draw over the countdown.
+            if (!pf_firmware_update(inst, input, now)) inst.uiTick(g_display, input);
             last_ui_ms = now;
             if (edited) { settings_dirty = true; last_edit_ms = now; }
         }
