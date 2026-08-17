@@ -64,15 +64,40 @@ inline constexpr uint8_t kEnvLaw[102] = {
     4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2,
     2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0};
 
-// The chip ramp's absolute clock: kRampClock * 2^(-idx/8) units per
-// second. munt's MT-32 derivation gives 64000 at 32 kHz; the D-50
-// references demand exactly sqrt(2) more -- four independent measurements
-// (Soundtrack's opening swell slope AND depth, Staccato's release,
-// Pizzagogo's body segment) converge on X*CLK = 33500 +/- 1800 with the
-// dB unit pinned at 0.376 by the swell's 28.4 dB over 75 steps, so the
-// clock carries the factor: 64000 * 2^(4/8). Equivalently the D-50 reads
-// the increment exponent as (k+28)/8 where the MT-32 uses (k+24)/8.
-inline constexpr float kRampClock = 90509.7f;
+// The chip ramp's absolute clock: kRampClock * 2^(-idx/8) units per second.
+// 64000 at 32 kHz, which is munt's derivation for the same chip in the MT-32.
+//
+// This carried 64000 * sqrt(2) = 90509.7 for months, on four measurements that
+// were all taken on played phrases with the patch's reverb in them (Soundtrack's
+// swell, Staccato's release, Pizzagogo's body). Two of those four were later
+// retracted for measuring something else entirely -- Horn Section's "release"
+// was a type-8 reverb tail, Stereo Polysynth's was its filter closing -- and
+// the sqrt(2) rested on the remainder.
+//
+// A dry single note settles it. The release is rate-constant by construction
+// (no law term, see below), so it is the one segment that measures this clock
+// directly, and with reverb and chorus at zero it is a straight line in dB:
+//
+//   Soundtrack, C5, dry:  -18.25 dB/s, and the fit moves by 0.1 % whether it
+//                         is taken over 10, 20 or 50 ms windows
+//   this engine at 64000: -18.16 dB/s   (0.6 % out)
+//   at 90509.7:           -25.65 dB/s   (40 % out)
+//
+// A second dry note, Choir at C5, agrees: -206 dB/s measured, -240 at 64000
+// (16 % out, inside that recording's own +/-18 % spread -- 0.2 s of stepped,
+// vibrato-ridden fall is a far weaker measurement) and -337 at 90509.7, which
+// is 64 % out and outside any reading of it.
+//
+// So the factor that fell out is exactly the one we put in. What remains open
+// is the last digit: Soundtrack says 64000, Choir on its own would say 56000,
+// and only a slow-release patch recorded dry on real hardware would separate
+// them. The source here is Roland's own software model, not the machine.
+//
+// Overridable so a calibration run can sweep it without editing the source.
+#ifndef D5_RAMP_CLOCK
+#define D5_RAMP_CLOCK 64000.0f
+#endif
+inline constexpr float kRampClock = D5_RAMP_CLOCK;
 
 inline float env_ramp_seconds(int dist_units, int idx) {
     if (dist_units <= 0) return 0.0f;
