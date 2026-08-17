@@ -51,6 +51,20 @@ on a small board.
 The pin map is the same for every instrument and lives in
 [core/include/project_config.h](core/include/project_config.h).
 
+### Switching instruments
+
+One board, ten firmware images, so choosing a different instrument is something
+you do rather than something a factory does once. **Hold all three encoder
+buttons together.** After half a second the display takes over and counts down
+from two; let go and nothing happens. Hold it out and the board silences itself,
+drains the audio it had already queued, and reappears as the `RPI-RP2` drive —
+drop the next `.uf2` on it.
+
+No button combination in any instrument uses all three at once, so it cannot
+happen by accident, and the BOOTSEL button on the module is never needed for
+this. Keep that button reachable anyway: if a firmware is too broken to reach
+its own user interface, BOOTSEL plus a power cycle is the way back.
+
 ### How much flash an instrument needs
 
 The reference board carries 16 MB. That is not a requirement of the design, but
