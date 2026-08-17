@@ -37,35 +37,7 @@ inline const uint8_t* patch_block(const uint8_t* patch, int block) {
     return patch + block * 64;
 }
 
-// Panel 0..100 to seconds, exponentially: the envelope range spans four
-// decades, so the first half of the knob would be unusable otherwise.
-// The exponent is bent: gamma 1.5 was fitted against the reference
-// recording of the factory Pizzagogo, whose note bodies decay at a constant
-// -34 dB/s and reaches -40 dB in 1.2 s; gamma 1.15 with the -60 dB floor
-// lands the engine there. One parameter, one
-// measurement, said openly -- the firmware's own time tables have not been
-// identified, and this is the best calibration a real recording affords.
-// P-ENV passes gamma 1, its range having shown no such disagreement.
-inline float env_time(uint8_t v, float lo = 0.004f, float hi = 80.0f,
-                      float span = 100.0f, float gamma = 1.15f) {
-    float t = v / span;
-    t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
-    return lo * std::pow(hi / lo, std::pow(t, gamma));
-}
-
 inline float level01(uint8_t v) { return v * 0.01f; }
-
-// Falling-segment decay rate in dB/s from the time byte. Two anchors from
-// reference recordings: Horn Section's release byte 37 measures -37.8 dB/s,
-// and Pizzagogo's body bytes around 50..59 measure a constant -34; the
-// exponential through them puts Soundtrack's byte 67 at -27, safely under
-// its Chapel reverb's -16.5, which is exactly what that recording shows.
-// Below byte 8 the duration path stays in charge -- those are the instant
-// releases, where a rate would drag.
-inline float env_rate_db_s(uint8_t v) {
-    if (v < 8) return 0.0f;
-    return 37.0f * fast_exp2(-(static_cast<float>(v) - 40.0f) * (1.0f / 60.0f));
-}
 
 // The bipolar panel values: 0..100 shown as -50..+50.
 inline float bipolar(uint8_t v) { return (v - 50) * 0.02f; }
@@ -294,47 +266,34 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
     // Linear per munt's TVF.cpp levelMult chain -- the earlier kAmountCurve
     // assignment (by table neighbourhood) is displaced by proven semantics.
     s.tvf_env_depth = level01(p[18]);
-    // The TVF envelope times follow munt's proven ramp law: a phase lasts
-    // 4 ms times 2^(byte/8), independent of the level distance, because the
-    // chip's increment table adds 8 per doubling of distance and the ramp
-    // doubles speed per 8 -- the two cancel (envLogarithmicTime and
-    // LA32Ramp, closed form verified bit-exact). Byte 100 is 23.2 seconds,
-    // which is how Horn Section holds its brightness through a note: its
-    // decay bytes of 74 and 76 are two and three seconds a phase. The TVA
-    // keeps its reference-calibrated rates -- recordings outrank analogy.
-    for (int k = 0; k < 5; ++k) {
-        s.tvf_env.t[k] = 0.004f * fast_exp2(p[22 + k] * 0.125f);
-        s.tvf_env.r[k] = 0.0f;
-    }
-    s.tvf_env.t[4] = env_time(p[26]);
+    // Only the LEVELS of the TVF envelope are set here, and that is not an
+    // oversight: build_tvf_env writes times and rates but never levels, so
+    // these five lines are the whole of where they come from. The times it
+    // used to compute here (munt's 4 ms * 2^(byte/8) ramp law) are dead the
+    // moment env_from_bytes is set below, which map_partial always does --
+    // Voice::note_on rebuilds them per note through the firmware arithmetic.
     s.tvf_env.l[0] = level01(p[27]);
     s.tvf_env.l[1] = level01(p[28]);
     s.tvf_env.l[2] = level01(p[29]);
     s.tvf_env.sustain = level01(p[30]);
     s.tvf_env.end = p[31] ? 1.0f : 0.0f;
 
-    // ---- TVA: level and its envelope
-    const float level = level01(p[35]);
-    s.tva_level = level;
-    s.tva_env.t[0] = env_time(p[39]);
-    s.tva_env.t[1] = env_time(p[40]);
-    s.tva_env.t[2] = env_time(p[41]);
-    s.tva_env.t[3] = env_time(p[42]);
-    s.tva_env.t[4] = env_time(p[43]);
-    s.tva_env.l[0] = level01(p[44]) * level;
-    s.tva_env.l[1] = level01(p[45]) * level;
-    s.tva_env.l[2] = level01(p[46]) * level;
-    s.tva_env.sustain = level01(p[47]) * level;
-    s.tva_env.end = (p[48] ? 1.0f : 0.0f) * level;
-    s.tva_env.log_segments = true;     // TVA decays in dB, see Env5Spec
-    for (int k = 0; k < 5; ++k) s.tva_env.r[k] = env_rate_db_s(p[39 + k]);
-    // The release runs on a scale of its own, three times the decay rates:
-    // Stereo Polysynth's release byte 52 measures about -100 dB/s where
-    // Pizzagogo's decay bytes 50..59 measure -34, and with the factor in
-    // place every one of the five reference tails comes out env- or
-    // reverb-limited exactly as recorded.
-    s.tva_env.r[4] *= 3.0f;
-    v.pcm_env[index] = s.tva_env;      // the sampled partial shares it
+    // ---- TVA: level
+    // The envelope itself is not built here. build_tva_env writes every field
+    // of it -- levels, sustain, end, all five times and rates -- so anything
+    // this function computed was overwritten before a single sample came out.
+    // It used to compute the lot: exponential durations from a gamma fitted to
+    // one Pizzagogo recording, decay rates from a two-anchor fit, and a
+    // threefold factor on the release justified by Stereo Polysynth measuring
+    // "about -100 dB/s". All three anchors were withdrawn afterwards -- Horn
+    // Section's was a type-8 reverb tail, Polysynth's was its filter closing
+    // rather than its amplitude -- and the code they justified had meanwhile
+    // become unreachable. So it is deleted rather than corrected, along with
+    // the two helpers that only it called: a retracted measurement defending
+    // dead code is the worst of both, and leaving it invites someone to trust
+    // it again. The same goes for pcm_env, which Voice::note_on assigns from
+    // the freshly built envelope on every note whatever is left here.
+    s.tva_level = level01(p[35]);
 
     v.keyfollow[index] = keyfollow_ratio(p[2], 16);
     v.velo_sens[index] = (static_cast<int>(p[36]) - 50) * 0.02f;
