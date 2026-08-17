@@ -41,15 +41,34 @@ on a small board.
 
 ## Hardware
 
-- RP2350
-- Board `sparkfun_promicro_rp2350`
-- I2S audio
-- 128x64 OLED over I2C
+- RP2350 with 16 MB of flash
+- I2S audio (PCM5102 DAC)
+- 128x64 OLED over I2C (SH1106)
 - Three rotary encoders with push buttons
 - USB MIDI and DIN MIDI
 
 The pin map is the same for every instrument and lives in
 [core/include/project_config.h](core/include/project_config.h).
+
+**On the board setting.** The build defaults to `PICO_BOARD=sparkfun_promicro_rp2350`,
+and that is a statement about flash size rather than about hardware: the
+prototype runs a Waveshare RP2350-Plus, and the SparkFun definition was picked
+because it declares 16 MB where the plain `pico2` definition declares 4. Any
+RP2350 board with 16 MB works if the pins above are reachable on it. For a
+Pico-format board the honest pair is
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=pico2 -DPICO_FLASH_SIZE_BYTES=16777216
+```
+
+Without that second flag, `pico2` caps the image at 4 MB and PicoFaceCP
+overflows it by 5.5 %. Nothing else in the SparkFun definition reaches the
+firmware: the flash timing and the system clock are set by the project itself in
+[core/src/pico_hw.cpp](core/src/pico_hw.cpp), and `PICO_FLASH_SPI_CLKDIV` is
+identical in both. The one thing it declares that the prototype does not have is
+an 8 MB PSRAM region on GPIO 19 — nothing is placed there, so it costs nothing,
+but PSRAM is not a thing to reach for on this hardware without checking the
+board first.
 
 ### Switching instruments
 
