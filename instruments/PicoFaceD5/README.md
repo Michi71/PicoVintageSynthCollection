@@ -26,6 +26,13 @@ combined 512 KB image of both chips is accepted in place of the pair. The
 build converts them once at configure time into a 512 KB blob of 16-bit
 samples, so the firmware needs no decoding table at runtime.
 
+**The patches are a separate file, and they are optional.** Those three images
+are the sound; the D-50's sixty-four factory *patches* live in a SysEx bulk
+dump, which goes in the same `roms/` folder as a `.syx`. Without one the
+instrument still builds and plays -- with eight hand-built presets instead of
+the factory bank, and the configure step says so. See
+[The patches](#the-patches) below.
+
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
       -DPICOFACE_INSTRUMENTS_FILTER=PicoFaceD5
