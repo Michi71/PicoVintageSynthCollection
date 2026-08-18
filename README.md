@@ -171,6 +171,8 @@ Shared:
 
 - [Architecture](docs/ARCHITECTURE.md) - how core and instruments fit together, and why
 - [Adding an instrument](docs/ADDING_AN_INSTRUMENT.md) - the three steps needed
+- [The module bus](docs/MODULE_BUS.md) - the hardware interface several modules in one
+  case would share: power, MIDI and audio. Planned, not built
 - [Host tools](tools/README.md)
 
 Per instrument, under `instruments/<name>/doc/`: MIDI implementation charts,
