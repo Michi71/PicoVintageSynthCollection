@@ -73,11 +73,30 @@ into the USB host. This is what VSYS is for.
 
 ## Audio without patch cables
 
-The front jacks are the switched type (PJ301M-12 or equivalent). With no plug
-inserted the switch contact routes the output to bus 2 and on to the mixer; a
-patch cable at the front breaks that connection and takes the signal out the
-front instead. Standard Eurorack normalling, and it costs nothing beyond
-choosing the right jack.
+Bus 2 is wired in **parallel** with the front jacks, not switched by them. The
+output is present at both at once: patch the front and the mixer still receives
+the module.
+
+Switched jacks would be the tidier answer -- with no plug inserted the switch
+contact routes the signal to the bus, and a patch cable at the front breaks that
+connection, which is standard Eurorack normalling. It was the original plan and
+it was dropped for availability rather than principle: the switched types are
+hard to get here, and the two-pole jacks that are available cannot do it.
+
+Nothing is lost electrically. The mixer input has to be high impedance anyway --
+the PCM5102 module carries 470 ohm in series with each output, so a low
+impedance load would cost real signal -- and a high impedance input does not
+care that the front jack is also connected. What is lost is the ability to take
+a module out of the mix by patching it, which is a convenience rather than a
+function.
+
+The jacks are mounted to the panel and wired back to a header on the front
+board, not soldered to it. That was forced by a 1.2 mm mismatch -- the available
+jack's collar sits 2.9 mm above the board and its thread runs out before the nut
+can reach a panel at 6.5 mm, where the encoders put it -- but it turned out to be
+the better arrangement anyway. The board no longer constrains which jack fits,
+which is how the MIDI sockets ended up possible at all: those need three
+conductors, and the two-pole jacks that are available locally have two.
 
 ## Current
 
@@ -99,7 +118,7 @@ Two connectors, one diode, and the right jacks:
 - 2x3 shrouded header (bus 1)
 - 3-pin header (bus 2)
 - 1N5817 or similar Schottky, bus +5V to VSYS
-- switched 3.5 mm jacks for the outputs
+- an 8-pin header for the panel-mounted jacks (four jacks, two conductors each)
 
 Line level means no output stage, which in turn means the sound module needs no
 ±12 V at all — no Eurorack power header, no regulator, no op-amp. It lives on
