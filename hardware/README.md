@@ -295,6 +295,7 @@ kicad-cli pcb export gerbers --output MainBoard/fab/ \
 
 kicad-cli pcb export drill --output MainBoard/fab/ --format excellon \
   --excellon-units mm --drill-origin absolute --excellon-separate-th \
+  --excellon-oval-format route \
   --generate-map --map-format gerberx2 MainBoard/MainBoard.kicad_pcb
 ```
 
@@ -304,8 +305,29 @@ maps -- a fab that auto-detects layers can mistake a `-drl_map.gbr` for copper.
 
 Checked against the board files rather than assumed: main board 183 plated holes
 (111 pads + 72 vias) and 4 unplated, front board 86 (67 + 19) and 8, both
-outlines exactly 45 x 80 mm. The encoders' mounting lugs come out as G85 slots, which is the
-normal Excellon way to say "oval".
+outlines exactly 45 x 80 mm.
+
+`--excellon-oval-format route` is deliberate. The encoders' six mounting lugs are
+oval, and KiCad's default writes them as `X..Y..G85X..Y..` -- one line that means
+"slot from here to there". It is normal Excellon and fabs read it, but strict
+parsers do not all accept it: gerbonara refuses the file outright, so a check in
+a viewer never happens. The routed form (`G00` to the start, `M15` pen down,
+`G01` to the end, `M16` up) says the same thing in statements every tool knows.
+The six slots come out as a 1.5 mm tool travelling 1.3 mm, so 2.8 x 1.5 mm, on
+the three encoder axes at x 10.0 / 22.5 / 35.0. They are plated, which is what
+holds the encoder bodies down.
+
+Both packages were read back with gerbonara and rendered per side. What that
+found and fixed: the Pico's `A1` designator sat entirely above the top edge and
+would have been trimmed away by the fab, `TP1` and `A2` sat on pads and would
+have been cut open by the soldermask subtraction, and the display outline ran
+0.12 mm alongside the `DS1` box. Reference designators for the axial parts now
+sit centred on their own bodies, which is also the only unambiguous place in a
+4 mm-pitch stack. Both boards are at zero DRC violations, zero unconnected and
+zero schematic-parity issues; nothing on any layer reaches past the outline.
+
+The Excellon files carry a `G90` after the header that KiCad has always written
+and that a strict reader warns about. It is not a defect and needs no action.
 
 ## Open
 

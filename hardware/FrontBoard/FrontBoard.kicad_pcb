@@ -5549,13 +5549,23 @@
 	)
 	(gr_line
 		(start 4.8 1)
-		(end 40.2 1)
+		(end 19.4 1)
 		(stroke
 			(width 0.15)
 			(type dash)
 		)
 		(layer "F.SilkS")
 		(uuid "aa4615c4-d998-4932-b418-6abd7b2a173f")
+	)
+	(gr_line
+		(start 28.25 1)
+		(end 40.2 1)
+		(stroke
+			(width 0.15)
+			(type dash)
+		)
+		(layer "F.SilkS")
+		(uuid "aa4615c4-d998-4932-b418-6abd7b2a17f1")
 	)
 	(gr_line
 		(start 4.8 34.5)

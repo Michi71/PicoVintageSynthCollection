@@ -1909,7 +1909,7 @@
 		(at 35.9 27.5)
 		(descr "Resistor, Axial_DIN0207 series, Axial, Horizontal, pin pitch=7.62mm, 0.25W = 1/4W, length*diameter=6.3*2.5mm^2, http://cdn-reichelt.de/documents/datenblatt/B400/1_4W%23YAG.pdf")
 		(property "Reference" "R2"
-			(at 3.81 -2.4 0)
+			(at 3.81 0 0)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "7acdbacb-f159-4816-bcc1-c6a148e34592")
@@ -2557,7 +2557,7 @@
 		(at 41.6 47.5 90)
 		(descr "Resistor, Axial_DIN0309 series, Axial, Horizontal, pin pitch=12.7mm, 0.5W = 1/2W, length*diameter=9*3.2mm^2, http://cdn-reichelt.de/documents/datenblatt/B400/1_4W%23YAG.pdf")
 		(property "Reference" "R4"
-			(at 6.35 -2.75 0)
+			(at 2.6 0 0)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "b389f107-1767-4f14-aa66-2ccfad500ceb")
@@ -3001,7 +3001,7 @@
 		(at 36.805 64.15 180)
 		(descr "Through hole straight socket strip, 1x06, 2.54mm pitch, single row (from Kicad 4.0.7), script generated")
 		(property "Reference" "A2"
-			(at 0 2.67 0)
+			(at 3.4 0 0)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "eb02fae4-1faa-4013-a77f-3791643d7b0b")
@@ -3268,7 +3268,7 @@
 		(at 5 52.5)
 		(descr "SMD pad as test Point, diameter 2.0mm")
 		(property "Reference" "TP1"
-			(at 0.75 -0.9 0)
+			(at 0 2.1 0)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "6a1e7be7-41ad-4ffb-b025-ce4866e21749")
@@ -3565,7 +3565,7 @@
 		(at 35.9 19.5)
 		(descr "Resistor, Axial_DIN0207 series, Axial, Horizontal, pin pitch=7.62mm, 0.25W = 1/4W, length*diameter=6.3*2.5mm^2, http://cdn-reichelt.de/documents/datenblatt/B400/1_4W%23YAG.pdf")
 		(property "Reference" "R1"
-			(at 3.81 -2.4 0)
+			(at 3.81 0 0)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "3c69d375-972d-49c7-8d22-0c986e0bc542")
@@ -3744,7 +3744,7 @@
 		(at 35.9 23.5)
 		(descr "Diode, DO-35_SOD27 series, Axial, Horizontal, pin pitch=7.62mm, length*diameter=4*2mm^2, http://www.diodes.com/_files/packages/DO-35.pdf")
 		(property "Reference" "D2"
-			(at 3.81 -2.15 0)
+			(at 3.81 0 0)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "7533cb09-04ff-43f5-894a-e72be8ee7e68")
@@ -4166,7 +4166,7 @@
 		(at 36.6 47.5 90)
 		(descr "Resistor, Axial_DIN0309 series, Axial, Horizontal, pin pitch=12.7mm, 0.5W = 1/2W, length*diameter=9*3.2mm^2, http://cdn-reichelt.de/documents/datenblatt/B400/1_4W%23YAG.pdf")
 		(property "Reference" "R3"
-			(at 6.35 -2.75 0)
+			(at 2.6 0 0)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "76c3e965-fe3b-4427-80c7-895d5cd91651")
@@ -4316,7 +4316,7 @@
 		(at 31.39 3.5 180)
 		(descr "Raspberry Pi Pico common (Pico & Pico W) through-hole footprint, supports Raspberry Pi Pico 2, default socketed model has height of 8.51mm, https://datasheets.raspberrypi.com/pico/pico-datasheet.pdf")
 		(property "Reference" "A1"
-			(at 8.89 4.07 0)
+			(at 7.89 -6 0)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "002b5fce-9f18-4fb0-977a-e5032144ebd7")
@@ -5542,7 +5542,7 @@
 		(at 35.9 31.5)
 		(descr "Diode, DO-35_SOD27 series, Axial, Horizontal, pin pitch=7.62mm, length*diameter=4*2mm^2, http://www.diodes.com/_files/packages/DO-35.pdf")
 		(property "Reference" "D3"
-			(at 3.81 -2.15 0)
+			(at 3.81 0 0)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "d98bb2bd-3221-4a1d-b9ae-a32bc164d1f5")
