@@ -195,17 +195,27 @@ Still needed:
   serrated tip, not a spear: the module's pad is flat, unperforated and 1 mm
   across, and 1° of tilt over 11 mm is already 0.19 mm of miss.
 
-  **Two things about that position are not settled and want checking against the
-  actual part before anyone buys a pin.** The coordinate it came from
-  (−4.01 / −5.45 from the top edge, on the centreline) is out of the **Raspberry
-  Pi Pico 2** datasheet, where the pad is called TP6; the module here is a
-  **WeAct RP2350-Plus**, same 40-pin outline but its own layout, and its test
-  pads are very unlikely to sit in exactly the same place. And the sign of X
-  depends on which side that drawing is viewed from, which no wording settles.
-  The physical check needs no measuring: **look at the module's underside and
-  see whether the BOOT pad is nearer the GP0 row or the VBUS row.** GP0 side is
-  the 26.51 the board is drawn for; VBUS side means 18.49, and only that number
-  changes.
+  **Which side of the centreline is settled** — checked on the module itself,
+  the pad is nearer the GP0 row, which is the 26.51 the board is drawn for. (The
+  other reading would have been 18.49, eight millimetres away; the drawing the
+  coordinate came from does not say which side it is viewed from, and nothing but
+  looking at the part decides it.)
+
+  **The two distances are still borrowed.** They come from the **Raspberry Pi
+  Pico 2** datasheet, where the pad is called TP6 and sits 4.01 mm off the
+  centreline, 5.45 mm from the top edge. The module here is a **WeAct
+  RP2350-Plus** — same 40-pin outline, its own layout. Against the module's own
+  features, the pad as drawn sits:
+
+  | measured from | distance |
+  |---|---|
+  | the GP0 pin row, inwards | 4.88 mm |
+  | pin 1 (GP0), along the row | 4.08 mm — just past pin 2, 1.0 mm short of pin 3 |
+  | the module's top edge | 5.45 mm |
+
+  Those are callipers-and-the-part numbers, not datasheet numbers, and they are
+  what to check before buying a pin: the module's pad is 1 mm across, so a few
+  millimetres out and the tip lands on bare laminate.
 
   **TP1 stays** as the fallback, out at the board edge where a soldering iron
   reaches, for the case where the pad turns out to be somewhere else entirely.
