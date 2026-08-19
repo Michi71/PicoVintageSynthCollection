@@ -118,7 +118,19 @@ Two connectors, one diode, and the right jacks:
 - 2x3 shrouded header (bus 1)
 - 3-pin header (bus 2)
 - 1N5817 or similar Schottky, bus +5V to VSYS
-- an 8-pin header for the panel-mounted jacks (four jacks, two conductors each)
+- a small-signal Schottky (BAT85) from the RP2350's UART RX node to bus pin 6.
+  The module's own MIDI IN arrives there from the H11L1, an open-collector
+  output with a 4k7 pull-up; the bus RX is push-pull from the hub. Joined
+  through the diode the two are a wired AND: both idle high, either can pull
+  the line low, and neither can fight the other. Both inputs are live at once,
+  no jumper. The 4k7 is what makes the fan-out work: each module sinks about
+  0.6 mA into the hub's driver when the line is low, so ten modules cost the
+  hub ~6 mA — a GPIO at 12 mA drive strength or any buffer can do that, and
+  the low level at the far module stays around 0.5 V (RP2350 VIL is 0.8 V).
+  With the 470R a MIDI IN would normally use, ten modules would demand 60 mA
+  and the level would sit on the threshold.
+- a 10-pin header for the panel-mounted jacks (MIDI OUT needs its sleeve
+  grounded, so three conductors; MIDI IN gets a landing for its open sleeve)
 
 Line level means no output stage, which in turn means the sound module needs no
 ±12 V at all — no Eurorack power header, no regulator, no op-amp. It lives on
