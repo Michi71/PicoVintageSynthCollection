@@ -1,4 +1,4 @@
-# KiCad working files: backups, caches and autosaves. The project, schematic,
+# KiCad working files: backups, local history, caches and autosaves. The project, schematic,
 # board and any custom libraries belong in the repository; these do not.
 *-backups/
 *.kicad_prl
@@ -8,3 +8,4 @@
 fp-info-cache
 *.net
 *.xml
+.history/

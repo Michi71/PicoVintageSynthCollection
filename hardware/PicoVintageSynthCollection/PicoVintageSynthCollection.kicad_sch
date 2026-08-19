@@ -1,0 +1,1259 @@
+(kicad_sch
+	(version 20260306)
+	(generator "eeschema")
+	(generator_version "10.0")
+	(uuid "717c5337-9c00-45ff-821b-4326af0f12e4")
+	(paper "A4")
+	(title_block
+		(title "PicoFace - 10 HP Eurorack module")
+		(date "2026-08-18")
+		(rev "A")
+		(comment 1 "One board set for all ten instruments (PicoFaceD5, DX, CP, ...)")
+		(comment 2 "Sheet 2 main board, sheet 3 front board, sheet 4 panel wiring")
+		(comment 3 "hardware/README.md - docs/MODULE_BUS.md - core/include/project_config.h")
+	)
+	(lib_symbols)
+	(junction
+		(at 137.16 111.76)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "f66d82b6-cbd6-4405-9f9a-c84940a90176")
+	)
+	(junction
+		(at 142.24 115.57)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "a31abb6f-03c9-4cfb-a78a-3c845c4c6b58")
+	)
+	(junction
+		(at 147.32 119.38)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "96a595f3-2a40-4cdc-9ed4-e6f7c7de7b75")
+	)
+	(junction
+		(at 152.4 123.19)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "3b3855b1-e470-435f-9c92-877d09090a3b")
+	)
+	(junction
+		(at 157.48 127)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "1ec56e59-fe17-4e8a-88d1-392621c4d3f4")
+	)
+	(junction
+		(at 162.56 130.81)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "04a14f61-153d-4c83-b511-e591037ad357")
+	)
+	(wire
+		(pts
+			(xy 83.82 45.72)
+			(xy 129.54 45.72)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "222e2872-7e44-4f21-8ef0-ee4fab12888c")
+	)
+	(wire
+		(pts
+			(xy 83.82 48.26)
+			(xy 129.54 48.26)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "641970eb-f9b8-4a7d-8038-df05295daef8")
+	)
+	(wire
+		(pts
+			(xy 83.82 50.8)
+			(xy 129.54 50.8)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1ebb546d-e944-4c0d-a4f5-6e029891dba1")
+	)
+	(wire
+		(pts
+			(xy 83.82 53.34)
+			(xy 129.54 53.34)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b3ec9563-4789-443d-9bef-61dccdd76738")
+	)
+	(wire
+		(pts
+			(xy 83.82 55.88)
+			(xy 129.54 55.88)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "880343cd-3868-4a27-a028-2a4be37ae3d4")
+	)
+	(wire
+		(pts
+			(xy 83.82 58.42)
+			(xy 129.54 58.42)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c28fd381-c608-42c3-a56e-6b3acc88717e")
+	)
+	(wire
+		(pts
+			(xy 83.82 60.96)
+			(xy 129.54 60.96)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "8044a80e-42c5-47a6-aa45-c169f07356d2")
+	)
+	(wire
+		(pts
+			(xy 83.82 63.5)
+			(xy 129.54 63.5)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "8f947a5d-0d3f-4ae5-925e-4612315c8926")
+	)
+	(wire
+		(pts
+			(xy 83.82 66.04)
+			(xy 129.54 66.04)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2afe24ee-1c6f-464f-9949-116c489cbcad")
+	)
+	(wire
+		(pts
+			(xy 83.82 68.58)
+			(xy 129.54 68.58)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "507736db-2d37-424f-bbfa-c28860dddcf0")
+	)
+	(wire
+		(pts
+			(xy 83.82 71.12)
+			(xy 129.54 71.12)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3cc7e3b1-ed1e-441a-b199-a378402355d9")
+	)
+	(wire
+		(pts
+			(xy 187.96 45.72)
+			(xy 233.68 45.72)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c2ba94f4-eaf5-4a03-bb82-7bc306e00eca")
+	)
+	(wire
+		(pts
+			(xy 33.02 99.06)
+			(xy 33.02 111.76)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ded9c835-3003-4328-b3cd-7204bca68a8a")
+	)
+	(wire
+		(pts
+			(xy 137.16 99.06)
+			(xy 137.16 111.76)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3603bcd5-9146-4932-b58e-5ddc59d39edf")
+	)
+	(wire
+		(pts
+			(xy 241.3 99.06)
+			(xy 241.3 111.76)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "48f9d907-915e-48cb-b3f9-f3c03d4f0115")
+	)
+	(wire
+		(pts
+			(xy 33.02 111.76)
+			(xy 241.3 111.76)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3ad8cd40-f1c9-4ed4-8883-3893a854576e")
+	)
+	(wire
+		(pts
+			(xy 38.1 99.06)
+			(xy 38.1 115.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "dc5aafbd-6008-4208-8003-4ad400f6b33e")
+	)
+	(wire
+		(pts
+			(xy 142.24 99.06)
+			(xy 142.24 115.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d3a9b922-0d05-420a-aeac-87d7699565d4")
+	)
+	(wire
+		(pts
+			(xy 246.38 99.06)
+			(xy 246.38 115.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "52716357-e33b-4673-b1b7-e7f140bb466c")
+	)
+	(wire
+		(pts
+			(xy 38.1 115.57)
+			(xy 246.38 115.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "715a0319-1ae1-4ec4-baf8-7079bb20d98d")
+	)
+	(wire
+		(pts
+			(xy 43.18 99.06)
+			(xy 43.18 119.38)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b62ea4d2-6125-41d7-90bb-c71321b73d03")
+	)
+	(wire
+		(pts
+			(xy 147.32 99.06)
+			(xy 147.32 119.38)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "15e731ce-e5dc-4c9d-bfe7-bc6b225896ca")
+	)
+	(wire
+		(pts
+			(xy 251.46 99.06)
+			(xy 251.46 119.38)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5dfba4e3-38a2-4a68-b305-180aaa1f3479")
+	)
+	(wire
+		(pts
+			(xy 43.18 119.38)
+			(xy 251.46 119.38)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f092edea-6cb3-41d1-adef-4b946ad923a2")
+	)
+	(wire
+		(pts
+			(xy 48.26 99.06)
+			(xy 48.26 123.19)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "090bf33e-0aee-46f2-9729-97f09e6c74de")
+	)
+	(wire
+		(pts
+			(xy 152.4 99.06)
+			(xy 152.4 123.19)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d779b291-5aad-4831-82d1-7f6e918c68cd")
+	)
+	(wire
+		(pts
+			(xy 256.54 99.06)
+			(xy 256.54 123.19)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "005e84b0-366a-40a4-9ee1-40567f90920a")
+	)
+	(wire
+		(pts
+			(xy 48.26 123.19)
+			(xy 256.54 123.19)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "406d9697-de89-4ec1-8c75-72dc56cbf25f")
+	)
+	(wire
+		(pts
+			(xy 53.34 99.06)
+			(xy 53.34 127)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "59178643-8542-4ad2-b93d-9f49f4c7c9ea")
+	)
+	(wire
+		(pts
+			(xy 157.48 99.06)
+			(xy 157.48 127)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "39160f95-692c-4ee3-9e54-4b946f17fdcc")
+	)
+	(wire
+		(pts
+			(xy 261.62 99.06)
+			(xy 261.62 127)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "45308a31-b51d-4cc1-a035-1ce1033d756b")
+	)
+	(wire
+		(pts
+			(xy 53.34 127)
+			(xy 261.62 127)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "35d518df-a6ba-4659-8a16-3943982c72fd")
+	)
+	(wire
+		(pts
+			(xy 58.42 99.06)
+			(xy 58.42 130.81)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7e103d1a-fc90-426a-8172-0de53f10bd04")
+	)
+	(wire
+		(pts
+			(xy 162.56 99.06)
+			(xy 162.56 130.81)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "90ffdc98-b020-4cda-9769-3d172c3bbce6")
+	)
+	(wire
+		(pts
+			(xy 266.7 99.06)
+			(xy 266.7 130.81)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0605afba-7dc3-4698-91b8-36238853f40b")
+	)
+	(wire
+		(pts
+			(xy 58.42 130.81)
+			(xy 266.7 130.81)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a69b9554-3a76-4247-8279-c96cc7cfdfeb")
+	)
+	(wire
+		(pts
+			(xy 63.5 99.06)
+			(xy 63.5 134.62)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3d067ef1-c6ed-4a3d-a946-11c433456c35")
+	)
+	(wire
+		(pts
+			(xy 167.64 99.06)
+			(xy 167.64 134.62)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f6059ae2-45aa-4cb3-a865-97f631986e15")
+	)
+	(wire
+		(pts
+			(xy 63.5 134.62)
+			(xy 167.64 134.62)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2b485c35-0b62-4e2b-b528-622f86ce78cb")
+	)
+	(wire
+		(pts
+			(xy 68.58 99.06)
+			(xy 68.58 138.43)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "af2e4505-34b4-421c-8dda-6acf1a36423c")
+	)
+	(wire
+		(pts
+			(xy 172.72 99.06)
+			(xy 172.72 138.43)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0ae21de6-3cc6-4da3-a719-a15a235e3b59")
+	)
+	(wire
+		(pts
+			(xy 68.58 138.43)
+			(xy 172.72 138.43)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "02f1c81d-c4b2-4c65-bc89-0d91a512b13d")
+	)
+	(text "MIDI_IN_4"
+		(exclude_from_sim no)
+		(at 242.57 110.76 0)
+		(effects
+			(font
+				(size 1 1)
+			)
+			(justify left top)
+		)
+		(uuid "485ef940-c18c-43ce-a396-fb55b1536dfe")
+	)
+	(text "MIDI_IN_5"
+		(exclude_from_sim no)
+		(at 247.65 114.57 0)
+		(effects
+			(font
+				(size 1 1)
+			)
+			(justify left top)
+		)
+		(uuid "cc873d09-e414-4ea5-81a8-57b5e7e36b8e")
+	)
+	(text "MIDI_OUT_4"
+		(exclude_from_sim no)
+		(at 252.73 118.38 0)
+		(effects
+			(font
+				(size 1 1)
+			)
+			(justify left top)
+		)
+		(uuid "685386f6-4228-4e30-ada7-f6f7aefa8ffd")
+	)
+	(text "MIDI_OUT_5"
+		(exclude_from_sim no)
+		(at 257.81 122.19 0)
+		(effects
+			(font
+				(size 1 1)
+			)
+			(justify left top)
+		)
+		(uuid "a6773119-6033-40dc-9c26-718c1e943cbc")
+	)
+	(text "AUDIO_L"
+		(exclude_from_sim no)
+		(at 262.89 126 0)
+		(effects
+			(font
+				(size 1 1)
+			)
+			(justify left top)
+		)
+		(uuid "fc6a3eb6-9ac9-42f9-93d0-8ae5c552d95e")
+	)
+	(text "AUDIO_R"
+		(exclude_from_sim no)
+		(at 267.97 129.81 0)
+		(effects
+			(font
+				(size 1 1)
+			)
+			(justify left top)
+		)
+		(uuid "0762c3f1-871d-48b9-adc6-3807eb368eb5")
+	)
+	(text "RUN"
+		(exclude_from_sim no)
+		(at 168.91 133.62 0)
+		(effects
+			(font
+				(size 1 1)
+			)
+			(justify left top)
+		)
+		(uuid "415eb74e-1700-4494-bb16-0863a1658fcd")
+	)
+	(text "BOOT"
+		(exclude_from_sim no)
+		(at 173.99 137.43 0)
+		(effects
+			(font
+				(size 1 1)
+			)
+			(justify left top)
+		)
+		(uuid "8f0e50e5-7c98-40f5-8687-5a487f3abc90")
+	)
+	(text "J1/J2 <-> J3/J4: 2x 1x12 headers\n11 signals here + the 8 below + 3V3, VSYS, 3x GND"
+		(exclude_from_sim no)
+		(at 85.09 27.94 0)
+		(effects
+			(font
+				(size 1 1)
+			)
+			(justify left top)
+		)
+		(uuid "44edae11-0dfe-4ab5-92e7-92482d66cf3e")
+	)
+	(text "J8 <-> the four panel jacks\n(wired, 1x10)"
+		(exclude_from_sim no)
+		(at 189.23 27.94 0)
+		(effects
+			(font
+				(size 1 1)
+			)
+			(justify left top)
+		)
+		(uuid "0c72c77d-e128-4b07-83a8-a6e6f3441c70")
+	)
+	(text "MIDI loop and audio pass through all three (main board -> front board headers -> panel jacks); RUN and BOOT end at the tact switches on the front board."
+		(exclude_from_sim no)
+		(at 25.4 144.78 0)
+		(effects
+			(font
+				(size 1 1)
+			)
+			(justify left top)
+		)
+		(uuid "83528c92-9fe8-4ce8-9982-fee3c6f9d073")
+	)
+	(text_box "PicoFace hardware - the module as three sheets (10 HP, hardware/Panel/panel_10hp.svg)\n- Main board (sheet 2), 45 x 80 mm: RP2350-Plus, PCM5102 DAC, MIDI in/out, module bus (power/MIDI, audio), board-to-board headers. Format-independent.\n- Front board (sheet 3), 45 x 80 mm: three EC11 with pull-ups, RUN/BOOT tact switches, the OLED, sockets to the main board, header for the panel-wired jacks.\n- Panel (sheet 4): the four 3.5 mm jacks (M8, two TRS for MIDI, two for audio), optional USB-C lead. Wired, no PCB.\n- Power nets GND / +3V3 / VSYS are global (power symbols) and also travel over J1/J3; they are not drawn as sheet pins.\n- Status: drawn, not laid out, not fabricated. Panel-mounted parts are excluded from any board (on_board = no) but stay in the BOM."
+		(exclude_from_sim no)
+		(at 15.24 152.4 0)
+		(size 152.4 20.32)
+		(margins 0.9525 0.9525 0.9525 0.9525)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(fill
+			(type none)
+		)
+		(effects
+			(font
+				(size 1 1)
+			)
+			(justify left top)
+		)
+		(uuid "3d1a434b-3540-4d0e-866b-76edf1dc5dc0")
+	)
+	(sheet
+		(at 25.4 38.1)
+		(size 58.42 60.96)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "a1b2c3d4-0011-4a5b-8c6d-000000000011")
+		(property "Sheetname" "Main board"
+			(at 25.4 37.4 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "main_board.kicad_sch"
+			(at 25.4 99.66 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(pin "SDA" bidirectional
+			(at 83.82 45.72 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "3eea5f4b-7b7c-4ae2-818f-9d1e5058dd94")
+		)
+		(pin "SCL" bidirectional
+			(at 83.82 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "c29df09e-e428-4138-a404-cea731905783")
+		)
+		(pin "SEL_CLK" bidirectional
+			(at 83.82 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "09da4d91-c80e-4856-84a7-a4884e96e7f9")
+		)
+		(pin "SEL_DT" bidirectional
+			(at 83.82 53.34 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "b2d9e3b4-4fde-44cb-82ce-5340c400279b")
+		)
+		(pin "SEL_SW" bidirectional
+			(at 83.82 55.88 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "33b89f02-ca4d-474a-a915-da203cf87e50")
+		)
+		(pin "PA_CLK" bidirectional
+			(at 83.82 58.42 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "1241599e-42ef-442c-bc5b-1747fdf7d24b")
+		)
+		(pin "PA_DT" bidirectional
+			(at 83.82 60.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "4b0dec68-ff98-4900-9dc6-ed22ffa9b2a0")
+		)
+		(pin "PA_SW" bidirectional
+			(at 83.82 63.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "770aaed6-c9c3-4e22-aa99-c08014d4e0d2")
+		)
+		(pin "PB_CLK" bidirectional
+			(at 83.82 66.04 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "332932b2-6fbc-4ee5-b1c6-a92272d3987a")
+		)
+		(pin "PB_DT" bidirectional
+			(at 83.82 68.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "b8fa64f3-8527-408f-91d5-3506d3062d1e")
+		)
+		(pin "PB_SW" bidirectional
+			(at 83.82 71.12 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "1cf6073d-21c7-4a06-b794-3c8642217863")
+		)
+		(pin "MIDI_IN_4" bidirectional
+			(at 33.02 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "3e9db727-040b-4bd3-9d12-ca7468ab8ef3")
+		)
+		(pin "MIDI_IN_5" bidirectional
+			(at 38.1 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "15381f2a-aeeb-4000-a7a0-8b98614d5d4f")
+		)
+		(pin "MIDI_OUT_4" bidirectional
+			(at 43.18 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "458b8a59-a21b-4fb3-91b3-550b6dea6116")
+		)
+		(pin "MIDI_OUT_5" bidirectional
+			(at 48.26 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "763cb080-fbc3-4fcf-ac6b-4071750f03c0")
+		)
+		(pin "AUDIO_L" bidirectional
+			(at 53.34 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "6f61fce6-7cc9-432b-ac0b-f6cf933fc971")
+		)
+		(pin "AUDIO_R" bidirectional
+			(at 58.42 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "d80dc584-92ec-42f7-8493-8e4e78184a6f")
+		)
+		(pin "RUN" bidirectional
+			(at 63.5 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "dac9790e-14ec-42c1-af3b-6bcd4d584a4d")
+		)
+		(pin "BOOT" bidirectional
+			(at 68.58 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "86c68313-6a91-4b22-a816-b52cefc492b5")
+		)
+		(instances
+			(project "PicoVintageSynthCollection"
+				(path "/717c5337-9c00-45ff-821b-4326af0f12e4"
+					(page "2")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 129.54 38.1)
+		(size 58.42 60.96)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "a1b2c3d4-0012-4a5b-8c6d-000000000012")
+		(property "Sheetname" "Front board"
+			(at 129.54 37.4 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "front_board.kicad_sch"
+			(at 129.54 99.66 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(pin "SDA" bidirectional
+			(at 129.54 45.72 180)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "75fce7c0-d19b-4e6c-adf9-12e47099c276")
+		)
+		(pin "SCL" bidirectional
+			(at 129.54 48.26 180)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "30aeb7f7-dbff-4c71-8529-876cb7dffd9a")
+		)
+		(pin "SEL_CLK" bidirectional
+			(at 129.54 50.8 180)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "c1f8a75b-9df9-4bff-bd51-58988b550ac1")
+		)
+		(pin "SEL_DT" bidirectional
+			(at 129.54 53.34 180)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "6db167e6-a7aa-4bb1-8f6e-e8c70f057b71")
+		)
+		(pin "SEL_SW" bidirectional
+			(at 129.54 55.88 180)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "c53343ae-9541-4652-9c6f-4da206427efb")
+		)
+		(pin "PA_CLK" bidirectional
+			(at 129.54 58.42 180)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "e4834d12-e429-4ef5-ac9b-2bb372aeedbe")
+		)
+		(pin "PA_DT" bidirectional
+			(at 129.54 60.96 180)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "055435f5-de54-4308-a08a-734e0949c0b4")
+		)
+		(pin "PA_SW" bidirectional
+			(at 129.54 63.5 180)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "fd2f1ddd-f6e1-4374-a733-dd5b2baed6d1")
+		)
+		(pin "PB_CLK" bidirectional
+			(at 129.54 66.04 180)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "2152900d-f63b-4d6d-97cd-ba092b7c7623")
+		)
+		(pin "PB_DT" bidirectional
+			(at 129.54 68.58 180)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "178d0d59-d8f1-46fa-9ff7-f64f7c431300")
+		)
+		(pin "PB_SW" bidirectional
+			(at 129.54 71.12 180)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "400e529f-a7c6-441c-99cb-d489aa23bd5e")
+		)
+		(pin "MIDI_IN_S" bidirectional
+			(at 187.96 45.72 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "52fb54f1-c661-4643-8b5d-afcf651ebe66")
+		)
+		(pin "MIDI_IN_4" bidirectional
+			(at 137.16 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "a11b3174-d915-4b42-9bfa-dac2db2ba882")
+		)
+		(pin "MIDI_IN_5" bidirectional
+			(at 142.24 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "873399e3-8a97-4407-8697-ee0ad7a5e02f")
+		)
+		(pin "MIDI_OUT_4" bidirectional
+			(at 147.32 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "e8651631-13a8-4de4-b334-1a6a0fd0f977")
+		)
+		(pin "MIDI_OUT_5" bidirectional
+			(at 152.4 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "60d84a2e-9a06-4a0f-9084-83670584a055")
+		)
+		(pin "AUDIO_L" bidirectional
+			(at 157.48 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "3f541457-4826-4f82-8f03-32b949a37173")
+		)
+		(pin "AUDIO_R" bidirectional
+			(at 162.56 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "31a9fc06-cd5c-4376-88d5-6e754cf75111")
+		)
+		(pin "RUN" bidirectional
+			(at 167.64 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "2a421c13-204b-4003-8bf5-02cd28473889")
+		)
+		(pin "BOOT" bidirectional
+			(at 172.72 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "670105f4-ca70-455d-b256-c9417d3ba594")
+		)
+		(instances
+			(project "PicoVintageSynthCollection"
+				(path "/717c5337-9c00-45ff-821b-4326af0f12e4"
+					(page "3")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 233.68 38.1)
+		(size 45.72 60.96)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "a1b2c3d4-0013-4a5b-8c6d-000000000013")
+		(property "Sheetname" "Panel"
+			(at 233.68 37.4 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "panel.kicad_sch"
+			(at 233.68 99.66 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(pin "MIDI_IN_S" bidirectional
+			(at 233.68 45.72 180)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "5b01b3a1-ca80-419b-be4b-37f9eef3336c")
+		)
+		(pin "MIDI_IN_4" bidirectional
+			(at 241.3 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "faa291cb-74dc-4f0a-aa9b-e45a336d48f9")
+		)
+		(pin "MIDI_IN_5" bidirectional
+			(at 246.38 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "1539bdb4-b776-4d1c-8c5f-15b9d6ac0437")
+		)
+		(pin "MIDI_OUT_4" bidirectional
+			(at 251.46 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "77f0b946-83bb-44d4-afa0-792f9a10194a")
+		)
+		(pin "MIDI_OUT_5" bidirectional
+			(at 256.54 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "2375347c-0418-4620-ba93-a05b9b0f1706")
+		)
+		(pin "AUDIO_L" bidirectional
+			(at 261.62 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "ab1460ea-2e80-4281-9f59-169ba57742a2")
+		)
+		(pin "AUDIO_R" bidirectional
+			(at 266.7 99.06 270)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+			(uuid "22a50405-74c7-4435-9608-90a294894bb7")
+		)
+		(instances
+			(project "PicoVintageSynthCollection"
+				(path "/717c5337-9c00-45ff-821b-4326af0f12e4"
+					(page "4")
+				)
+			)
+		)
+	)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+	(embedded_fonts no)
+)
