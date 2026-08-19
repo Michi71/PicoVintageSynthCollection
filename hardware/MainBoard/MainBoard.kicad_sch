@@ -1,0 +1,915 @@
+(kicad_sch
+	(version 20260306)
+	(generator "eeschema")
+	(generator_version "10.0")
+	(uuid "b2c3d4e5-0001-4a5b-8c6d-000000000101")
+	(paper "A4")
+	(title_block
+		(title "PicoFace main board - layout project")
+		(date "2026-08-19")
+		(rev "A")
+		(comment 1 "Root wrapper: the schematic itself lives in ../PicoVintageSynthCollection/main_board.kicad_sch")
+		(comment 2 "One board per KiCad project - this project exists to carry MainBoard.kicad_pcb")
+		(comment 3 "Edit the schematic in the hierarchical project, not here")
+	)
+	(lib_symbols)
+	(wire
+		(pts
+			(xy 127 40.64)
+			(xy 134.62 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "210bb2db-6b2d-4b1f-9939-794a8c718b5b")
+	)
+	(wire
+		(pts
+			(xy 127 43.18)
+			(xy 134.62 43.18)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2c3bf431-eaf0-4b00-930f-10082d36d450")
+	)
+	(wire
+		(pts
+			(xy 127 45.72)
+			(xy 134.62 45.72)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "04d8d18a-e4c0-4453-98ce-7060f12447a8")
+	)
+	(wire
+		(pts
+			(xy 127 48.26)
+			(xy 134.62 48.26)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5ffd3d70-86dc-491c-bb04-24319753994a")
+	)
+	(wire
+		(pts
+			(xy 127 50.8)
+			(xy 134.62 50.8)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "80eb5588-3489-4851-9301-2486172ef1bd")
+	)
+	(wire
+		(pts
+			(xy 127 53.34)
+			(xy 134.62 53.34)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "96a7fe2a-ab59-4999-84a4-3c9b41114d28")
+	)
+	(wire
+		(pts
+			(xy 127 55.88)
+			(xy 134.62 55.88)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c4651292-9a7d-430e-a93b-3cb5809cc911")
+	)
+	(wire
+		(pts
+			(xy 127 58.42)
+			(xy 134.62 58.42)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "31c1aaa9-cb1f-4da6-9b55-8db013ce46e4")
+	)
+	(wire
+		(pts
+			(xy 127 60.96)
+			(xy 134.62 60.96)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "fa28f46a-176d-45c0-b945-ab55740160f0")
+	)
+	(wire
+		(pts
+			(xy 127 63.5)
+			(xy 134.62 63.5)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1ae71614-14ca-4e36-985d-83a7bdb8a6b6")
+	)
+	(wire
+		(pts
+			(xy 127 66.04)
+			(xy 134.62 66.04)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "973f18d3-4eda-4012-83b4-9cd4ed13e82f")
+	)
+	(wire
+		(pts
+			(xy 127 68.58)
+			(xy 134.62 68.58)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d37f1a98-645b-4d7f-9044-4d67fdaae0b0")
+	)
+	(wire
+		(pts
+			(xy 127 71.12)
+			(xy 134.62 71.12)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "bf0ed11f-2cef-45e5-b729-364e77a4f24c")
+	)
+	(wire
+		(pts
+			(xy 127 73.66)
+			(xy 134.62 73.66)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c47aef8d-2e92-4f99-b04b-6ca5e2349df6")
+	)
+	(wire
+		(pts
+			(xy 127 76.2)
+			(xy 134.62 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "53f18bff-1270-4e97-a2cc-9524e71b04e8")
+	)
+	(wire
+		(pts
+			(xy 127 78.74)
+			(xy 134.62 78.74)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c7987aa2-718f-4be7-abae-6b512fe4f7f8")
+	)
+	(wire
+		(pts
+			(xy 127 81.28)
+			(xy 134.62 81.28)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d7d65f8c-76cd-45a9-92b7-36336b3ca05a")
+	)
+	(wire
+		(pts
+			(xy 127 83.82)
+			(xy 134.62 83.82)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5ccc861c-9399-4bb8-aee2-c5ea0e687b98")
+	)
+	(wire
+		(pts
+			(xy 127 86.36)
+			(xy 134.62 86.36)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d3497395-c4f3-429a-8ad8-9077c417857d")
+	)
+	(global_label "AUDIO_L"
+		(shape bidirectional)
+		(at 134.62 40.64 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "3d6133ac-4936-4191-adf5-105aa00eae61")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 40.64 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "AUDIO_R"
+		(shape bidirectional)
+		(at 134.62 43.18 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "e9e128f4-e22d-4835-9340-9b211a4c6a53")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 43.18 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "BOOT"
+		(shape bidirectional)
+		(at 134.62 45.72 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "5dca408e-d5c4-416e-a050-66f9e04c8b22")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 45.72 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "MIDI_IN_4"
+		(shape bidirectional)
+		(at 134.62 48.26 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "3f7748b8-57e2-4cae-8285-99f2875d48e6")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 48.26 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "MIDI_IN_5"
+		(shape bidirectional)
+		(at 134.62 50.8 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "4432550a-7e44-4d37-942a-9b785ee24266")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 50.8 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "MIDI_OUT_4"
+		(shape bidirectional)
+		(at 134.62 53.34 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "81e0dd02-dc4b-4e9f-99a9-950b03c31cbb")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 53.34 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "MIDI_OUT_5"
+		(shape bidirectional)
+		(at 134.62 55.88 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "57bd436b-040c-4757-8f20-97c19e769279")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 55.88 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "PA_CLK"
+		(shape bidirectional)
+		(at 134.62 58.42 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "249991cc-5f26-40a6-85e6-7e76133a024a")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 58.42 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "PA_DT"
+		(shape bidirectional)
+		(at 134.62 60.96 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "fe2fd0a9-088e-4d04-9b97-c86a00807bc9")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 60.96 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "PA_SW"
+		(shape bidirectional)
+		(at 134.62 63.5 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "0c2cb552-7cca-4a9e-87be-70f3557731d1")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 63.5 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "PB_CLK"
+		(shape bidirectional)
+		(at 134.62 66.04 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "e95f9e89-b44b-4936-a1ca-277cfa3b03c5")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 66.04 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "PB_DT"
+		(shape bidirectional)
+		(at 134.62 68.58 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "78e177d3-705b-4a3e-b8bc-aad23d1b1808")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 68.58 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "PB_SW"
+		(shape bidirectional)
+		(at 134.62 71.12 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "5f549b38-2e71-424b-a568-7dce08f9b627")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 71.12 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "RUN"
+		(shape bidirectional)
+		(at 134.62 73.66 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "54e40d93-f4fc-4d2a-a779-626d1877ef47")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 73.66 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "SCL"
+		(shape bidirectional)
+		(at 134.62 76.2 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "8b2c77d5-3398-478f-a056-41923e1ef475")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 76.2 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "SDA"
+		(shape bidirectional)
+		(at 134.62 78.74 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "ce96ad1d-2d3e-4f05-902c-6363c4722922")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 78.74 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "SEL_CLK"
+		(shape bidirectional)
+		(at 134.62 81.28 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "8adc849f-99a5-49d4-9c46-5f9b511c0a64")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 81.28 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "SEL_DT"
+		(shape bidirectional)
+		(at 134.62 83.82 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "cb9ba0cc-590e-44d6-ae2c-53e8ef6afa38")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 83.82 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "SEL_SW"
+		(shape bidirectional)
+		(at 134.62 86.36 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "82291b3d-72ee-4ddc-a2e1-dcbc81c07e86")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 134.62 86.36 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+	)
+	(sheet
+		(at 63.5 38.1)
+		(size 63.5 50.8)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "b2c3d4e5-0011-4a5b-8c6d-000000000111")
+		(property "Sheetname" "Main board"
+			(at 63.5 37.4 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "../PicoVintageSynthCollection/main_board.kicad_sch"
+			(at 63.5 89.5 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(pin "AUDIO_L" bidirectional
+			(at 127 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "d2c4bdd9-81dd-4773-b4ef-1f456a136a58")
+		)
+		(pin "AUDIO_R" bidirectional
+			(at 127 43.18 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "a5888463-423d-4e48-81d3-28e08d624947")
+		)
+		(pin "BOOT" bidirectional
+			(at 127 45.72 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "f3e46b5e-63b6-4be6-b163-ff746feb8bf2")
+		)
+		(pin "MIDI_IN_4" bidirectional
+			(at 127 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "0b32a244-af55-4ecd-8203-7a5e8dde1adc")
+		)
+		(pin "MIDI_IN_5" bidirectional
+			(at 127 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "e35b82dc-c6a4-4f91-99ce-931df10ba2d7")
+		)
+		(pin "MIDI_OUT_4" bidirectional
+			(at 127 53.34 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "336d2c45-7263-4087-b286-1efaa7c18445")
+		)
+		(pin "MIDI_OUT_5" bidirectional
+			(at 127 55.88 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "212bef21-52e3-43e9-bd6b-1661a31bdf28")
+		)
+		(pin "PA_CLK" bidirectional
+			(at 127 58.42 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "3add67ef-ca9e-46a5-a4e8-8249d7c6584c")
+		)
+		(pin "PA_DT" bidirectional
+			(at 127 60.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "4d4dc809-0006-4919-a0f0-d8b5972ae4bb")
+		)
+		(pin "PA_SW" bidirectional
+			(at 127 63.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "3630cd00-f3a9-42a0-b3f9-4c2265cc161d")
+		)
+		(pin "PB_CLK" bidirectional
+			(at 127 66.04 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "e4096dab-6575-4a82-8a19-673e52396f5c")
+		)
+		(pin "PB_DT" bidirectional
+			(at 127 68.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "262ff81c-8e2b-410b-9233-26eaf6bb4464")
+		)
+		(pin "PB_SW" bidirectional
+			(at 127 71.12 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "9dd49ccc-17c4-4c58-9217-061c91b8850a")
+		)
+		(pin "RUN" bidirectional
+			(at 127 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "b25edfc7-1bd3-4f5a-bcea-33805dfa1d55")
+		)
+		(pin "SCL" bidirectional
+			(at 127 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "42d75a82-596b-4a50-bc12-e28f32fde09e")
+		)
+		(pin "SDA" bidirectional
+			(at 127 78.74 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "0d0abf45-463c-4614-90fd-86d9f8b0dab6")
+		)
+		(pin "SEL_CLK" bidirectional
+			(at 127 81.28 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "19ad66aa-32b8-4b08-9552-b7d19a110453")
+		)
+		(pin "SEL_DT" bidirectional
+			(at 127 83.82 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "c0efa803-067b-4d3a-96f7-fa89bac55f0d")
+		)
+		(pin "SEL_SW" bidirectional
+			(at 127 86.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+			(uuid "28413b38-d431-46e8-9c16-d9a35c57d4fa")
+		)
+		(instances
+			(project "MainBoard"
+				(path "/b2c3d4e5-0001-4a5b-8c6d-000000000101"
+					(page "2")
+				)
+			)
+		)
+	)
+	(text "This project exists so the main board can have a layout: KiCad wants one board per project.\nThe schematic is the same file the hierarchical project uses -- there is one copy, not two.\nEvery symbol carries a second instance path for this project, which is what lets one sheet\nbelong to two projects without re-annotating anything.\n\nThe 19 global labels are the board-to-board signals. They end here because they leave the\nboard through J1 / J2 and continue on the front board, which is a separate project again.\nThey repeat names that are local labels inside the sheet, so ERC rule same_local_global_label\nis set to ignore in this project only -- the hierarchical project is checked with it on."
+		(exclude_from_sim no)
+		(at 25.4 126 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "71857020-2ddc-4e3b-b6d1-7682caede0eb")
+	)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+	(embedded_fonts no)
+)

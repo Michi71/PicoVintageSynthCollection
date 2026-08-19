@@ -9,7 +9,9 @@ The schematic is drawn: the KiCad 10 project in
 [PicoVintageSynthCollection/](PicoVintageSynthCollection/) (root sheet plus
 `main_board`, `front_board`, `panel`; ERC clean), with a PDF export next to it
 ([PicoFace-schematic.pdf](PicoVintageSynthCollection/PicoFace-schematic.pdf)).
-The boards are not laid out yet.
+
+The **main board is laid out**: [MainBoard/](MainBoard/), routed, DRC clean.
+The front board is not.
 
 The interface *between* several modules — power, MIDI, audio — is a separate
 document: [The module bus](../docs/MODULE_BUS.md).
@@ -200,12 +202,56 @@ Still needed:
   raise GP4's drive strength to 12 mA — the default 4 mA is below the loop
   current.
 
+## The main board layout
+
+[MainBoard/](MainBoard/) is a second KiCad project, because KiCad wants one
+board per project. Its root sheet is a wrapper that pulls in
+`../PicoVintageSynthCollection/main_board.kicad_sch` — there is one copy of the
+schematic, not two. Every symbol carries a second instance path, which is what
+lets one sheet belong to two projects without re-annotating anything. The 19
+board-to-board signals end on global labels there, because they leave the board
+through J1 / J2.
+
+45 x 80 mm, two layers, 0.2 mm signal tracks (0.3 mm for 3V3 / VSYS / bus 5V),
+0.2 mm clearance, 0.6/0.3 mm vias. 630 track segments, 1414 mm of copper, 93
+vias — of which about a third are ground stitching. Ground is a pour on both
+sides rather than routed.
+
+**Everything sits on the back except J1 / J2 and the eight 0805 parts.** That is
+the decision the layout turned on: with the RP2350-Plus on the front it would
+stand 13.5 mm into the gap between the boards and J1 / J2 would need long-pin
+headers, which are a part you have to go looking for. On the back, nothing
+between the boards is taller than a 0805, and ordinary headers reach. It also
+puts USB, the bus connectors and the module's own BOOT/RESET buttons on the side
+you can reach with the module in a case.
+
+- **A1** sits at the top with its USB-C at the board's top edge, so a plug can
+  come in from above without dismantling anything.
+- **The PCM5102 module** is at the bottom, on the socket offsets taken from the
+  STEP model and cross-checked against a KiCad footprint — see
+  [PCM5102_module_geometry.md](PCM5102_module_geometry.md). Its own 3.5 mm jack
+  (unused) hangs about 11 mm past the bottom edge, which is drawn on
+  User.Comments as a reminder.
+- **The MIDI section** is down the right-hand strip beside the module, next to
+  GP4/GP5 where its signals land.
+- **A1's courtyard was clipped** to its own outline plus 0.25 mm. The library
+  footprint reserves room for a connector overhang that here points off the
+  board. Running "Update Footprints from Library" would put it back and J5 would
+  then report a courtyard overlap.
+
+DRC is clean: no unconnected items, no clearance, short, hole or courtyard
+errors, and the board matches the schematic. What remains are warnings —
+footprints differing from their library copies (they are generated, and A1's
+courtyard is deliberately clipped) and a handful of silkscreen overlaps on a
+board this dense.
+
 ## Open
 
-- Schematic drawn; boards not laid out, not fabricated, not built. Layout note:
-  KiCad wants one board per project, so the two boards will be two projects
-  whose root sheets are `main_board.kicad_sch` and `front_board.kicad_sch`
-  (the hierarchical labels then just dangle at the connectors).
+- The front board is not laid out. J1 / J2 sit at y 55.4 and 60.4, x 8.89 to
+  36.83, pin 1 at the left; its sockets have to mate with that. Watch the pin
+  order: a footprint placed on the back is mirrored, so pin 1 does not land
+  where the eye expects.
+- Not fabricated, not built.
 - Panel-mounted parts (the four jacks, the optional USB lead) are in the
   schematic with "exclude from board" set, so they appear in the BOM but on
   neither layout.

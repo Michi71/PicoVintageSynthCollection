@@ -1,0 +1,4 @@
+(sym_lib_table
+	(version 7)
+	(lib (name "PicoFace")(type "KiCad")(uri "${KIPRJMOD}/../PicoVintageSynthCollection/PicoFace.kicad_sym")(options "")(descr "PicoFace project symbols, shared with the hierarchical project"))
+)
