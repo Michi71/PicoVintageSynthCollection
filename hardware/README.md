@@ -64,9 +64,10 @@ bar.
 No USB cutout: the 10 HP panel has no room for the USB-C lead, so USB stays at
 the module's own socket.
 
-The display module (35.5 x 33.5 mm) sits at X 7.65–43.15, Y 15.0–48.5, which
-puts its four mounting holes at X 10.4 / 40.4 and Y 17.75 / 45.75 (30 x 28 hole
-to hole, measured on the module in hand). The two boards, 45 x 80 mm each, sit
+The display module is **35.4 x 33.5 mm** with its four M2 holes **30.4 x 28.5**
+apart, set 2.5 mm in from its top-left corner — all four numbers off the part
+itself. Centred on the board it sits at X 7.7–43.1, Y 15.0–48.5, which puts the
+holes at X 10.2 / 40.6 and Y 17.5 / 46.0. The two boards, 45 x 80 mm each, sit
 at X 2.9–47.9, Y 14.0–94.0 behind it; the jack row is below the boards.
 
 **The display's pin order is not the common one.** Measured on the part in hand:
@@ -308,11 +309,8 @@ normal Excellon way to say "oval".
 
 ## Open
 
-- **The display's four mounting holes are still assumed.** 30 x 28 mm hole to
-  hole is carried over from the earlier draft, not measured. The header position
-  and pin order have been checked against the part; these four holes have not.
-  They are non-plated and carry no signal, so a wrong spacing costs a standoff
-  rather than a board — but check them before ordering.
+- Nothing on either board is assumed any more: every footprint position comes
+  from a datasheet, a STEP model, the panel drawing or a measurement on the part.
 - The board-to-board standoffs moved from the corners to y 63 on both boards:
   at y 77.5 the hole falls inside the PARAM encoders' courtyards. The front
   board is anchored to the panel by three encoder nuts anyway.
