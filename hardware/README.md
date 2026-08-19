@@ -275,6 +275,31 @@ display occupies (4.75, 1.0) to (40.25, 34.5). What was left to decide:
   on the back, where the encoders' own courtyards do not reach because those are
   on the other side.
 
+## Fabrication output
+
+Gerbers and drill files are not in the repository -- they are regenerated from
+the board files, and nothing has been ordered yet. Two commands per board, from
+`hardware/`:
+
+```
+kicad-cli pcb export gerbers --output MainBoard/fab/ \
+  --layers "F.Cu,B.Cu,F.Mask,B.Mask,F.SilkS,B.SilkS,F.Paste,B.Paste,Edge.Cuts" \
+  --subtract-soldermask --check-zones MainBoard/MainBoard.kicad_pcb
+
+kicad-cli pcb export drill --output MainBoard/fab/ --format excellon \
+  --excellon-units mm --drill-origin absolute --excellon-separate-th \
+  --generate-map --map-format gerberx2 MainBoard/MainBoard.kicad_pcb
+```
+
+That gives nine Gerbers, a plated and a non-plated Excellon file, drill maps and
+a `.gbrjob` that declares two layers at 1.6 mm. Zip everything except the drill
+maps -- a fab that auto-detects layers can mistake a `-drl_map.gbr` for copper.
+
+Checked against the board files rather than assumed: main board 183 plated holes
+(111 pads + 72 vias) and 4 unplated, front board 87 and 8, both outlines exactly
+45 x 80 mm. The encoders' mounting lugs come out as G85 slots, which is the
+normal Excellon way to say "oval".
+
 ## Open
 
 - **The display header position is a guess.** DS1 is drawn centred on the

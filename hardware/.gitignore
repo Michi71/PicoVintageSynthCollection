@@ -9,3 +9,7 @@ fp-info-cache
 *.net
 *.xml
 .history/
+
+# Fabrication output: regenerated from the board files, see README.
+fab/
+*-gerbers.zip
