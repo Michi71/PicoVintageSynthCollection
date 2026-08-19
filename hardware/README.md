@@ -329,6 +329,79 @@ zero schematic-parity issues; nothing on any layer reaches past the outline.
 The Excellon files carry a `G90` after the header that KiCad has always written
 and that a strict reader warns about. It is not a defect and needs no action.
 
+## 3D view
+
+The board files carried **no `(model ...)` references at all** — the footprints
+were placed by script and the model lines never came along, so both boards
+opened to an empty 3D view. Every footprint now points at its library model
+again, with two exceptions and one correction:
+
+- **The encoders had to be modelled.** KiCad ships 3D models for 105 of its 155
+  footprint libraries and `Rotary_Encoder` is not one of them. These three parts
+  are what fills the 6.5 mm between the front board and the panel, so a 3D view
+  without them answers nothing.
+  [3dmodels/RotaryEncoder_Alps_EC11E_H20mm.wrl](3dmodels/RotaryEncoder_Alps_EC11E_H20mm.wrl)
+  takes its outline and shaft axis from the KiCad footprint and its heights from
+  the EC11E nominal dimensions. Measured back out of a render: body 6.2 mm,
+  bushing 4.8, 19.4 mm total above the board.
+- **The display is an envelope**, not a model —
+  [3dmodels/Display_I2C_35x33_Envelope.wrl](3dmodels/Display_I2C_35x33_Envelope.wrl),
+  35.4 x 33.5 x 2.8 mm on its 3.5 mm standoffs, hung off H1. It exists to occupy
+  the right space, nothing more.
+- **A1 now shows the module on its sockets**, not lying on the board. The
+  footprint offers five variants and the one that was visible had headers
+  soldered flat — which hides the very dimension the whole layout turns on. The
+  socketed pair is visible and the module sits 11 mm up. (The model is a Pico;
+  the part is an RP2350-Plus of the same outline.)
+
+Per board:
+
+```
+kicad-cli pcb render --output MainBoard-back.png --side bottom \
+  --quality high --floor --perspective --rotate '-32,0,24' --zoom 0.85 \
+  MainBoard/MainBoard.kicad_pcb
+```
+
+The two boards stacked is not something kicad-cli does, but it renders 3D models
+and a board can be exported as one. Export the front board to VRML in tenths of
+an inch (the unit KiCad's model loader expects), then add a footprint to a
+throwaway copy of the main board that carries it as a model:
+
+```
+kicad-cli pcb export vrml --output FrontBoard.wrl --units tenths \
+  FrontBoard/FrontBoard.kicad_pcb
+```
+
+```
+(footprint "Assembly:FrontBoardStack"
+  (layer "F.Cu") (at 22.5 40)
+  (model "FrontBoard.wrl" (offset (xyz 0 0 11.04)))
+)
+```
+
+No rotation and no mirroring: both boards are drawn in the same frame with F.Cu
+towards the panel, so the front board only has to move up. **11.04 mm** is the
+mated height of the two connectors, read out of their own STEP models — header
+plastic 2.54 plus socket body 8.5. Raise the offset to 40 mm for an exploded
+view. The VRML export's origin is the board centre with z=0 at the bottom face,
+which is why the footprint goes at (22.5, 40) and the offset is the plain gap.
+
+What the view settled:
+
+- **J1/J2 against J3/J4: all 24 pins coincide to 0.000 mm.** Worth checking
+  rather than assuming — the two footprints are stored with opposite rotations
+  (90 and -90) and only the back-side coordinate flip makes them run the same
+  way.
+- **DS1 and the display collide.** The display's carrier sits 3.5 mm up, a fitted
+  2.54 mm header reaches 8.54 mm, and the render shows its pins straight through
+  the module. That is not a board error — it says the display's own pins solder
+  into DS1 from the front and no header gets fitted there. Worth knowing before
+  ordering parts.
+- **The tact switches in the render are the standard 5 mm type**, about 6.9 mm
+  over the board, and the panel face is at 8.1 mm. That is the 9.5 mm-or-taller
+  requirement noted above, now visible rather than only written down.
+
+
 ## Open
 
 - Nothing on either board is assumed any more: every footprint position comes
