@@ -61,7 +61,7 @@ bar.
 | Out L | 31.15 | 109.6 | 8.2 dia (M8 thread), 10 mm body |
 | Out R | 42.65 | 109.6 | 8.2 dia (M8 thread), 10 mm body |
 
-No USB cutout: the 10 HP panel has no room for the USB-C lead, so USB stays at
+No USB cutout: the 10 HP panel has no room for a USB lead, so USB stays at
 the module's own socket.
 
 The display module is **35.4 x 33.5 mm** with its four M2 holes **30.4 x 28.5**
@@ -169,7 +169,7 @@ Still needed:
 | 10 nF 0805 | 6 | **buy, leave unpopulated** |
 | 100 nF 0805 | 1 | MIDI IN sleeve RF ground, **leave unpopulated** |
 | M2 standoff 3.5 mm + screws | 4 | display |
-| USB-C panel socket with lead | 0–1 | optional: the 10 HP panel has no cutout for it |
+| USB panel socket with lead | 0–1 | optional, and the 10 HP panel has no cutout for it; type follows the module — micro-USB on a Pico 2, USB-C on the Waveshare |
 
 ## Checked against the datasheets
 
@@ -179,6 +179,28 @@ Still needed:
   40 pins. Which one goes in is a firmware build setting, not a board question;
   see the flash-size note in the [top-level README](../README.md). The one place
   the difference does reach the board is BOOT, below.
+- **Everything the board assumes about the module is checked against
+  [the Pico 2 datasheet](https://datasheets.raspberrypi.com/pico/pico-2-datasheet.pdf)**,
+  not against a footprint that happened to be to hand:
+
+  | | board | datasheet |
+  |---|---|---|
+  | outline | 21.00 x 51.00 mm | 51 x 21 mm, 1 mm thick |
+  | pin pitch | 2.54 mm | 2.54 mm |
+  | pin 1 to pin 20 | 48.26 mm | 48.26 mm |
+  | row spacing | 17.78 mm | 17.78 mm |
+  | pin 1 from the top edge | 1.37 mm | (51 − 48.26)/2 |
+  | hole per pin | 1.00 mm | 1 mm |
+
+  Also from the drawing and not used here: four Ø2.1 mm mounting holes, 2 mm in
+  from each end and 11.4 mm apart — the module hangs in its sockets, so they stay
+  empty.
+- **The pin map matches the firmware**, checked pad by pad against
+  `core/include/project_config.h`: MIDI on GP4/GP5 → pins 6/7, display on GP2/GP3
+  → pins 4/5, I2S on GP26/27/28 → pins 31/32/34, the three encoders on
+  GP6-GP8/GP10-GP15, stdio on GP0/GP1 → pins 1/2. Ground lands on 3, 8, 13, 18,
+  23, 28 and 38, and AGND on 33 — which the datasheet allows to be tied to
+  digital ground when the ADC is not used, and it is not.
 - **RUN is on pin 30** of the Pico format, so the RUN switch works.
 - **VSYS is pin 39**, which is where the bus Schottky goes.
 - **BOOT is a test pad on the underside**, under the BOOT button (the USB_N /
@@ -299,8 +321,14 @@ between the boards is taller than a 0805, and ordinary headers reach. It also
 puts USB, the bus connectors and the module's own BOOT/RESET buttons on the side
 you can reach with the module in a case.
 
-- **A1** sits at the top with its USB-C at the board's top edge, so a plug can
-  come in from above without dismantling anything.
+- **A1** sits at the top with its USB socket at the board's top edge, so a plug
+  can come in from above without dismantling anything. A Pico 2 has **micro-USB**
+  (the Waveshare board has USB-C), overhanging its own top edge by 1.3 mm typ.
+  The module's edge is 2.13 mm inside the carrier board's, so the socket face
+  ends up 0.83 mm *behind* the board edge — which sounds like it would foul a
+  plug and does not, because the module stands 11 mm off the back on its sockets
+  and the plug arrives in free air well above the board plane. Worth writing down
+  so nobody 'fixes' it later.
 - **TP2, the BOOT spring-pin pad, cost two reroutes.** It lands where UART0_RX
   used to run, so that net was laid again; the first attempt then took the
   corridor past C9 and pinched the ground pour into an 8.4 mm² island — with
