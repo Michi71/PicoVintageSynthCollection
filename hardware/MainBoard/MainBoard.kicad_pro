@@ -71,7 +71,7 @@
       },
       "diff_pair_dimensions": [],
       "drc_exclusions": [
-        "pth_inside_courtyard|26510000|7580000|2033dfe6-6c2a-4168-9e20-b5e6c5c21a3a|ee25f3d6-8008-416c-ad2c-63778c10b4c6"
+        "pth_inside_courtyard|25000000|15130000|2033dfe6-6c2a-4168-9e20-b5e6c5c21a3a|ee25f3d6-8008-416c-ad2c-63778c10b4c6"
       ],
       "meta": {
         "version": 2
@@ -235,7 +235,7 @@
       "via_dimensions": [],
       "zones_allow_external_fillets": false,
       "drc_exclusions_comments": {
-        "pth_inside_courtyard|26510000|7580000|2033dfe6-6c2a-4168-9e20-b5e6c5c21a3a|ee25f3d6-8008-416c-ad2c-63778c10b4c6": "TP2's hole is meant to sit under A1 - 11 mm of air between them, that is what the pogo pin spans"
+        "pth_inside_courtyard|25000000|15130000|2033dfe6-6c2a-4168-9e20-b5e6c5c21a3a|ee25f3d6-8008-416c-ad2c-63778c10b4c6": "TP2's hole is meant to sit under A1 - 11 mm of air between them, that is what the spring pin spans"
       }
     },
     "ipc2581": {

@@ -191,27 +191,42 @@ Still needed:
   BOOT is the only signal on either board that does not end on a connector pin,
   which is why it gets two terminals rather than one:
 
-  **TP2** is a spring-pin landing pad at **26.51 / 7.58**, directly under the
+  **TP2** is a spring-pin landing pad at **25.00 / 15.13**, directly under the
   module's BOOT pad, so the contact is made by seating the module and the module
   stays a plug-in part. That matters: the sockets are in the BOM specifically to
   keep it replaceable, and a soldered wire would tether it. The pin has to span
   **11.04 mm** — socket body 8.5 plus header plastic 2.54, both read out of their
   own STEP models — so roughly 12 mm free length compressing to 11. A crown or
-  serrated tip, not a spear: the module's pad is flat, unperforated and 1 mm
-  across, and 1° of tilt over 11 mm is already 0.19 mm of miss.
+  serrated tip, not a spear: the module's pad is flat and unperforated. It is
+  **1.5 x 1.5 mm** though, which is a kinder target than it first looked, and
+  leaves room for the tilt a 11 mm free-standing pin will have.
 
-  The position comes from the **Pico 2 datasheet**, where the pad is TP6, at
-  4.01 mm off the centreline and 5.45 mm from the top edge — the drawn-for part's
-  own document, so the numbers are not borrowed from anything. The one thing a
-  drawing cannot settle is which side of the centreline that is, because it does
-  not say which face it is viewed from; **checked on the part, the pad is nearer
-  the GP0 row**, which is the 26.51 the board carries. The other reading would
-  have put it at 18.49, eight millimetres away.
+  **Where the position comes from.** Figure 5 of the Pico 2 datasheet, the SMT
+  footprint, which gives every test-point centre in a frame whose origin is the
+  board's bottom-left corner. The board is 21 x 51 mm there, and the USB shell
+  pads at x 7.775 and 13.225 fix the centreline at 10.5. There are **seven** test
+  points, not six, and the drawing labels none of them — it only gives
+  coordinates, so which one is TP6 has to be reasoned out:
 
-  Against the module's own features the pad sits 4.88 mm inwards from the GP0 pin
-  row and 4.08 mm from pin 1 along it — just past pin 2, a millimetre short of
-  pin 3. Worth having in that form because it is checkable with callipers on the
-  part rather than only in a PDF.
+  | coordinate | mm from the USB end | what it must be |
+  |---|---|---|
+  | (9.5, 49.8), (11.5, 49.8), (10.5, 46.5) | 1.2 / 1.2 / 4.5 | TP1–TP3, the USB group, clustered at the connector |
+  | (8, 43) | 8.0 | TP5, GPIO25/LED — the LED sits 7.4 mm from that end |
+  | (8, 40.5) | 10.5 | TP4, GPIO23/SMPS PS |
+  | **(8, 38)** | **13.0** | **TP6, BOOTSEL — the button sits 13.2 mm from that end** |
+  | (11.5, 30.5) | 20.5 | TP7, 1V1, over by the chip |
+
+  The LED and the BOOTSEL button are visible on any photo of the board, and
+  measuring both against the three candidates leaves only one reading. The frame
+  itself is confirmed independently: it puts pin 1's centre 1.37 mm from the top
+  edge, which is exactly what KiCad's `RaspberryPi_Pico_Common_THT` footprint
+  uses.
+
+  Which side of the centreline a drawing means is the one thing it cannot say,
+  since it does not state the viewing face — **checked on the part, the pad is
+  nearer the GP0 row**, and that is the side the board carries. Against the
+  module's own features TP6 sits **6.39 mm inwards from the GP0 pin row** and
+  **11.63 mm from pin 1 along it**, which is the form to check with callipers.
 
   **The Waveshare RP2350-Plus is a different PCB**, so its BOOT pad is somewhere
   else and the spring pin will land on bare laminate. That build uses TP1 and a
