@@ -162,6 +162,7 @@ lib/             third-party static libraries (audio, encoder, u8g2) and the SDK
 instruments/     one folder per instrument: instrument.cmake, src/, include/, doc/, README.md
 tools/           host-side tools; not part of any firmware image
 docs/            documentation shared by all instruments
+hardware/        the module as a board: dimensions, parts, drill list. Not built yet
 img/             photos of the prototype hardware
 ```
 
@@ -173,6 +174,8 @@ Shared:
 - [Adding an instrument](docs/ADDING_AN_INSTRUMENT.md) - the three steps needed
 - [The module bus](docs/MODULE_BUS.md) - the hardware interface several modules in one
   case would share: power, MIDI and audio. Planned, not built
+- [Hardware](hardware/README.md) - the module as a 10 HP Eurorack board: dimensions,
+  drill list, parts. Also planned, not built
 - [Host tools](tools/README.md)
 
 Per instrument, under `instruments/<name>/doc/`: MIDI implementation charts,
