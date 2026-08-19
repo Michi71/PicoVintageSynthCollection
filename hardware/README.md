@@ -91,6 +91,12 @@ apart at 11.5 mm pitch — fine for round nuts, an 11 mm hex nut is marginal.
 
 Both boards are **45 x 80 mm, two layers**.
 
+![The two boards pulled apart, front board above the main board](render/Assembly-exploded.jpg)
+
+*Renders under [render/](render/); how they are made and what they settled is in
+[3D view](#3d-view) below. The encoders and the display are stand-in models, and
+the module is drawn as a Pico.*
+
 **Front board**, 6.5 mm behind the panel, carries everything the format dictates
 — and that 6.5 mm is a hard ceiling for anything on its panel side, which is why
 the jack wires are soldered into J8 rather than plugged into a header: a 2.54 mm
@@ -214,6 +220,10 @@ Still needed:
 
 ## The main board layout
 
+| front | back |
+|---|---|
+| ![Main board, panel side: J1 / J2 and the eight 0805 parts](render/MainBoard-front.jpg) | ![Main board, back: module on sockets, MIDI section, PCM5102 sockets](render/MainBoard-back.jpg) |
+
 [MainBoard/](MainBoard/) is a second KiCad project, because KiCad wants one
 board per project. Its root sheet is a wrapper that pulls in
 `../PicoVintageSynthCollection/main_board.kicad_sch` — there is one copy of the
@@ -256,6 +266,10 @@ courtyard is deliberately clipped) and a handful of silkscreen overlaps on a
 board this dense.
 
 ## The front board layout
+
+| panel side | back |
+|---|---|
+| ![Front board, panel side: display, three encoders, RUN and BOOT](render/FrontBoard-front.jpg) | ![Front board, back: J3 / J4, J8 and the debounce parts](render/FrontBoard-back.jpg) |
 
 [FrontBoard/](FrontBoard/), same arrangement as the main board: a wrapper root
 sheet around the shared `front_board.kicad_sch`, one copy of the schematic.
@@ -385,6 +399,22 @@ mated height of the two connectors, read out of their own STEP models — header
 plastic 2.54 plus socket body 8.5. Raise the offset to 40 mm for an exploded
 view. The VRML export's origin is the board centre with z=0 at the bottom face,
 which is why the footprint goes at (22.5, 40) and the offset is the plain gap.
+
+![The stack in profile: panel side at the top, module hanging off the back](render/Assembly-profile.jpg)
+
+The profile is the one worth reading twice. Top to bottom: encoder shafts and the
+display on their standoffs, the front board, the two socket strips filling the
+gap with J1 / J2 inside them, the main board, and the module hanging off its
+sockets at the back. Also visible on the right is DS1's pin going straight
+through the display.
+
+![The assembled pair from the panel side](render/Assembly-iso.jpg)
+
+The seven renders in [render/](render/) come out of exactly these commands,
+scaled to 1200 px and saved as JPEG at quality 90 — they are photographic images
+with smooth shading, where JPEG costs a third of the space and, checked at 200 %
+zoom, leaves the silkscreen lettering clean. Regenerate them whenever a board
+changes; they are documentation, not an artefact anything depends on.
 
 What the view settled:
 
