@@ -182,6 +182,34 @@ Still needed:
   pad to ground — no extra resistor. A second button there makes the module
   unbrickable: a firmware too broken to reach its own interface is still
   recoverable without taking it apart.
+
+  BOOT is the only signal on either board that does not end on a connector pin,
+  which is why it gets two terminals rather than one:
+
+  **TP2** is a spring-pin landing pad at **26.51 / 7.58**, directly under the
+  module's BOOT pad, so the contact is made by seating the module and the module
+  stays a plug-in part. That matters: the sockets are in the BOM specifically to
+  keep it replaceable, and a soldered wire would tether it. The pin has to span
+  **11.04 mm** — socket body 8.5 plus header plastic 2.54, both read out of their
+  own STEP models — so roughly 12 mm free length compressing to 11. A crown or
+  serrated tip, not a spear: the module's pad is flat, unperforated and 1 mm
+  across, and 1° of tilt over 11 mm is already 0.19 mm of miss.
+
+  **Two things about that position are not settled and want checking against the
+  actual part before anyone buys a pin.** The coordinate it came from
+  (−4.01 / −5.45 from the top edge, on the centreline) is out of the **Raspberry
+  Pi Pico 2** datasheet, where the pad is called TP6; the module here is a
+  **WeAct RP2350-Plus**, same 40-pin outline but its own layout, and its test
+  pads are very unlikely to sit in exactly the same place. And the sign of X
+  depends on which side that drawing is viewed from, which no wording settles.
+  The physical check needs no measuring: **look at the module's underside and
+  see whether the BOOT pad is nearer the GP0 row or the VBUS row.** GP0 side is
+  the 26.51 the board is drawn for; VBUS side means 18.49, and only that number
+  changes.
+
+  **TP1 stays** as the fallback, out at the board edge where a soldering iron
+  reaches, for the case where the pad turns out to be somewhere else entirely.
+  Then it is the short-wire build after all, and nothing has been lost.
 - **RUN has only the RP2350's internal ~50k pull-up** (no external one on the
   module), and here it travels over two headers to the tact switch on the front
   board. 100 nF at the module pin (C9) so a touch or a spike does not reset a
@@ -247,6 +275,17 @@ you can reach with the module in a case.
 
 - **A1** sits at the top with its USB-C at the board's top edge, so a plug can
   come in from above without dismantling anything.
+- **TP2, the BOOT spring-pin pad, cost two reroutes.** It lands where UART0_RX
+  used to run, so that net was laid again; the first attempt then took the
+  corridor past C9 and pinched the ground pour into an 8.4 mm² island — with
+  C9's own ground pad inside it, which would have left the RUN capacitor with no
+  return path. The island was too narrow for a stitching via (widest point
+  0.468 mm, a 0.6 mm via needs 0.50), so the fix is upstream: that corridor is a
+  router keep-out now and UART0_RX goes round. Worth knowing because the same
+  trap is waiting for the next track laid through there. BOOT ends up 72.2 mm
+  long over two vias, which is long for a node that sits 1k from the flash chip
+  select — harmless, because it is only sampled at reset, but it is the reason
+  to keep the wire short if the fallback build happens instead.
 - **The PCM5102 module** is at the bottom, on the socket offsets taken from the
   STEP model and cross-checked against a KiCad footprint — see
   [PCM5102_module_geometry.md](PCM5102_module_geometry.md). Its own 3.5 mm jack
@@ -343,6 +382,13 @@ zero schematic-parity issues; nothing on any layer reaches past the outline.
 The Excellon files carry a `G90` after the header that KiCad has always written
 and that a strict reader warns about. It is not a defect and needs no action.
 
+The main board carries **one DRC exclusion**, written into `MainBoard.kicad_pro`
+with its reason: TP2's hole sits inside A1's courtyard, which is the entire point
+of it. It is an exclusion for that one pair rather than the rule turned off, so
+`pth_inside_courtyard` still guards the rest of the board — it caught a real
+problem once already, when J1's pads sat under the module. TP2 has no courtyard
+of its own, because a landing pad is not a component body.
+
 ## 3D view
 
 The board files carried **no `(model ...)` references at all** — the footprints
@@ -362,6 +408,14 @@ again, with two exceptions and one correction:
   [3dmodels/Display_I2C_35x33_Envelope.wrl](3dmodels/Display_I2C_35x33_Envelope.wrl),
   35.4 x 33.5 x 2.8 mm on its 3.5 mm standoffs, hung off H1. It exists to occupy
   the right space, nothing more.
+- **The spring pin has a stand-in too** —
+  [3dmodels/SpringPin_11mm_Stand-in.wrl](3dmodels/SpringPin_11mm_Stand-in.wrl).
+  No part number behind it; it draws the envelope the contact has to fill, and
+  the render below is what it is for: the pin has to out-reach the socket strips
+  beside it, and you can see that it does.
+
+  ![The BOOT spring pin at TP2, module hidden](render/MainBoard-pogo.jpg)
+
 - **A1 now shows the module on its sockets**, not lying on the board. The
   footprint offers five variants and the one that was visible had headers
   soldered flat — which hides the very dimension the whole layout turns on. The

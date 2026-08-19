@@ -5221,13 +5221,24 @@
 	(wire
 		(pts
 			(xy 24.13 195.58)
-			(xy 36.83 195.58)
+			(xy 44.45 195.58)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
 		(uuid "c96e15aa-ee87-4c83-a5b8-08e70d28b6af")
+	)
+	(wire
+		(pts
+			(xy 44.45 195.58)
+			(xy 44.45 190.5)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c96e15aa-ee87-4c83-a5b8-08e70d28b6b0")
 	)
 	(wire
 		(pts
@@ -10791,6 +10802,90 @@
 			(project "MainBoard"
 				(path "/b2c3d4e5-0001-4a5b-8c6d-000000000101/b2c3d4e5-0011-4a5b-8c6d-000000000111"
 					(reference "TP1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Connector:TestPoint")
+		(at 44.45 190.5 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "7ab43066-7bc2-4199-938b-4d928b76ad72")
+		(property "Reference" "TP2"
+			(at 39.37 186.69 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "BOOT pogo"
+			(at 39.37 184.15 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "TestPoint:TestPoint_THTPad_D2.0mm_Drill1.0mm"
+			(at 44.45 190.5 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 44.45 190.5 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Landing pad for a spring pin to the module BOOT pad, 11.04 mm above"
+			(at 44.45 190.5 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "35f865b7-825f-4a20-8a63-bd527535f8fe")
+		)
+		(instances
+			(project "PicoVintageSynthCollection"
+				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0011-4a5b-8c6d-000000000012"
+					(reference "TP2")
+					(unit 1)
+				)
+			)
+			(project "MainBoard"
+				(path "/b2c3d4e5-0001-4a5b-8c6d-000000000101/b2c3d4e5-0011-4a5b-8c6d-000000000112"
+					(reference "TP2")
 					(unit 1)
 				)
 			)
