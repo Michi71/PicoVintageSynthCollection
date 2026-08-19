@@ -10,8 +10,8 @@ The schematic is drawn: the KiCad 10 project in
 `main_board`, `front_board`, `panel`; ERC clean), with a PDF export next to it
 ([PicoFace-schematic.pdf](PicoVintageSynthCollection/PicoFace-schematic.pdf)).
 
-The **main board is laid out**: [MainBoard/](MainBoard/), routed, DRC clean.
-The front board is not.
+**Both boards are laid out**: [MainBoard/](MainBoard/) and
+[FrontBoard/](FrontBoard/), routed, DRC clean. Nothing is fabricated.
 
 The interface *between* several modules — power, MIDI, audio — is a separate
 document: [The module bus](../docs/MODULE_BUS.md).
@@ -84,7 +84,10 @@ apart at 11.5 mm pitch — fine for round nuts, an 11 mm hex nut is marginal.
 
 Both boards are **45 x 80 mm, two layers**.
 
-**Front board**, 6.5 mm behind the panel, carries everything the format dictates:
+**Front board**, 6.5 mm behind the panel, carries everything the format dictates
+— and that 6.5 mm is a hard ceiling for anything on its panel side, which is why
+the jack wires are soldered into J8 rather than plugged into a header: a 2.54 mm
+header stands 8.5 mm tall and would hit the panel. It carries:
 three EC11 encoders, the RUN and BOOT tact switches (6x6, four pins; the
 actuator has to reach through 6.5 mm of gap plus the 1.6 mm panel, so the 9.5
 mm or taller types), the display on standoffs, the encoder pull-ups, and the
@@ -245,12 +248,42 @@ footprints differing from their library copies (they are generated, and A1's
 courtyard is deliberately clipped) and a handful of silkscreen overlaps on a
 board this dense.
 
+## The front board layout
+
+[FrontBoard/](FrontBoard/), same arrangement as the main board: a wrapper root
+sheet around the shared `front_board.kicad_sch`, one copy of the schematic.
+Power arrives through J3 rather than from anything on the board, so ERC rule
+`power_pin_not_driven` is set to ignore in that project only.
+
+45 x 80 mm, two layers, same rules as the main board. 229 track segments, 691 mm
+of copper, 20 vias, ground poured both sides.
+
+Almost nothing here was a free choice — the panel fixes it. Board origin is
+panel (2.9, 14), so the encoder shafts land at (22.5, 46.58), (10.0, 71.61) and
+(35.0, 71.61), the two buttons at (7.1, 46.58) and (37.9, 46.58), and the
+display occupies (4.75, 1.0) to (40.25, 34.5). What was left to decide:
+
+- **J3 / J4 sit on the back at exactly the coordinates J1 / J2 occupy on the
+  main board** — y 55.4 and 60.4, pin 1 at x 8.89. Both boards are drawn in the
+  same frame (both have F.Cu facing the panel), so a point (x, y) on one is
+  directly behind the same point on the other, and pin k meets pin k.
+- **J8 sits on the back**, in the free band between the display and the encoder
+  row. Its wires run in the gap between the boards and leave at the bottom edge:
+  on the panel side the encoder bodies fill the whole 6.5 mm, so there is no
+  lane for ten wires there.
+- **The pull-ups and debounce footprints sit beside the encoder they belong to**,
+  on the back, where the encoders' own courtyards do not reach because those are
+  on the other side.
+
 ## Open
 
-- The front board is not laid out. J1 / J2 sit at y 55.4 and 60.4, x 8.89 to
-  36.83, pin 1 at the left; its sockets have to mate with that. Watch the pin
-  order: a footprint placed on the back is mirrored, so pin 1 does not land
-  where the eye expects.
+- **The display header position is a guess.** DS1 is drawn centred on the
+  module's top edge. The module is not bought yet, so nothing could be measured;
+  check it against the real part before ordering boards. It is the one footprint
+  on either board whose position is not backed by a measurement.
+- The board-to-board standoffs moved from the corners to y 63 on both boards:
+  at y 77.5 the hole falls inside the PARAM encoders' courtyards. The front
+  board is anchored to the panel by three encoder nuts anyway.
 - Not fabricated, not built.
 - Panel-mounted parts (the four jacks, the optional USB lead) are in the
   schematic with "exclude from board" set, so they appear in the BOM but on

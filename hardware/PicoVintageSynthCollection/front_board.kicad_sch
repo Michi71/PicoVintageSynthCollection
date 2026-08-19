@@ -4593,6 +4593,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "J3")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -4667,6 +4673,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR031")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR031")
 					(unit 1)
 				)
@@ -4749,6 +4761,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "#PWR032")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -4827,6 +4845,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "#PWR033")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -4901,6 +4925,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR034")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR034")
 					(unit 1)
 				)
@@ -5016,6 +5046,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "J4")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -5090,6 +5126,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR035")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR035")
 					(unit 1)
 				)
@@ -5182,6 +5224,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "SW1")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -5255,6 +5303,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR036")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR036")
 					(unit 1)
 				)
@@ -5340,6 +5394,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "R5")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -5413,6 +5473,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR037")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR037")
 					(unit 1)
 				)
@@ -5498,6 +5564,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "C2")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -5571,6 +5643,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR038")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR038")
 					(unit 1)
 				)
@@ -5656,6 +5734,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "R6")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -5729,6 +5813,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR039")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR039")
 					(unit 1)
 				)
@@ -5814,6 +5904,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "C3")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -5887,6 +5983,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR040")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR040")
 					(unit 1)
 				)
@@ -5972,6 +6074,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "R7")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -6049,6 +6157,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "#PWR041")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -6122,6 +6236,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR042")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR042")
 					(unit 1)
 				)
@@ -6214,6 +6334,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "SW2")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -6287,6 +6413,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR043")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR043")
 					(unit 1)
 				)
@@ -6372,6 +6504,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "R8")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -6445,6 +6583,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR044")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR044")
 					(unit 1)
 				)
@@ -6530,6 +6674,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "C4")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -6603,6 +6753,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR045")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR045")
 					(unit 1)
 				)
@@ -6688,6 +6844,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "R9")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -6761,6 +6923,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR046")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR046")
 					(unit 1)
 				)
@@ -6846,6 +7014,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "C5")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -6919,6 +7093,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR047")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR047")
 					(unit 1)
 				)
@@ -7004,6 +7184,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "R10")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -7081,6 +7267,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "#PWR048")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -7154,6 +7346,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR049")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR049")
 					(unit 1)
 				)
@@ -7246,6 +7444,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "SW3")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -7319,6 +7523,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR050")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR050")
 					(unit 1)
 				)
@@ -7404,6 +7614,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "R11")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -7477,6 +7693,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR051")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR051")
 					(unit 1)
 				)
@@ -7562,6 +7784,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "C6")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -7635,6 +7863,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR052")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR052")
 					(unit 1)
 				)
@@ -7720,6 +7954,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "R12")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -7793,6 +8033,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR053")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR053")
 					(unit 1)
 				)
@@ -7878,6 +8124,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "C7")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -7951,6 +8203,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR054")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR054")
 					(unit 1)
 				)
@@ -8036,6 +8294,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "R13")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -8113,6 +8377,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "#PWR055")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -8186,6 +8456,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR056")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR056")
 					(unit 1)
 				)
@@ -8277,6 +8553,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "DS1")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -8351,6 +8633,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR057")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR057")
 					(unit 1)
 				)
@@ -8433,6 +8721,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "#PWR058")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -8503,6 +8797,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "H1")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "H1")
 					(unit 1)
 				)
@@ -8581,6 +8881,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "H2")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -8655,6 +8961,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "H3")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -8725,6 +9037,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "H4")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "H4")
 					(unit 1)
 				)
@@ -8834,6 +9152,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "J8")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -8908,6 +9232,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR059")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR059")
 					(unit 1)
 				)
@@ -8990,6 +9320,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "#PWR060")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -9064,6 +9400,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR061")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR061")
 					(unit 1)
 				)
@@ -9147,6 +9489,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "C8")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -9221,6 +9569,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR062")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR062")
 					(unit 1)
 				)
@@ -9304,6 +9658,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "SW4")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -9377,6 +9737,12 @@
 		(instances
 			(project "PicoVintageSynthCollection"
 				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "#PWR070")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
 					(reference "#PWR070")
 					(unit 1)
 				)
@@ -9460,6 +9826,12 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "SW5")
+					(unit 1)
+				)
+			)
 		)
 	)
 	(symbol
@@ -9537,7 +9909,344 @@
 					(unit 1)
 				)
 			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "#PWR071")
+					(unit 1)
+				)
+			)
 		)
+	)
+	(symbol
+		(lib_id "Mechanical:MountingHole")
+		(at 248.92 232.41 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "14d17adf-f4d8-4021-bfff-7445b141474d")
+		(property "Reference" "H9"
+			(at 248.92 228.6 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "M2 board standoff"
+			(at 248.92 236.22 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Footprint" "MountingHole:MountingHole_2.2mm_M2"
+			(at 248.92 232.41 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 248.92 232.41 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "M2 mounting hole; standoff between front board and main board"
+			(at 248.92 232.41 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(instances
+			(project "PicoVintageSynthCollection"
+				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "H9")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "H9")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Mechanical:MountingHole")
+		(at 261.62 232.41 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "944b02d7-227c-416b-9ecc-8fa28d9240ac")
+		(property "Reference" "H10"
+			(at 261.62 228.6 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "M2 board standoff"
+			(at 261.62 236.22 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Footprint" "MountingHole:MountingHole_2.2mm_M2"
+			(at 261.62 232.41 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 261.62 232.41 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "M2 mounting hole; standoff between front board and main board"
+			(at 261.62 232.41 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(instances
+			(project "PicoVintageSynthCollection"
+				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "H10")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "H10")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Mechanical:MountingHole")
+		(at 274.32 232.41 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "c2494498-422b-4884-9d66-2ef395e006b1")
+		(property "Reference" "H11"
+			(at 274.32 228.6 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "M2 board standoff"
+			(at 274.32 236.22 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Footprint" "MountingHole:MountingHole_2.2mm_M2"
+			(at 274.32 232.41 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 274.32 232.41 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "M2 mounting hole; standoff between front board and main board"
+			(at 274.32 232.41 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(instances
+			(project "PicoVintageSynthCollection"
+				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "H11")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "H11")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Mechanical:MountingHole")
+		(at 287.02 232.41 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "2a2f37f8-cbb4-4a70-87e5-ed53898b2789")
+		(property "Reference" "H12"
+			(at 287.02 228.6 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "M2 board standoff"
+			(at 287.02 236.22 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Footprint" "MountingHole:MountingHole_2.2mm_M2"
+			(at 287.02 232.41 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 287.02 232.41 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "M2 mounting hole; standoff between front board and main board"
+			(at 287.02 232.41 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(instances
+			(project "PicoVintageSynthCollection"
+				(path "/717c5337-9c00-45ff-821b-4326af0f12e4/a1b2c3d4-0012-4a5b-8c6d-000000000012"
+					(reference "H12")
+					(unit 1)
+				)
+			)
+			(project "FrontBoard"
+				(path "/c3d4e5f6-0001-4a5b-8c6d-000000000201/c3d4e5f6-0011-4a5b-8c6d-000000000211"
+					(reference "H12")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(text "H9-H12: M2 standoffs to the main board, same four positions as its H5-H8."
+		(exclude_from_sim no)
+		(at 248.92 236.22 0)
+		(effects
+			(font
+				(size 1 1)
+			)
+			(justify left top)
+		)
+		(uuid "dc8a407c-f90b-4fe3-8531-60bf719623b6")
 	)
 	(embedded_fonts no)
 )
