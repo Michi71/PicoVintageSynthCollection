@@ -69,6 +69,12 @@ puts its four mounting holes at X 10.4 / 40.4 and Y 17.75 / 45.75 (30 x 28 hole
 to hole, measured on the module in hand). The two boards, 45 x 80 mm each, sit
 at X 2.9–47.9, Y 14.0–94.0 behind it; the jack row is below the boards.
 
+**The display's pin order is not the common one.** Measured on the part in hand:
+**1 VDD, 2 GND, 3 SCK, 4 SDA**, numbered from the display side with pin 1 on the
+left. The order most modules use — GND, VCC, SCL, SDA — would have put 3.3 V on
+this module's ground pin and killed it on first power-up. The header is centred
+on the module's top edge, which is where DS1 sits.
+
 **The window is cut to the pixels, not to the glass.** On the 1.3 inch module the
 active area starts 7.35 mm below the module's top edge and is 14.7 mm tall, so
 its centre lands 14.7 mm below that edge — the glass around it is 19 mm tall and
@@ -296,16 +302,17 @@ a `.gbrjob` that declares two layers at 1.6 mm. Zip everything except the drill
 maps -- a fab that auto-detects layers can mistake a `-drl_map.gbr` for copper.
 
 Checked against the board files rather than assumed: main board 183 plated holes
-(111 pads + 72 vias) and 4 unplated, front board 87 and 8, both outlines exactly
-45 x 80 mm. The encoders' mounting lugs come out as G85 slots, which is the
+(111 pads + 72 vias) and 4 unplated, front board 86 (67 + 19) and 8, both
+outlines exactly 45 x 80 mm. The encoders' mounting lugs come out as G85 slots, which is the
 normal Excellon way to say "oval".
 
 ## Open
 
-- **The display header position is a guess.** DS1 is drawn centred on the
-  module's top edge. The module is not bought yet, so nothing could be measured;
-  check it against the real part before ordering boards. It is the one footprint
-  on either board whose position is not backed by a measurement.
+- **The display's four mounting holes are still assumed.** 30 x 28 mm hole to
+  hole is carried over from the earlier draft, not measured. The header position
+  and pin order have been checked against the part; these four holes have not.
+  They are non-plated and carry no signal, so a wrong spacing costs a standoff
+  rather than a board — but check them before ordering.
 - The board-to-board standoffs moved from the corners to y 63 on both boards:
   at y 77.5 the hole falls inside the PARAM encoders' courtyards. The front
   board is anchored to the panel by three encoder nuts anyway.

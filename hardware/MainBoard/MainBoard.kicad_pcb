@@ -2760,7 +2760,7 @@
 			)
 		)
 		(path "/00000000-0000-0000-0000-0000000000a3")
-		(attr through_hole)
+		(attr through_hole exclude_from_bom)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start -1.33 -21.65)
@@ -3407,7 +3407,7 @@
 			)
 		)
 		(path "/5ae005c4-767e-4a47-9ae9-939200f52120")
-		(attr through_hole)
+		(attr through_hole dnp)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
 			(start 1.38 -1.27)

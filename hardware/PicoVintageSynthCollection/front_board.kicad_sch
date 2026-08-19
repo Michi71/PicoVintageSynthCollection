@@ -1642,7 +1642,7 @@
 					(hide yes)
 				)
 			)
-			(property "Description" "1.3 inch 128x64 OLED module, SH1106, I2C, 4-pin header (GND VCC SCL SDA - order varies by vendor)"
+			(property "Description" "1.3 inch 128x64 OLED module, SH1106, I2C, 4-pin header. Pin order measured on the part in hand: 1 VDD, 2 GND, 3 SCK, 4 SDA, numbered from the display side with pin 1 on the left"
 				(at 0 0 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -1681,7 +1681,7 @@
 				(pin power_in line
 					(at -11.43 3.81 0)
 					(length 3.81)
-					(name "GND"
+					(name "VDD"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -1699,7 +1699,7 @@
 				(pin power_in line
 					(at -11.43 1.27 0)
 					(length 3.81)
-					(name "VCC"
+					(name "GND"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -1717,7 +1717,7 @@
 				(pin input line
 					(at -11.43 -1.27 0)
 					(length 3.81)
-					(name "SCL"
+					(name "SCK"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -3852,7 +3852,7 @@
 		)
 		(uuid "c3f6d18a-593f-441e-90ba-33de6595a495")
 	)
-	(text "OLED: I2C1 at 1 MHz, u8g2 SH1106 driver, address 0x3C.\nModules carry their own SDA/SCL pull-ups (~4k7).\nPin order GND-VCC-SCL-SDA is the common one - check the\nmodule, some vendors swap the first two.\nPanel window is cut to the pixels (active area starts\n7.35 mm below the module top edge)."
+	(text "OLED: I2C1 at 1 MHz, u8g2 SH1106 driver, address 0x3C.\nPin order measured on the part in hand: 1 VDD, 2 GND, 3 SCK, 4 SDA,\nnumbered from the display side with pin 1 on the left. The usual\nGND-VCC-SCL-SDA order would have put 3V3 on the module's ground pin.\nHeader is centred on the module; the four M2 holes are still assumed.\nModules carry their own SDA/SCL pull-ups (~4k7)."
 		(exclude_from_sim no)
 		(at 218.44 81.28 0)
 		(effects
@@ -8563,7 +8563,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 227.33 62.23 270)
+		(at 227.33 64.77 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -8573,7 +8573,7 @@
 		(dnp no)
 		(uuid "9f8b4794-d917-4cd6-b634-f7fed4a83edb")
 		(property "Reference" "#PWR057"
-			(at 224.155 63.5 90)
+			(at 224.155 66.04 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8584,7 +8584,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 224.155 62.23 90)
+			(at 224.155 64.77 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8595,7 +8595,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 227.33 62.23 0)
+			(at 227.33 64.77 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8606,7 +8606,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 227.33 62.23 0)
+			(at 227.33 64.77 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8617,7 +8617,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 227.33 62.23 0)
+			(at 227.33 64.77 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8647,7 +8647,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 227.33 64.77 90)
+		(at 227.33 62.23 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -8657,7 +8657,7 @@
 		(dnp no)
 		(uuid "98e29303-62b8-4a15-8e0e-5253ad1d81e2")
 		(property "Reference" "#PWR058"
-			(at 224.155 66.04 90)
+			(at 224.155 63.5 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8668,7 +8668,7 @@
 			)
 		)
 		(property "Value" "+3V3"
-			(at 224.155 64.77 90)
+			(at 224.155 62.23 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8679,7 +8679,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 227.33 64.77 0)
+			(at 227.33 62.23 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8690,7 +8690,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 227.33 64.77 0)
+			(at 227.33 62.23 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -8701,7 +8701,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 227.33 64.77 0)
+			(at 227.33 62.23 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
