@@ -5673,7 +5673,7 @@
 		)
 		(uuid "52d0512c-432d-4f2d-be58-c354cb69476d")
 	)
-	(text "TP1: pad for a short wire to the module BOOT test point\n(underside, under the BOOT button). That pad already sits\nbehind the module's own 1k (R20), so the BOOT tact switch\non the front board goes straight to it. Unbrickable module."
+	(text "BOOT reaches the module at a pad on its underside -- it is on no\nheader pin. On a Pico 2 that is TP6; the pad sits behind the 1k to\nQSPI_SS_N, so the tact switch on the front board goes straight to it,\nno resistor of ours. Unbrickable module.\nTP2 is the landing pad for a spring pin, under TP6, 11.04 mm below it.\nTP1 is the fallback at the board edge: solder a wire instead. A\nWaveshare RP2350-Plus has its pad elsewhere and takes the wire."
 		(exclude_from_sim no)
 		(at 15.24 205.74 0)
 		(effects

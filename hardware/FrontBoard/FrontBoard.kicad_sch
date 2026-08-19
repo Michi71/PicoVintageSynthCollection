@@ -1481,7 +1481,7 @@
 		)
 	)
 	(embedded_fonts no)
-	(text "GND, +3V3 and VSYS reach this board through J3 -- there is no source on it, so ERC rule\npower_pin_not_driven is set to ignore in this project only. The hierarchical project,\nwhere the RP2350-Plus actually drives those rails, is checked with it on."
+	(text "GND, +3V3 and VSYS reach this board through J3 -- there is no source on it, so ERC rule\npower_pin_not_driven is set to ignore in this project only. The hierarchical project,\nwhere the module actually drives those rails, is checked with it on."
 		(exclude_from_sim no)
 		(at 168.0 92.0 0)
 		(effects

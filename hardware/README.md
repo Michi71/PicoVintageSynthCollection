@@ -107,7 +107,7 @@ mm or taller types), the display on standoffs, the encoder pull-ups, and the
 header J8 for the panel-wired jacks.
 
 **Main board** behind it carries what does not care about the format: the
-RP2350-Plus on sockets, the PCM5102, the MIDI circuitry, and the bus connectors.
+module on sockets, the PCM5102, the MIDI circuitry, and the bus connectors.
 
 They join with **two 1x12 headers** (J1/J2 male on the main board, J3/J4
 sockets on the front board) — two rather than one because they also hold the
@@ -141,7 +141,7 @@ still isolates the loop).
 
 ## Parts
 
-Already in hand: RP2350-Plus (16 MB), three EC11 with 5 mm bushings, 15 mm
+Already in hand: Waveshare RP2350-Plus (16 MB), three EC11 with 5 mm bushings, 15 mm
 knobs, PCM5102 module.
 
 Still needed:
@@ -153,7 +153,7 @@ Still needed:
 | Tact switch 6x6, 4-pin, actuator ≥ 9.5 mm | 2 | RUN, BOOT — on the front board |
 | Header strips 12-pin, male + female | 2 each | board to board (J1/J2, J3/J4) |
 | Header strip 10-pin | 1 | panel jacks (J8) |
-| Socket strips for the RP2350-Plus | 2 | keep the module replaceable |
+| Socket strips for the module | 2 | keep the module replaceable |
 | Socket strips 1x6 and 1x9 | 1 each | the PCM5102 module, likewise replaceable |
 | H11L1 optocoupler (+ DIP-6 socket) | 1 | MIDI in, Schmitt trigger type |
 | 220R, 4k7, 1N4148, 100 nF | 1 each | MIDI in (4k7 pull-up on the H11L1, 100 nF bypass) |
@@ -173,13 +173,18 @@ Still needed:
 
 ## Checked against the datasheets
 
-- **RUN is on pin 30** of the RP2350-Plus, so the RUN switch works.
+- **The boards are drawn for a Raspberry Pi Pico 2**, the module most of the
+  instruments in this collection run on. A **Waveshare RP2350-Plus** drops into
+  the same sockets when 16 MB of flash is wanted — same 21 x 51 mm outline, same
+  40 pins. Which one goes in is a firmware build setting, not a board question;
+  see the flash-size note in the [top-level README](../README.md). The one place
+  the difference does reach the board is BOOT, below.
+- **RUN is on pin 30** of the Pico format, so the RUN switch works.
 - **VSYS is pin 39**, which is where the bus Schottky goes.
 - **BOOT is a test pad on the underside**, under the BOOT button (the USB_N /
   USB_P pads sit under the USB connector, the three SWD pads at the far end).
-  In the module's schematic that pad sits on the button side of the 1k (R20)
-  that separates it from QSPI_SS_N, so the BOOT switch goes straight from the
-  pad to ground — no extra resistor. A second button there makes the module
+  That pad sits on the button side of the 1 k that separates it from QSPI_SS_N,
+  so the BOOT switch goes straight from the pad to ground — no extra resistor. A second button there makes the module
   unbrickable: a firmware too broken to reach its own interface is still
   recoverable without taking it apart.
 
@@ -195,27 +200,23 @@ Still needed:
   serrated tip, not a spear: the module's pad is flat, unperforated and 1 mm
   across, and 1° of tilt over 11 mm is already 0.19 mm of miss.
 
-  **Which side of the centreline is settled** — checked on the module itself,
-  the pad is nearer the GP0 row, which is the 26.51 the board is drawn for. (The
-  other reading would have been 18.49, eight millimetres away; the drawing the
-  coordinate came from does not say which side it is viewed from, and nothing but
-  looking at the part decides it.)
+  The position comes from the **Pico 2 datasheet**, where the pad is TP6, at
+  4.01 mm off the centreline and 5.45 mm from the top edge — the drawn-for part's
+  own document, so the numbers are not borrowed from anything. The one thing a
+  drawing cannot settle is which side of the centreline that is, because it does
+  not say which face it is viewed from; **checked on the part, the pad is nearer
+  the GP0 row**, which is the 26.51 the board carries. The other reading would
+  have put it at 18.49, eight millimetres away.
 
-  **The two distances are still borrowed.** They come from the **Raspberry Pi
-  Pico 2** datasheet, where the pad is called TP6 and sits 4.01 mm off the
-  centreline, 5.45 mm from the top edge. The module here is a **WeAct
-  RP2350-Plus** — same 40-pin outline, its own layout. Against the module's own
-  features, the pad as drawn sits:
+  Against the module's own features the pad sits 4.88 mm inwards from the GP0 pin
+  row and 4.08 mm from pin 1 along it — just past pin 2, a millimetre short of
+  pin 3. Worth having in that form because it is checkable with callipers on the
+  part rather than only in a PDF.
 
-  | measured from | distance |
-  |---|---|
-  | the GP0 pin row, inwards | 4.88 mm |
-  | pin 1 (GP0), along the row | 4.08 mm — just past pin 2, 1.0 mm short of pin 3 |
-  | the module's top edge | 5.45 mm |
-
-  Those are callipers-and-the-part numbers, not datasheet numbers, and they are
-  what to check before buying a pin: the module's pad is 1 mm across, so a few
-  millimetres out and the tip lands on bare laminate.
+  **The Waveshare RP2350-Plus is a different PCB**, so its BOOT pad is somewhere
+  else and the spring pin will land on bare laminate. That build uses TP1 and a
+  wire — which is exactly why TP1 stayed. Nothing needs changing on the board to
+  switch between them; you fit either the pin or the wire.
 
   **TP1 stays** as the fallback, out at the board edge where a soldering iron
   reaches, for the case where the pad turns out to be somewhere else entirely.
@@ -276,7 +277,7 @@ vias — of which about a third are ground stitching. Ground is a pour on both
 sides rather than routed.
 
 **Everything sits on the back except J1 / J2 and the eight 0805 parts.** That is
-the decision the layout turned on: with the RP2350-Plus on the front it would
+the decision the layout turned on: with the module on the front it would
 stand 13.5 mm into the gap between the boards and J1 / J2 would need long-pin
 headers, which are a part you have to go looking for. On the back, nothing
 between the boards is taller than a 0805, and ordinary headers reach. It also
@@ -429,8 +430,8 @@ again, with two exceptions and one correction:
 - **A1 now shows the module on its sockets**, not lying on the board. The
   footprint offers five variants and the one that was visible had headers
   soldered flat — which hides the very dimension the whole layout turns on. The
-  socketed pair is visible and the module sits 11 mm up. (The model is a Pico;
-  the part is an RP2350-Plus of the same outline.)
+  socketed pair is visible and the module sits 11 mm up. The library has no
+  Pico 2 model, but the outline is the same one.
 
 Per board:
 
