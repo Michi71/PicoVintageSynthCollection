@@ -130,6 +130,14 @@ drilled hole, which is of no consequence behind a nut. The display window's
 inside corners will carry the mill's radius, about 1 mm — that is normal and the
 module's bezel covers it.
 
+**Every label sits above what it names**, including the jack row. That is not
+symmetry for its own sake: a patch cable hangs down out of a Eurorack jack and
+covers whatever is printed below it, so the first drawing — labels under the
+jacks, in the space that looked free — would have been legible only on an
+unpatched module. Checked rather than eyeballed: no silkscreen stroke falls
+within 0.3 mm of any opening or the board edge, and none of it disappears under
+a 15 mm knob or an 11 mm jack nut.
+
 **The F side is the face.** Silkscreen sits on `F.SilkS` and is not mirrored, so
 whichever side the fab prints as top is the side that faces the player. Worth
 saying to them explicitly when ordering, because a panel has no components to
