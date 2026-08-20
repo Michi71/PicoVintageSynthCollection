@@ -23,6 +23,13 @@ mechanical rather than cosmetic: the EC11 encoders have a 5 mm threaded bushing,
 and 1.6 mm of panel leaves 3.4 mm for the nut. A 2 mm panel leaves 3.0 mm, which
 works but has no margin.
 
+**Cut it to 50.4 mm, not 50.8.** 10 HP is 10 x 5.08 mm, and that nominal figure
+is the space the module occupies in the rack, not the width of the metal. A panel
+made to it has no room for the tolerances of its own edge, of its neighbours, or
+of the rails, and a full row will bind rather than sit flat. Roughly 0.4 mm under
+is the usual allowance. The height is not affected: 128.5 mm is already the
+Eurorack panel height, 3U less the clearance the rails need.
+
 The layout is [Panel/panel_10hp.svg](Panel/panel_10hp.svg) (CorelDRAW source
 next to it), measured against the real parts: the display on top, the SELECT
 encoder between the RUN and BOOT buttons, PARAM A and B in a second row, the
