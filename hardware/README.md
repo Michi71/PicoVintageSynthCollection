@@ -138,10 +138,11 @@ unpatched module. Checked rather than eyeballed: no silkscreen stroke falls
 within 0.3 mm of any opening or the board edge, and none of it disappears under
 a 15 mm knob or an 11 mm jack nut.
 
-**The F side is the face.** Silkscreen sits on `F.SilkS` and is not mirrored, so
-whichever side the fab prints as top is the side that faces the player. Worth
-saying to them explicitly when ordering, because a panel has no components to
-make the intent obvious. White on black is the usual choice.
+**The top side is the front.** Decided, and the board file is drawn to it: the
+legend sits on `F.SilkS` unmirrored, so the side the fab prints as top is the
+side that faces the player. Say it in the order anyway — a panel has no
+components to make the intent obvious, and a fab that guesses has a fifty-fifty
+chance of printing the legend on the inside. White on black is the usual choice.
 
 DRC reports six warnings and nothing else: the six hole footprints are generated
 in the board file rather than pulled from a library, so the library-parity check
