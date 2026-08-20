@@ -11,7 +11,8 @@ The schematic is drawn: the KiCad 10 project in
 ([PicoFace-schematic.pdf](PicoVintageSynthCollection/PicoFace-schematic.pdf)).
 
 **Both boards are laid out**: [MainBoard/](MainBoard/) and
-[FrontBoard/](FrontBoard/), routed, DRC clean. Nothing is fabricated.
+[FrontBoard/](FrontBoard/), routed, DRC clean; and the panel is a board in its
+own right in [Panel/](Panel/). Nothing is fabricated.
 
 The interface *between* several modules — power, MIDI, audio — is a separate
 document: [The module bus](../docs/MODULE_BUS.md).
@@ -93,6 +94,51 @@ glass ends at Y 48.5 and the SELECT knob begins at 53.1; the 15 mm knob leaves
 4.9 mm to each 6 mm button; the PARAM knobs (78.1–93.1) end 0.9 mm above the
 board edge at Y 94 and stand 10 mm apart; the jack bodies (10 mm) sit 1.5 mm
 apart at 11.5 mm pitch — fine for round nuts, an 11 mm hex nut is marginal.
+
+## The panel as a board
+
+The drawing is not a manufacturable file. `panel_10hp.svg` says where the holes
+go and can be read by a person or a laser cutter; a board house needs the
+outline on a copper-stackup layer and every opening as a closed contour. So the
+panel is drawn a second time, as [Panel/Panel.kicad_pcb](Panel/Panel.kicad_pcb)
+— a two-layer board 1.6 mm thick with **no copper on it at all**, which is the
+usual way to have a fab cut a front panel: same process, same price bracket, and
+the silkscreen comes with it instead of needing a separate print.
+
+**The coordinates are the table above shifted 0.2 mm left.** The table is drawn
+on the 50.8 mm nominal; cutting to 50.4 takes 0.2 mm off each edge, and
+everything has to follow or the pattern sits off-centre. It stays symmetric
+after the shift, which is the check: SELECT lands on 25.2, exactly half of 50.4,
+and each pair still mirrors (mounting 7.3 / 43.1, buttons 9.8 / 40.6, PARAM 12.7
+/ 37.7, jacks 7.95 / 42.45). The mounting holes end up ±17.9 mm from the panel
+centre, which is where the rail thread expects them.
+
+**What is drilled and what is routed** is decided by one number: 6.3 mm, the
+largest drill most fabs keep.
+
+| Opening | Layer | Why |
+|---|---|---|
+| outline 50.4 x 128.5 | `Edge.Cuts` | |
+| display window 30 x 16 | `Edge.Cuts` | rectangular |
+| 3 x encoder 7.0 dia | `Edge.Cuts` | over 6.3 |
+| 4 x jack 8.2 dia | `Edge.Cuts` | over 6.3 |
+| 4 x mounting 3.2 dia | NPTH | |
+| 2 x button 4.0 dia | NPTH | |
+
+Routed circles are cut with an end mill and come out a little rougher than a
+drilled hole, which is of no consequence behind a nut. The display window's
+inside corners will carry the mill's radius, about 1 mm — that is normal and the
+module's bezel covers it.
+
+**The F side is the face.** Silkscreen sits on `F.SilkS` and is not mirrored, so
+whichever side the fab prints as top is the side that faces the player. Worth
+saying to them explicitly when ordering, because a panel has no components to
+make the intent obvious. White on black is the usual choice.
+
+DRC reports six warnings and nothing else: the six hole footprints are generated
+in the board file rather than pulled from a library, so the library-parity check
+has nothing to compare them against. Same class of warning the other two boards
+carry, and it does not reach the Gerbers.
 
 ## Two boards
 
@@ -430,6 +476,24 @@ a viewer never happens. The routed form (`G00` to the start, `M15` pen down,
 The six slots come out as a 1.5 mm tool travelling 1.3 mm, so 2.8 x 1.5 mm, on
 the three encoder axes at x 10.0 / 22.5 / 35.0. They are plated, which is what
 holds the encoder bodies down.
+
+The panel takes the same two commands with fewer layers — it has no paste and
+no copper worth subtracting a mask from:
+
+```
+kicad-cli pcb export gerbers --output Panel/fab/ \
+  --layers "F.Cu,B.Cu,F.Mask,B.Mask,F.SilkS,B.SilkS,Edge.Cuts" \
+  Panel/Panel.kicad_pcb
+
+kicad-cli pcb export drill --output Panel/fab/ --format excellon \
+  --excellon-units mm --drill-origin absolute --excellon-separate-th \
+  Panel/Panel.kicad_pcb
+```
+
+Read back: `Edge.Cuts` spans exactly 0–50.4 by 0–128.5 with eight closed
+contours inside it, the unplated Excellon carries four 3.2 mm and two 4.0 mm
+holes at the coordinates in the table, and the plated file and both copper
+layers are empty — which is what a panel should look like.
 
 Both packages were read back with gerbonara and rendered per side. What that
 found and fixed: the Pico's `A1` designator sat entirely above the top edge and
