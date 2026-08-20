@@ -348,13 +348,14 @@ Still needed:
   4k7 rather than the usual few hundred ohms because the bus MIDI RX joins the
   same node through a diode: every module then loads the hub's driver with
   only ~0.6 mA, ten of them with ~6 mA, and the low level at the module stays
-  around 0.5 V. Firmware should call `gpio_disable_pulls(PIN_MIDI_RX)` — the
+  around 0.5 V. The firmware calls `gpio_disable_pulls(PIN_MIDI_RX)` — the
   pad's default pull-down would otherwise divide that pull-up. Out: 33R from
   3V3 to pin 4, 33R from TX to pin 5, sleeve grounded. CA-033's pair is
   33R/10R; 33/33 gives about 4.1 mA worst case into a standard receiver, the
-  same class as the 47/47 the Teensy design ships with. The firmware should
-  raise GP4's drive strength to 12 mA — the default 4 mA is below the loop
-  current.
+  same class as the 47/47 the Teensy design ships with. The firmware raises
+  GP4's drive strength to 12 mA — the default 4 mA is below the loop current.
+  Both settings are made in `MIDISerial::init()`; neither is visible from the
+  schematic, which is why they are written down on both sides.
 
 ## The main board layout
 

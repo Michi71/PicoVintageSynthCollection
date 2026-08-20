@@ -27,7 +27,8 @@ public:
     using SysExCallback = void (*)(const uint8_t*, uint16_t);
     using ActivityCallback = void (*)(void);
 
-    void init();     // uart1 at 31250 baud 8N1 on PIN_MIDI_RX / PIN_MIDI_TX, RX interrupt enabled
+    void init();     // uart1 at 31250 baud 8N1 on PIN_MIDI_RX / PIN_MIDI_TX, pads set for the
+                     // DIN circuit, RX interrupt enabled
     void process();  // drain the ring and dispatch; call from the same place as MIDIInputUSB::process()
 
     // --- transmit ---

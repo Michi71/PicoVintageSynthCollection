@@ -55,6 +55,23 @@ void MIDISerial::init()
     uart_init(MIDI_UART, kMidiBaud);
     gpio_set_function(PIN_MIDI_TX, GPIO_FUNC_UART);
     gpio_set_function(PIN_MIDI_RX, GPIO_FUNC_UART);
+
+    // Two pad settings the function select does not make -- it deliberately
+    // leaves the pad controls alone -- and that hardware/README.md asks of the
+    // firmware by name, because neither is visible from the schematic.
+    //
+    // RX: the RP2350 comes out of reset with its internal pull-down enabled on
+    // every GPIO (PADS_BANK0 reset value 0x116, PDE=1), and that would divide
+    // the 4k7 pull-up the H11L1's open collector and the bus MIDI RX share.
+    gpio_disable_pulls(PIN_MIDI_RX);
+
+    // TX: MIDI out is a current loop, and the pads come up at 4 mA (DRIVE_RESET
+    // = DRIVE_VALUE_4MA). The 33R/33R output pair puts about 4.1 mA worst case
+    // through the pin, more in the typical case -- at or over what the default
+    // is rated for, so VOL climbs and the loop current falls by an amount that
+    // depends on the part and the temperature.
+    gpio_set_drive_strength(PIN_MIDI_TX, GPIO_DRIVE_STRENGTH_12MA);
+
     uart_set_hw_flow(MIDI_UART, false, false);
     uart_set_format(MIDI_UART, 8, 1, UART_PARITY_NONE);
     uart_set_fifo_enabled(MIDI_UART, true);
