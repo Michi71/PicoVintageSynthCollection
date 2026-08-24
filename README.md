@@ -212,13 +212,31 @@ built on. Where an instrument derives from someone else's work:
 | PicoFaceYC | [OpenB3 / BeatrixCPP](https://github.com/pantherb/setBfree) - tone generation *concepts* only, no code | AGPL-3.0 upstream, does not reach here; see below |
 | PicoFaceCP | [mda-EPiano](https://sourceforge.net/projects/mda-vst/) (engine, in tree) | GPL-3.0-or-later |
 | PicoFaceDX | an ESP32 reface DX emulation (engine) | see that project |
-| PicoFaceRD | [giulioz/rdpiano](https://github.com/giulioz/rdpiano) + MAME (reference emulator, host side only) | GPL |
+| PicoFaceRD | [giulioz/rdpiano](https://github.com/giulioz/rdpiano) + MAME (reference emulator; in the tree, kept out of the image) | GPL |
 | PicoFaceJ6 | [junox](https://github.com/dzannotti/junox) (patch table, parameter scaling) | GPL-3 |
 | PicoFaceMD | [BelaMiniMoogEmulation](https://github.com/lbros96/BelaMiniMoogEmulation) (ladder filter) | stated by its author to be under no copyright |
 | PicoFaceSM | [string-machine](https://github.com/jpcima/string-machine) (DSP models) | Boost Software License 1.0 |
 | PicoFaceOB | [OB-Xf](https://github.com/surge-synthesizer/OB-Xf) (engine) | GPL-3.0-or-later |
-| PicoFaceJV | own work, over the machine's own PCM data | - |
+| PicoFaceJV | own engine over the machine's own PCM data, measured against [giulioz/jv880_juce](https://github.com/giulioz/jv880_juce) (host-side reference; tone field layout) | non-commercial; not vendored, see below |
 | PicoFaceD5 | [munt](https://github.com/munt/munt) - the LA32's wave generation and the Boss reverb topology as that project *documents* them, no code | LGPL-2.1-or-later upstream, does not reach here; see below |
+
+Two rows in that table need a sentence more than a table cell holds.
+
+**PicoFaceRD** carries the reference emulator's sources in the tree
+(`instruments/PicoFaceRD/src/rd_engine/mcu.cpp`, `sound_chip.cpp` and their
+headers, each with the derivation in its SPDX block). They are there as the A/B
+ground truth every engine change is checked against, not to run: the device
+plays `RdNewEngine`, and no `Mcu` or `SoundChip` symbol survives into the linked
+image.
+
+**PicoFaceJV** contains none of that emulator's code, and cannot: its licence
+forbids commercial use and fits neither MIT nor GPL-3. It was used as a host-side
+measuring instrument — the harness in `tools/jv_extract/` drives it to take the
+readings the engine was calibrated against, and the patch and tone field layout
+comes from its `dataStructures.h`. The engine itself is written from the ROM
+formats. `tools/jv_extract/README.md` records the reasoning; the work is Giulio
+Zausa's, and his emulator in turn derives from [NukeYKT's
+Nuked-SC55](https://github.com/nukeykt/Nuked-SC55).
 
 `instruments/PicoFaceOB/` additionally carries its own `LICENSE`, identical in
 text, because that instrument's engine is a direct port of OB-Xf and its files

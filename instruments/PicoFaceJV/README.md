@@ -194,9 +194,22 @@ plus `--set tone:offset:value` to patch tone bytes before the note (mirroring
 `jv_probe`'s `#base` lines, so both sides can be driven identically) and
 `--trim <ratio>` for a global pitch trim.
 
+## Credit
+
+The engine is written from the ROM formats, but it was not written blind. The
+patch and tone field layout comes from `Source/dataStructures.h` in
+[giulioz/jv880_juce](https://github.com/giulioz/jv880_juce) by **Giulio Zausa**,
+and that project's emulator — itself derived from [NukeYKT's
+Nuked-SC55](https://github.com/nukeykt/Nuked-SC55) — is the reference every
+calibration here was measured against: the sweeps in `tools/jv_extract/` drive
+it and read the answers back off it. The identification of the effect chip, and
+with it the reason its reverb could not be measured, comes from the same
+author's [giulioz/roland-dsps](https://github.com/giulioz/roland-dsps).
+
 ## Licence
 
 The engine is original code and carries the repository's licence. It contains no
-emulator code: the reference emulator used to measure against is host-side only
-and is never vendored here — see the licence note in
-[tools/jv_extract/README.md](../../tools/jv_extract/README.md).
+emulator code, and cannot: that emulator's licence forbids commercial use and is
+compatible with neither MIT nor GPL-3, so it is not vendored, not built, and
+reaches no firmware image — it is a host-side measuring instrument. The full
+reasoning is in [tools/jv_extract/README.md](../../tools/jv_extract/README.md).
