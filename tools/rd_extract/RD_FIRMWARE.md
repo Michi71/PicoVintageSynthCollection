@@ -446,13 +446,38 @@ Everything above, in the order it happens:
 Nothing in that is timing. The durations the captured packs record are the
 chip's own ramps, not the firmware's.
 
+## The note becomes a zone by subtracting fifteen and folding octaves
+
+```
+e60f  lda $9f        ; the note
+e611  suba #$0f      ; less fifteen
+e613  bcc $e619
+e615  adda #$0c      ;   under: add an octave until it is not
+e617  bcc $e615
+e619  cmpa #$62      ; over 98?
+e61b  bls $e621
+e61d  suba #$0c      ;   yes: take an octave off
+e61f  bra $e619      ;        and ask again
+e621  jsr $e79b      ; -> build $af from it
+```
+
+**Zone = note − 15, folded by octaves into 0…98.** Ninety-nine values, which is
+`$81f / 21` exactly — the zone table's own size, arrived at from the other
+direction.
+
+For the keyboard the machine actually has, 21 to 108, that is zones 6 to 93 and
+the folding never runs; it is there to catch anything outside 15…113. Eighty-
+eight keys, eighty-eight zones, one each — and the 74 distinct segment chains
+the packs show mean some of those zones point at the same list.
+
+`jsr $e79b` enters the `$af` construction one instruction in, with the zone
+already in A, which is why that routine reads `lda $e1` at `$e799` when reached
+the other way.
+
 ## What is still missing
 
 The envelope path is read end to end. Two things beside it are not:
 
-- **How the note becomes a zone index.** `$e1` reaches the zone table by way of
-  a `suba #$0f`, but the mapping from 88 keys onto 99 entries has not been
-  followed, and it is the first thing a parser would need.
 - **Wave address and pitch.** The captured descriptors carry a `pitch_lut`, a
   `wave_loop` and a `wave_high` per part, and none of those come from the
   segment lists — most likely from the six seven-byte records at `+$22` in the
