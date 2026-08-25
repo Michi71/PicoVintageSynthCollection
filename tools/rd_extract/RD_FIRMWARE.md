@@ -515,13 +515,66 @@ subroutine — four corners at X, weights in `$c2` and `$c3` rather than `$d1` a
 the first segment. The interrupt then re-implements the same maths inline for
 every segment after that.
 
+## The part block is ten records of seven bytes
+
+The wave address was the last thing unaccounted for, and it is the first two
+bytes of each record:
+
+```
+e88d  ldx $af
+e88f  ldd $00,x      ; record 0
+e891  addb $b9       ;   plus an offset
+e894  std $02,x      ;   -> frame +$02  = chip fields 2 and 3, part 0
+e898  ldd $07,x      ; record 1, stride seven
+e89b  std $12,x      ;   -> part 1, stride sixteen
+e89f  ldd $0e,x      ; record 2
+e8a2  std $22,x
+e8a6  ldd $15,x      ; record 3
+e8a9  std $32,x
+e8ad  ldd $1c,x      ; record 4 ...
+```
+
+Ten of them, stride seven, and **10 x 7 = 70 = `#$46`** — the very multiplier the
+block is addressed with. The size confirms itself from both ends, as the zone
+entry's twenty-one did.
+
+| In the record | What |
+|---|---|
+| `+0..1` | the **wave address**, to chip fields 2 and 3 |
+| `+2..3` | the **segment list pointer** |
+| `+4`, `+5` | the two **curve selectors**, soft and hard |
+| `+6` | one byte a part, read on its own |
+
+`+4` and `+5` being a pair is the same coarse velocity layer again: `$ab` is
+`$af` or `$af + 1` depending on bit 7 of the velocity weight, and everything
+read `$04,x` off it lands on one or the other. The same bit that offsets the
+segment list by two picks the curve. One decision, applied in both places.
+
+## The whole structure
+
+```
+parameter ROM
+  +0        3 bytes a patch: bank, and a 16-bit base    (MK-80; the MKS-20
+                                                         keeps this in its
+                                                         own program ROM)
+  base                -> $a5   256 bytes   velocity map
+  base + $100         -> $a7   99 x 21     zone table
+                                  +0       part-block index
+                                  +1..     ten 16-bit pitches
+  base + $91f         -> $a9   n x 70      part blocks
+                                  ten records of seven:
+                                  +0..1    wave address
+                                  +2..3    segment list  -> six bytes an entry,
+                                                            four corners of two
+                                                            interpolations
+                                  +4,+5    curve selectors
+                                  +6       ?
+```
+
 ## What is still missing
 
 The envelope path is read end to end. Two things beside it are not:
 
-- **The wave address.** Chip fields 2 and 3 per part, `wave_loop` and
-  `wave_high` in the captured descriptors. Not in the zone entry and not in the
-  segment lists, so presumably in the part block; not yet found.
 
 And one thing that is not missing but worth restating, because it changes what a
 pack has to hold:
