@@ -28,6 +28,28 @@ rd_parse_check.py is what says so.
 The chains also run to their own end here rather than stopping where a capture's
 window did, so a generated pack is a little smaller and a little more complete
 than a recorded one.
+
+DO NOT SHIP THESE YET. Tried, and the regression rejects them -- all nine checks
+against the captured packs' zero:
+
+    A/B p15 n60   r = 0.237   against 0.9999
+    A/B p8  n60   r = 0.771   against 0.9992, rms ratio 1.60
+    stress        tailRMS 0.15 and 0.29, against 0.0
+
+The stuck voices are the clearest thing wrong and probably the root of it. The
+release segment here is the chain's own ramp to nothing, written at its natural
+place in the timeline -- t = 213423 on patch 0, note 60. The engine applies
+release segments against a note-off time base, so one that far out never comes
+due and the voice never dies. A capture puts the release at t = 4, because the
+firmware writes it when the key comes up, not when the chain would have reached
+it. The two are not the same segment even when they hold the same numbers.
+
+The MK-80 half is worse than that alone explains -- p15 at 0.237 is not a stuck
+tail -- so there is a second fault, most likely in reading MK-80 parameter
+blocks with RD-200 curve tables.
+
+Every per-segment number this produces is exact, and rd_parse_check.py proves
+it. Assembling them into a pack is a different job and is not finished.
 """
 import os
 import struct
