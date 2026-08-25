@@ -35,6 +35,12 @@ which computes them itself) and the packs as `rd_packs_blob.S` plus
         $RDPIANO_REF/rdpiano/src/{mks20a,mks20b,mk80,program}_tables.cpp \
         build_host/rd_rom_blob.S
 
+- `make_packs.sh`   — **the whole capture, end to end**: ROM set -> the sixteen
+  `.rdp` packs a build needs. Runs the three tools below over 16 patches x 88
+  notes x 4 velocities, generates the interleaved sample banks the reference
+  emulator wants, and warns if that emulator is the older one (which captures
+  packs that do not match this instrument).
+    RDPIANO=... RDPIANO_REF=... ./make_packs.sh <romdir> <outdir> [patch ...]
 - `rd_extract.cpp`  — register capture per (patch, note, velocity) -> JSONL.
     ./rd_extract <patch> <out.jsonl> [notelist] [velocity]
 - `rd_analyze.py`   — JSONL -> part descriptors (pitch/wave/env segment chains).

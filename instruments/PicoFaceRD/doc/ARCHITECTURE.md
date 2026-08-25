@@ -23,9 +23,11 @@ problem:
    and computes the envelope with the same integer arithmetic as the
    chip. The sample ROMs themselves are played back directly.
 
-The reference emulator stays in the repository (`src/rd_engine/mcu.cpp`,
-`sound_chip.cpp`, bank tables) — not for the firmware, but as the **A/B
-ground truth** for every engine change.
+The reference emulator is **not** in this repository. It is a separate
+checkout (`RDPIANO_REF`, Michi71/librdpiano) that the capture and the A/B
+harness are pointed at; it is the **ground truth** for every engine change,
+and it is also what produced the descriptors in the first place. See
+[`tools/rd_extract/README.md`](../../../tools/rd_extract/README.md).
 
 ### Data pipeline (tools/rd_extract)
 
@@ -39,7 +41,7 @@ rd_analyze.py       distill:  JSONL -> per-note part descriptors
 rd_pack.py           env pulse -- see "Lessons" below)
      │              pack:     descriptors -> compact .rdp binary
      ▼
-rd_embed_packs.py   embed:    16 packs -> rd_packs_data.cpp (~3.3 MB)
+rd_embed_packs.py   embed:    16 packs -> rd_packs.bin + .S (~3.3 MB)
 ```
 
 Sample ROM data is repacked from the original interleaved 8-byte entries
