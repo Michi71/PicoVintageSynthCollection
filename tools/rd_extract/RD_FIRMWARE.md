@@ -809,6 +809,51 @@ Only three parameter-ROM reads in the whole firmware use a fixed address
 (`$babf`, `$bbc1`, `$babd`); everything else is indexed, which is why all of
 this had to be read rather than grepped for.
 
+## Is the MKS-20's firmware the same?
+
+Everything above was read out of the RD-200's, because that is what the
+reference emulator runs -- while playing MKS-20 data. Which raises a fair
+question: does a real MKS-20 read its own parameter ROM the same way?
+
+**Where it counts, yes.** The layout constants are byte-identical in all three
+sound-CPU ROMs -- `#$15` for the 21-byte zone entry, `#$46` for the 70-byte part
+block, `addd #$0100` and `addd #$081f` for the two bases. So is the
+interpolation: the same four corners at the same offsets, the same two weights,
+the same order, and the same layer rule.
+
+Three things do differ, and none of them reaches the sound.
+
+**The RAM.** The RD-200 packs its per-part state as `$0200 + (voice*10 + part)*6`
+-- the multiply-by-`$a0`-and-take-the-high-byte trick. The MKS-20 indexes flat
+by the chip's raw id, `$0200 + id*6`, which is sixteen slots a voice where ten
+are used. Ninety-six bytes a voice against sixty; the RD-200 is the tighter,
+later arrangement, and it saves 576 bytes across sixteen voices. The velocity
+weights sit at `$0055` there rather than `$0040`.
+
+**Where the layer offset is applied.** The MKS-20 adds it to X inside the
+interrupt, every time; the RD-200 adds it once to the stored pointer at note-on.
+Same result.
+
+**The command set.** The MKS-20's dispatch table has no program change, no note
+off and no sustain -- its main CPU does that work. It selects patches with `$40`
+and keeps its patch table in its own program ROM rather than at the head of the
+parameter ROM.
+
+## The velocity curves differ, and it does not matter
+
+The eight curves are not byte-identical. Curve 0, the straight ramp, is; the
+other seven differ by **at most 2 out of 252**, mean 0.05 to 0.42, and every
+endpoint agrees. The two MKS-20 ROMs agree with each other exactly, so it is the
+RD-200 that was retuned.
+
+Whether that reaches a pack is a question with an answer rather than an opinion:
+building patch 0 both ways and comparing gives **25,539 segments, not one
+different**. A weight off by two moves an interpolated corner by a fraction of a
+level, and the high byte the chip is handed does not notice.
+
+So the packs this repository builds are what an MKS-20 would play, and the one
+real difference between the firmwares is invisible at the output.
+
 ## Why this matters
 
 The packs can become a pure function of the ROM set: no emulator, no second
