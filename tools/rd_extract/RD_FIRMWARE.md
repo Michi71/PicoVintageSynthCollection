@@ -306,10 +306,47 @@ the emulator's hard-coded tables fall out of this one:
 All eight, both columns. `patchToOffset` and `patchToRomSet` are the same table
 read twice, and it is in the ROM.
 
+## Bytes four and five: a coarse velocity split
+
+The interrupt reads `$00,x` to `$03,x` and advances by six, so two bytes of each
+entry looked unused. They are not — the *pointer* is what moves.
+
+Note-on, having fetched the list pointer out of the parameter block:
+
+```
+e940  ldd $02,x      ; the list pointer
+e942  bne $e94b      ; zero means this part is unused
+e94b  ldx $b5
+e94d  addd $c4       ; <-- offset the whole list
+e94f  std $02,x      ; and that is what the interrupt walks
+e952  jsr $eb16      ; program the first segment
+```
+
+and `$c4` was set from **bit 7 of the velocity weight**:
+
+```
+e7be  ldx #$0000
+e7c1  ldb $c0        ; $a5[velocity]
+e7c3  bpl $e7c7      ; bit 7 clear -> $c4 = 0
+e7c5  inx
+e7c6  inx            ; bit 7 set   -> $c4 = 2
+e7c7  stx $c4
+```
+
+So **each entry carries six corner values, and bit 7 picks which four apply**:
+bytes 0-3 or bytes 2-5. A coarse two-layer velocity split sitting on top of the
+fine interpolation, and it persists for the whole chain because the offset is
+applied once, to the starting pointer, while the stride stays six.
+
+The two roles do not collide. `$c1` is `(($c0 << 1) & $ff) >> 2`, and the `aslb`
+discards bit 7 — so the curve index is built from bits 0-6 and bit 7 alone
+chooses the layer. One byte out of `$a5`, two jobs, no overlap.
+
+That also means `$a5` is not just a velocity curve: it is a velocity **map**,
+one byte a step, carrying a layer bit and a within-layer position.
+
 ## What is still missing
 
-- **Bytes 4 and 5** of each segment entry. The pointer advances by six and the
-  interrupt consumes four.
 - **The key weight** at `$0040 + voice`. It is written by the `$80`/`$a0`
   handler, not by note-on, and the reference emulator never sends those
   commands — so how they are driven on real hardware is open.
