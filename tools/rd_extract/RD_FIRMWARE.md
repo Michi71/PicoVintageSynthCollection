@@ -50,7 +50,7 @@ So each part walks a **list of six-byte entries**, one entry per envelope
 segment. That stride is why searching the parameter ROM for the captured
 `(dest, speed)` byte pairs finds nothing — wrong shape, and wrong values.
 
-## The six bytes are the corners of a bilinear interpolation
+## The six bytes are two interpolations, not one
 
 ```
 ed61  lda $d1        ; weight from the key
@@ -64,8 +64,20 @@ ed85  ldx $d7        ; the chip register for this voice
 ed87  std $04,x      ; write the pair
 ```
 
-Four corner values per entry, two weights, one 16-bit write. The captured
-`dest` and `speed` are the *interpolated* values; the ROM holds the corners.
+Read the stack traffic and it is **two independent linear interpolations, not
+one bilinear one** — an earlier note here said bilinear and that was wrong.
+`psha` at `ed72` keeps the high byte of the key-weighted sum; `pulb` at `ed84`
+brings it back as B while A holds the velocity-weighted one, and `std` writes
+the pair. So one byte of the chip register pair is interpolated over the key,
+the other over the velocity, from four corners in the entry.
+
+The captured `dest` and `speed` are those interpolated values; the ROM holds the
+corners.
+
+**Confirmed against measurement.** Patch 0, note 60, part 0, segment 2 reads
+196 / 226 / 242 / 245 at velocities 40 / 80 / 110 / 127. Corners **187 and 251**
+with the linear curve at `$f049` reproduce all four exactly, at weights 36, 156,
+220, 232.
 
 This accounts for every oddity the packs show:
 
@@ -77,9 +89,63 @@ This accounts for every oddity the packs show:
   the same key weight. Only 24 distinct wave assignments across 88 keys, and
   27 % of all 5632 captured entries are distinct.
 
-The `$d1` key weight is built at `ed43`–`ed4a` from a table indexed by the
-voice's high nibble; `$d2` comes in from the note-on path, which is not read
-yet.
+Neither weight comes in from outside: `$d1` is fetched at `ed43`–`ed4a` from a
+RAM table at `$0040 + voice`, `$d2` from the part's own state byte 1. Both are
+written by the note-on path.
+
+## The note-on path
+
+`$af` is the per-part parameter block, and it is built at `e78d`–`e7ab`:
+
+```
+e791  stb $40,x      ; the key weight, into $0040 + voice
+e799  lda $e1
+e79b  ldb #$15       ; zone table, 21 bytes an entry
+e79e  addd $a7
+e7a1  ldb $00,x      ; first byte of the zone entry
+e7a6  lda #$46       ; part block, 70 bytes each
+e7a9  addd $a9
+e7ab  std $af
+```
+
+Two levels: a **21-byte zone entry** selects a **70-byte part block**. The
+offsets the setup then reads out of that block — `$22, $29, $30, $37, $3e, $45`,
+stride 7 — are its last 42 bytes: **six parts of seven bytes**. And:
+
+| Offset in the 70-byte block | What |
+|---|---|
+| `+2..3` | pointer to the segment list, six bytes an entry (`e940`, `e946`) |
+| `+4` | which velocity curve (`e92b`) |
+| `+0x22 …` stride 7 | six per-part records |
+
+The velocity weight is a table lookup, not arithmetic:
+
+```
+e92b  ldb $04,x      ; curve selector out of the part block
+e92d  ldx #$ed9d     ; eight pointers, here in the program ROM
+e930  abx
+e931  ldx $00,x      ; -> $f049, $f089, $f0c9, $f109, $f149, $f189, $f1c9, $f209
+e933  ldb $c1        ; the velocity index
+e935  abx
+e936  ldb $00,x      ; the weight
+e93a  stb $01,x      ; -> part state byte 1, which the IRQ reads as $d2
+```
+
+**Eight velocity curves of 64 bytes each, in the program ROM.** `$f049` is the
+straight ramp (0, 4, 8 … 252); `$f089` is bent (0, 4, 7, 10, 13 … 252).
+
+## What is still missing
+
+- **How `$c1` is derived from the MIDI velocity.** Not `vel >> 1`: fitting the
+  four measured layers puts them at curve indices 9, 39, 55, 58 (or one of five
+  neighbouring corner pairs that fit equally), and `vel >> 1` would want 20, 40,
+  55, 63. There is another mapping in between and it is the last piece of the
+  velocity path.
+- **`$a7` and `$a9`**, the two table bases. They come from the patch load.
+- **Bytes 4 and 5** of each segment entry. The pointer advances by six and only
+  four are consumed in the interrupt.
+- **The key weight.** `e791` stores it, but what B holds at that point has not
+  been traced back to the note number yet.
 
 ## What is still missing
 
@@ -96,8 +162,8 @@ yet.
   with the duplicates removed as well.
 
 Only three parameter-ROM reads in the whole firmware use a fixed address
-(`$babf`, `$bbc1`, `$babd`); everything else is indexed, so the note-on path
-has to be read to find the tables rather than grepped for.
+(`$babf`, `$bbc1`, `$babd`); everything else is indexed, which is why this had
+to be read rather than grepped for.
 
 ## Why this matters
 
