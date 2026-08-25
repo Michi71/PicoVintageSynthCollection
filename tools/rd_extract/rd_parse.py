@@ -167,10 +167,12 @@ def parse(rom, note, velocity):
             e = rom.prm[at:at + 4]
             dest = interpolate(e[0], e[2], c3)
             speed = interpolate(e[1], e[3], c2)
-            # How long the chip will take over it -- None for the first, whose
-            # starting level the note-on preamble decides rather than the list.
+            # How long the chip will take over it. The first starts from
+            # whatever the note-on preamble left behind rather than from a
+            # previous destination; zero is the closest this can get to it.
             segs.append((dest, speed,
-                         None if level is None else duration(rom.env, level, dest, speed)))
+                         duration(rom.env, 0 if level is None else level,
+                                  dest, speed)))
             level = dest
             if dest == 0:                    # ed89's tsta: zero ends the chain
                 break
