@@ -3,7 +3,6 @@
 picoface_add_instrument(
     NAME PicoFaceJ6
     PROGRAM_NAME "PicoFaceJ6"
-    VERSION "0.1"
     USB_PID 0x1053
     DIR ${PICOFACE_CURRENT_INSTRUMENT_DIR}
     SOURCES

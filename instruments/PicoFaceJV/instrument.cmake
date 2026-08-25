@@ -72,7 +72,6 @@ endif()
 picoface_add_instrument(
     NAME PicoFaceJV
     PROGRAM_NAME "PicoFaceJV"
-    VERSION "0.1"
     USB_PID 0x1058
     DIR ${_jv_dir}
 

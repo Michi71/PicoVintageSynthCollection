@@ -6,6 +6,39 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
+# The version every instrument shows on its splash, taken from the repository
+# rather than declared. It used to be a per-instrument "0.1" that no release
+# ever moved, which made a screenshot in a bug report worthless: it named no
+# build.
+#
+# git describe gives exactly what is wanted. On a release tag it is the release
+# ("1.7.0"); anywhere else it says how far past it and which commit
+# ("1.7.0-4-ga39504b"); a build with uncommitted changes gets a trailing "+".
+# Sixteen or seventeen characters, and the splash font fits twenty-one.
+set(PICOFACE_VERSION "unknown")
+find_package(Git QUIET)
+if(GIT_FOUND AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} describe --tags --always --dirty=+
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        OUTPUT_VARIABLE _pf_git_version
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE _pf_git_rc)
+    if(_pf_git_rc EQUAL 0 AND _pf_git_version)
+        string(REGEX REPLACE "^v" "" PICOFACE_VERSION "${_pf_git_version}")
+    endif()
+    # Reconfigure when the commit moves, or the string goes stale in a tree
+    # that is only ever rebuilt -- which is the workflow this exists to serve.
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                 ${CMAKE_CURRENT_SOURCE_DIR}/.git/HEAD)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/packed-refs)
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                     ${CMAKE_CURRENT_SOURCE_DIR}/.git/packed-refs)
+    endif()
+endif()
+message(STATUS "PicoFace version: ${PICOFACE_VERSION}")
+
 # Fallback only: an unconditional set() would silently override both -D on the
 # command line and the environment variable.
 if(NOT DEFINED PICO_EXTRAS_PATH AND NOT DEFINED ENV{PICO_EXTRAS_PATH})

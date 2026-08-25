@@ -12,7 +12,6 @@ picoface_add_instrument(
     # ---- Identity -------------------------------------------------------
     NAME PicoFaceMD             # unique instrument ID (targets, build folders)
     PROGRAM_NAME "PicoFaceMD"   # program string shown on the display
-    VERSION "0.1"               # instrument firmware version string
     USB_PID 0x1054              # USB Product ID (must be unique per instrument!)
 
     # ---- Location -------------------------------------------------------

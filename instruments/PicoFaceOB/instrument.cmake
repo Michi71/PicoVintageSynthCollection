@@ -13,7 +13,6 @@
 picoface_add_instrument(
     NAME PicoFaceOB
     PROGRAM_NAME "PicoFaceOB"
-    VERSION "0.1"
     USB_PID 0x1056
     DIR ${PICOFACE_CURRENT_INSTRUMENT_DIR}
 

@@ -7,7 +7,6 @@
 picoface_add_instrument(
     NAME PicoFaceCP
     PROGRAM_NAME "PicoFaceCP"
-    VERSION "0.1"
     USB_PID 0x1051
     DIR ${PICOFACE_CURRENT_INSTRUMENT_DIR}
 

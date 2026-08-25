@@ -119,6 +119,16 @@ cmake --build build
 
 The artifacts are then in `build/<instrument>.uf2`.
 
+**The splash screen names the build.** Every instrument shows a version taken
+from `git describe`, not a number typed into its `instrument.cmake`: on a
+release tag it is the release (`1.7.0`), anywhere else it says how far past that
+tag and from which commit (`1.7.0-4-ga39504b`), and a trailing `+` means the
+tree had uncommitted changes when it was built. The About page shows the same
+string. Quote it in a bug report and the image is identified exactly; the
+version used to read `0.1` in every build ever made, which identified nothing.
+
+A tarball without `.git` builds fine and shows `unknown`.
+
 Building a single instrument:
 
 ```bash

@@ -3,7 +3,6 @@
 picoface_add_instrument(
     NAME PicoFaceSM
     PROGRAM_NAME "PicoFaceSM"
-    VERSION "0.1"
     USB_PID 0x1055
     DIR ${PICOFACE_CURRENT_INSTRUMENT_DIR}
     SOURCES
