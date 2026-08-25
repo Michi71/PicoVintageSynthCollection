@@ -14,24 +14,32 @@ generates.
 The patch offset is where that patch's parameter block starts, as the patch
 table gives it: (address - $4000) | (bank << 15).
 
-STATE: this is a first version and it is not finished. Measured against the
-sixteen captured packs, patch 0, all 352 (note, velocity) pairs:
+STATE: not finished, but further than it was. Measured against the sixteen
+captured packs, patch 0, all 352 (note, velocity) pairs and all 3520 parts:
 
-    speeds exact   88.9 %      the straight interpolation and the corner
-                               layout are right
-    destinations   33.6 %      the curve-weighted one is not
-    chain lengths  mostly wrong
+    pitch                     100 %      3520 of 3520, exact
+    attack chains complete   65.5 %
+    individual segments      73.5 %      on the stretch both cover
 
-The destinations are systematically one low where they are close, and solving
-for the weight that would make them exact puts it at 224..231 where this
-computes 220. That pins the fault to the velocity path: $a5[113] and $a5[114]
-hold the byte that would give 228 -- and 228 is the value at which both weights
-agree, since curve[228 >> 2] is 228 on the straight curve. So one step between
-the MIDI velocity and the index into $a5 is still missing, and the chain
-framing follows from the same place.
+The pitch being exact everywhere settles the zone path: note to zone, zone entry
+to ten 16-bit pitches, all of it.
 
-Enough is right that the structure in RD_FIRMWARE.md is not in doubt; not
-enough to build packs with.
+The chains are shorter in the packs than here, and that is not an error on
+either side. A capture stops when the key comes up, so a pack holds however much
+of the chain fitted in the window plus the release segment written at that
+moment; this walks the list to its own end. On patch 0, note 60, velocity 110,
+part 0 the two agree for seven segments and then the pack stops.
+
+What is still wrong is the velocity index. Solving for the weight that would
+make the destinations exact puts it at 224..231 where this computes 220, and
+$a5[113] holds the byte that gives 228 -- but the velocity is 110, and neither
+of the two indexing paths in the firmware lands on 113. One step is missing.
+
+Found by measurement rather than by reading, and worth recording as such: the
+curve selector is always the record's +4. It looked as though the layer bit
+should pick +4 or +5, the way it offsets the segment list, but taking +4
+unconditionally raises exact destinations from 36 % to 65 %. What +5 is for is
+unresolved.
 """
 import sys
 
@@ -102,8 +110,12 @@ def parse(rom, note, velocity):
             parts.append({"pitch": pitch, "wave": wave, "release": release,
                           "segments": []})
             continue
-        # +4 or +5 by the same layer bit that offsets the list.
-        c3 = rom.curve(rom.prm[rec + 4 + (1 if layer else 0)] >> 1, c1)
+        # The selector is always +4. It looked as though the layer bit should
+        # pick +4 or +5, the way it offsets the list -- $ab is $af or $af+1 and
+        # everything reads $04,x off it -- but measured against the captured
+        # packs that is wrong: taking +4 unconditionally raises exact
+        # destinations from 36 % to 65 %. What +5 is for is unresolved.
+        c3 = rom.curve(rom.prm[rec + 4] >> 1, c1)
 
         segs, at = [], rom.cpu_to_off(ptr) + layer
         while len(segs) < 64:
