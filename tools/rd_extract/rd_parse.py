@@ -14,31 +14,22 @@ generates.
 The patch offset is where that patch's parameter block starts, as the patch
 table gives it: (address - $4000) | (bank << 15).
 
-STATE: not finished, but further than it was. Measured against the sixteen
-captured packs, patch 0, all 352 (note, velocity) pairs and all 3520 parts:
+Checked against the captured packs with rd_parse_check.py -- patch 0, all 352
+note-and-velocity pairs, 3520 parts, 21655 segments:
 
-    pitch                     100 %      3520 of 3520, exact
-    attack chains complete   80.0 %
-    individual segments      87.0 %      on the stretch both cover
+    pitch                     100 %
+    segments agreeing         100 %
+    chains complete          98.2 %   the rest is where a capture stopped early
 
-The pitch being exact everywhere settles the zone path: note to zone, zone entry
-to ten 16-bit pitches, all of it.
+So this reproduces the firmware's arithmetic exactly. The 13 % that would not
+agree in an earlier pass was a fault in the measurement, not in the parser: it
+stripped a fixed two-entry preamble from every captured chain, and 640 of the
+3520 parts have no preamble at all.
 
-The chains are shorter in the packs than here, and that is not an error on
-either side. A capture stops when the key comes up, so a pack holds however much
-of the chain fitted in the window plus the release segment written at that
-moment; this walks the list to its own end. On patch 0, note 60, velocity 110,
-part 0 the two agree for seven segments and then the pack stops.
-
-The velocity index is the raw MIDI velocity after all. An earlier note here
-said it could not be, on the strength of solving one part of one note for the
-weight that would fit; sweeping all 256 indices against every note instead puts
-the raw index at the top for three of the four captured layers, and the fourth
-was a different fault -- see the curve selector above.
-
-What is still wrong sits in the remaining 13 %, and it is not the velocity
-path: whatever it is, it leaves four velocities agreeing to within a tenth of a
-percent of each other.
+What is still missing before packs can be built from this alone: the timestamps,
+which are not in the ROM -- a segment lasts however long the chip takes to ramp
+from the previous destination to this one, and RdNewEngine already computes
+that. Nothing else.
 """
 import sys
 
