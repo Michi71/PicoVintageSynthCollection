@@ -43,7 +43,6 @@ endif()
 picoface_add_instrument(
     NAME PicoFaceDX
     PROGRAM_NAME "PicoFaceDX"
-    VERSION "0.1"
     USB_PID ${_dx_usb_pid}
     DIR ${PICOFACE_CURRENT_INSTRUMENT_DIR}
 

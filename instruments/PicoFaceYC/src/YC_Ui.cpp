@@ -181,7 +181,12 @@ void YC_Ui::drawAbout(Display& d) const
     u8g2_DrawStr(u, 4, 14, "ABOUT");
     u8g2_DrawHLine(u, 0, 18, 128);
     u8g2_DrawStr(u, 4, 36, kAboutName);
+    // Smaller than the name above it: the version is a git describe now, and
+    // "1.7.0-4-ga39504b" needs seventeen characters. At 8 px this line holds
+    // fifteen, and a clipped commit hash still reads like a whole one.
+    u8g2_SetFont(u, u8g2_font_6x10_tf);
     u8g2_DrawStr(u, 4, 52, kAboutVersion);
+    u8g2_SetFont(u, u8g2_font_8x13B_tf);
     u8g2_SetFont(u, u8g2_font_6x10_tf);
     u8g2_DrawStr(u, 4, 62, "Press any button");
 }

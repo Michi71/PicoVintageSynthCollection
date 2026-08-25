@@ -32,8 +32,11 @@ function(picoface_add_instrument)
     if(NOT PF_PROGRAM_NAME)
         set(PF_PROGRAM_NAME "${PF_NAME}")
     endif()
+    # Instruments do not declare this: it is the repository's version, derived
+    # from git in the top-level CMakeLists so the splash names the build. An
+    # explicit VERSION argument still wins, for anything that needs its own.
     if(NOT PF_VERSION)
-        set(PF_VERSION "0.1")
+        set(PF_VERSION "${PICOFACE_VERSION}")
     endif()
     if(NOT PF_DIR)
         set(PF_DIR "${CMAKE_CURRENT_SOURCE_DIR}")

@@ -113,7 +113,6 @@ endif()
 picoface_add_instrument(
     NAME PicoFaceD5
     PROGRAM_NAME "PicoFaceD5"
-    VERSION "0.1"
     USB_PID 0x1059
     DIR ${_d5_dir}
 

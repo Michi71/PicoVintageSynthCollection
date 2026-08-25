@@ -37,6 +37,10 @@ jobs:
         uses: actions/checkout@v6
         with:
           submodules: recursive
+          # Full history and tags: the firmware version comes from git describe,
+          # and a shallow clone has nothing to describe against. A release build
+          # would show a bare commit hash instead of its own version number.
+          fetch-depth: 0
 
       # The Ubuntu apt package gcc-arm-none-eabi ships an incomplete libstdc++
       # (missing headers such as <cstring>) and breaks this C++ build.

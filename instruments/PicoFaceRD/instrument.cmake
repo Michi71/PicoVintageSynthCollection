@@ -99,7 +99,6 @@ message(STATUS "PicoFaceRD: ${_rd_pk_out}")
 picoface_add_instrument(
     NAME PicoFaceRD
     PROGRAM_NAME "PicoFaceRD"
-    VERSION "0.1"
     USB_PID 0x1052
     DIR ${_rd_dir}
 

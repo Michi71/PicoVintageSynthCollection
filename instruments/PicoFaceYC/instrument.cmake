@@ -17,7 +17,6 @@
 picoface_add_instrument(
     NAME PicoFaceYC
     PROGRAM_NAME "PicoFaceYC"
-    VERSION "0.1"
     USB_PID 0x1050
     DIR ${PICOFACE_CURRENT_INSTRUMENT_DIR}
 
