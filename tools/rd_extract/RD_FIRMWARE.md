@@ -38,8 +38,9 @@ routine *is* the descriptor generator.
 ed1b  ldb $1000      ; the chip says which voice and part
 ed20  andb #$f0      ;   high nibble = voice
 ed27  andb #$0f      ;   low nibble  = part
+ed24  mul            ; B was voice*16; times $a0, high byte, is voice*10
 ed2c  mul #$06       ; six bytes of state each
-ed2d  addd #$0200    ;   at $0200 + (voice*16 + part) * 6
+ed2d  addd #$0200    ;   at $0200 + (voice*10 + part) * 6
 ed37  ldx $02,x      ; a POINTER, held in that state
 ed39  beq  ...       ;   null: the part is finished
 ed4f  addd #$0006    ; advance it by six
@@ -570,6 +571,49 @@ parameter ROM
                                   +4,+5    curve selectors
                                   +6       ?
 ```
+
+## The part state, and a correction
+
+Byte 6 of each record goes to the part state, and the trick is `txs`:
+
+```
+e8d5  ldx $b5        ; the voice's state base
+e8d7  txs            ;   make it the frame, so tsx addresses it
+e8da  ldb $06,x      ; record 0, byte 6
+e8dd  stb $00,x      ;   -> state +0
+e8e1  ldb $0d,x      ; record 1, byte 6
+e8e4  stb $06,x      ;   -> state +6
+e8e8  ldb $14,x      ; record 2
+e8eb  stb $0c,x
+```
+
+Six bytes a part, and every one of them is now accounted for:
+
+| In the part state | From |
+|---|---|
+| `+0` | record byte 6 |
+| `+1` | the velocity weight — the interrupt's `$d2` |
+| `+2..3` | the segment list pointer, offset by the layer bit |
+| `+4..5` | the pitch, out of the zone entry |
+
+**A correction to the first pass.** It said the interrupt addresses state at
+`$0200 + (voice*16 + part) * 6`. It is **voice*10**, and the way the firmware
+gets there is worth seeing:
+
+```
+ed20  andb #$f0      ; B = voice * 16
+ed22  lda #$a0
+ed24  mul            ; D = voice * $a00 -- and the high byte is voice * 10
+ed29  aba            ; + part
+ed2a  ldb #$06
+ed2c  mul            ; * 6
+ed2d  addd #$0200
+```
+
+Multiply by 16, then by `$a0`, then keep the high byte: `16 * 160 / 256 = 10`.
+Ten parts a voice, sixty bytes a voice — which is exactly what note-on computes
+the other way round at `$e7b6` with a plain `ldb #$3c`. The two agree for every
+voice and part.
 
 ## What is still missing
 
