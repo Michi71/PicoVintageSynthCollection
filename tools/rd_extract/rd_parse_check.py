@@ -43,7 +43,8 @@ def load_pack(path):
             segs = [struct.unpack("<IBB", d[at + 6 * i:at + 6 * i + 6])
                     for i in range(nseg + nrel)]
             at += 6 * (nseg + nrel)
-            parts.append((nseg, [(s[1], s[2]) for s in segs]))
+            parts.append((nseg, [(s[1], s[2]) for s in segs],
+                          [s[0] for s in segs]))
         out[(note, vel)] = parts
     return out
 
@@ -58,10 +59,12 @@ def main():
     packs = load_pack(sys.argv[4])
 
     parts = complete = compared = agreed = unaligned = 0
+    timed = timed_ok = 0
     for (note, vel), ref in sorted(packs.items()):
         got = rd_parse.parse(rom, note, vel)["parts"]
         for rp, gp in zip(ref, got):
-            chain, mine = rp[1][:rp[0]], gp["segments"]
+            chain, mine = rp[1][:rp[0]], [(d, s) for d, s, _ in gp["segments"]]
+            stamps, durations = rp[2][:rp[0]], [t for _, _, t in gp["segments"]]
             parts += 1
             if not mine:
                 continue
@@ -77,10 +80,19 @@ def main():
             for i in range(n):
                 compared += 1
                 agreed += theirs[i] == mine[i]
+            # Durations: compare each gap against what the ramp arithmetic says.
+            for i in range(1, min(len(stamps) - skip - 1, len(durations))):
+                want = stamps[skip + i + 1] - stamps[skip + i]
+                if durations[i] is None:
+                    continue
+                timed += 1
+                timed_ok += durations[i] == want
 
     print(f"parts {parts}, segments compared {compared}")
     print(f"  segments agreeing   {100 * agreed / compared:6.2f} %")
     print(f"  chains complete     {100 * complete / parts:6.2f} %")
+    if timed:
+        print(f"  durations exact     {100 * timed_ok / timed:6.2f} %  ({timed_ok}/{timed})")
     if unaligned:
         print(f"  could not align     {unaligned}")
     sys.exit(0 if agreed == compared and not unaligned else 1)
