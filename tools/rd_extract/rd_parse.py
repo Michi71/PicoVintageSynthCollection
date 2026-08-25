@@ -87,8 +87,14 @@ def duration(table, level_from, level_to, speed):
     """
     rate = ramp_rate(table, speed)
     distance = (level_to - level_from) << 20
-    if rate == 0 or distance == 0 or (distance > 0) != (rate > 0):
-        return None
+    if rate == 0:
+        return None                       # a frozen segment never ends by itself
+    if distance == 0 or (distance > 0) != (rate > 0):
+        # Nowhere to go, or the ramp points away from its destination: the
+        # chip's end test fires on the first sample, so all that is left is the
+        # latency. Leaving this at None collapsed consecutive segments onto the
+        # same timestamp, which is what wrecked patch 15.
+        return 3
     return abs(distance) // abs(rate) + 3
 
 

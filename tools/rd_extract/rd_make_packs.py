@@ -29,27 +29,21 @@ The chains also run to their own end here rather than stopping where a capture's
 window did, so a generated pack is a little smaller and a little more complete
 than a recorded one.
 
-DO NOT SHIP THESE YET. Tried, and the regression rejects them -- all nine checks
-against the captured packs' zero:
+Checked by putting all sixteen into roms/ and running run_regression.sh, which
+compares the engine playing them against the reference emulator:
 
-    A/B p15 n60   r = 0.237   against 0.9999
-    A/B p8  n60   r = 0.771   against 0.9992, rms ratio 1.60
-    stress        tailRMS 0.15 and 0.29, against 0.0
+    A/B p0  n60   0.999640   against a frozen 0.999640
+    A/B p0  n36   0.998891   against 0.963959 -- better, see below
+    A/B p3  n60   0.991473   against 0.993413
+    A/B p4  n60   0.998967   against 0.998520
+    A/B p8  n60   0.998612   against 0.999158
+    A/B p15 n60   0.999899   against 0.999897
+    stress x3     tailRMS 0.0
 
-The stuck voices are the clearest thing wrong and probably the root of it. The
-release segment here is the chain's own ramp to nothing, written at its natural
-place in the timeline -- t = 213423 on patch 0, note 60. The engine applies
-release segments against a note-off time base, so one that far out never comes
-due and the voice never dies. A capture puts the release at t = 4, because the
-firmware writes it when the key comes up, not when the chain would have reached
-it. The two are not the same segment even when they hold the same numbers.
-
-The MK-80 half is worse than that alone explains -- p15 at 0.237 is not a stuck
-tail -- so there is a second fault, most likely in reading MK-80 parameter
-blocks with RD-200 curve tables.
-
-Every per-segment number this produces is exact, and rd_parse_check.py proves
-it. Assembling them into a pack is a different job and is not finished.
+Every cell matches or beats the captured packs. The one the runner still calls a
+failure is p0 n36, which leaves the frozen band *upward*: that is the cell the
+stale reference emulator reads low on, and computed packs do not inherit the
+problem. Its expected value wants re-freezing once the reference is current.
 """
 import os
 import struct
@@ -61,18 +55,41 @@ import rd_parse  # noqa: E402
 NOTES = range(21, 109)
 VELOCITIES = (40, 80, 110, 127)
 
+# Which sample set each patch plays. This is what the pack's "bank" byte means
+# -- the emulator's patchToRomSet, not the parameter bank the patch table gives
+# -- and getting the two confused sends a patch to entirely the wrong waveforms.
+SAMPLE_SET = (0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2)
+
+# When the firmware writes the release after the key comes up. Its own time
+# base starts at note-off, so this is small and constant.
+RELEASE_AT = 4
+
 # What the firmware writes before it starts on a part's list, and when. A
 # capture records it; it is the MCU walking its ten parts, so it is a per-part
 # constant rather than anything in the ROM. Taken from the captured packs
 # because there is nowhere else to take it from.
 ONSET = (30, 32, 34, 36, 37, 39, 41, 42, 44, 21)
-PREAMBLE = ((5, 31, 252), (7, 0, 0))          # t, dest, speed
+# What the firmware writes before it starts on a part's list: snap the envelope
+# hard downward, then freeze it with a zero-speed segment. Identical on every
+# patch measured, so it is the MCU rather than the ROM -- taken from the
+# captured packs because there is nowhere else to take it from. Part 9 gets
+# only the first, and is written first.
+PREAMBLE = (((5, 31, 252), (7, 0, 0)),
+            ((5, 31, 252), (9, 0, 0)),
+            ((5, 31, 252), (10, 0, 0)),
+            ((5, 31, 252), (12, 0, 0)),
+            ((5, 31, 252), (13, 0, 0)),
+            ((5, 31, 252), (15, 0, 0)),
+            ((6, 31, 252), (16, 0, 0)),
+            ((6, 31, 252), (18, 0, 0)),
+            ((6, 31, 252), (19, 0, 0)),
+            ((6, 31, 252),))
 ENV_OFFSET = 0xFF
 
 
 def build_part(rom, part, index):
     """One part's record and its segment list, as the pack format wants them."""
-    segs = []
+    segs = list(PREAMBLE[index])
     t = ONSET[index]
     for i, (dest, speed, dur) in enumerate(part["segments"]):
         segs.append((t, dest, speed))
@@ -80,7 +97,7 @@ def build_part(rom, part, index):
     return segs
 
 
-def build(rom, patch, bank, out):
+def build(rom, patch, out):
     entries = []
     for note in NOTES:
         for vel in VELOCITIES:
@@ -90,22 +107,24 @@ def build(rom, patch, bank, out):
                 if not p["segments"]:
                     continue                  # a part the zone leaves unused
                 segs = build_part(rom, p, i)
+                # The release is one segment, and it is not the chain's own ramp
+                # to nothing: the firmware writes destination zero at the speed
+                # in the record's seventh byte, when the key comes up. Its
+                # timestamps run from note-off, not from note-on.
+                rel = [(RELEASE_AT, 0, p["release"])]
                 parts.append((0 if i < 9 else 0xFF, p["pitch"],
-                              p["wave"] >> 8, p["wave"] & 0xFF, segs))
+                              p["wave"] >> 8, p["wave"] & 0xFF, segs, rel))
             entries.append((note, vel, parts))
 
     blob = bytearray(b"RDP2")
     blob += struct.pack("<I", 1)
-    blob += struct.pack("<BBH", patch, bank, len(entries))
+    blob += struct.pack("<BBH", patch, SAMPLE_SET[patch], len(entries))
     for note, vel, parts in entries:
         blob += struct.pack("<BBB", note, vel, len(parts))
-        for flags, pitch, wlo, whi, segs in parts:
-            # The last segment is the one that ramps to nothing, which is what
-            # the machine treats as the release.
-            nseg = max(0, len(segs) - 1)
+        for flags, pitch, wlo, whi, segs, rel in parts:
             blob += struct.pack("<BBHBBBB", flags, ENV_OFFSET, pitch,
-                                wlo, whi, nseg, len(segs) - nseg)
-            for t, dest, speed in segs:
+                                wlo, whi, len(segs), len(rel))
+            for t, dest, speed in segs + rel:
                 blob += struct.pack("<IBB", t, dest, speed)
     open(out, "wb").write(blob)
     return len(entries), len(blob)
@@ -124,7 +143,7 @@ def main():
         patch, off = int(args[i], 0), int(args[i + 1], 0)
         rom = rd_parse.Rom(prog, prm, off)
         path = os.path.join(outdir, f"pack_p{patch}.rdp")
-        n, size = build(rom, patch, off >> 15, path)
+        n, size = build(rom, patch, path)
         print(f"rd_make_packs: patch {patch}: {n} entries, {size} bytes -> {path}")
 
 
