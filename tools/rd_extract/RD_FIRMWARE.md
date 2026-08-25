@@ -474,14 +474,54 @@ the packs show mean some of those zones point at the same list.
 already in A, which is why that routine reads `lda $e1` at `$e799` when reached
 the other way.
 
+## The zone entry is one index and ten pitches
+
+```
+e80b  ldx $ad        ; the zone entry, one byte in
+e80d  ldd $00,x      ; a 16-bit value
+e80f  ldx $b5
+e811  std $04,x      ;   into the part state
+e813  addd $e5       ;   plus the global tuning
+e816  std $00,x      ;   into the frame that reaches the chip
+e818  ldx $ad
+e81a  ldd $02,x      ; the next one
+e81e  std $0a,x      ;   state, stride six
+e823  std $10,x      ;   frame, stride sixteen
+e825  ldx $ad
+e827  ldd $04,x      ; and the next
+```
+
+Ten 16-bit pitch values at stride two, read from `zone + 1` — `$ad` is the zone
+entry incremented past its first byte, which is the part-block index. **One
+index byte plus ten pitches of two bytes each is twenty-one**, which is the zone
+entry's size arrived at independently for the second time.
+
+Each is stored twice: into the part state, and — with the global tuning from the
+`$e0` command added — into the frame that is handed to the chip. So the ROM
+carries an absolute pitch per part per zone; nothing is transposed from the note
+at play time, because the zone *is* the note.
+
+## Programming a note is ten parts, unrolled
+
+Note-on writes every one of the ten parts explicitly rather than looping.
+`ldx $b1` — the voice's chip base, `$1000 + voice * $100` — appears ten times in
+a row at `$e955` through `$eb05`, storing to `+$04`, `+$14`, `+$24` … `+$94`:
+chip fields 4 and 5, the envelope pair, one part every sixteen bytes. Flags and
+the envelope offset go the same way at `+$06`, `+$16`, and so on from `$e7df`.
+
+The interpolation itself is shared. `$eb16` is the interrupt's arithmetic as a
+subroutine — four corners at X, weights in `$c2` and `$c3` rather than `$d1` and
+`$d2`, the pair returned in D — and note-on calls it once per part to program
+the first segment. The interrupt then re-implements the same maths inline for
+every segment after that.
+
 ## What is still missing
 
 The envelope path is read end to end. Two things beside it are not:
 
-- **Wave address and pitch.** The captured descriptors carry a `pitch_lut`, a
-  `wave_loop` and a `wave_high` per part, and none of those come from the
-  segment lists — most likely from the six seven-byte records at `+$22` in the
-  part block, which have been located but not read.
+- **The wave address.** Chip fields 2 and 3 per part, `wave_loop` and
+  `wave_high` in the captured descriptors. Not in the zone entry and not in the
+  segment lists, so presumably in the part block; not yet found.
 
 And one thing that is not missing but worth restating, because it changes what a
 pack has to hold:
