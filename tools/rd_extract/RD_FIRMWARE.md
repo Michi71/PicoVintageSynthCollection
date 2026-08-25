@@ -202,11 +202,60 @@ a *two-stage* mapping, table first and shift second. Which is exactly why
 fitting the four measured layers put them at curve indices 9, 39, 55, 58 where
 `velocity >> 1` would have wanted 20, 40, 55, 63.
 
+## The parameter ROM's own header
+
+The program-change handler (`$e19b`) reads it, and it is short:
+
+```
+e1a5  andb #$07      ; the patch number, three bits
+e1aa  sta $e000      ; bank latch to 0
+e1ad  ldx #$4000     ; the window
+e1b0  abx            ;   + patch * 3
+e1b1  abx
+e1b2  abx
+e1b3  lda $00,x      ; byte 0  = which bank
+e1b5  ldx $01,x      ; bytes 1-2 = a 16-bit address in the window
+e1b7  sta $e000      ; latch to that bank
+e1bb  std $a5        ; $a5 = the address
+e1bd  addd #$0100
+e1c0  std $a7        ; $a7 = $a5 + $100
+e1c2  addd #$081f
+e1c5  std $a9        ; $a9 = $a7 + $81f
+```
+
+So the whole parameter ROM is laid out from one three-byte entry per patch at
+the very start:
+
+| From | Size | What |
+|---|---|---|
+| `$4000` | 3 bytes a patch | bank and base address, eight patches |
+| `$a5` | `$100` | the velocity table, 256 bytes |
+| `$a7` | `$81f` | the zone table — and `$81f / 21` is exactly **99 zones** |
+| `$a9` | rest | the 70-byte part blocks |
+
+**Confirmed against the MK-80 ROM.** Its parameter ROM begins
+
+```
+00 40 20  01 40 00  02 40 00  03 40 00  00 6c 00  01 71 f0  02 69 10  03 59 f0
+```
+
+and resolving each as `(address - $4000) | (bank << 15)` gives
+
+```
+0x000020 0x008000 0x010000 0x018000 0x002c00 0x00b1f0 0x012910 0x0199f0
+```
+
+which is, byte for byte, the MK-80 half of the `patchToOffset` table the
+reference emulator carries hard-coded. That table was derived from this
+structure; it can be read from the ROM instead.
+
 ## What is still missing
 
-- **`$a5`, `$a7` and `$a9`**, the three table bases. All three are set together
-  at `$e06c`–`$e076` and again at `$e1bb`–`$e1c5`, which is the program-change
-  handler — so reading that gives the parameter ROM's own header.
+- **The MKS-20's equivalent header.** The same search does not find it in
+  `mks20_15179757.BIN`, the parameter ROM the emulator uses for both MKS-20
+  sample sets. Either it lives in another chip, or the MKS-20's main CPU
+  supplies the offsets by a different route. Its `patchToOffset` half is
+  therefore still only known from the emulator.
 - **Bytes 4 and 5** of each segment entry. The pointer advances by six and the
   interrupt consumes four.
 - **The key weight** at `$0040 + voice`. It is written by the `$80`/`$a0`
