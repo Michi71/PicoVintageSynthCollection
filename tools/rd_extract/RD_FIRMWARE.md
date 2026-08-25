@@ -390,23 +390,87 @@ The `$80`/`$a0` handler at `$e777`/`$e77d` writes the same location by the same
 route. It is the second way in, not the only one, and note-on does not depend
 on it.
 
+## The three bytes, settled
+
+The doubt in the previous pass was mine and unfounded: the fetch at `$e157`
+reads **two** data bytes, not one.
+
+```
+e157  tim #$01,$03   ; wait for the strobe
+e15a  beq $e157
+e15c  lda $02        ; first data byte
+e15e  aim #$ef,$03   ; acknowledge
+e161  tim #$01,$03   ; wait again
+e164  bne $e161
+e166  ldb $02        ; second data byte
+e168  oim #$10,$03
+e16b  std $e1        ; -> $e1 and $e2
+e16d  rts
+```
+
+Three reads in all, counting the command byte at `$e129`. Which the reference
+emulator corroborates without meaning to: its `read_byte` pops the command queue
+at exactly three program counters — `$e12b`, `$e15e`, `$e168` — the reads at
+`e129`, `e15c` and `e166`. Three bytes queued by `sendMidiCmd` as `$c0`, note,
+velocity; three reads to take them.
+
+So, finally and without hedging:
+
+| | |
+|---|---|
+| `$dc` | the command byte |
+| `$e1` | the **note** |
+| `$e2` | the **velocity** |
+
+and `e5be`'s `ldd $e1` puts the note in A — kept at `$9f` — and the velocity in
+B, which indexes `$a5`. **`$c0` is `$a5[velocity]`**, as the measurements had
+already forced it to be.
+
+## The path, end to end
+
+Everything above, in the order it happens:
+
+1. Three bytes arrive: `$c0`, note, velocity.
+2. **Velocity** indexes `$a5`, a 256-byte map at the head of the patch's
+   parameter block. One byte out, two jobs: bit 7 picks a coarse layer, bits 0-6
+   a fine position.
+3. **Note** picks a zone, one of 99 entries of 21 bytes, which names a 70-byte
+   part block — six parts of seven bytes, a segment-list pointer at `+2`, a
+   curve selector at `+4`.
+4. The list pointer is offset by 0 or 2 from the layer bit and stored per part.
+5. Each interrupt from the chip walks that list six bytes at a time, reads four
+   corners, and interpolates twice -- `$c0 << 1` straight for one byte of the
+   register pair, one of eight 64-byte curves for the other.
+6. A segment interpolating to zero ends the chain.
+
+Nothing in that is timing. The durations the captured packs record are the
+chip's own ramps, not the firmware's.
+
 ## What is still missing
 
-- **Exactly which byte indexes `$a5`.** The measurements settle *what* it
-  depends on -- one note at four velocities gives four different chains, so it
-  is velocity-derived and cannot be the note -- but the byte plumbing through
-  the `$c0` handler's handshake has not been followed step by step, and the
-  command carries three bytes where the dispatcher reads two.
-- **Where the timestamps come from.** Not the ROM: a segment's duration is
-  however long the chip takes to ramp from the previous destination to this
-  one, which is why two notes with the same chain have identical timing.
-  `RdNewEngine` already computes that arithmetic, so the packs could drop the
-  timestamps entirely — 3.17 MB would become roughly 0.5 MB with the duplicates
-  removed as well, independently of whether the parser ever gets written.
+The envelope path is read end to end. Two things beside it are not:
+
+- **How the note becomes a zone index.** `$e1` reaches the zone table by way of
+  a `suba #$0f`, but the mapping from 88 keys onto 99 entries has not been
+  followed, and it is the first thing a parser would need.
+- **Wave address and pitch.** The captured descriptors carry a `pitch_lut`, a
+  `wave_loop` and a `wave_high` per part, and none of those come from the
+  segment lists — most likely from the six seven-byte records at `+$22` in the
+  part block, which have been located but not read.
+
+And one thing that is not missing but worth restating, because it changes what a
+pack has to hold:
+
+- **The timestamps are not in the ROM and need not be in the packs.** A
+  segment's duration is however long the chip takes to ramp from the previous
+  destination to this one, which is why two notes on the same chain time
+  identically. `RdNewEngine` already computes that arithmetic. Dropping the
+  timestamps and the duplicates would take the packs from 3.17 MB to roughly
+  0.5 MB, whether or not the parser ever gets written.
 
 Only three parameter-ROM reads in the whole firmware use a fixed address
-(`$babf`, `$bbc1`, `$babd`); everything else is indexed, which is why this had
-to be read rather than grepped for.
+(`$babf`, `$bbc1`, `$babd`); everything else is indexed, which is why all of
+this had to be read rather than grepped for.
 
 ## Why this matters
 
