@@ -18,17 +18,28 @@ R="$(cd "$HERE/../.." && pwd)/instruments/PicoFaceRD"
 OUT="${OUT:-$HERE/.xip_probe_build}"
 mkdir -p "$OUT"
 
+# The sample banks and packs are built from roms/ the same way the firmware
+# builds them; nothing generated is in the tree any more. RDPIANO is needed
+# because the descrambling lives in the reference emulator.
+ROMS="$R/roms"
+if [ -z "${RDPIANO:-}" ]; then
+    echo "build_xip_probe: set RDPIANO to a checkout of the upstream emulator" >&2
+    echo "    git clone https://github.com/Michi71/rdpiano" >&2
+    exit 1
+fi
+RDPIANO="$RDPIANO" "$HERE/rd_make_rom.sh" "$ROMS" "$OUT/rd_rom.blob" >&2
+python3 "$HERE/rd_embed_packs.py" "$ROMS" "$OUT" >&2
+
 CXX="${CXX:-c++}"
-{ "$CXX" -O2 -std=c++17 -DRD_XIP_TRACE \
+{ "$CXX" -O2 -w -std=c++17 -DRD_XIP_TRACE \
     -I "$R/include" -I "$R/include/rd_engine" \
     -o "$OUT/rd_xip_probe" \
     "$HERE/rd_xip_probe.cpp" \
     "$R/src/rd_engine/rd_new_engine.cpp" \
-    "$R/src/rd_engine/rd_packs_data.cpp" \
-    "$R/src/rd_engine/program_tables.cpp" \
-    "$R/src/rd_engine/rd_samples_pk4_a.cpp" \
-    "$R/src/rd_engine/rd_samples_pk4_b.cpp" \
-    "$R/src/rd_engine/rd_samples_pk4_m.cpp"; } >&2
+    "$OUT/rd_packs_tables.cpp" \
+    "$OUT/rd_packs_blob.S" \
+    "$OUT/rd_rom_blob.S" \
+    "$OUT/rd_rom_tables.S"; } >&2
 
 echo "[ok]   $OUT/rd_xip_probe" >&2
 exec "$OUT/rd_xip_probe" "$@"

@@ -55,6 +55,11 @@ instruments/PicoFaceJV/roms/
 # PicoFaceD5 needs a local D-50 ROM set for the same reason.
 instruments/PicoFaceD5/roms/
 
+# PicoFaceRD the same: the MKS-20 / MK-80 sample ROMs, and the descriptor packs
+# captured from them, which are derived data and no more distributable than the
+# ROMs they come from.
+instruments/PicoFaceRD/roms/
+
 # Built by tools/cp_sampleprep/build_loop_finder.sh
 tools/cp_sampleprep/FindLoopPoints
 

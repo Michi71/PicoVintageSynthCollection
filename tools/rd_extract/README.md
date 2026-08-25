@@ -8,15 +8,32 @@ All tools link against the RD engine (native build, no Pico SDK). Paths below
 are relative to the repository root; `I=instruments/PicoFaceRD` is used as a
 shorthand for the instrument directory.
 
-Build pattern:
+**Two things these tools need are deliberately not in this repository**, and
+`run_regression.sh` is the worked example of pointing at them:
+
+| | what | why |
+|---|---|---|
+| `$I/roms/` | nine sample ROMs, sixteen `.rdp` packs | Roland's, and data derived from it |
+| `RDPIANO` | a checkout of [Michi71/rdpiano](https://github.com/Michi71/rdpiano) | the descrambling lives there |
+| `RDPIANO_REF` | a checkout of [Michi71/librdpiano](https://github.com/Michi71/librdpiano) | the adapted emulator the A/B test measures against |
+
+Anything that reads sample data starts by building it, exactly as the firmware
+build does:
+
+    RDPIANO=~/rdpiano tools/rd_extract/rd_make_rom.sh $I/roms build_host/rd_rom.blob
+    python3 tools/rd_extract/rd_embed_packs.py $I/roms build_host
+
+which writes `rd_rom_blob.S` (the three packed sample banks), `rd_rom_tables.S`
+(the chip's two lookup tables — leave it out when linking against the emulator,
+which computes them itself) and the packs as `rd_packs_blob.S` plus
+`rd_packs_tables.cpp`. Then:
 
     I=instruments/PicoFaceRD
-    clang++ -O2 -std=c++17 -I $I/include/rd_engine -o <tool> tools/rd_extract/<tool>.cpp \
-        $I/src/rd_engine/mcu.cpp $I/src/rd_engine/sound_chip.cpp \
-        $I/src/rd_engine/mks20a_tables.cpp $I/src/rd_engine/mks20b_tables.cpp \
-        $I/src/rd_engine/mk80_tables.cpp $I/src/rd_engine/program_tables.cpp \
-        $I/src/rd_engine/rd_samples_ilv_a.cpp $I/src/rd_engine/rd_samples_ilv_b.cpp \
-        $I/src/rd_engine/rd_samples_ilv_m.cpp
+    clang++ -O2 -w -std=c++17 -I $I/include/rd_engine -I $RDPIANO_REF/rdpiano/include \
+        -o <tool> tools/rd_extract/<tool>.cpp \
+        $RDPIANO_REF/rdpiano/src/{mcu,sound_chip}.cpp \
+        $RDPIANO_REF/rdpiano/src/{mks20a,mks20b,mk80,program}_tables.cpp \
+        build_host/rd_rom_blob.S
 
 - `rd_extract.cpp`  — register capture per (patch, note, velocity) -> JSONL.
     ./rd_extract <patch> <out.jsonl> [notelist] [velocity]
@@ -48,10 +65,12 @@ First validation (note-by-note, vel 110): r = 0.90–0.97, RMS ratio
 
 ## v2.2: 4-byte sample banks + block doorbell
 
-- `gen_pk4.cpp` — losslessly repacks the 8-byte RdSampleEntry banks into u32
-  (bits[13:0]=exp, [14]=exp_sign, [23:15]=delta, [24]=delta_sign; bit widths
-  verified across all banks, the generator re-checks them). Halves the
-  dominant XIP-miss stream (2 entries per 8-byte line) and 1.5 MB of flash.
+- The sample banks are packed into u32 (bits[13:0]=exp, [14]=exp_sign,
+  [23:15]=delta, [24]=delta_sign; the widths hold across all three banks).
+  Halves the dominant XIP-miss stream — two entries per 8-byte line — and 1.5 MB
+  of flash. `gen_pk4.cpp` used to do this as a separate step over the 8-byte
+  banks; `rd_make_rom` now packs straight out of the descrambler and the 8-byte
+  form is never materialised at all.
 - Since v2.2 the engine renders in 64-sample blocks with ONE core-1
   rendezvous per block (voice-outer/sample-inner: part state stays in
   registers, sample-ROM reads become sequential). renderSample() remains as
@@ -165,12 +184,11 @@ lever is real; the measurement to derive it from is not this one.
 
 ## Regression runner (one command)
 
-    tools/rd_extract/run_regression.sh
+    RDPIANO=~/rdpiano RDPIANO_REF=~/librdpiano tools/rd_extract/run_regression.sh
 
-Builds `rd_dump_packs` (writes the 16 packs embedded in the firmware image
-from `rd_packs_data.cpp` back to `build_host/packs/` at the repository root — so the test covers
-exactly what ships, with no scratchpad dependency), `rd_ab_test`
-and `rd_stress2`, then checks:
+Builds the sample banks and the packs from `$I/roms/` exactly as the firmware
+build does — so the test covers exactly what ships — then `rd_ab_test` and
+`rd_stress2`, then checks:
 
 - A/B matrix against the reference emulator (6 cells: p0n60, p0n36, p3n60,
   p4n60, p8n60, p15n60; vel 110) — r must match the frozen reference values

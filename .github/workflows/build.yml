@@ -21,13 +21,16 @@ jobs:
         instrument:
           - PicoFaceYC
           - PicoFaceCP
-          - PicoFaceRD
           - PicoFaceJ6
           - PicoFaceMD
           - PicoFaceSM
           - PicoFaceDX
-          # GPL-3, unlike the other seven - see instruments/PicoFaceOB/README.md
+          # GPL-3, unlike the other six - see instruments/PicoFaceOB/README.md
           - PicoFaceOB
+          # PicoFaceRD, PicoFaceJV and PicoFaceD5 are not here: each needs a
+          # local ROM set that cannot be distributed, so each is built from
+          # source only. RD was in this list until its ROM data stopped being
+          # in the repository.
 
     steps:
       - name: Checkout repository
