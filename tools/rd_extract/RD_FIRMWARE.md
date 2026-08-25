@@ -753,10 +753,47 @@ So the two routines found on the way are other things:
 | `$e6d7` | a forced release, per-part rate out of state `+0`, range `$80…$bf` |
 | `$ebbf` | note-off proper: zero the list pointer, reset the counter, set the pianos' four-level damper |
 
+## Where this got to
+
+The path from a ROM set to a note is read, end to end:
+
+```
+three bytes arrive: $c0, note, velocity
+  velocity -> $a5[velocity]          256-byte map: bit 7 a coarse layer,
+                                      bits 0-6 a fine position
+  note     -> zone = note - 15,      99 entries of 21 bytes:
+              folded by octaves        +0     part-block index
+                                       +1..   ten 16-bit pitches
+              part block             70 bytes, ten records of seven:
+                                       +0..1  wave address   -> chip 2,3
+                                       +2..3  segment list, offset by the
+                                              layer bit
+                                       +4,+5  curve selectors, soft and hard
+                                       +6     forced-release rate
+  each chip interrupt walks the list six bytes at a time, reads four corners,
+  and interpolates twice: straight over $c0 << 1 for one byte of the register
+  pair, through one of eight 64-byte curves for the other
+  a segment interpolating to zero ends the chain
+```
+
+Every size in that was arrived at twice — once from an instruction and once
+from an arithmetic identity that had to agree — which is the only reason to
+trust it. The 21 and the 99 check each other; the 70 and the ten records of
+seven check each other; the ten parts a voice fall out of both `voice * 60` in
+note-on and a multiply-by-`$a0`-and-take-the-high-byte in the interrupt.
+
 ## What is still missing
 
-The envelope path is read end to end. Two things beside it are not:
+- **What the pianos' four-level damper drives.** `$ebbf` builds a 0-to-3 value
+  from the velocity weight's top two bits and stores it four times over into
+  `$c6`…`$cd`; where it is read has not been followed. The word beside the mask
+  in the `$e254` table (`$5a06`, `$5a08`) is unread for the same reason.
+- **The MKS-20's own firmware**, beyond its patch table. Everything read here is
+  the RD-200's, which is what the reference emulator runs. The two MKS-20 ROMs
+  dispatch identically from different addresses, so the same reading should
+  transfer, but it has not been done.
 
+Nothing on the envelope path itself is open any more.
 
 And one thing that is not missing but worth restating, because it changes what a
 pack has to hold:
@@ -774,7 +811,7 @@ this had to be read rather than grepped for.
 
 ## Why this matters
 
-If the rest yields to the same treatment, the packs become a pure function of
-the ROM set: no emulator, no second checkout, no risk of a stale reference
-quietly producing a different-sounding instrument. That is the whole point of
-chasing it.
+The packs can become a pure function of the ROM set: no emulator, no second
+checkout, no risk of a stale reference quietly producing a different-sounding
+instrument. What stands between here and that is writing the parser, not
+finding out how.
