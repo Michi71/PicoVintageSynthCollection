@@ -16,8 +16,8 @@
 # computes them instead, from the firmware's own arithmetic as read in
 # RD_FIRMWARE.md, with no emulator anywhere in it:
 #
-#   RDPIANO=~/rdpiano rd_unscramble.sh <romdir> MKS20_B.BIN mks20_15179757.BIN \
-#       mks20_15179738.BIN /tmp/prog.bin /tmp/prm.bin
+#   rd_descramble.py <romdir> RD200_B.bin mks20_15179757.BIN \
+#       /tmp/prog.bin /tmp/prm.bin
 #   rd_make_packs.py /tmp/prog.bin /tmp/prm.bin <outdir> 0 0x000000 1 0x008000 ...
 #
 # That path is minutes rather than hours and cannot be fooled by a stale
@@ -80,7 +80,7 @@ if [ -z "${RDPIANO:-}" ]; then
     exit 1
 fi
 echo "make_packs: building the sample banks"
-RDPIANO="$RDPIANO" "$here/rd_make_rom.sh" "$romdir" "$work/rd_rom.blob" "$work/rd_ilv.bin" >/dev/null
+python3 "$here/rd_make_rom.py" "$romdir" "$work/rd_rom.blob" "$work/rd_ilv.bin" >/dev/null
 
 # A stale checkout is the trap here: it builds, it runs, and it quietly
 # produces different packs. The instrument's own copy of this emulator had

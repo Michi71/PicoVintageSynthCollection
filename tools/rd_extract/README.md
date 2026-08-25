@@ -8,19 +8,26 @@ All tools link against the RD engine (native build, no Pico SDK). Paths below
 are relative to the repository root; `I=instruments/PicoFaceRD` is used as a
 shorthand for the instrument directory.
 
-**Two things these tools need are deliberately not in this repository**, and
+**Two things some of these tools need are deliberately not in this repository**, and
 `run_regression.sh` is the worked example of pointing at them:
 
 | | what | why |
 |---|---|---|
 | `$I/roms/` | nine sample ROMs, sixteen `.rdp` packs | Roland's, and data derived from it |
-| `RDPIANO` | a checkout of [Michi71/rdpiano](https://github.com/Michi71/rdpiano) | the descrambling lives there |
+| `RDPIANO` | a checkout of [Michi71/rdpiano](https://github.com/Michi71/rdpiano) | the firmware execution the *capture* watches |
 | `RDPIANO_REF` | a checkout of [Michi71/librdpiano](https://github.com/Michi71/librdpiano) | the adapted emulator the A/B test measures against |
+
+Only `make_packs.sh` (the capture path) and `run_regression.sh` (the A/B test)
+want those two. Everything else -- the firmware build included -- runs on
+Python and the ROMs: `rd_descramble.py` undoes the address and data line
+crossings, and the chip's two lookup tables sit beside it as
+`rd_chip_tables.bin.xz`, 27 KB, because they are constants the chip computes
+from its own arithmetic rather than anything read from a ROM.
 
 Anything that reads sample data starts by building it, exactly as the firmware
 build does:
 
-    RDPIANO=~/rdpiano tools/rd_extract/rd_make_rom.sh $I/roms build_host/rd_rom.blob
+    python3 tools/rd_extract/rd_make_rom.py $I/roms build_host/rd_rom.blob
     python3 tools/rd_extract/rd_embed_packs.py $I/roms build_host
 
 which writes `rd_rom_blob.S` (the three packed sample banks), `rd_rom_tables.S`
