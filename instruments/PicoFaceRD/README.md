@@ -5,7 +5,45 @@
 </p>
 
 A Roland **MKS-20 / MK-80** ("S/A synthesis") digital piano clone, one of the
-nine instruments in [PicoVintageSynthCollection](../../README.md). Instead of emulating the original hardware cycle-exactly at runtime, it plays a **descriptor-driven re-implementation** of the S/A engine: the original firmware's voice programming was captured note-by-note on a host-side reference emulator, distilled into compact per-note descriptors, and is replayed on-device with chip-exact envelope arithmetic. The result is validated against the reference emulator with a cross-correlation matrix of 1920 cells (median r = 0.9997).
+ten instruments in [PicoVintageSynthCollection](../../README.md). Instead of emulating the original hardware cycle-exactly at runtime, it plays a **descriptor-driven re-implementation** of the S/A engine: the original firmware's voice programming was captured note-by-note on a host-side reference emulator, distilled into compact per-note descriptors, and is replayed on-device with chip-exact envelope arithmetic. The result is validated against the reference emulator with a cross-correlation matrix of 1920 cells (median r = 0.9997).
+
+Like PicoFaceJV and PicoFaceD5 this instrument **needs a local ROM set** and is
+therefore not in the release binaries. Without one the configure step skips it
+with a note and everybody else's build stays green.
+
+## What it needs
+
+Everything goes in `roms/` beside the instrument (gitignored). Nothing in it is
+distributable, and nothing derived from it is in this repository either.
+
+| File | Size | What it is |
+|---|---|---|
+| `mks20_15179736/37/38.BIN` | 128 KB each | MKS-20 sample chips, first set |
+| `mks20_15179739/40/41.BIN` | 128 KB each | MKS-20 sample chips, second set |
+| `MK80_IC5/IC6/IC7.bin` | 128 KB each | MK-80 sample chips |
+| `pack_p0.rdp` … `pack_p15.rdp` | ~3.2 MB total | the note descriptors, one file per patch |
+
+The nine ROMs become a 1.81 MB blob at configure time: three packed sample banks
+and the chip's two arithmetic tables, which is all the engine reads. Building it
+needs the reference emulator, since that is where the descrambling lives, and
+that emulator is not in this repository:
+
+```bash
+git clone https://github.com/Michi71/rdpiano ~/rdpiano
+RDPIANO=~/rdpiano cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+      -DPICOFACE_INSTRUMENTS_FILTER=PicoFaceRD
+cmake --build build
+```
+
+`RDPIANO` is needed once, for the blob; later configures reuse it. The packs
+need nothing but Python.
+
+**Where the packs come from.** They are capture output: the reference emulator
+plays every (patch, note, velocity) while a hook records the firmware's writes
+to the sound chip, and the analyzer distills those into per-note descriptors.
+`tools/rd_extract/README.md` documents the run. They are derived from Roland's
+ROMs and are no more distributable than the ROMs are, which is why they sit in
+`roms/` rather than in the tree.
 
 ## Features
 
@@ -69,17 +107,19 @@ In **Auto**, the polyphony limit follows the CPU load: the base limit is the pro
 Built together with the rest of the collection, or on its own:
 
 ```bash
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICOFACE_INSTRUMENTS_FILTER=PicoFaceRD
+RDPIANO=~/rdpiano cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+      -DPICOFACE_INSTRUMENTS_FILTER=PicoFaceRD
 cmake --build build
 ```
 
-If you already have a shared SDK checkout, export `PICO_SDK_PATH` (and
+`RDPIANO` only matters the first time, when the blob is built; see
+[What it needs](#what-it-needs). If you already have a shared SDK checkout, export `PICO_SDK_PATH` (and
 optionally `PICO_EXTRAS_PATH`) instead of initialising the `lib/pico-sdk` and
 `lib/pico-extras` submodules — the in-tree submodules are only the fallback.
 The `lib/u8g2/u8g2` submodule is always required.
 
 Flash `build/PicoFaceRD.uf2` via BOOTSEL. Footprint in the collection build:
-5,318,096 bytes of flash (the sample banks dominate), 35,420 bytes of static RAM
+5,305,676 bytes of flash (the sample banks dominate), 48,024 bytes of static RAM
 plus about 44 KB of heap for the pack descriptors.
 
 ## Architecture
@@ -112,17 +152,38 @@ section 8.
 Everything is verified host-first on the Mac/Linux side before it touches the device:
 
 ```sh
-tools/rd_extract/run_regression.sh
+RDPIANO=~/rdpiano RDPIANO_REF=~/librdpiano tools/rd_extract/run_regression.sh
 ```
 
-builds the host tools, extracts the 16 embedded packs from the firmware sources (so the test covers exactly what ships), runs a six-cell A/B matrix against the reference emulator with frozen expected correlations, and runs stuck-voice stress tests (chord hammering with sustain pedal, single- and dual-thread) — `REGRESSION PASS/FAIL` with exit code. The extraction and analysis toolchain is documented in [tools/rd_extract/README.md](../../tools/rd_extract/README.md).
+builds the sample banks and the packs from `roms/` exactly as the firmware
+build does — so the test covers exactly what ships — then builds two host
+tools, runs a six-cell A/B matrix against the reference emulator with frozen
+expected correlations, and runs stuck-voice stress tests (chord hammering with
+sustain pedal, single- and dual-thread). `REGRESSION PASS/FAIL` with an exit
+code.
+
+Two checkouts, because they are two different things: `RDPIANO` is the upstream
+emulator, whose sound chip takes three ROM images and is therefore what can
+descramble them; `RDPIANO_REF` is the adapted one with the model tables
+compiled in, which is what the A/B test compares against. The extraction and
+analysis toolchain is documented in
+[tools/rd_extract/README.md](../../tools/rd_extract/README.md).
 
 [tools/rd_midi/](../../tools/rd_midi/) holds MIDI utilities for testing: `midi_keyboard_only.py` strips a Standard MIDI File down to pure keyboard performance (notes, damper, pitch bend) so sequencer dumps can be replayed against the device.
 
 ## ROM data & credits
 
-- **[giulioz/rdpiano](https://github.com/giulioz/rdpiano)** — the reverse engineering of the Roland S/A sound generation (MCU emulation, ROM decryption) that this project builds on. The host-side reference emulator is derived from that work and from **MAME**.
-- The embedded sample banks and note descriptors are *derived data* from MKS-20 / MK-80 ROM images. Roland is not affiliated with this project; all trademarks belong to their owners. This is a non-commercial educational/preservation project.
+- **[giulioz/rdpiano](https://github.com/giulioz/rdpiano)** — the reverse
+  engineering of the Roland S/A sound generation, MCU emulation and ROM
+  descrambling that all of this rests on, by **Giulio Zausa**, itself building
+  on **MAME**. The reference emulator is his work, it is host-side only, and it
+  is **not in this repository**: the build and the regression harness are
+  pointed at a checkout of it. Without it there is no way to turn a ROM set
+  into anything this instrument can play.
+- The sample banks and the note descriptors are *derived data* from MKS-20 /
+  MK-80 ROM images and live in `roms/` with the ROMs, outside the repository.
+  Roland is not affiliated with this project; all trademarks belong to their
+  owners. This is a non-commercial educational/preservation project.
 - **[u8g2](https://github.com/olikraus/u8g2)** (display), **Raspberry Pi Pico SDK / pico-extras** (platform, PIO I2S audio).
 - Sibling instruments in this collection: [PicoFaceCP](../PicoFaceCP/README.md) is where the UI style, the phaser and the veeprom module come from.
 

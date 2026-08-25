@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Derived from giulioz/rdpiano and MAME; copyright is shared with their authors.
-// See instruments/PicoFaceRD/README.md.
+// SPDX-FileCopyrightText: 2026 Michi71
+//
+// The descriptor-replay engine: own code over data the reference emulator
+// captured offline. See instruments/PicoFaceRD/README.md.
 
 #include "rd_new_engine.h"
-#include "mame_utils.h"   // RD_HOT_FUNC
+#include "rd_types.h"     // u8/u16/u32, RD_HOT_FUNC
 #include <cstring>
 #include <cstdlib>
 

@@ -24,20 +24,20 @@ codebase. Same board, same core, one firmware image per instrument.
 | [instruments/PicoFaceYC](instruments/PicoFaceYC/README.md) | Yamaha reface YC (drawbar organ) | PicoFaceYC.uf2 |
 | [instruments/PicoFaceCP](instruments/PicoFaceCP/README.md) | Yamaha reface CP (electric piano, mdaEPiano) | PicoFaceCP.uf2 |
 | [instruments/PicoFaceDX](instruments/PicoFaceDX/README.md) | Yamaha reface DX (4-operator FM) | PicoFaceDX.uf2 |
-| [instruments/PicoFaceRD](instruments/PicoFaceRD/README.md) | Roland RD / MKS-20 (sample piano) | PicoFaceRD.uf2 |
 | [instruments/PicoFaceJ6](instruments/PicoFaceJ6/README.md) | Roland Juno-6 | PicoFaceJ6.uf2 |
 | [instruments/PicoFaceMD](instruments/PicoFaceMD/README.md) | Minimoog Model D | PicoFaceMD.uf2 |
 | [instruments/PicoFaceSM](instruments/PicoFaceSM/README.md) | ARP/Eminent Solina String Ensemble | PicoFaceSM.uf2 |
 | [instruments/PicoFaceOB](instruments/PicoFaceOB/README.md) | Oberheim OB-X (engine ported from OB-Xf) | PicoFaceOB.uf2 |
+| [instruments/PicoFaceRD](instruments/PicoFaceRD/README.md) | Roland RD / MKS-20 (sample piano) | local build only |
 | [instruments/PicoFaceJV](instruments/PicoFaceJV/README.md) | Roland JV-880 (native engine over the original PCM data) | local build only |
 | [instruments/PicoFaceD5](instruments/PicoFaceD5/README.md) | Roland D-50 (native LA engine over the original PCM data) | local build only |
 
-The JV-880 and the D-50 are the exceptions to "download and flash": they only
-build where the respective ROM set is present, and those ROMs are not
-distributable, so neither is in the release binaries. Without them the
-configure step skips them and the eight above are unaffected. Both run on the
-hardware; see the flash note below for the one build option the JV-880 needs
-on a small board.
+The RD, the JV-880 and the D-50 are the exceptions to "download and flash":
+they only build where the respective ROM set is present, and those ROMs are not
+distributable, so none of the three is in the release binaries. Without them
+the configure step skips them and the seven above are unaffected. All three run
+on the hardware; see the flash note below for the one build option the JV-880
+needs on a small board.
 
 ## Hardware
 
@@ -212,7 +212,7 @@ built on. Where an instrument derives from someone else's work:
 | PicoFaceYC | [OpenB3 / BeatrixCPP](https://github.com/pantherb/setBfree) - tone generation *concepts* only, no code | AGPL-3.0 upstream, does not reach here; see below |
 | PicoFaceCP | [mda-EPiano](https://sourceforge.net/projects/mda-vst/) (engine, in tree) | GPL-3.0-or-later |
 | PicoFaceDX | an ESP32 reface DX emulation (engine) | see that project |
-| PicoFaceRD | [giulioz/rdpiano](https://github.com/giulioz/rdpiano) + MAME (reference emulator; in the tree, kept out of the image) | GPL |
+| PicoFaceRD | [giulioz/rdpiano](https://github.com/giulioz/rdpiano) + MAME (reference emulator; host-side only, not in this repository) | GPL |
 | PicoFaceJ6 | [junox](https://github.com/dzannotti/junox) (patch table, parameter scaling) | GPL-3 |
 | PicoFaceMD | [BelaMiniMoogEmulation](https://github.com/lbros96/BelaMiniMoogEmulation) (ladder filter) | stated by its author to be under no copyright |
 | PicoFaceSM | [string-machine](https://github.com/jpcima/string-machine) (DSP models) | Boost Software License 1.0 |
@@ -222,12 +222,12 @@ built on. Where an instrument derives from someone else's work:
 
 Two rows in that table need a sentence more than a table cell holds.
 
-**PicoFaceRD** carries the reference emulator's sources in the tree
-(`instruments/PicoFaceRD/src/rd_engine/mcu.cpp`, `sound_chip.cpp` and their
-headers, each with the derivation in its SPDX block). They are there as the A/B
-ground truth every engine change is checked against, not to run: the device
-plays `RdNewEngine`, and no `Mcu` or `SoundChip` symbol survives into the linked
-image.
+**PicoFaceRD** used to carry the reference emulator's sources in the tree, and
+three decoded ROM sets with them. Neither is here any more. The emulator is a
+separate checkout the regression harness is pointed at, and the sample data is
+built at configure time from a local ROM set into a blob -- the same arrangement
+as the JV and the D5, and for the same reason. What the device plays is
+`RdNewEngine` over descriptors that emulator captured offline.
 
 **PicoFaceJV** contains none of that emulator's code, and cannot: its licence
 forbids commercial use and fits neither MIT nor GPL-3. It was used as a host-side
@@ -247,11 +247,11 @@ Source files carry a two-line SPDX header rather than the full notice, to keep
 it out of the way of the code. Three kinds exist:
 
 - own work: `GPL-3.0-or-later` plus the copyright line;
-- ported trees (`instruments/PicoFaceDX/include/dx_engine/`,
-  `instruments/PicoFaceRD/**/rd_engine/`): the licence line plus a note that
-  copyright is shared with the upstream authors - no sole claim is made there;
+- ported trees (`instruments/PicoFaceDX/include/dx_engine/`): the licence line
+  plus a note that copyright is shared with the upstream authors - no sole
+  claim is made there;
 - upstream files (`instruments/PicoFaceOB/include/obxf/`, CP's `mdaEPiano.*`,
-  MAME's `mame_utils.h` and `mcu_ops.h`, the SDK-derived `usb_descriptors.c`,
+  the SDK-derived `usb_descriptors.c`,
   `get_serial.*` and `tusb_config.h`): untouched, they keep the header they
   came with. The last four are MIT and BSD-3-Clause, not GPL.
 
