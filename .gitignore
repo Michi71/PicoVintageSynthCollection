@@ -1,6 +1,7 @@
 build/
 build-*/
 build_host/
+build_variants/
 cmake-build-*/
 compile_commands.json
 .cache/

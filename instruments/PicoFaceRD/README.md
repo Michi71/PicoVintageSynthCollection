@@ -39,6 +39,38 @@ curves differ by at most 2 in 252, and building patch 0 both ways gives 25,539
 segments and not one different. But the parser has one address compiled in, and
 it is that one.
 
+### Fitting a 4 MB Pico 2
+
+PicoFaceRD normally carries both machines -- sixteen patches, 5.15 MB, and a
+16 MB board. Either machine on its own is well inside 4 MB, because the two
+halves barely share anything: the MKS-20's eight patches read two sample banks,
+the MK-80's eight read the third.
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+      -DPICOFACE_INSTRUMENTS_FILTER=PicoFaceRD -DPICOFACERD_MODEL=MK80
+```
+
+| `PICOFACERD_MODEL` | patches | image | board |
+|---|---|---|---|
+| `BOTH` (default) | 16 | 5.15 MB | 16 MB |
+| `MKS20` | 8 | 3.01 MB | fits 4 MB |
+| `MK80` | 8 | 2.53 MB | fits 4 MB |
+
+A single-machine build also only needs that machine's ROMs -- three sample
+chips and eight packs -- so half a ROM set is enough to build one.
+
+The eight patches renumber from 1, which is how the machine itself numbers
+them; the header shows which machine it is. Program Change folds onto whatever
+the build ships. **Nothing else changes**: the patches are the same data played
+the same way, and
+[`tools/rd_extract/check_variants.sh`](../../tools/rd_extract/check_variants.sh)
+is what says so -- it renders every patch of every variant through the bridge
+and requires MK-80 patch 0 to be the full build's patch 8 to the sample, at the
+same rate and under the same name.
+
+### What the build does with the ROMs
+
 The nine ROMs become a 1.81 MB blob at configure time: three packed sample banks
 and the chip's two arithmetic tables, which is all the engine reads.
 

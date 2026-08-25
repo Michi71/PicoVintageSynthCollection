@@ -120,7 +120,7 @@ void RD_Controller::onEncoder2(int delta) {
         case RdPage::PATCH: {
             int v = (int)instrument_ + delta;
             if (v < 0) v = 0;
-            if (v > 15) v = 15;
+            if (v > RD_PATCH_COUNT - 1) v = RD_PATCH_COUNT - 1;
             instrument_ = (uint8_t)v;
             ipc_send_dx_param(RD_PARAM_INSTRUMENT, instrument_);
             break;
@@ -337,7 +337,7 @@ void RD_Controller::importSettings(const RdSettingsV1& s)
     auto clampPct = [](uint8_t v) -> uint8_t { return (v > 100u) ? 100u : v; };
     auto clampBit = [](uint8_t v) -> uint8_t { return (v != 0u) ? 1u : 0u; };
 
-    instrument_        = (s.instrument > 15u) ? 0u : s.instrument;
+    instrument_        = (s.instrument >= RD_PATCH_COUNT) ? 0u : s.instrument;
     midiCh_            = (s.midiCh > 16u)    ? 16u : s.midiCh;
     voiceMode_         = (s.voiceMode > 4u)  ? 4u  : s.voiceMode;
     masterTune_        = (s.masterTune < -50 || s.masterTune > 50) ? 0 : s.masterTune;
