@@ -615,6 +615,37 @@ Ten parts a voice, sixty bytes a voice — which is exactly what note-on compute
 the other way round at `$e7b6` with a plain `ldb #$3c`. The two agree for every
 voice and part.
 
+## State `+0` is a release speed
+
+The reader is at `$e6d7`, and it runs over all ten parts:
+
+```
+e6d7  ldb #$3c
+e6d9  mul            ; voice * 60
+e6da  addd #$0200
+e6dd  std $b5        ; the voice's state
+e6e4  lda $91        ; the voice
+e6e6  adda #$10
+e6e8  xgdx           ; X = $1000 + voice * $100, the chip
+e6eb  txs            ;   as the frame
+e6ec  clra           ; destination zero
+e6ed  ldx $b5
+e6ef  ldb $00,x      ; part 0's state +0
+e6f1  andb #$7f
+e6f3  lsrb
+e6f6  orb #$80       ; -> a speed
+e6f9  std $04,x      ; chip fields 4 and 5: ramp to zero at that speed
+e6fd  ldb $06,x      ; part 1 ...
+e707  std $14,x
+```
+
+A destination of **zero** and a speed out of the state: that is a release, and
+byte 6 of each record is what sets its rate. Ten parts, unrolled, same striding
+as everywhere else — six in the state, sixteen at the chip.
+
+So the record's seventh byte is the part's **release rate**, and the part state
+holds it from note-on until the key comes up.
+
 ## What is still missing
 
 The envelope path is read end to end. Two things beside it are not:
