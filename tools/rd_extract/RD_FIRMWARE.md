@@ -722,6 +722,37 @@ e1fb  ldd $01,x      ; bytes 1-2 -> a word, used further on
 switches itself off — which is what a damper would do on instruments that have
 none.
 
+## The captured release is not a release routine at all
+
+Two passes went looking for where the packs' release speeds of 200 and 201 come
+from, and neither `$e6d7` nor `$ebbf` could produce them. They do not: **it is
+the last entry of the segment list, interpolated like every other one.**
+
+The data settles it. Patch 0, part 0, the release segment:
+
+| | | | | |
+|---|---|---|---|---|
+| note 60, by velocity | 40 → 202 | 80 → 201 | 110 → 200 | 127 → 200 |
+| velocity 110, by note | 36 → 194 | 48 → 196 | 60 → 200 | 72 → 201 |
+
+It moves with the velocity *and* with the note. A constant from a release
+routine could do neither; an interpolation does both — the velocity supplies the
+weight, the note supplies the zone and so the corners.
+
+Which was already written down in the first pass and then lost sight of: **a
+segment interpolating to zero ends the chain.** `ed89`'s `tsta` tests exactly
+that, and `ed8d` zeroes the pointer when it happens. The release is a normal
+segment whose destination corner is nothing, and `rd_analyze` files it under
+`release_segments` because it lands after note-off, not because the firmware
+treats it differently.
+
+So the two routines found on the way are other things:
+
+| | |
+|---|---|
+| `$e6d7` | a forced release, per-part rate out of state `+0`, range `$80…$bf` |
+| `$ebbf` | note-off proper: zero the list pointer, reset the counter, set the pianos' four-level damper |
+
 ## What is still missing
 
 The envelope path is read end to end. Two things beside it are not:
