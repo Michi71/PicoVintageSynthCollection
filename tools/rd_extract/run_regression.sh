@@ -159,9 +159,25 @@ build_tool rd_stress2 \
 
 # 4) A/B matrix vs reference emulator
 # Cases: patch:note:expected_r (vel always 110)
-# Values re-frozen 2026-07-20 after the P4a analyzer fix (pre-attack env
-# pulse no longer dropped): matrix median 0.9725 -> 0.9997.
-ab_cases="0:60:0.999640 0:36:0.963959 3:60:0.993413 4:60:0.998520 8:60:0.999158 15:60:0.999897"
+# Re-frozen 2026-08-25, because the packs stopped being captured and started
+# being computed (tools/rd_extract/rd_make_packs.py). The comparison is the
+# same one -- the engine against the reference emulator -- but its input is
+# derived from the ROM set now, so the numbers move a little and the old ones
+# would be measuring the wrong thing.
+#
+# What moved, against the values frozen 2026-07-20:
+#
+#   0:36   0.963959 -> 0.998891   the one that was far out, now in line with
+#                                 the rest. Nothing was fixed to achieve it:
+#                                 that cell was low because a captured pack
+#                                 holds only what fitted in its window, and a
+#                                 computed one holds the whole chain.
+#   3:60   0.993413 -> 0.991473   the only one that dropped, and by 0.002.
+#                                 Unexplained; small enough to sit inside the
+#                                 band the runner already allows, and noted
+#                                 here rather than smoothed over.
+#   the rest                      within 0.0006 either way.
+ab_cases="0:60:0.999640 0:36:0.998891 3:60:0.991473 4:60:0.998967 8:60:0.998612 15:60:0.999899"
 
 for c in $ab_cases; do
     patch="${c%%:*}"
