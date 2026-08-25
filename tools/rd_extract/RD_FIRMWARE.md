@@ -134,32 +134,90 @@ e93a  stb $01,x      ; -> part state byte 1, which the IRQ reads as $d2
 **Eight velocity curves of 64 bytes each, in the program ROM.** `$f049` is the
 straight ramp (0, 4, 8 … 252); `$f089` is bent (0, 4, 7, 10, 13 … 252).
 
+## The command protocol, and where notes actually arrive
+
+This MCU never sees MIDI. It is the sound CPU of a pair, and the main CPU hands
+it byte commands over port 1. `ICF` (`$e121`) is that interface:
+
+```
+e129  lda $02        ; the command byte
+e130  bpl $e134      ; bit 7 set -> a second byte follows ($e157)
+e136  andb #$f0      ; high nibble selects
+e13b  ldx #$e16e     ; the dispatch table
+e141  jsr $00,x
+```
+
+That table is why a recursive descent from the vectors reaches only 9 % of the
+ROM: every handler sits behind it.
+
+| Cmd | Handler | | Cmd | Handler |
+|---|---|---|---|---|
+| `$00` | `$ebb7` | | `$80` | `$e77d` |
+| `$10` | `$e372` | | `$90` | `$e372` |
+| `$20` | — | | `$a0` | `$e777` |
+| `$30` | `$e19b` — program change | | `$b0` | `$e556` — note off |
+| `$40` | `$e34c` | | `$c0` | `$e5a1` — **note on** |
+| `$50` | `$e44f` — sustain | | `$d0` | `$e59d` |
+| `$60` | `$e3fd` | | `$e0` | `$e18e` |
+| `$70` | `$e3f2` | | `$f0` | `$edbd` |
+
+The four labelled ones are certain: they are what the reference emulator
+synthesises in `Mcu::sendMidiCmd`. **Note on is `$c0`, then the note, then the
+velocity.**
+
+## Where the velocity weight comes from
+
+Note-on at `$e5a1`, once the data bytes are in `$e1` (note) and `$e2`
+(velocity):
+
+```
+e5ac  lda $a1
+e5ae  beq $e5be      ; one of two mappings
+e5b0  ldb $e2        ;   scaled: (velocity * 247) >> 8, then + $80
+e5b2  lda #$f7
+e5b4  mul
+e5b5  tab
+e5ba  addb #$80
+e5be  ldd $e1        ;   plain: index by the velocity itself
+e5c0  ldx $a5
+e5c2  abx
+e5c3  ldb $00,x      ; -> the weight
+e5c5  stb $c0
+e5c7  sta $9f        ; the note, kept
+```
+
+`$a5` is a velocity table in the parameter ROM, addressed either directly or
+through a `247/256` scaling into a second half at `+$80`.
+
+**This closes the question the previous pass left open.** `$c1` is not
+`velocity >> 1`; it is
+
+```
+e7c9  aslb           ; $c1 = (($a5[velocity] << 1) & $ff) >> 2
+e7cc  lsrb
+e7cd  lsrb
+```
+
+a *two-stage* mapping, table first and shift second. Which is exactly why
+fitting the four measured layers put them at curve indices 9, 39, 55, 58 where
+`velocity >> 1` would have wanted 20, 40, 55, 63.
+
 ## What is still missing
 
-- **How `$c1` is derived from the MIDI velocity.** Not `vel >> 1`: fitting the
-  four measured layers puts them at curve indices 9, 39, 55, 58 (or one of five
-  neighbouring corner pairs that fit equally), and `vel >> 1` would want 20, 40,
-  55, 63. There is another mapping in between and it is the last piece of the
-  velocity path.
-- **`$a7` and `$a9`**, the two table bases. They come from the patch load.
-- **Bytes 4 and 5** of each segment entry. The pointer advances by six and only
-  four are consumed in the interrupt.
-- **The key weight.** `e791` stores it, but what B holds at that point has not
-  been traced back to the note number yet.
-
-## What is still missing
-
-- **The note-on path**: what sets `$02,x` (the list pointer), `$d1` and `$d2`.
-  That is where the parameter ROM is actually indexed, and it is the piece that
-  turns this into a parser.
-- **Bytes 4 and 5** of each entry. The pointer advances by six and only four
-  are consumed here.
-- **Where the timestamps come from.** They are not in the ROM at all: a
-  segment's duration is however long the chip takes to ramp from the previous
-  destination to this one, which is why two notes with the same chain have the
-  same timing. `RdNewEngine` already computes that arithmetic, so the packs
-  could drop the timestamps entirely -- 3.17 MB would become roughly 0.5 MB
-  with the duplicates removed as well.
+- **`$a5`, `$a7` and `$a9`**, the three table bases. All three are set together
+  at `$e06c`–`$e076` and again at `$e1bb`–`$e1c5`, which is the program-change
+  handler — so reading that gives the parameter ROM's own header.
+- **Bytes 4 and 5** of each segment entry. The pointer advances by six and the
+  interrupt consumes four.
+- **The key weight** at `$0040 + voice`. It is written by the `$80`/`$a0`
+  handler, not by note-on, and the reference emulator never sends those
+  commands — so how they are driven on real hardware is open.
+- **Where the timestamps come from.** Not the ROM: a segment's duration is
+  however long the chip takes to ramp from the previous destination to this
+  one, which is why two notes with the same chain have identical timing.
+  `RdNewEngine` already computes that arithmetic, so the packs could drop the
+  timestamps entirely — 3.17 MB would become roughly 0.5 MB with the duplicates
+  removed as well, independently of whether the parser ever gets written.
 
 Only three parameter-ROM reads in the whole firmware use a fixed address
 (`$babf`, `$bbc1`, `$babd`); everything else is indexed, which is why this had
@@ -167,7 +225,7 @@ to be read rather than grepped for.
 
 ## Why this matters
 
-If the note-on path yields to the same treatment, the packs become a pure
-function of the ROM set: no emulator, no second checkout, no risk of a stale
-reference quietly producing a different-sounding instrument. That is the whole
-point of chasing it.
+If the rest yields to the same treatment, the packs become a pure function of
+the ROM set: no emulator, no second checkout, no risk of a stale reference
+quietly producing a different-sounding instrument. That is the whole point of
+chasing it.
