@@ -19,15 +19,10 @@ OUT="${OUT:-$HERE/.xip_probe_build}"
 mkdir -p "$OUT"
 
 # The sample banks and packs are built from roms/ the same way the firmware
-# builds them; nothing generated is in the tree any more. RDPIANO is needed
-# because the descrambling lives in the reference emulator.
+# builds them; nothing generated is in the tree any more, and no emulator is
+# involved -- rd_descramble.py undoes the ROM scrambling.
 ROMS="$R/roms"
-if [ -z "${RDPIANO:-}" ]; then
-    echo "build_xip_probe: set RDPIANO to a checkout of the upstream emulator" >&2
-    echo "    git clone https://github.com/Michi71/rdpiano" >&2
-    exit 1
-fi
-RDPIANO="$RDPIANO" "$HERE/rd_make_rom.sh" "$ROMS" "$OUT/rd_rom.blob" >&2
+python3 "$HERE/rd_make_rom.py" "$ROMS" "$OUT/rd_rom.blob" >&2
 python3 "$HERE/rd_embed_packs.py" "$ROMS" "$OUT" >&2
 
 CXX="${CXX:-c++}"

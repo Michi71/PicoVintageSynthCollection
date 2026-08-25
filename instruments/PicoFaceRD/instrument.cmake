@@ -59,24 +59,16 @@ set(_rd_packs_c  ${_rd_gen}/rd_packs_tables.cpp)
 # to a hardware test, which is the mistake the D5 already made once.
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${_rd_required})
 
-# The ROM blob needs the reference emulator, which is where the descrambling
-# lives and which is not vendored here. RDPIANO points at a checkout; see
-# instruments/PicoFaceRD/README.md.
+# The ROM blob, from the sample ROMs. No emulator involved: the descrambling
+# is tools/rd_extract/rd_descramble.py, and the chip's two lookup tables sit
+# beside it as data because they are constants rather than anything read from
+# a ROM.
 if(NOT EXISTS ${_rd_rom_s})
-    if(NOT DEFINED ENV{RDPIANO} AND NOT DEFINED RDPIANO)
-        message(FATAL_ERROR
-            "PicoFaceRD: the ROM blob has to be built once, and that needs the "
-            "reference emulator. Set RDPIANO to a checkout of "
-            "https://github.com/Michi71/rdpiano and configure again.")
-    endif()
-    if(NOT DEFINED RDPIANO)
-        set(RDPIANO $ENV{RDPIANO})
-    endif()
     file(MAKE_DIRECTORY ${_rd_gen})
     message(STATUS "PicoFaceRD: building the ROM blob (this takes a moment)")
     execute_process(
-        COMMAND ${CMAKE_COMMAND} -E env RDPIANO=${RDPIANO}
-                ${CMAKE_SOURCE_DIR}/tools/rd_extract/rd_make_rom.sh
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/tools/rd_extract/rd_make_rom.py
                 ${_rd_roms} ${_rd_rom_blob}
         RESULT_VARIABLE _rd_rc OUTPUT_VARIABLE _rd_out ERROR_VARIABLE _rd_err)
     if(NOT _rd_rc EQUAL 0)

@@ -144,22 +144,21 @@ a note if what it needs is not there. Nothing else is affected.
 | **PicoFaceRD** | `mks20_15179736.BIN` … `41.BIN`, `MK80_IC5.bin`, `MK80_IC6.bin`, `MK80_IC7.bin` | exact names, 128 KB each |
 | | `pack_p0.rdp` … `pack_p15.rdp` | **built, not found** — see below |
 
-**The RD needs two things nobody else does.** Its sixteen `.rdp` packs are note
+**The RD needs one thing nobody else does.** Its sixteen `.rdp` packs are note
 descriptors derived from those ROMs, and they have to be made once:
 
 ```bash
-git clone https://github.com/Michi71/rdpiano ~/rdpiano
-tools/rd_extract/rd_unscramble.sh instruments/PicoFaceRD/roms \
-    RD200_B.bin mks20_15179757.BIN mks20_15179738.BIN /tmp/prog.bin /tmp/prm.bin
-python3 tools/rd_extract/rd_make_packs.py /tmp/prog.bin /tmp/prm.bin \
-    instruments/PicoFaceRD/roms 0 0x000000 1 0x008000 …
+R=instruments/PicoFaceRD/roms
+python3 tools/rd_extract/rd_descramble.py $R \
+    RD200_B.bin mks20_15179757.BIN /tmp/prog.bin /tmp/prm.bin
+python3 tools/rd_extract/rd_make_packs.py /tmp/prog.bin /tmp/prm.bin $R \
+    0 0x000000 1 0x008000 …
 ```
 
-That checkout is also what the build itself needs, once, to descramble the
-sample ROMs — set `RDPIANO` when configuring. Neither it nor anything from it
-is in this repository; see
+Python and the ROMs, nothing else -- no emulator, no toolchain beyond the one
+already building the firmware. See
 [`instruments/PicoFaceRD/README.md`](instruments/PicoFaceRD/README.md) for the
-whole recipe and the patch offsets.
+whole recipe and all sixteen patch offsets.
 
 Building a single instrument:
 

@@ -40,19 +40,20 @@ segments and not one different. But the parser has one address compiled in, and
 it is that one.
 
 The nine ROMs become a 1.81 MB blob at configure time: three packed sample banks
-and the chip's two arithmetic tables, which is all the engine reads. Building it
-needs the reference emulator, since that is where the descrambling lives, and
-that emulator is not in this repository:
+and the chip's two arithmetic tables, which is all the engine reads.
 
 ```bash
-git clone https://github.com/Michi71/rdpiano ~/rdpiano
-RDPIANO=~/rdpiano cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
       -DPICOFACE_INSTRUMENTS_FILTER=PicoFaceRD
 cmake --build build
 ```
 
-`RDPIANO` is needed once, for the blob; later configures reuse it. The packs
-need nothing but Python.
+Nothing but Python and the ROMs. The descrambling is
+[`tools/rd_extract/rd_descramble.py`](../../tools/rd_extract/rd_descramble.py),
+a table of the address and data lines the boards cross over; the chip's two
+lookup tables sit beside it as 27 KB of compressed data, because they are
+constants the chip computes from its own arithmetic rather than anything read
+from a ROM.
 
 ### Where the packs come from
 
@@ -65,12 +66,11 @@ disassembly in [`tools/rd_extract/RD_FIRMWARE.md`](../../tools/rd_extract/RD_FIR
 Minutes, and no emulator runs:
 
 ```bash
-git clone https://github.com/Michi71/rdpiano ~/rdpiano
 R=instruments/PicoFaceRD/roms
-RDPIANO=~/rdpiano tools/rd_extract/rd_unscramble.sh $R \
-    RD200_B.bin mks20_15179757.BIN mks20_15179738.BIN /tmp/prog.bin /tmp/mks.bin
-RDPIANO=~/rdpiano tools/rd_extract/rd_unscramble.sh $R \
-    RD200_B.bin MK80_IC18.bin MK80_IC5.bin /tmp/x.bin /tmp/mk80.bin
+python3 tools/rd_extract/rd_descramble.py $R \
+    RD200_B.bin mks20_15179757.BIN /tmp/prog.bin /tmp/mks.bin
+python3 tools/rd_extract/rd_descramble.py $R \
+    RD200_B.bin MK80_IC18.bin /tmp/x.bin /tmp/mk80.bin
 python3 tools/rd_extract/rd_make_packs.py /tmp/prog.bin /tmp/mks.bin $R \
     0 0x000000 1 0x008000 2 0x010000 3 0x018000 \
     4 0x003c20 5 0x00ab50 6 0x014260 7 0x01bef0
@@ -84,9 +84,11 @@ the MKS-20 keeps its in its sound-CPU ROM at `$e82b`, the MK-80 at the head of
 its parameter ROM. `RD_FIRMWARE.md` says how.
 
 **Captured, by playing every note.** The older way, and how the packs were first
-made. Hours rather than minutes, and it needs a second checkout:
+made. Hours rather than minutes, and it is the only path that needs the
+emulator -- two checkouts of it, in fact:
 
 ```bash
+git clone https://github.com/Michi71/rdpiano ~/rdpiano
 git clone https://github.com/Michi71/librdpiano ~/librdpiano
 RDPIANO=~/rdpiano RDPIANO_REF=~/librdpiano \
     tools/rd_extract/make_packs.sh instruments/PicoFaceRD/roms \
@@ -101,8 +103,10 @@ patches. It takes a while — about six seconds of emulated audio per note, 5632
 notes in all — so name patches on the command line to do a few at a time.
 
 Two checkouts again, and for the same reason as the regression harness:
-`RDPIANO` is the upstream emulator, which is what can descramble the ROMs;
-`RDPIANO_REF` is the adapted one the capture drives through `loadPatch`.
+`RDPIANO` is the upstream emulator, whose firmware execution is what the
+capture watches; `RDPIANO_REF` is the adapted one the capture drives through
+`loadPatch`. Only this second path needs either -- the computed one above, and
+the firmware build, need neither.
 
 **The reference has to be current.** The emulator that produced the packs this
 instrument was measured against had cached part state
@@ -177,13 +181,12 @@ In **Auto**, the polyphony limit follows the CPU load: the base limit is the pro
 Built together with the rest of the collection, or on its own:
 
 ```bash
-RDPIANO=~/rdpiano cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
       -DPICOFACE_INSTRUMENTS_FILTER=PicoFaceRD
 cmake --build build
 ```
 
-`RDPIANO` only matters the first time, when the blob is built; see
-[What it needs](#what-it-needs). If you already have a shared SDK checkout, export `PICO_SDK_PATH` (and
+If you already have a shared SDK checkout, export `PICO_SDK_PATH` (and
 optionally `PICO_EXTRAS_PATH`) instead of initialising the `lib/pico-sdk` and
 `lib/pico-extras` submodules — the in-tree submodules are only the fallback.
 The `lib/u8g2/u8g2` submodule is always required.
@@ -207,7 +210,7 @@ plus about 44 KB of heap for the pack descriptors.
   └───────────────────────────────────────────────┘
 ```
 
-The sound data pipeline is host-side: a MAME-derived reference emulator (based on [giulioz/rdpiano](https://github.com/giulioz/rdpiano)) plays each (patch, note, velocity) while a capture hook records the firmware's register writes; an analyzer distills them into per-note part descriptors (pitch, wave region, envelope segment chains); a packer emits compact `.rdp` packs that are embedded in the firmware together with losslessly repacked 4-byte sample banks. On-device, `RdNewEngine` replays those descriptors with the same envelope arithmetic as the chip.
+The sound data pipeline is host-side: the sound CPU's own arithmetic, read out of its firmware in [`RD_FIRMWARE.md`](../../tools/rd_extract/RD_FIRMWARE.md) and rewritten in Python, walks each (patch, note, velocity) through the parameter ROM to per-note part descriptors (pitch, wave region, envelope segment chains); a packer emits compact `.rdp` packs that are embedded in the firmware together with losslessly repacked 4-byte sample banks. On-device, `RdNewEngine` replays those descriptors with the same envelope arithmetic as the chip.
 
 Details in [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md). The full engineering log
 with the complete debugging history lives in [doc/RD_PORT.md](doc/RD_PORT.md).
@@ -233,8 +236,8 @@ sustain pedal, single- and dual-thread). `REGRESSION PASS/FAIL` with an exit
 code.
 
 Two checkouts, because they are two different things: `RDPIANO` is the upstream
-emulator, whose sound chip takes three ROM images and is therefore what can
-descramble them; `RDPIANO_REF` is the adapted one with the model tables
+emulator, whose firmware execution is what the capture watches; `RDPIANO_REF`
+is the adapted one with the model tables
 compiled in, which is what the A/B test compares against. The extraction and
 analysis toolchain is documented in
 [tools/rd_extract/README.md](../../tools/rd_extract/README.md).
