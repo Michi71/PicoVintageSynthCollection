@@ -11,6 +11,19 @@
 # they are derived from Roland's ROMs, so they are not in this repository and
 # not in any release. This is how they are made.
 #
+# There are two ways now. This one captures them: the reference emulator plays
+# every note and a hook records what the firmware programs. rd_make_packs.py
+# computes them instead, from the firmware's own arithmetic as read in
+# RD_FIRMWARE.md, with no emulator anywhere in it:
+#
+#   RDPIANO=~/rdpiano rd_unscramble.sh <romdir> MKS20_B.BIN mks20_15179757.BIN \
+#       mks20_15179738.BIN /tmp/prog.bin /tmp/prm.bin
+#   rd_make_packs.py /tmp/prog.bin /tmp/prm.bin <outdir> 0 0x000000 1 0x008000 ...
+#
+# That path is minutes rather than hours and cannot be fooled by a stale
+# emulator checkout, but its timestamps are approximate in the two ways
+# rd_make_packs.py describes. Capture is still what the shipped packs came from.
+#
 # For each patch the reference emulator plays all 88 keys at four velocities
 # while a hook records every register write the original firmware makes to the
 # sound chip; the analyzer distils those into per-note descriptors and the

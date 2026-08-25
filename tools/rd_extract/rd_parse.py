@@ -87,8 +87,14 @@ def duration(table, level_from, level_to, speed):
     """
     rate = ramp_rate(table, speed)
     distance = (level_to - level_from) << 20
-    if rate == 0 or distance == 0 or (distance > 0) != (rate > 0):
-        return None
+    if rate == 0:
+        return None                       # a frozen segment never ends by itself
+    if distance == 0 or (distance > 0) != (rate > 0):
+        # Nowhere to go, or the ramp points away from its destination: the
+        # chip's end test fires on the first sample, so all that is left is the
+        # latency. Leaving this at None collapsed consecutive segments onto the
+        # same timestamp, which is what wrecked patch 15.
+        return 3
     return abs(distance) // abs(rate) + 3
 
 
@@ -167,10 +173,12 @@ def parse(rom, note, velocity):
             e = rom.prm[at:at + 4]
             dest = interpolate(e[0], e[2], c3)
             speed = interpolate(e[1], e[3], c2)
-            # How long the chip will take over it -- None for the first, whose
-            # starting level the note-on preamble decides rather than the list.
+            # How long the chip will take over it. The first starts from
+            # whatever the note-on preamble left behind rather than from a
+            # previous destination; zero is the closest this can get to it.
             segs.append((dest, speed,
-                         None if level is None else duration(rom.env, level, dest, speed)))
+                         duration(rom.env, 0 if level is None else level,
+                                  dest, speed)))
             level = dest
             if dest == 0:                    # ed89's tsta: zero ends the chain
                 break
