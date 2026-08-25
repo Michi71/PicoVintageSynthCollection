@@ -646,6 +646,44 @@ as everywhere else — six in the state, sixteen at the chip.
 So the record's seventh byte is the part's **release rate**, and the part state
 holds it from note-on until the key comes up.
 
+## Note-off: the release rate comes from the velocity
+
+`$e556` is the note-off handler, but `$e4fe` and `$e535` are only bookkeeping --
+a voice-table search and a ring-pointer bump. The release is at the end of it:
+note-off falls through to `jmp $ebbf` when the voice's ten-part counter at
+`$70,x` is still set.
+
+```
+ebbf  lda $40,x      ; the voice's velocity weight -- $c0, kept since note-on
+ebc1  rola           ; three times
+ebc2  rola
+ebc3  rola
+ebc4  coma           ; complemented
+ebc5  anda $bc       ; and masked
+ebc8  std $c6        ; the pair, kept four times over
+ebca  std $c8
+ebcc  std $ca
+ebce  std $cc
+ebd0  lda #$0a
+ebd2  sta $70,x      ; the ten-part counter, reset
+ebd6  ldb #$3c
+ebd8  mul            ; voice * 60
+ebdc  std $b5        ; the state
+ebdf  clra
+ebe0  clrb
+ebe1  std $02,x      ; zero the segment list pointer
+```
+
+Two things at once. **The release rate is computed from the velocity weight** --
+shifted up three, complemented, masked -- so how a note is released depends on
+how it was struck. And **the segment list pointer is zeroed**, which is what
+takes the interrupt out of the chain: `ed39` tests exactly that and gives up
+when it is null.
+
+So there really are two releases, as the mismatched speed said. `$e6d7` uses the
+per-part rate in state `+0` and can only reach `$80…$bf`; `$ebbf` computes one
+from the velocity, and that is the one the packs recorded.
+
 ## What is still missing
 
 The envelope path is read end to end. Two things beside it are not:
