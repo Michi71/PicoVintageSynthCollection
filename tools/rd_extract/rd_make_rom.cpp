@@ -61,12 +61,21 @@ static const Model kModels[3] = {
 
 int main(int argc, char** argv)
 {
-    if (argc != 3) {
-        fprintf(stderr, "usage: rd_make_rom <romdir> <out.blob>\n");
+    if (argc < 3 || argc > 4) {
+        fprintf(stderr, "usage: rd_make_rom <romdir> <out.blob> [ilv.bin]\n");
         return 1;
     }
     const std::string romdir = argv[1];
     const char* outpath = argv[2];
+    // Optional third output: the same samples in the 8-byte interleaved form.
+    // The firmware has no use for it -- it reads the packed banks -- but the
+    // reference emulator the capture drives does, and asking the checkout to
+    // carry three megabytes of ROM-derived tables is exactly what this whole
+    // arrangement exists to avoid.
+    FILE* ilv = (argc == 4) ? fopen(argv[3], "wb") : nullptr;
+    if (argc == 4 && !ilv) { fprintf(stderr, "rd_make_rom: cannot write %s\n", argv[3]); return 2; }
+    struct IlvEntry { uint16_t exp, delta; uint8_t exp_sign, delta_sign; uint16_t pad; };
+    std::vector<IlvEntry> ilv_bank(kBank);
 
     static u8 ic5[kBank], ic6[kBank], ic7[kBank];
     std::vector<uint32_t> pk4(kBank);
@@ -88,6 +97,14 @@ int main(int argc, char** argv)
                           chip->samples_delta[i], chip->samples_delta_sign[i]);
         }
         fwrite(pk4.data(), sizeof(uint32_t), kBank, out);
+        if (ilv) {
+            for (size_t i = 0; i < kBank; i++) {
+                ilv_bank[i] = { chip->samples_exp[i], chip->samples_delta[i],
+                                (uint8_t)(chip->samples_exp_sign[i] ? 1 : 0),
+                                (uint8_t)(chip->samples_delta_sign[i] ? 1 : 0), 0 };
+            }
+            fwrite(ilv_bank.data(), sizeof(IlvEntry), kBank, ilv);
+        }
         printf("  bank %s: %s / %s / %s\n", m.tag, m.ic5, m.ic6, m.ic7);
     }
 
@@ -101,6 +118,7 @@ int main(int argc, char** argv)
 
     const long size = ftell(out);
     fclose(out);
+    if (ilv) { printf("  interleaved banks: %ld bytes\n", ftell(ilv)); fclose(ilv); }
     printf("  tables: phase_exp, samples_exp\n");
     printf("rd_make_rom: %ld bytes -> %s\n", size, outpath);
     return 0;

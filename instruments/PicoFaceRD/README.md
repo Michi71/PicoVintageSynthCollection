@@ -38,12 +38,39 @@ cmake --build build
 `RDPIANO` is needed once, for the blob; later configures reuse it. The packs
 need nothing but Python.
 
-**Where the packs come from.** They are capture output: the reference emulator
-plays every (patch, note, velocity) while a hook records the firmware's writes
-to the sound chip, and the analyzer distills those into per-note descriptors.
-`tools/rd_extract/README.md` documents the run. They are derived from Roland's
-ROMs and are no more distributable than the ROMs are, which is why they sit in
-`roms/` rather than in the tree.
+### Where the packs come from
+
+They are capture output, and they are the one input here that cannot be
+downloaded from anywhere. Making them:
+
+```bash
+git clone https://github.com/Michi71/librdpiano ~/librdpiano
+RDPIANO=~/rdpiano RDPIANO_REF=~/librdpiano \
+    tools/rd_extract/make_packs.sh instruments/PicoFaceRD/roms \
+                                   instruments/PicoFaceRD/roms
+```
+
+For each patch the reference emulator plays **all 88 keys at four velocities**
+(40, 80, 110, 127) while a hook records every register write the original
+firmware makes to the sound chip; the analyzer distils those into per-note
+descriptors and the packer writes the binary. 352 entries a patch, sixteen
+patches. It takes a while — about six seconds of emulated audio per note, 5632
+notes in all — so name patches on the command line to do a few at a time.
+
+Two checkouts again, and for the same reason as the regression harness:
+`RDPIANO` is the upstream emulator, which is what can descramble the ROMs;
+`RDPIANO_REF` is the adapted one the capture drives through `loadPatch`.
+
+**The reference has to be current.** The emulator that produced the packs this
+instrument was measured against had cached part state
+(`phase_inc_cached`, `pitch_hi2`, `wave_loop_inv`) that the published fork does
+not yet carry. Capturing without it builds and runs and silently yields
+different packs — patch 0 comes out 236,684 bytes instead of 215,294 — and an
+instrument that sounds different from the one every number in this README refers
+to. `make_packs.sh` checks for it and says so.
+
+They are derived from Roland's ROMs and are no more distributable than the ROMs
+are, which is why they sit in `roms/` rather than in the tree.
 
 ## Features
 
