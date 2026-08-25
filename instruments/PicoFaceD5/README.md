@@ -15,11 +15,16 @@ and everybody else's build stays green.
 Put the D-50's ROM images in `roms/` (gitignored). Files are identified by
 content, so their names do not matter:
 
-| Image | Size | Purpose |
-|---|---|---|
-| PCM ROM A (IC30) | 256 KB | lower half of the sample data |
-| PCM ROM B (IC29) | 256 KB | upper half |
-| program EPROM (IC22) | 64 KB | the PCM names |
+| Image | Size | CRC32 | Purpose |
+|---|---|---|---|
+| PCM ROM A (IC30) | 256 KB | `1461C0FB` | lower half of the sample data |
+| PCM ROM B (IC29) | 256 KB | `E50599BF` | upper half |
+| PCM combined (late boards) | 512 KB | `E2AED2D9` | A and B in one chip, accepted in place of the pair |
+| program EPROM (IC22) | 64 KB | any known version | the PCM names |
+
+The EPROM versions the converter recognises are v1.04, v1.10, v2.10, v2.20,
+v2.21, v2.22 and v1.06; an unknown 64 KB image carrying the name table is
+accepted with a warning. `tools/d5_extract/d5_rom.py` holds the checksums.
 
 512 KB dumps that contain a 256 KB chip twice are folded automatically, and a
 combined 512 KB image of both chips is accepted in place of the pair. The

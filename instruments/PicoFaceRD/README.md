@@ -18,10 +18,26 @@ distributable, and nothing derived from it is in this repository either.
 
 | File | Size | What it is |
 |---|---|---|
-| `mks20_15179736/37/38.BIN` | 128 KB each | MKS-20 sample chips, first set |
-| `mks20_15179739/40/41.BIN` | 128 KB each | MKS-20 sample chips, second set |
-| `MK80_IC5/IC6/IC7.bin` | 128 KB each | MK-80 sample chips |
-| `pack_p0.rdp` … `pack_p15.rdp` | ~3.2 MB total | the note descriptors, one file per patch |
+| `mks20_15179736.BIN`, `mks20_15179737.BIN`, `mks20_15179738.BIN` | 128 KB each | MKS-20 sample chips, first set |
+| `mks20_15179739.BIN`, `mks20_15179740.BIN`, `mks20_15179741.BIN` | 128 KB each | MKS-20 sample chips, second set |
+| `MK80_IC5.bin`, `MK80_IC6.bin`, `MK80_IC7.bin` | 128 KB each | MK-80 sample chips |
+| `pack_p0.rdp` … `pack_p15.rdp` | ~3.3 MB total | the note descriptors, one file per patch |
+
+Three more are needed to *make* the packs, though not to build once they exist:
+
+| File | Size | What it is |
+|---|---|---|
+| `mks20_15179757.BIN` | 128 KB | MKS-20 parameter ROM |
+| `MK80_IC18.bin` | 128 KB | MK-80 parameter ROM |
+| `RD200_B.bin` | 8 KB | sound-CPU firmware |
+
+All names are as the preserved dumps carry them. **`RD200_B.bin` and not one of
+the MKS-20's own** — the parser follows that firmware's arithmetic, and looks
+for its velocity curves at `$ed9d`, where the MKS-20's ROMs keep theirs
+somewhere else. It makes no audible difference which is used: the two sets of
+curves differ by at most 2 in 252, and building patch 0 both ways gives 25,539
+segments and not one different. But the parser has one address compiled in, and
+it is that one.
 
 The nine ROMs become a 1.81 MB blob at configure time: three packed sample banks
 and the chip's two arithmetic tables, which is all the engine reads. Building it
@@ -40,8 +56,35 @@ need nothing but Python.
 
 ### Where the packs come from
 
-They are capture output, and they are the one input here that cannot be
-downloaded from anywhere. Making them:
+They are the one input here that cannot be downloaded from anywhere. There are
+two ways to make them, and the first is the one that made the packs this
+instrument ships with.
+
+**Computed, from the ROMs.** The firmware's own arithmetic, rewritten from the
+disassembly in [`tools/rd_extract/RD_FIRMWARE.md`](../../tools/rd_extract/RD_FIRMWARE.md).
+Minutes, and no emulator runs:
+
+```bash
+git clone https://github.com/Michi71/rdpiano ~/rdpiano
+R=instruments/PicoFaceRD/roms
+RDPIANO=~/rdpiano tools/rd_extract/rd_unscramble.sh $R \
+    RD200_B.bin mks20_15179757.BIN mks20_15179738.BIN /tmp/prog.bin /tmp/mks.bin
+RDPIANO=~/rdpiano tools/rd_extract/rd_unscramble.sh $R \
+    RD200_B.bin MK80_IC18.bin MK80_IC5.bin /tmp/x.bin /tmp/mk80.bin
+python3 tools/rd_extract/rd_make_packs.py /tmp/prog.bin /tmp/mks.bin $R \
+    0 0x000000 1 0x008000 2 0x010000 3 0x018000 \
+    4 0x003c20 5 0x00ab50 6 0x014260 7 0x01bef0
+python3 tools/rd_extract/rd_make_packs.py /tmp/prog.bin /tmp/mk80.bin $R \
+    8 0x000020 9 0x008000 10 0x010000 11 0x018000 \
+    12 0x002c00 13 0x00b1f0 14 0x012910 15 0x0199f0
+```
+
+Those sixteen offsets are the patch tables, read out of the ROMs themselves --
+the MKS-20 keeps its in its sound-CPU ROM at `$e82b`, the MK-80 at the head of
+its parameter ROM. `RD_FIRMWARE.md` says how.
+
+**Captured, by playing every note.** The older way, and how the packs were first
+made. Hours rather than minutes, and it needs a second checkout:
 
 ```bash
 git clone https://github.com/Michi71/librdpiano ~/librdpiano

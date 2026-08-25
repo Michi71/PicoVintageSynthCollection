@@ -129,6 +129,38 @@ version used to read `0.1` in every build ever made, which identified nothing.
 
 A tarball without `.git` builds fine and shows `unknown`.
 
+### The three that need ROMs
+
+`PicoFaceRD`, `PicoFaceJV` and `PicoFaceD5` play the original machines' own
+data, which is not distributable. Each looks in its own `roms/` directory —
+`instruments/<name>/roms/`, gitignored — and removes itself from the build with
+a note if what it needs is not there. Nothing else is affected.
+
+| | what goes in `roms/` | |
+|---|---|---|
+| **PicoFaceD5** | two PCM ROMs and a program EPROM | identified by CRC32, so **names do not matter** |
+| | | plus optional `*.syx` bulk dumps for the patch banks |
+| **PicoFaceJV** | `jv880_rom2.bin`, `jv880_waverom1.bin`, `jv880_waverom2.bin` | exact names, 256 KB + 2 MB + 2 MB |
+| **PicoFaceRD** | `mks20_15179736.BIN` … `41.BIN`, `MK80_IC5.bin`, `MK80_IC6.bin`, `MK80_IC7.bin` | exact names, 128 KB each |
+| | `pack_p0.rdp` … `pack_p15.rdp` | **built, not found** — see below |
+
+**The RD needs two things nobody else does.** Its sixteen `.rdp` packs are note
+descriptors derived from those ROMs, and they have to be made once:
+
+```bash
+git clone https://github.com/Michi71/rdpiano ~/rdpiano
+tools/rd_extract/rd_unscramble.sh instruments/PicoFaceRD/roms \
+    RD200_B.bin mks20_15179757.BIN mks20_15179738.BIN /tmp/prog.bin /tmp/prm.bin
+python3 tools/rd_extract/rd_make_packs.py /tmp/prog.bin /tmp/prm.bin \
+    instruments/PicoFaceRD/roms 0 0x000000 1 0x008000 …
+```
+
+That checkout is also what the build itself needs, once, to descramble the
+sample ROMs — set `RDPIANO` when configuring. Neither it nor anything from it
+is in this repository; see
+[`instruments/PicoFaceRD/README.md`](instruments/PicoFaceRD/README.md) for the
+whole recipe and the patch offsets.
+
 Building a single instrument:
 
 ```bash
