@@ -249,13 +249,65 @@ which is, byte for byte, the MK-80 half of the `patchToOffset` table the
 reference emulator carries hard-coded. That table was derived from this
 structure; it can be read from the ROM instead.
 
+## There are three sound-CPU firmwares, and this was the RD-200's
+
+`RD200_B.bin`, `mks20_cpub_1.0.bin` and `MKS20_B.BIN` are three different 8 KB
+ROMs. Everything above was read out of the first, which is also the one the
+reference emulator loads -- its own `read_byte` says so: *"HACK: only works with
+the RD200 ROM"*. It plays MKS-20 sample and parameter ROMs with RD-200 firmware.
+
+All three boot at `$e00f` and all three dispatch the same way, only from
+different addresses:
+
+| ROM | ICF | IRQ1 | dispatch table |
+|---|---|---|---|
+| `RD200_B.bin` | `$e121` | `$ed1a` | `$e16e` |
+| `MKS20_B.BIN` | `$e120` | `$e78b` | `$e164` |
+| `mks20_cpub_1.0.bin` | `$e0dd` | `$e748` | `$e121` |
+
+**The MKS-20's command set is smaller.** Its table has no `$30` (program
+change), no `$b0` (note off) and no `$50` (sustain) -- those entries are zero.
+Its main CPU does more of the work.
+
+## Which is why its patch table is somewhere else entirely
+
+The MKS-20 selects patches with `$40`, not `$30`, and its table is in **its own
+program ROM** at `$e82b` rather than at the head of the parameter ROM:
+
+```
+00 40 00  01 40 00  02 40 00  07 40 00  04 7c 20  05 6b 50  06 82 60  07 7e f0
+```
+
+Same three-byte shape, one twist -- the handler splits the first byte:
+
+```
+e19e  lda $00,x      ; the bank byte
+e1a2  anda #$03      ; only the low two bits reach the latch
+e1a4  ldb $3b
+e1a6  andb #$04      ; and bit 2 comes from elsewhere
+e1a9  sta $e000
+e1ac  ldd $01,x      ; the address, as before
+```
+
+So **bits 0-1 are the parameter bank and bit 2 is the sample set**, and both of
+the emulator's hard-coded tables fall out of this one:
+
+| Patch | byte | offset from bits 0-1 | set from bit 2 | emulator |
+|---|---|---|---|---|
+| 0 | `$00` | `0x000000` | 0 | `0x000000` / 0 |
+| 1 | `$01` | `0x008000` | 0 | `0x008000` / 0 |
+| 2 | `$02` | `0x010000` | 0 | `0x010000` / 0 |
+| 3 | `$07` | `0x018000` | 1 | `0x018000` / 1 |
+| 4 | `$04` | `0x003c20` | 1 | `0x003c20` / 1 |
+| 5 | `$05` | `0x00ab50` | 1 | `0x00ab50` / 1 |
+| 6 | `$06` | `0x014260` | 1 | `0x014260` / 1 |
+| 7 | `$07` | `0x01bef0` | 1 | `0x01bef0` / 1 |
+
+All eight, both columns. `patchToOffset` and `patchToRomSet` are the same table
+read twice, and it is in the ROM.
+
 ## What is still missing
 
-- **The MKS-20's equivalent header.** The same search does not find it in
-  `mks20_15179757.BIN`, the parameter ROM the emulator uses for both MKS-20
-  sample sets. Either it lives in another chip, or the MKS-20's main CPU
-  supplies the offsets by a different route. Its `patchToOffset` half is
-  therefore still only known from the emulator.
 - **Bytes 4 and 5** of each segment entry. The pointer advances by six and the
   interrupt consumes four.
 - **The key weight** at `$0040 + voice`. It is written by the `$80`/`$a0`
