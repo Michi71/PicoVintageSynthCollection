@@ -674,15 +674,53 @@ ebe0  clrb
 ebe1  std $02,x      ; zero the segment list pointer
 ```
 
-Two things at once. **The release rate is computed from the velocity weight** --
-shifted up three, complemented, masked -- so how a note is released depends on
-how it was struck. And **the segment list pointer is zeroed**, which is what
-takes the interrupt out of the chain: `ed39` tests exactly that and gives up
-when it is null.
+**The segment list pointer is zeroed**, which is what takes the interrupt out of
+the chain: `ed39` tests exactly that and gives up when it is null. And the
+ten-part counter is reset. Those two are certain.
 
-So there really are two releases, as the mismatched speed said. `$e6d7` uses the
-per-part rate in state `+0` and can only reach `$80…$bf`; `$ebbf` computes one
-from the velocity, and that is the one the packs recorded.
+**The rest of it is not a release rate, and an earlier note here said it was.**
+`$bc` turns out to be a two-bit mask -- see below -- so `anda $bc` leaves a value
+of 0 to 3, which cannot be a speed byte.
+
+Tracing the rotate settles what it is instead. `rola` is a rotate *through the
+carry*: `C' = bit 7`, `A = (A << 1) | C`. Three of them turn `a7 a6 a5 a4 a3 a2
+a1 a0` into `a4 a3 a2 a1 a0 c a7 a6`, so after `coma` and `& $03` what is left
+is the complement of **the velocity weight's top two bits**. A number from 0 to
+3, stored four times over into `$c6` through `$cd`.
+
+Four levels, chosen by how hard the note was struck, and only for a patch whose
+mask says so. On a piano that is the shape of a damper or release layer; what it
+actually drives has not been followed.
+
+## The second per-patch table
+
+`$bc` is written in exactly one place, and it is the program-change handler:
+
+```
+e1ef  ldx #$e254     ; a second table, in the program ROM
+e1f2  ldb $bb        ; the patch number
+e1f4  abx            ;   + patch * 3
+e1f5  abx
+e1f6  abx
+e1f7  lda $00,x      ; byte 0 -> the mask
+e1f9  sta $bc
+e1fb  ldd $01,x      ; bytes 1-2 -> a word, used further on
+```
+
+| Patch | | mask | word |
+|---|---|---|---|
+| 0 | Piano 1 | `$03` | `$5a06` |
+| 1 | Piano 2 | `$03` | `$5a08` |
+| 2 | Piano 3 | `$03` | `$5a06` |
+| 3 | Harpsichord | `$00` | `$0000` |
+| 4 | Clavi | `$00` | `$0000` |
+| 5 | Vibraphone | `$00` | `$0000` |
+| 6 | E-Piano 1 | `$00` | `$0000` |
+| 7 | E-Piano 2 | `$00` | `$0000` |
+
+**Only the three pianos.** Everything else gets zero and the whole mechanism
+switches itself off — which is what a damper would do on instruments that have
+none.
 
 ## What is still missing
 
