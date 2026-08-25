@@ -96,13 +96,17 @@ Raspberry Pi Pico 2 and many other RP2350 boards provide:
 | PicoFaceCP | 4.22 MB | does not fit |
 | PicoFaceJV | 4.34 MB | only with `-DPICOFACEJV_4MB=ON` (3.76 MB, banks A+B) |
 | PicoFaceD5 | 0.86 MB | fits |
-| PicoFaceRD | 5.07 MB | does not fit |
+| PicoFaceRD | 5.15 MB | only with `-DPICOFACERD_MODEL=MKS20` (3.01 MB) or `=MK80` (2.53 MB) |
 
-CP carries the Rhodes, Clavinet and E-piano sample sets, RD the MKS-20 sample
-packs. Neither has a reduced variant: there is no subset to drop the way the
-JV's three wave banks can become two. Anything from 8 MB up holds all ten. The
-D-50 is the one sample-based instrument that fits everywhere: its whole sample
-ROM is 512 KB.
+The two reduced variants drop something real. The JV loses its user bank and
+the 22 samples only those patches used; the RD ships one of its two machines,
+eight patches instead of sixteen. Both are the same data played the same way --
+nothing is resampled or requantised.
+
+**CP has no reduced variant**: it carries the Rhodes, Clavinet and E-piano
+sample sets as one indivisible whole, with no subset to drop. Anything from
+8 MB up holds all ten instruments. The D-50 is the one sample-based instrument
+that fits everywhere -- its whole sample ROM is 512 KB.
 
 An oversized `.uf2` fails to copy in a way that names no reason: the file
 transfer stops or the drive rejects it, with nothing on screen about flash size.
@@ -156,7 +160,12 @@ python3 tools/rd_extract/rd_make_packs.py /tmp/prog.bin /tmp/prm.bin $R \
 ```
 
 Python and the ROMs, nothing else -- no emulator, no toolchain beyond the one
-already building the firmware. See
+already building the firmware.
+
+**On a 4 MB Pico 2**, RD ships one machine instead of two:
+`-DPICOFACERD_MODEL=MKS20` (3.01 MB) or `=MK80` (2.53 MB), eight patches each,
+and only that machine's ROMs are needed. The default `BOTH` is sixteen patches
+and 5.15 MB, so it wants a 16 MB board. See
 [`instruments/PicoFaceRD/README.md`](instruments/PicoFaceRD/README.md) for the
 whole recipe and all sixteen patch offsets.
 

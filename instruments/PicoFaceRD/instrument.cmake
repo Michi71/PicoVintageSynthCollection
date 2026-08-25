@@ -18,13 +18,55 @@
 set(_rd_dir ${PICOFACE_CURRENT_INSTRUMENT_DIR})
 set(_rd_roms ${_rd_dir}/roms)
 
-# The three sample chips of each model, and the sixteen packs.
-set(_rd_required
-    ${_rd_roms}/mks20_15179736.BIN ${_rd_roms}/mks20_15179737.BIN
-    ${_rd_roms}/mks20_15179738.BIN ${_rd_roms}/mks20_15179739.BIN
-    ${_rd_roms}/mks20_15179740.BIN ${_rd_roms}/mks20_15179741.BIN
-    ${_rd_roms}/MK80_IC5.bin ${_rd_roms}/MK80_IC6.bin ${_rd_roms}/MK80_IC7.bin)
-foreach(_i RANGE 15)
+# Which machine to ship. The full instrument carries both -- sixteen patches,
+# 5.15 MB, and therefore a 16 MB board. Each machine on its own is well inside
+# a 4 MB Pico 2, because the two halves barely share anything: the MK-80's
+# eight patches read one sample bank, the MKS-20's eight read the other two.
+#
+#   BOTH   (default)  16 patches   5.15 MB   16 MB board
+#   MKS20            8 patches   3.02 MB   fits 4 MB
+#   MK80             8 patches   2.53 MB   fits 4 MB
+#
+# A single-machine build also only needs that machine's ROMs, so half a ROM
+# set is enough to build one.
+set(PICOFACERD_MODEL "BOTH" CACHE STRING
+    "PicoFaceRD: which machine to ship - BOTH (16 MB board), MKS20 or MK80 (4 MB)")
+set_property(CACHE PICOFACERD_MODEL PROPERTY STRINGS BOTH MKS20 MK80)
+string(TOUPPER "${PICOFACERD_MODEL}" PICOFACERD_MODEL)
+if(NOT PICOFACERD_MODEL MATCHES "^(BOTH|MKS20|MK80)$")
+    message(FATAL_ERROR
+        "PicoFaceRD: PICOFACERD_MODEL is '${PICOFACERD_MODEL}', "
+        "expected BOTH, MKS20 or MK80")
+endif()
+
+if(PICOFACERD_MODEL STREQUAL "MK80")
+    set(_rd_patch_base 8)
+    set(_rd_patch_count 8)
+    set(_rd_first 8)
+    set(_rd_last 15)
+    set(_rd_required ${_rd_roms}/MK80_IC5.bin ${_rd_roms}/MK80_IC6.bin
+                     ${_rd_roms}/MK80_IC7.bin)
+elseif(PICOFACERD_MODEL STREQUAL "MKS20")
+    set(_rd_patch_base 0)
+    set(_rd_patch_count 8)
+    set(_rd_first 0)
+    set(_rd_last 7)
+    set(_rd_required
+        ${_rd_roms}/mks20_15179736.BIN ${_rd_roms}/mks20_15179737.BIN
+        ${_rd_roms}/mks20_15179738.BIN ${_rd_roms}/mks20_15179739.BIN
+        ${_rd_roms}/mks20_15179740.BIN ${_rd_roms}/mks20_15179741.BIN)
+else()
+    set(_rd_patch_base 0)
+    set(_rd_patch_count 16)
+    set(_rd_first 0)
+    set(_rd_last 15)
+    set(_rd_required
+        ${_rd_roms}/mks20_15179736.BIN ${_rd_roms}/mks20_15179737.BIN
+        ${_rd_roms}/mks20_15179738.BIN ${_rd_roms}/mks20_15179739.BIN
+        ${_rd_roms}/mks20_15179740.BIN ${_rd_roms}/mks20_15179741.BIN
+        ${_rd_roms}/MK80_IC5.bin ${_rd_roms}/MK80_IC6.bin ${_rd_roms}/MK80_IC7.bin)
+endif()
+foreach(_i RANGE ${_rd_first} ${_rd_last})
     list(APPEND _rd_required ${_rd_roms}/pack_p${_i}.rdp)
 endforeach()
 
@@ -39,14 +81,20 @@ if(_rd_missing)
     list(LENGTH _rd_missing _rd_n)
     message(STATUS
         "PicoFaceRD: skipped - ${_rd_n} file(s) missing from ${_rd_roms} "
-        "(needs the nine sample ROMs and the sixteen .rdp packs; "
-        "see instruments/PicoFaceRD/README.md)")
+        "for a ${PICOFACERD_MODEL} build: ${_rd_missing} "
+        "(see instruments/PicoFaceRD/README.md)")
     return()
 endif()
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
-set(_rd_gen ${CMAKE_CURRENT_BINARY_DIR}/PicoFaceRD_rom)
+# One directory per variant, so switching PICOFACERD_MODEL back and forth
+# neither re-converts nor picks up the wrong blob -- the JV does the same.
+if(PICOFACERD_MODEL STREQUAL "BOTH")
+    set(_rd_gen ${CMAKE_CURRENT_BINARY_DIR}/PicoFaceRD_rom)
+else()
+    set(_rd_gen ${CMAKE_CURRENT_BINARY_DIR}/PicoFaceRD_rom_${PICOFACERD_MODEL})
+endif()
 set(_rd_rom_blob ${_rd_gen}/rd_rom.blob)
 set(_rd_rom_s    ${_rd_gen}/rd_rom_blob.S)
 set(_rd_tbl_s    ${_rd_gen}/rd_rom_tables.S)
@@ -69,7 +117,7 @@ if(NOT EXISTS ${_rd_rom_s})
     execute_process(
         COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_SOURCE_DIR}/tools/rd_extract/rd_make_rom.py
-                ${_rd_roms} ${_rd_rom_blob}
+                --model=${PICOFACERD_MODEL} ${_rd_roms} ${_rd_rom_blob}
         RESULT_VARIABLE _rd_rc OUTPUT_VARIABLE _rd_out ERROR_VARIABLE _rd_err)
     if(NOT _rd_rc EQUAL 0)
         message(FATAL_ERROR "PicoFaceRD: ROM conversion failed\n${_rd_out}${_rd_err}")
@@ -81,7 +129,7 @@ endif()
 execute_process(
     COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_SOURCE_DIR}/tools/rd_extract/rd_embed_packs.py
-            ${_rd_roms} ${_rd_gen}
+            --model=${PICOFACERD_MODEL} ${_rd_roms} ${_rd_gen}
     RESULT_VARIABLE _rd_pk_rc OUTPUT_VARIABLE _rd_pk_out ERROR_VARIABLE _rd_pk_err)
 if(NOT _rd_pk_rc EQUAL 0)
     message(FATAL_ERROR "PicoFaceRD: pack embedding failed\n${_rd_pk_out}${_rd_pk_err}")
@@ -140,4 +188,7 @@ picoface_add_instrument(
         RD_CLOCK_504=1
         PICOFACE_SYS_CLOCK_HZ=480000000
         PICOFACE_QMI_M0_TIMING_TARGET=PICOFACE_QMI_M0_TIMING_RD
+    # Which slice of the sixteen patches this build carries.
+        RD_PATCH_BASE=${_rd_patch_base}
+        RD_PATCH_COUNT=${_rd_patch_count}
 )

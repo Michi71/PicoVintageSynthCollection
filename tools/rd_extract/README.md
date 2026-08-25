@@ -18,7 +18,8 @@ shorthand for the instrument directory.
 | `RDPIANO_REF` | a checkout of [Michi71/librdpiano](https://github.com/Michi71/librdpiano) | the adapted emulator the A/B test measures against |
 
 Only `make_packs.sh` (the capture path) and `run_regression.sh` (the A/B test)
-want those two. Everything else -- the firmware build included -- runs on
+want those two. `check_variants.sh`, which proves the 4 MB single-machine
+builds play what the full build plays, needs neither. Everything else -- the firmware build included -- runs on
 Python and the ROMs: `rd_descramble.py` undoes the address and data line
 crossings, and the chip's two lookup tables sit beside it as
 `rd_chip_tables.bin.xz`, 27 KB, because they are constants the chip computes

@@ -22,7 +22,7 @@ static inline uint32_t bridge_time_us_32()
 #endif
 
 // keep in sync -- duplicates from mcu.cpp (mcu.cpp is not linked into the v2 target)
-static const int s_sampleRates[16] = {
+static const int s_sampleRatesAll[16] = {
     20000, 20000, 20000, 32000,
     32000, 20000, 20000, 32000,
     20000, 20000, 20000, 32000,
@@ -30,7 +30,7 @@ static const int s_sampleRates[16] = {
 };
 
 // keep in sync -- duplicates from mcu.cpp
-static const char* s_patchNames[16] = {
+static const char* const s_patchNamesAll[16] = {
     "MKS-20: Piano 1",
     "MKS-20: Piano 2",
     "MKS-20: Piano 3",
@@ -49,9 +49,17 @@ static const char* s_patchNames[16] = {
     "MK-80: Vibraphone"
 };
 
+// This build's slice of the two tables above. They stay whole -- they are a
+// copy of mcu.cpp's and are worth keeping faithful for a few hundred bytes --
+// and everything below indexes them through the base, so a single-machine
+// build reads its own half without any of it knowing.
+static const int* const s_sampleRates = s_sampleRatesAll + RD_PATCH_BASE;
+static const char* const* const s_patchNames = s_patchNamesAll + RD_PATCH_BASE;
+
+
 void RD_Synth_Bridge::setInstrumentInternal(uint8_t id)
 {
-    if (id > 15) id = 0;
+    if (id >= RD_PATCH_COUNT) id = 0;
     engineReady_ = engine_.loadPack(rd_pack_ptrs[id], rd_pack_sizes[id]);
     // Voice governor: Auto base = proven per-rate caps (32-kHz patches have
     // 1.6x less budget per sample -> 12; else 16). Manual modes keep the

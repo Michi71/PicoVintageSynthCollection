@@ -17,7 +17,7 @@
 //   CC 121 Reset All Ctrl hold -> off, pitch bend -> center;
 //                         modulation -> 0 (n/a: engine has no vibrato).
 //   CC 123 All Notes Off  forwarded to engine.
-//   Program Change 0..63  chart range; we map modulo 16 to instruments.
+//   Program Change 0..63  chart range; folded onto the shipped patches.
 //   Pitch Bend            default bender depth +-2 semitones.
 //
 // Omitted (per chart / hardware constraints):
@@ -130,8 +130,10 @@ void RD_Midi::onControlChange(uint8_t cc, uint8_t val, uint8_t ch) {
 void RD_Midi::onProgramChange(uint8_t program, uint8_t ch) {
     if (!channelMatches(ch)) return;
 
-    // Chart says 0..63; we map modulo 16 to our instrument table.
-    ipc_send_dx_param(RD_PARAM_INSTRUMENT, static_cast<uint16_t>(program & 0x0F));
+    // Chart says 0..63; we fold it onto whatever this build ships, which is
+    // sixteen patches normally and eight for a single-machine build.
+    ipc_send_dx_param(RD_PARAM_INSTRUMENT,
+                      static_cast<uint16_t>(program % RD_PATCH_COUNT));
 }
 
 void RD_Midi::onPitchBend(uint16_t value, uint8_t ch) {
