@@ -127,7 +127,15 @@ class Rom:
     def curve(self, which, index):
         base = (self.prog[CURVE_TABLE - PROG_BASE + 2 * which] << 8) \
              | self.prog[CURVE_TABLE - PROG_BASE + 2 * which + 1]
-        return self.prog[base - PROG_BASE + index]
+        off = base - PROG_BASE + index
+        if not (0 <= off < len(self.prog)):
+            raise SystemExit(
+                f"rd_parse: no velocity curve at ${base:04x}. CURVE_TABLE is "
+                f"${CURVE_TABLE:04x}, which is where the RD-200's firmware "
+                f"keeps it -- the MKS-20's own sound-CPU ROMs put it elsewhere "
+                f"(${0xe80b:04x} and ${0x7c8 + 0xe000:04x}). Pass RD200_B.bin "
+                f"as the program ROM.")
+        return self.prog[off]
 
 
 def zone_of(note):
