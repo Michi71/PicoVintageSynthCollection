@@ -353,6 +353,13 @@ These defines are deliberately not unified in the helper but set per instrument 
   hold them: the effect chip's algorithms (chorus, equalizer and the 32 reverb
   types stand on the MT-32's Boss reverb as munt documents it) and the absolute
   clock of the envelope ramps, which is calibrated against recordings.
+- PicoFaceRD builds from a ROM set and Python alone -- the descrambling is
+  `tools/rd_extract/rd_descramble.py`, the note descriptors are computed from
+  the sound CPU's own arithmetic as read out of its firmware, and no emulator
+  is in the build. It also has 4 MB variants: `-DPICOFACERD_MODEL=MKS20` or
+  `=MK80` ships one of the two machines, eight patches renumbered from one, and
+  needs only that machine's ROMs. `tools/rd_extract/check_variants.sh` requires
+  each variant's patches to be the full build's, to the sample.
 
 | Instrument | Flash | RAM | PID | Original (flash/RAM) |
 |---|---|---|---|---|

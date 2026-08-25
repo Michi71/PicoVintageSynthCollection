@@ -23,6 +23,15 @@ distributable, and nothing derived from it is in this repository either.
 | `MK80_IC5.bin`, `MK80_IC6.bin`, `MK80_IC7.bin` | 128 KB each | MK-80 sample chips |
 | `pack_p0.rdp` … `pack_p15.rdp` | ~3.3 MB total | the note descriptors, one file per patch |
 
+A **single-machine build needs only that machine's half** of the table above --
+see [Fitting a 4 MB Pico 2](#fitting-a-4-mb-pico-2):
+
+| `PICOFACERD_MODEL` | sample chips | packs |
+|---|---|---|
+| `BOTH` (default) | all nine | `pack_p0` … `pack_p15` |
+| `MKS20` | the six `mks20_1517973*.BIN` | `pack_p0` … `pack_p7` |
+| `MK80` | `MK80_IC5/IC6/IC7.bin` | `pack_p8` … `pack_p15` |
+
 Three more are needed to *make* the packs, though not to build once they exist:
 
 | File | Size | What it is |
@@ -71,8 +80,9 @@ same rate and under the same name.
 
 ### What the build does with the ROMs
 
-The nine ROMs become a 1.81 MB blob at configure time: three packed sample banks
-and the chip's two arithmetic tables, which is all the engine reads.
+The sample ROMs become a blob at configure time -- one packed bank each plus the
+chip's two arithmetic tables, which is all the engine reads. 1.81 MB for the
+full build, 1.31 MB for `MKS20`, 0.81 MB for `MK80`.
 
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
@@ -155,7 +165,7 @@ are, which is why they sit in `roms/` rather than in the tree.
 
 | Area | Details |
 |---|---|
-| Sounds | All 16 patches: MKS-20 (Piano 1–3, Harpsichord, Clavi, Vibraphone, E-Piano 1–2) and MK-80 (Classic, Special, Blend, Contemporary, A. Piano 1–2, Clavi, Vibraphone) |
+| Sounds | All 16 patches: MKS-20 (Piano 1–3, Harpsichord, Clavi, Vibraphone, E-Piano 1–2) and MK-80 (Classic, Special, Blend, Contemporary, A. Piano 1–2, Clavi, Vibraphone). A 4 MB build ships one machine's eight — see [Fitting a 4 MB Pico 2](#fitting-a-4-mb-pico-2) |
 | Engine | Timeline-replay of captured S/A voice programming; 10 parts per voice, chip-exact envelope math, native 20 kHz / 32 kHz per patch (no resampling) |
 | Polyphony | 8 / 16 / 24 / 32 voices or **Auto** — a load-adaptive voice governor with active culling (default; the original is 16-voice) |
 | Effects | Vintage DAC stage (12-bit requantization + 2-pole reconstruction filter), bass/treble shelves, tremolo, mono 4-stage phaser, stereo BBD-style chorus |
@@ -182,9 +192,11 @@ compatible 16 MB stand-in — the Waveshare RP2350 Plus has no board file in the
 pinned SDK, and all pins used here are addressed explicitly, so the only thing
 taken from the board file is the 16 MB flash size (which matches).
 
-The 16 MB is not decoration here: the image is **5.07 MB**, mostly sample packs,
-so this one does not fit a 4 MB board such as a base Pico 2, and there is no
-reduced variant. An oversized `.uf2` stops copying without saying why. See
+The 16 MB is not decoration for the default build: the image is **5.15 MB**,
+mostly sample packs, so it does not fit a 4 MB board such as a base Pico 2.
+Building one machine instead of two does fit —
+[Fitting a 4 MB Pico 2](#fitting-a-4-mb-pico-2). An oversized `.uf2` stops
+copying without saying why. See
 [How much flash an instrument needs](../../README.md#how-much-flash-an-instrument-needs).
 
 ## User interface
