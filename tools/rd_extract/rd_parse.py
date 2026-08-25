@@ -18,8 +18,8 @@ STATE: not finished, but further than it was. Measured against the sixteen
 captured packs, patch 0, all 352 (note, velocity) pairs and all 3520 parts:
 
     pitch                     100 %      3520 of 3520, exact
-    attack chains complete   65.5 %
-    individual segments      73.5 %      on the stretch both cover
+    attack chains complete   80.0 %
+    individual segments      87.0 %      on the stretch both cover
 
 The pitch being exact everywhere settles the zone path: note to zone, zone entry
 to ten 16-bit pitches, all of it.
@@ -30,16 +30,15 @@ of the chain fitted in the window plus the release segment written at that
 moment; this walks the list to its own end. On patch 0, note 60, velocity 110,
 part 0 the two agree for seven segments and then the pack stops.
 
-What is still wrong is the velocity index. Solving for the weight that would
-make the destinations exact puts it at 224..231 where this computes 220, and
-$a5[113] holds the byte that gives 228 -- but the velocity is 110, and neither
-of the two indexing paths in the firmware lands on 113. One step is missing.
+The velocity index is the raw MIDI velocity after all. An earlier note here
+said it could not be, on the strength of solving one part of one note for the
+weight that would fit; sweeping all 256 indices against every note instead puts
+the raw index at the top for three of the four captured layers, and the fourth
+was a different fault -- see the curve selector above.
 
-Found by measurement rather than by reading, and worth recording as such: the
-curve selector is always the record's +4. It looked as though the layer bit
-should pick +4 or +5, the way it offsets the segment list, but taking +4
-unconditionally raises exact destinations from 36 % to 65 %. What +5 is for is
-unresolved.
+What is still wrong sits in the remaining 13 %, and it is not the velocity
+path: whatever it is, it leaves four velocities agreeing to within a tenth of a
+percent of each other.
 """
 import sys
 
@@ -110,12 +109,11 @@ def parse(rom, note, velocity):
             parts.append({"pitch": pitch, "wave": wave, "release": release,
                           "segments": []})
             continue
-        # The selector is always +4. It looked as though the layer bit should
-        # pick +4 or +5, the way it offsets the list -- $ab is $af or $af+1 and
-        # everything reads $04,x off it -- but measured against the captured
-        # packs that is wrong: taking +4 unconditionally raises exact
-        # destinations from 36 % to 65 %. What +5 is for is unresolved.
-        c3 = rom.curve(rom.prm[rec + 4] >> 1, c1)
+        # +4 for the hard layer, +5 for the soft one -- and it is that way
+        # round, not the other. $e924's bmi branches when bit 7 is *set*, so
+        # the inx that makes $ab into $af + 1 runs when it is clear. Reading it
+        # the other way costs a velocity layer: soft notes drop to 29 %.
+        c3 = rom.curve(rom.prm[rec + (4 if layer else 5)] >> 1, c1)
 
         segs, at = [], rom.cpu_to_off(ptr) + layer
         while len(segs) < 64:
