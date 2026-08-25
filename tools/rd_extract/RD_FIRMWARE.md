@@ -345,11 +345,58 @@ chooses the layer. One byte out of `$a5`, two jobs, no overlap.
 That also means `$a5` is not just a velocity curve: it is a velocity **map**,
 one byte a step, carrying a layer bit and a within-layer position.
 
+## The "key weight" is not a key weight
+
+`$0040 + voice` is what the interrupt reads as `$d1`:
+
+```
+ed3f  lsrb           ; four times: the IRQ id's high nibble is the voice
+ed47  ldb $40,x
+ed49  aslb
+ed4a  stb $d1
+```
+
+and note-on writes it, right after allocating the voice:
+
+```
+e5c9  jsr $e51b      ; allocate, voice comes back in B
+e5cc  stb $91
+e5d4  ldx $90
+e5d6  ldb $c0        ; the same byte again
+e5d8  stb $40,x      ; -> $0040 + voice
+```
+
+**`$c0`.** The same byte that becomes `$c1` and through it `$d2`. So both
+interpolation weights come from one lookup:
+
+| | |
+|---|---|
+| `$d1` | `$c0 << 1` — straight |
+| `$d2` | `curve[(($c0 << 1) & $ff) >> 2]` — through one of the eight |
+
+Two different laws over the same input, which is exactly what the captured data
+shows: across the four velocity layers of patch 0, note 60, part 0, segment 2,
+`dest` moves 196 → 226 → 242 → 245 while `speed` barely moves at all, 120 → 122
+→ 123 → 123. One byte of the register pair is interpolated straight, the other
+through a curve.
+
+**So the note does not enter the interpolation at all.** It enters through the
+zone: 88 keys over 99 zone entries, each with its own part blocks and its own
+segment lists. Which is why neighbouring notes come out byte-identical — they
+land in the same zone — and why there are only 24 distinct wave assignments
+across the keyboard.
+
+The `$80`/`$a0` handler at `$e777`/`$e77d` writes the same location by the same
+route. It is the second way in, not the only one, and note-on does not depend
+on it.
+
 ## What is still missing
 
-- **The key weight** at `$0040 + voice`. It is written by the `$80`/`$a0`
-  handler, not by note-on, and the reference emulator never sends those
-  commands — so how they are driven on real hardware is open.
+- **Exactly which byte indexes `$a5`.** The measurements settle *what* it
+  depends on -- one note at four velocities gives four different chains, so it
+  is velocity-derived and cannot be the note -- but the byte plumbing through
+  the `$c0` handler's handshake has not been followed step by step, and the
+  command carries three bytes where the dispatcher reads two.
 - **Where the timestamps come from.** Not the ROM: a segment's duration is
   however long the chip takes to ramp from the previous destination to this
   one, which is why two notes with the same chain have identical timing.
