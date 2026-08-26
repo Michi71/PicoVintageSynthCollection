@@ -14,8 +14,14 @@ shorthand for the instrument directory.
 | | what | why |
 |---|---|---|
 | `$I/roms/` | nine sample ROMs, sixteen `.rdp` packs | Roland's, and data derived from it |
-| `RDPIANO` | a checkout of [Michi71/rdpiano](https://github.com/Michi71/rdpiano) | the firmware execution the *capture* watches |
-| `RDPIANO_REF` | a checkout of [Michi71/librdpiano](https://github.com/Michi71/librdpiano) | the adapted emulator the A/B test measures against |
+| `RDPIANO` | a checkout of [giulioz/rdpiano](https://github.com/giulioz/rdpiano), **original** | the reference the A/B test measures against |
+| `RDPIANO_REF` | a checkout of [Michi71/librdpiano](https://github.com/Michi71/librdpiano) | the adapted emulator the *capture* drives |
+
+**The A/B reference must be the original, not an adaptation of it.** An adapted
+copy can carry a hand-written per-patch voicing table -- gain, brightness,
+saturation, noise, ten partials each -- live in its output path and absent from
+the original; measuring against that measures the adaptation.
+`run_regression.sh` refuses a checkout whose `sound_chip.cpp` has one.
 
 Only `make_packs.sh` (the capture path) and `run_regression.sh` (the A/B test)
 want those two. `check_variants.sh`, which proves the 4 MB single-machine
@@ -198,7 +204,7 @@ lever is real; the measurement to derive it from is not this one.
 
 ## Regression runner (one command)
 
-    RDPIANO=~/rdpiano RDPIANO_REF=~/librdpiano tools/rd_extract/run_regression.sh
+    RDPIANO=~/rdpiano tools/rd_extract/run_regression.sh
 
 Builds the sample banks and the packs from `$I/roms/` exactly as the firmware
 build does — so the test covers exactly what ships — then `rd_ab_test` and

@@ -6,19 +6,26 @@
 # Builds two host tools, runs an A/B matrix against the reference emulator,
 # runs stuck-voice stress tests, and aggregates a final PASS/FAIL summary.
 #
-# Usage: RDPIANO=/path/to/librdpiano ./run_regression.sh
+# Usage: RDPIANO=/path/to/rdpiano ./run_regression.sh
 #
 # Two things it needs that are deliberately not in this repository:
 #
-#   RDPIANO       the upstream emulator, whose SoundChip takes three ROM images
-#                 -- https://github.com/Michi71/rdpiano. The descrambling lives
-#                 there, so this is what builds the sample banks.
-#   RDPIANO_REF   the adapted emulator with the model tables compiled in --
-#                 https://github.com/Michi71/librdpiano. This is what the A/B
-#                 test compares the engine against. Defaults to RDPIANO if that
-#                 checkout happens to carry the tables too.
-#   roms/     instruments/PicoFaceRD/roms/, holding the nine sample ROMs and
-#             the sixteen .rdp packs. Same directory the firmware builds from.
+#   RDPIANO   a checkout of https://github.com/giulioz/rdpiano -- the reference
+#             emulator, in its original state. This is what the A/B test
+#             compares the engine against.
+#   roms/     instruments/PicoFaceRD/roms/, holding the nine sample ROMs, the
+#             two parameter ROMs, RD200_B.bin and the sixteen .rdp packs.
+#
+# The reference used to be an adapted copy of that emulator, and the difference
+# turned out not to be cosmetic: the adaptation carries a hand-written
+# per-patch voicing table -- gain, brightness, saturation, noise, ten partials
+# each -- which is live in its output path and which the original does not
+# have. Measuring against it was measuring the adaptation. Switched 2026-08-26,
+# and the expectations below were re-frozen with it.
+#
+# The adapted copy is still what make_packs.sh drives for the capture path;
+# that one wants its loadPatch and its compiled-in tables, and no sound of its
+# comes out of it.
 #
 # The packs used to be dumped back out of a generated source file in the
 # instrument tree. They are input now, not output, so that step is gone.
@@ -42,12 +49,14 @@ WORK="$REPO/build_host"
 ROMS="$R/roms"
 mkdir -p "$WORK"
 
+# Deliberately NOT falling back to RDPIANO_REF: that names the adapted copy,
+# and silently measuring against it is the mistake this switch removes.
 if [ -z "${RDPIANO:-}" ]; then
-    echo "run_regression: set RDPIANO to a checkout of the upstream emulator" >&2
-    echo "    git clone https://github.com/Michi71/rdpiano" >&2
+    echo "run_regression: set RDPIANO to a checkout of the reference emulator" >&2
+    echo "    git clone https://github.com/giulioz/rdpiano" >&2
     exit 1
 fi
-REF="${RDPIANO_REF:-$RDPIANO}"
+REF="$RDPIANO"
 RD=""
 for cand in "$REF/rdpiano" "$REF/librdpiano" "$REF"; do
     if [ -f "$cand/src/mcu.cpp" ] && [ -f "$cand/include/mcu.h" ]; then RD="$cand"; break; fi
@@ -56,10 +65,20 @@ if [ -z "$RD" ]; then
     echo "run_regression: no src/mcu.cpp under $REF" >&2
     exit 1
 fi
-if [ ! -f "$RD/src/mks20a_tables.cpp" ]; then
-    echo "run_regression: $RD has no model tables, so the A/B test has nothing" >&2
-    echo "    to compare against. Set RDPIANO_REF to a checkout that has them:" >&2
-    echo "    git clone https://github.com/Michi71/librdpiano" >&2
+# Two checks that the checkout really is the reference and not an adaptation
+# of it. The first is the API the A/B test is written against; the second is
+# the reason this matters at all.
+if ! grep -q 'generate_next_sample' "$RD/include/mcu.h"; then
+    echo "run_regression: $RD is not the reference emulator -- its Mcu has no" >&2
+    echo "    generate_next_sample. An adapted copy will not do here:" >&2
+    echo "    git clone https://github.com/giulioz/rdpiano" >&2
+    exit 1
+fi
+if grep -q 'g_voicingTable' "$RD/src/sound_chip.cpp"; then
+    echo "run_regression: $RD carries a per-patch voicing table in its sound" >&2
+    echo "    path, so it is an adapted copy, not the reference. Measuring" >&2
+    echo "    against it would measure the adaptation. Use the original:" >&2
+    echo "    git clone https://github.com/giulioz/rdpiano" >&2
     exit 1
 fi
 if [ ! -f "$ROMS/pack_p0.rdp" ]; then
@@ -68,10 +87,10 @@ if [ ! -f "$ROMS/pack_p0.rdp" ]; then
 fi
 
 # The sample banks the engine reads, built from the ROMs exactly as the
-# firmware build does it. Only the banks -- the emulator computes the two
-# lookup tables itself, and linking both would define them twice.
+# firmware build does it. The two lookup tables come along this time: the
+# reference computes its own privately, so nothing collides.
 echo "[prep] sample banks"
-RDPIANO="$RDPIANO" "$HERE/rd_make_rom.sh" "$ROMS" "$WORK/rd_rom.blob" >/dev/null || {
+python3 "$HERE/rd_make_rom.py" "$ROMS" "$WORK/rd_rom.blob" >/dev/null || {
     echo "[FAIL] rd_make_rom"; exit 1; }
 echo "[prep] descriptor packs"
 python3 "$HERE/rd_embed_packs.py" "$ROMS" "$WORK" >/dev/null || {
@@ -108,21 +127,20 @@ build_tool() {
 }
 
 # 2) Build tools
-# Both trees carry a rom_tables.h and they declare different things: the
-# emulator's names its decoded arrays, the engine's names the packed banks. The
-# A/B test includes headers from both, so it gets a third that is the union,
-# ahead of either on the include path.
+# The engine's rom_tables.h names the packed sample banks and the chip's two
+# lookup tables. The reference emulator has no header of that name -- it
+# computes those two itself in its SoundChip constructor -- so the shim just
+# carries the engine's declarations, ahead of anything else on the path.
 mkdir -p "$WORK/shim"
-cp "$RD/include/rom_tables.h" "$WORK/shim/ref_rom_tables.h"
 cat > "$WORK/shim/rom_tables.h" <<'SHIM'
-/* Generated by run_regression.sh -- the union of the two rom_tables.h, for the
-   one translation unit that includes headers from both trees. */
+/* Generated by run_regression.sh. */
 #pragma once
 #include <cstdint>
-#include "ref_rom_tables.h"
 extern const uint32_t rd_samples_pk4_a[0x20000];
 extern const uint32_t rd_samples_pk4_b[0x20000];
 extern const uint32_t rd_samples_pk4_m[0x20000];
+extern const uint16_t rd_phase_exp_table[131072];
+extern const uint16_t rd_samples_exp_table[32768];
 SHIM
 
 # The emulator and its model tables come from the checkout; the sample banks
@@ -135,12 +153,9 @@ build_tool rd_ab_test \
     "$HERE/rd_ab_test.cpp" \
     "$RD/src/mcu.cpp" \
     "$RD/src/sound_chip.cpp" \
-    "$RD/src/mks20a_tables.cpp" \
-    "$RD/src/mks20b_tables.cpp" \
-    "$RD/src/mk80_tables.cpp" \
-    "$RD/src/program_tables.cpp" \
     "$R/src/rd_engine/rd_new_engine.cpp" \
-    "$WORK/rd_rom_blob.S"
+    "$WORK/rd_rom_blob.S" \
+    "$WORK/rd_rom_tables.S"
 
 build_tool rd_stress2 \
     clang++ -O2 -w -std=c++17 -I "$R/include" -I "$R/include/rd_engine" -I "$R/effects" \
@@ -157,27 +172,34 @@ build_tool rd_stress2 \
 # 3) The packs are input now: they live beside the ROMs and both the firmware
 # build and this harness read the same files. Nothing to dump.
 
-# 4) A/B matrix vs reference emulator
+# 4) A/B matrix vs the reference emulator
 # Cases: patch:note:expected_r (vel always 110)
-# Re-frozen 2026-08-25, because the packs stopped being captured and started
-# being computed (tools/rd_extract/rd_make_packs.py). The comparison is the
-# same one -- the engine against the reference emulator -- but its input is
-# derived from the ROM set now, so the numbers move a little and the old ones
-# would be measuring the wrong thing.
 #
-# What moved, against the values frozen 2026-07-20:
+# Re-run 2026-08-26 against giulioz/rdpiano in its original state, after the
+# reference was switched away from an adapted copy of it (see the header).
+# Every one of the six values frozen on 2026-08-25 came back IDENTICAL to six
+# decimals -- so those numbers were never measuring the adaptation, and the
+# switch confirms them rather than moving them. What it removes is the risk
+# that a later run picks up a checkout somebody has since modified.
 #
-#   0:36   0.963959 -> 0.998891   the one that was far out, now in line with
-#                                 the rest. Nothing was fixed to achieve it:
-#                                 that cell was low because a captured pack
-#                                 holds only what fitted in its window, and a
-#                                 computed one holds the whole chain.
-#   3:60   0.993413 -> 0.991473   the only one that dropped, and by 0.002.
-#                                 Unexplained; small enough to sit inside the
-#                                 band the runner already allows, and noted
-#                                 here rather than smoothed over.
-#   the rest                      within 0.0006 either way.
-ab_cases="0:60:0.999640 0:36:0.998891 3:60:0.991473 4:60:0.998967 8:60:0.998612 15:60:0.999899"
+# Six cells added at the same time, to cover more than middle C on four patches:
+#
+#   2:72    a second MKS-20 piano, an octave up
+#   6:48    E-Piano 1 low
+#   10:84   MK-80 Blend high
+#   12:60   MK-80 A. Piano 1, the one patch whose held-phase minimum is highest
+#   14:55   MK-80 Clavi, 32 kHz
+#   3:96    the hard one, and deliberately so. Harpsichord in the top octave is
+#           where waveform correlation falls apart -- 0.9868 here, and lower
+#           still further up. It is not a timbre difference: pitch matches to
+#           0.0 cents, level to 0.4 %, and the third-octave spectrum to 0.11 dB.
+#           What differs is the phase of the partials, which at ~12 samples per
+#           period is what rounding in a phase accumulator does. The cell earns
+#           its place by being sensitive: anything that really changes the top
+#           octave will move it well beyond the 0.002 band.
+ab_cases="0:60:0.999640 0:36:0.998891 2:72:0.994845 3:60:0.991473 3:96:0.986809
+          4:60:0.998967 6:48:0.999917 8:60:0.998612 10:84:0.999917 12:60:0.999669
+          14:55:0.998802 15:60:0.999899"
 
 for c in $ab_cases; do
     patch="${c%%:*}"
@@ -186,7 +208,7 @@ for c in $ab_cases; do
     exp="${rest#*:}"
 
     total=$((total+1))
-    out="$("$WORK/rd_ab_test" "$ROMS/pack_p${patch}.rdp" "$patch" "$note" 110 "$WORK/ab_p${patch}n${note}" 2>/dev/null)"
+    out="$("$WORK/rd_ab_test" "$ROMS" "$ROMS" "$patch" "$note" 110 "$WORK/ab_p${patch}n${note}" 2>/dev/null)"
     last="$(printf '%s\n' "$out" | tail -n 1)"
     r="$(printf '%s' "$last" | sed -n 's/.* r=\([0-9.]*\).*/\1/p')"
     rmsRatio="$(printf '%s' "$last" | sed -n 's/.* rmsRatio=\([0-9.]*\).*/\1/p')"
