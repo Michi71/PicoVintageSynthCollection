@@ -166,7 +166,8 @@ already building the firmware.
 clones into a temporary directory, copies the ROMs in from outside git, and
 builds all ten. That last part is the point: the ROM sets are not in this
 repository and must never be, so a build here is the one thing CI cannot cover.
-Add `--variants` to build the reduced images too.
+Name a directory to build there instead and keep the result; add `--variants`
+for the reduced images too.
 
 **On a 4 MB Pico 2**, RD ships one machine instead of two:
 `-DPICOFACERD_MODEL=MKS20` (3.01 MB) or `=MK80` (2.53 MB), eight patches each,

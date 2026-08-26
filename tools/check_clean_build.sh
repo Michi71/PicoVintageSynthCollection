@@ -5,7 +5,7 @@
 # Builds the whole collection from a fresh clone, the way somebody who just
 # found the repository would.
 #
-#     tools/check_clean_build.sh [--local] [--variants] [--keep]
+#     tools/check_clean_build.sh [--local] [--variants] [--keep] [<dir>]
 #
 # The point is the ROMs. Three instruments need a local ROM set, and those sets
 # are not in the repository and must never be -- so the one thing a build here
@@ -23,6 +23,15 @@
 #               PICOFACERD_MODEL=MK80. Roughly doubles the time.
 #   --keep      leave the temporary tree behind for poking at
 #
+# <dir> is where to build, and it stays behind afterwards -- for looking at the
+# logs, or flashing the .uf2 files straight out of it. Useful too when /tmp is
+# small: a full run is well over a gigabyte. Without one it goes to a temporary
+# directory that is removed again unless --keep.
+#
+# A repeat run into the same directory clears it first, because a check that
+# starts on leftovers is not checking a clean build. Only a directory a previous
+# run left is ever cleared: anything else in the way is reported and left alone.
+#
 # Where the ROMs come from:
 #
 #   PICOFACE_ROMS=/path   a directory holding PicoFaceD5/, PicoFaceJV/ and
@@ -38,18 +47,51 @@ REPO="$(cd "$HERE/.." && pwd)"
 URL="https://github.com/Michi71/PicoVintageSynthCollection"
 ROM_INSTRUMENTS=(PicoFaceD5 PicoFaceJV PicoFaceRD)
 
-local_clone=0; variants=0; keep=0
+local_clone=0; variants=0; keep=0; outdir=""
 for arg in "$@"; do
     case "$arg" in
         --local)    local_clone=1 ;;
         --variants) variants=1 ;;
         --keep)     keep=1 ;;
-        -h|--help)  sed -n '3,40p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-        *) echo "check_clean_build: unknown option $arg" >&2; exit 2 ;;
+        # Print the comment block above, whatever length it grows to: skip the
+        # shebang and the two SPDX lines, then stop at the first line of code.
+        -h|--help)  awk 'NR<=3 {next} /^#/ {sub(/^# ?/, ""); print; next} {exit}' "$0"
+                    exit 0 ;;
+        -*) echo "check_clean_build: unknown option $arg" >&2; exit 2 ;;
+        *)  if [ -n "$outdir" ]; then
+                echo "check_clean_build: more than one directory given" >&2; exit 2
+            fi
+            outdir="$arg" ;;
     esac
 done
 
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/picoface-clean.XXXXXX")"
+# The marker is what makes emptying a named directory safe: only a directory
+# this script made before is ever cleared, and anything else is left untouched.
+MARKER=".picoface-clean-build"
+
+if [ -n "$outdir" ]; then
+    if [ -e "$outdir" ] && [ ! -d "$outdir" ]; then
+        echo "check_clean_build: $outdir exists and is not a directory" >&2; exit 2
+    fi
+    if [ -d "$outdir" ] && [ -n "$(ls -A "$outdir" 2>/dev/null)" ]; then
+        if [ -f "$outdir/$MARKER" ]; then
+            echo "reusing $outdir (clearing the previous run)"
+            find "$outdir" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+        else
+            echo "check_clean_build: $outdir is not empty and was not made by this" >&2
+            echo "    script. Empty it yourself or name another directory." >&2
+            exit 2
+        fi
+    fi
+    mkdir -p "$outdir" || exit 2
+    WORK="$(cd "$outdir" && pwd)"
+    : > "$WORK/$MARKER"
+    keep=1                       # a directory somebody named is theirs to keep
+else
+    WORK="$(mktemp -d "${TMPDIR:-/tmp}/picoface-clean.XXXXXX")"
+    : > "$WORK/$MARKER"
+fi
+
 cleanup () {
     if [ "$keep" -eq 1 ]; then echo "tree kept at $WORK"
     else rm -rf "$WORK"; fi
