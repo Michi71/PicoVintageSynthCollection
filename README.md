@@ -162,6 +162,12 @@ python3 tools/rd_extract/rd_make_packs.py /tmp/prog.bin /tmp/prm.bin $R \
 Python and the ROMs, nothing else -- no emulator, no toolchain beyond the one
 already building the firmware.
 
+**To check that all of this actually works from scratch**, `tools/check_clean_build.sh`
+clones into a temporary directory, copies the ROMs in from outside git, and
+builds all ten. That last part is the point: the ROM sets are not in this
+repository and must never be, so a build here is the one thing CI cannot cover.
+Add `--variants` to build the reduced images too.
+
 **On a 4 MB Pico 2**, RD ships one machine instead of two:
 `-DPICOFACERD_MODEL=MKS20` (3.01 MB) or `=MK80` (2.53 MB), eight patches each,
 and only that machine's ROMs are needed. The default `BOTH` is sixteen patches
