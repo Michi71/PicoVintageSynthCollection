@@ -61,6 +61,16 @@
 //   rootKey is exact semitones; tune is 0.1 cent per unit, neutral at 1024.
 //   The machine itself sits 9.4 cents below equal temperament.
 //   All four established by patching rom2 and measuring -- see README.md.
+// The seven velocity curves, 128 bytes each, indexed by raw MIDI velocity and
+// selected by the low three bits of tone byte +71. Found by logging the ROM
+// addresses the firmware reads during a note-on: PC 0x0062CC reads
+// 0x5390 + curve*128 + velocity. The byte is a FALLING attenuation index, not
+// a warped velocity -- curve 0 is exactly 254 - 2*velocity, and the level law
+// downstream wants half of it. Index 7 is not a curve; the table ends at 6.
+// Factory patches use only 0, 1 and 2: 371, 153 and 15 of 539 active tones.
+#define JV_VELO_CURVE_BASE 0x5390
+#define JV_VELO_CURVE_COUNT 7
+
 #define JV_MULTI_TABLE   0x0004
 #define JV_MULTI_COUNT   129
 #define JV_MULTI_STRIDE  60

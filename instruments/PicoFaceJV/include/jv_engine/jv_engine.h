@@ -310,6 +310,7 @@ private:
         return patch_ && (patch_[24] & JV_PORTA_MODE_LEGATO_BIT);
     }
     bool sampleFor(int waveNumber, uint8_t note, Sample& out) const;
+    int  velocityIndex(int curve, uint8_t vel) const;
     int32_t decodeStep(Voice& v) const;
     void updateFilterCoeffs(Voice& v);
     void updateModulation(Voice& v, uint32_t clock);

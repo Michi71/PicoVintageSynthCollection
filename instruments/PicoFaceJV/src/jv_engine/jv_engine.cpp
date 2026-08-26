@@ -614,6 +614,15 @@ void Engine::setPatch(const uint8_t* patch362) {
     reverb_.reset();
 }
 
+// The velocity curve tables, straight out of the machine's own ROM.
+int Engine::velocityIndex(int curve, uint8_t vel) const {
+    if (!rom_.rom2 || rom_.rom2Len < JV_VELO_CURVE_BASE + 7 * 128)
+        return vel;                       // no ROM to read: leave velocity alone
+    if (curve < 0 || curve > 6) curve = 0;   // 7 is not a curve; the table ends
+    const uint8_t b = rom_.rom2[JV_VELO_CURVE_BASE + curve * 128 + (vel & 0x7F)];
+    return 127 - (int)(b >> 1);
+}
+
 bool Engine::sampleFor(int waveNumber, uint8_t note, Sample& out) const {
     if (waveNumber < 0 || waveNumber >= JV_MULTI_COUNT) return false;
     const uint8_t* ms = rom_.rom2 + JV_MULTI_TABLE + (size_t)waveNumber * JV_MULTI_STRIDE;
@@ -918,10 +927,24 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel,
     // multiplying by it wrongly attenuated 233 of the 577 samples.
     float lvl = patchLevelToLinear(patch_[21]) * levelToLinear(t[67]) * analogLevel;
 
-    // Velocity: the curve warps velocity first, then the sensitivity law acts
-    // on the warped value. Curve 1 (stored 0) is the straight line the whole
-    // velocity calibration was measured on, so it stays an exact identity.
-    const int velA = (int)(jv_velocity_curve(t[71] & 7, vel) + 0.5f);
+    // Velocity: the curve comes out of the ROM, not out of a fitted formula.
+    // The machine holds seven of them at rom2:0x5390, 128 bytes each, indexed
+    // by the raw MIDI velocity and selected by the low three bits of +71 --
+    // located by logging which addresses the firmware actually reads during a
+    // note-on. What they hold is not a warped velocity but a FALLING
+    // attenuation index: curve 0 is exactly 254 - 2*velocity.
+    //
+    // The sensitivity law downstream is a function of sens * (127 - velA), and
+    // curve 0 gives 254 - 2*vel = 2*(127 - vel) -- so the index the law wants
+    // is simply half the table byte. That also settles why curve 0 always
+    // looked right: the law was calibrated on it.
+    //
+    // Proven independent of how the byte arose: eight pairs of (curve,
+    // velocity) that land on the same byte from different curves all produce
+    // the same level, within 0.28 dB. So the attenuation is a function of the
+    // byte alone, and feeding it through the existing law fits all seven
+    // curves to 0.65 dB median, 2.2 dB worst -- against 6.7 to 20.9 dB before.
+    const int velA = velocityIndex(t[71] & 7, vel);
     {
         // Signed, magnitude up to 63; the ROM byte is two's complement where
         // the SysEx view adds 64. Positive makes soft notes quieter, negative
