@@ -219,15 +219,28 @@ static const float JV_LFO_PITCH_DEPTH_CENTS[9] = {
 // The old table read 6.39 / 9.60 / 15.89 / 21.22 dB at product 864 / 1296 /
 // 2160 / 2700 where the machine gives 5.21 / 8.09 / 14.96 / 18.27, and it ran
 // away badly at the top: 45.25 against 37.78 at 3969.
-static const float JV_TVA_VELO_PRODUCT[16] = {
+// The tail was re-measured on 26.08.2026 against giulioz/jv880_juce, on a tone
+// that uses velocity curve 0 -- so that the played velocity IS the index the
+// law sees, which is what makes the product comparable at all. In that region
+// the product model holds tightly: three cells at product 3792..3808 all give
+// 36.82 dB, three at 3969..4032 all give 46.36 dB, and everything from 4120 up
+// is silent, with nothing in between.
+//
+// The old table stopped at 3969 -> 37.78 and, worse, velocityAttenDb clamps at
+// its last entry -- so a tone the machine takes to 46 dB and then to silence
+// stayed audible at -37.8 dB here. Extended, and the last entry is now the
+// silence the machine actually reaches.
+static const float JV_TVA_VELO_PRODUCT[18] = {
     0.0f, 216.0f, 432.0f, 648.0f, 864.0f, 1080.0f, 1296.0f, 1512.0f,
-    1728.0f, 1944.0f, 2160.0f, 2400.0f, 2700.0f, 3000.0f, 3400.0f, 3969.0f,
+    1728.0f, 1944.0f, 2160.0f, 2400.0f, 2700.0f, 3000.0f, 3400.0f, 3800.0f,
+    4032.0f, 4120.0f,
 };
-static const float JV_TVA_VELO_ATTEN_DB[16] = {
+static const float JV_TVA_VELO_ATTEN_DB[18] = {
     0.00f, 1.29f, 2.80f, 4.42f, 5.21f, 6.84f, 8.09f, 10.04f,
-    11.89f, 12.79f, 14.96f, 16.59f, 18.27f, 22.78f, 27.62f, 37.78f,
+    11.89f, 12.79f, 14.96f, 16.59f, 18.27f, 22.78f, 28.30f, 36.82f,
+    46.36f, 200.00f,
 };
-#define JV_TVA_VELO_POINTS 16
+#define JV_TVA_VELO_POINTS 18
 //
 // Flags bit 6 is KEY SYNC. Measured by shifting the note-on in time (JV_WARM)
 // and timing the first square-wave edge: with the bit clear the edge moves so

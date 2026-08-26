@@ -232,13 +232,15 @@ typedef struct {
                                 //     after release; HOLD drops it if the key is released first;
                                 //     PLAY-MATE takes the gap between the last two note-ons as
                                 //     the delay, up to two seconds.
-    uint8_t tvaVelocity;        // +72 VERIFIED  bipolar, steps at bit 6. Measured as a pure
-                                //     attenuation: at velocity 127 every setting gives the same
-                                //     level, lower velocities are pulled down further the larger
-                                //     the value. MANUAL: the panel range is -63..+63 and negative
-                                //     values make HARDER playing quieter -- so the upper half of
-                                //     the byte is probably the inverted side rather than inert,
-                                //     the same trap the LFO depths sprang. Unmeasured.
+    uint8_t tvaVelocity;        // +72 VERIFIED  a pure attenuation: at velocity 127 every
+                                //     setting gives the same level, lower velocities are pulled
+                                //     down further the larger the value. Values 1..63 all bite.
+                                //     VALUES 64..127 ARE INERT, not inverted -- 64, 80, 96, 112
+                                //     and 127 all reproduce the value-0 case exactly, at every
+                                //     velocity, measured 26.08.2026. An earlier note here guessed
+                                //     the upper half was the inverted side "the same trap the LFO
+                                //     depths sprang"; it is not, at least not below 128, which is
+                                //     as far as this went. 128..255 remain unmeasured.
     uint8_t tvaT1T4Velocity;    // +73 MANUAL  TVA-ENV velocity on/off time sense, two 15-step
                                 //     fields: T1 scaled by note-on velocity, T4 by release velocity
     uint8_t tvaEnvTime1;        // +74 VERIFIED  attack, 67.6 ms * 2^(v/14.06); linear in amplitude
