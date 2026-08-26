@@ -94,8 +94,23 @@ typedef struct {
                                 //     125 Hz square wave on the playback rate,
                                 //     2.17 % per panel step. Measured -- see
                                 //     jv_calibration.h.
-    uint8_t velocityRangeLow;   // +03 MANUAL  velocity window, lower bound 0..127
-    uint8_t velocityRangeUp;    // +04 MANUAL  velocity window, upper bound 0..127
+    uint8_t velocityRangeLow;   // +03 DISPROVEN  the manual calls this a velocity
+                                //     window's lower bound. It is not one, or not one the
+                                //     machine gates on: forced to 127 in a patch written
+                                //     into the reference's temporary patch area -- which
+                                //     under that reading silences the tone below velocity
+                                //     127 -- its output is unchanged at every velocity.
+    uint8_t velocityRangeUp;    // +04 DISPROVEN  likewise, forced to 30 and nothing moves.
+                                //     The engine gated on these two until 26.08.2026 and
+                                //     that silenced six bank-A basses (St Fretless, House
+                                //     Bass, Thumpin Bass, Pick Bass, Wonder Bass, Yowza
+                                //     Bass) below velocity 61, where every one of their
+                                //     tones carries +03 = 61. Whatever these bytes are,
+                                //     do not gate on them.
+                                //     NOTE: the machine DOES gate somewhere -- the user
+                                //     patch "Dist Line" is silent on the reference at
+                                //     velocity 20 and sounds here, at -57 dBFS. Whatever
+                                //     does that is still unfound.
     uint8_t matrixModDestAB;    // +05 VERIFIED dest A = low nibble, B = high nibble
     uint8_t matrixModDestCD;    // +06 UNVERIFIED assumed dest C/D, same packing
     uint8_t matrixModSensA;     // +07 VERIFIED signed, +-63; 64..127 disables. Pitch dest: 19.05 cents/unit

@@ -1146,7 +1146,14 @@ void Engine::noteOn(uint8_t note, uint8_t velocity) {
     for (int tone = 0; tone < 4; tone++) {
         const uint8_t* t = patch_ + JV_TONE_OFFSET + tone * JV_TONE_SIZE;
         if (!(t[0] & 0x80)) continue;                        // tone switched off
-        if (velocity < t[3] || velocity > t[4]) continue;    // velocity window
+        // Bytes +03/+04 were read as a velocity window, on the manual's word.
+        // They are not one: on the reference, forcing +03 to 127 or +04 to 30
+        // -- either of which would silence the tone under that reading --
+        // changes its output by nothing at all. What the gate did do was
+        // silence every tone of six bank-A basses below velocity 61, where
+        // they all carry +03 = 61. Measured across bank A, 70 of 1600 cells
+        // had the reference sounding and us silent, all of them at velocity
+        // 20 or 50. See tools/jv_extract/README.md.
         startVoice(voices_[allocVoice()], tone, note, velocity, glideFrom);
     }
     lastNoteOn_ = clock_;
