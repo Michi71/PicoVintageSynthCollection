@@ -28,18 +28,27 @@ struct RdnPartDesc {
     uint16_t pitch_lut;
     uint8_t wave_loop;
     uint8_t wave_high;
-    uint8_t nseg;
-    uint8_t nrel;
-    // 6-byte packed segments in flash: u32 t (LE), u8 dest, u8 speed.
-    // The attack chain (nseg segments) is followed immediately by the release
-    // chain (nrel segments), so the release chain is segsRaw + nseg*6.
-    // The caller keeps the blob alive (flash arrays are).
-    const uint8_t* segsRaw;
+    // Which of the ten parts this is -- the note-on preamble differs per part
+    // and is the MCU's, not the ROM's.
+    uint8_t idx;
+    // The speed the firmware writes when the key comes up, from the record's
+    // seventh byte. Velocity plays no part in it.
+    uint8_t release;
+    // Two curve selectors, four bits each: low nibble for the hard layer,
+    // high nibble for the soft one. Sixteen curves, so four bits is exact.
+    uint8_t sel;
+    uint8_t ncorner;
+    // The segment list exactly as it sits in the parameter ROM: six bytes an
+    // entry, and the two layers overlap inside them -- the hard layer reads
+    // bytes 0..3, the soft one 2..5. Destination and speed are interpolated
+    // out of these at note-on, which is what makes velocity continuous rather
+    // than the four sampled layers the pack used to hold. Two bytes of tail so
+    // the soft layer can read its last entry. The caller keeps the blob alive.
+    const uint8_t* corners;
 };
 
 struct RdnEntry {
     uint8_t note;
-    uint8_t vel;
     uint8_t nparts;
     RdnPartDesc parts[10];
 };
@@ -97,9 +106,18 @@ private:
         uint8_t  pitch_hi = 0;         // (pitch_lut & 0xC000) == 0xC000, cached at noteOn
         const uint8_t* chain = nullptr; // active chain (attack or release)
         uint8_t  nch = 0;
+        const uint8_t* chain0 = nullptr; // this part's attack chain, for release
+        uint8_t  nseg0 = 0;
     };
 
+    // Where a voice's chains are built at note-on. The pack holds ROM corners
+    // now, not finished segments, so they cannot live in flash any more. The
+    // widest note in the whole bank comes to 134 segments across its ten
+    // parts; 144 leaves room without being generous.
+    static constexpr int kChainSegs = 144;
+
     struct Voice {
+        uint8_t  chainbuf[kChainSegs * 6];
         bool     active = false;
         uint8_t  note = 0;
         uint32_t age = 0;
@@ -115,7 +133,9 @@ private:
     void applyPitchFactor();        // recompute all active parts from bend*tune
     void renderVoicesBlock(unsigned parity, unsigned parityEnabled, uint32_t clockBase, int n, int32_t* out);
     static constexpr int kBlockMax = 64;
-    const RdnEntry* findEntry(uint8_t note, uint8_t vel) const;
+    const RdnEntry* findEntry(uint8_t note) const;
+    uint8_t buildChain(uint8_t* out, const RdnPartDesc& d,
+                       uint8_t layer, uint8_t c2, uint8_t c3) const;
     void startSegment(Part& p, const RdnSeg& s);
     void advanceSegments(Part& p, uint32_t tBase);
     void releaseVoice(Voice& v);
@@ -125,6 +145,8 @@ private:
     uint32_t bend_q16_ = 65536;     // pitch bend factor, Q16 (65536 = center)
     uint32_t tune_q16_ = 65536;     // master tune factor, Q16 (65536 = center)
     std::vector<RdnEntry> _entries;
+    const uint8_t* _velmap = nullptr;   // 256 bytes, parameter ROM
+    const uint8_t* _curves = nullptr;   // 16 x 64, program ROM
     const uint32_t*       _bank = nullptr;  // 4-byte packed sample bank
     uint32_t              _clock = 0;
     uint8_t               _patchId = 0;

@@ -43,9 +43,10 @@ static inline uint16_t rd_le16(const uint8_t* p) {
 }
 
 bool RdNewEngine::loadPack(const uint8_t* blob, size_t len) {
-    // Header: 'RDP2' u32 version, u8 patch_id, u8 bank, u16 entry_count -> 12 bytes
-    if (!blob || len < 12) return false;
-    if (std::memcmp(blob, "RDP2", 4) != 0) return false;
+    // Header: 'RDP3' u32 version, u8 patch_id, u8 bank, u16 note_count, then
+    // the 256-byte velocity map and sixteen 64-byte curves -> 1292 bytes.
+    if (!blob || len < 12 + 256 + 16 * 64) return false;
+    if (std::memcmp(blob, "RDP3", 4) != 0) return false;
     if (rd_le32(blob + 4) != 1) return false; // version 1
 
     // Deactivate all voices before rebuilding _entries / _segStore --
@@ -72,36 +73,39 @@ bool RdNewEngine::loadPack(const uint8_t* blob, size_t len) {
     }
 
     uint16_t entry_count = (uint16_t)blob[10] | ((uint16_t)blob[11] << 8);
+    _velmap = blob + 12;
+    _curves = blob + 12 + 256;
     _entries.clear();
     _entries.reserve(entry_count);
 
     // Single pass: entries reference the segments IN PLACE in the flash blob
     // (no _segStore copy -> no heap churn, no OOM on patch switches).
-    size_t pos = 12;
+    size_t pos = 12 + 256 + 16 * 64;
     while (pos < len) {
-        if (pos + 3 > len) return false;
+        if (pos + 2 > len) return false;
         RdnEntry e;
         e.note = blob[pos++];
-        e.vel = blob[pos++];
         uint8_t part_count = blob[pos++];
         e.nparts = part_count > 10 ? 10 : part_count;
 
         for (uint8_t i = 0; i < part_count; ++i) {
-            if (pos + 8 > len) return false; // fixed 8-byte part header must fit
+            if (pos + 10 > len) return false; // fixed 10-byte part header must fit
             RdnPartDesc pd;
+            pd.idx = blob[pos++];
             pd.flags = blob[pos++];
             pd.env_offset = blob[pos++];
             pd.pitch_lut = rd_le16(blob + pos); pos += 2;
             pd.wave_loop = blob[pos++];
             pd.wave_high = blob[pos++];
+            pd.release = blob[pos++];
+            pd.sel = blob[pos++];
             uint8_t nseg = blob[pos++];
-            uint8_t nrel = blob[pos++];
-            pd.nseg = nseg;
-            pd.nrel = nrel;
-
-            if (pos + (size_t)(nseg + nrel) * 6 > len) return false;
-            pd.segsRaw = blob + pos;
-            pos += (size_t)(nseg + nrel) * 6;
+            pd.ncorner = nseg;
+            // Two bytes of tail past the last entry: the soft layer reads
+            // from offset 2, so its final four bytes run past the sixth.
+            if (pos + (size_t)nseg * 6 + 2 > len) return false;
+            pd.corners = blob + pos;
+            pos += (size_t)nseg * 6 + 2;
 
             if (i < e.nparts) e.parts[i] = pd;
         }
@@ -110,19 +114,99 @@ bool RdNewEngine::loadPack(const uint8_t* blob, size_t len) {
     return true;
 }
 
-const RdnEntry* RdNewEngine::findEntry(uint8_t note, uint8_t vel) const {
-    const RdnEntry* best = nullptr;
-    int best_diff = 256;
-    for (const auto& e : _entries) {
-        if (e.note == note) {
-            int diff = std::abs((int)e.vel - (int)vel);
-            if (diff < best_diff) {
-                best_diff = diff;
-                best = &e;
-            }
-        }
+
+// ---------------------------------------------------------------- velocity
+// The sound CPU has no velocity layers. It interpolates every segment between
+// two corner bytes in the parameter ROM, weighted by a curve it picks from the
+// velocity, and the pack now carries those corners rather than four sampled
+// results. RD_FIRMWARE.md has the chain; this is the same arithmetic.
+
+// (256-w)*lo + w*hi, truncated to 16 bits and kept as its high byte -- the
+// firmware's two muls, an add, and the psha that keeps only the high half.
+static inline uint8_t rdn_interp(uint8_t lo, uint8_t hi, uint8_t w) {
+    uint32_t v = ((256u - (uint32_t)w) * lo + (uint32_t)w * hi) & 0xFFFFu;
+    return (uint8_t)(v >> 8);
+}
+
+// Levels a segment moves per sample, signed. Bit 7 means downward, which the
+// chip reaches by or-ing $7f<<21 into the increment and adding a carry: that
+// wraps the 28-bit accumulator into a subtraction.
+static inline int32_t rdn_ramp_rate(uint8_t speed) {
+    const bool stepping = (speed & 0x7F) != 0;
+    const bool carry = stepping && (speed & 0x80) != 0;
+    uint32_t b = s_env_ram[speed] | (carry ? (0x7Fu << 21) : 0u);
+    uint32_t x = (b + (carry ? 1u : 0u) + (1u << 27)) & ((1u << 28) - 1u);
+    return (int32_t)x - (int32_t)(1u << 27);
+}
+
+// How many samples the chip takes over a ramp. The +3 is the interrupt's own
+// latency plus the MCU getting round to writing the next pair. Zero means the
+// segment never ends by itself, and the timeline does not advance over it.
+static inline uint32_t rdn_duration(uint8_t from, uint8_t to, uint8_t speed) {
+    const int32_t rate = rdn_ramp_rate(speed);
+    if (rate == 0) return 0;
+    const int32_t distance = ((int32_t)to - (int32_t)from) << 20;
+    if (distance == 0 || ((distance > 0) != (rate > 0))) return 3;
+    const uint32_t ad = (uint32_t)(distance < 0 ? -distance : distance);
+    const uint32_t ar = (uint32_t)(rate < 0 ? -rate : rate);
+    return ad / ar + 3u;
+}
+
+// What the firmware writes before it starts on a part's list: snap the
+// envelope hard downward, then freeze it. Per-part constants of the MCU, not
+// of the ROM -- part 9 gets only the first, and is written first.
+struct RdnPre { uint32_t t; uint8_t dest, speed; };
+static const RdnPre kRdnPreamble[10][2] = {
+    {{5,31,252},{7,0,0}},   {{5,31,252},{9,0,0}},   {{5,31,252},{10,0,0}},
+    {{5,31,252},{12,0,0}},  {{5,31,252},{13,0,0}},  {{5,31,252},{15,0,0}},
+    {{6,31,252},{16,0,0}},  {{6,31,252},{18,0,0}},  {{6,31,252},{19,0,0}},
+    {{6,31,252},{0,0,0}}};
+static const uint8_t kRdnPreCount[10] = {2,2,2,2,2,2,2,2,2,1};
+static const uint8_t kRdnOnset[10] = {30,32,34,36,37,39,41,42,44,21};
+static const uint32_t kRdnReleaseAt = 4;
+
+static inline void rdn_put(uint8_t* d, uint32_t t, uint8_t dest, uint8_t speed) {
+    d[0] = (uint8_t)t; d[1] = (uint8_t)(t >> 8);
+    d[2] = (uint8_t)(t >> 16); d[3] = (uint8_t)(t >> 24);
+    d[4] = dest; d[5] = speed;
+}
+
+const RdnEntry* RdNewEngine::findEntry(uint8_t note) const {
+    // One entry a note now. There is nothing left to choose between: the
+    // velocity is applied when the chain is built, not when it is looked up.
+    for (const auto& e : _entries)
+        if (e.note == note) return &e;
+    return nullptr;
+}
+
+// Builds one part's chain -- preamble, the interpolated segment list, the
+// release -- into the voice's buffer, and returns how many segments the attack
+// chain came to. This is the note-on cost the old format paid for in flash.
+uint8_t RdNewEngine::buildChain(uint8_t* out, const RdnPartDesc& d,
+                                uint8_t layer, uint8_t c2, uint8_t c3) const {
+    const uint8_t pre = kRdnPreCount[d.idx];
+    for (uint8_t i = 0; i < pre; ++i)
+        rdn_put(out + i * 6, kRdnPreamble[d.idx][i].t,
+                kRdnPreamble[d.idx][i].dest, kRdnPreamble[d.idx][i].speed);
+
+    uint8_t n = pre;
+    uint32_t t = kRdnOnset[d.idx];
+    int level = -1;                       // the preamble left it somewhere
+    for (uint8_t i = 0; i < d.ncorner && n < kChainSegs - 1; ++i) {
+        const uint8_t* g = d.corners + i * 6 + layer;
+        const uint8_t dest  = rdn_interp(g[0], g[2], c3);
+        const uint8_t speed = rdn_interp(g[1], g[3], c2);
+        rdn_put(out + n * 6, t, dest, speed);
+        ++n;
+        t += rdn_duration(level < 0 ? 0 : (uint8_t)level, dest, speed);
+        level = dest;
+        if (dest == 0) break;             // ed89's tsta: zero ends the chain
     }
-    return best;
+    // The release is not the chain's own ramp to nothing: the firmware writes
+    // destination zero at the record's own speed when the key comes up, on a
+    // time base that starts at note-off.
+    rdn_put(out + n * 6, kRdnReleaseAt, 0, d.release);
+    return n;
 }
 
 void RdNewEngine::startSegment(Part& p, const RdnSeg& s) {
@@ -271,10 +355,21 @@ void RdNewEngine::noteOn(uint8_t note, uint8_t vel) {
             releaseVoice(v);
     }
 
-    const RdnEntry* e = findEntry(note, vel);
+    const RdnEntry* e = findEntry(note);
     if (!e) return;
     Voice* v = allocVoice();
     if (!v) return;
+
+    // The velocity, the way the sound CPU takes it: a byte out of the
+    // parameter ROM's map, whose top bit picks the hard or soft layer while
+    // the rest becomes the straight weight and, shifted, an index into one of
+    // sixteen curves. Two weights come out -- the curved one moves the
+    // destinations, the straight one the speeds.
+    const uint8_t c0 = _velmap[vel & 0x7F];
+    const uint8_t layer = (c0 & 0x80) ? 2 : 0;
+    const uint8_t c2 = (uint8_t)((c0 << 1) & 0xFF);
+    const uint8_t c1 = (uint8_t)(c2 >> 2);
+    uint32_t chain_at = 0;
 
     const bool wasKilling = v->killing != 0;
     v->active = true;
@@ -311,10 +406,24 @@ void RdNewEngine::noteOn(uint8_t note, uint8_t vel) {
         p.env_b = 0;
         p.env_flags = 0;
         p.pitch_hi = ((d->pitch_lut & 0xC000) == 0xC000) ? 1 : 0;
-        p.chain = d->segsRaw;
-        p.nch = d->nseg;
+
+        // The chain is built here rather than read from flash: the pack holds
+        // the ROM's corners, and this is where the velocity is applied.
+        const uint8_t sel = layer ? (uint8_t)(d->sel & 0x0F)
+                                  : (uint8_t)(d->sel >> 4);
+        const uint8_t c3 = _curves[(size_t)(sel & 0x0F) * 64 + c1];
+        uint8_t* dst = v->chainbuf + chain_at * 6;
+        const uint32_t room = (uint32_t)kChainSegs - chain_at;
+        uint8_t built = 0;
+        if (room >= (uint32_t)d->ncorner + 4u)
+            built = buildChain(dst, *d, layer, c2, c3);
+        p.chain0 = dst;
+        p.nseg0 = built;
+        p.chain = dst;
+        p.nch = built;
+        chain_at += built + 1u;          // the release sits right behind
         p.next_t = 0xFFFFFFFFu;
-        p.dead = (d->nseg == 0 && d->nrel == 0);
+        p.dead = (built == 0);
         if (!p.dead && p.nch > 0)
             advanceSegments(p, 0);   // apply any t=0 segments, prime next_t
     }
@@ -330,12 +439,12 @@ void RdNewEngine::releaseVoice(Voice& v) {
         if (p.in_release) continue;
         p.in_release = true;
         p.seg_idx = 0;
-        const RdnPartDesc* d = &v.entry->parts[i];
-        // Release chain sits right after the attack chain in the pack blob.
-        p.chain = d->segsRaw + (size_t)d->nseg * 6;
-        p.nch = d->nrel;
+        // The release sits right behind this part's attack chain, in the
+        // voice's own buffer -- both were written at note-on.
+        p.chain = p.chain0 + (size_t)p.nseg0 * 6;
+        p.nch = 1;
         p.next_t = 0xFFFFFFFFu;
-        if (d->nrel == 0) {
+        if (p.chain0 == nullptr) {
             RdnSeg fast_rel = {0, 0, 200};
             startSegment(p, fast_rel);
         } else {

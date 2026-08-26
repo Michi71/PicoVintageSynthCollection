@@ -123,17 +123,22 @@ The velocity weight is a table lookup, not arithmetic:
 
 ```
 e92b  ldb $04,x      ; curve selector out of the part block
-e92d  ldx #$ed9d     ; eight pointers, here in the program ROM
+e92d  ldx #$ed9d     ; sixteen pointers, here in the program ROM
 e930  abx
-e931  ldx $00,x      ; -> $f049, $f089, $f0c9, $f109, $f149, $f189, $f1c9, $f209
+e931  ldx $00,x      ; -> $f049, $f089 ... $f409, sixteen of them, 0x40 apart
 e933  ldb $c1        ; the velocity index
 e935  abx
 e936  ldb $00,x      ; the weight
 e93a  stb $01,x      ; -> part state byte 1, which the IRQ reads as $d2
 ```
 
-**Eight velocity curves of 64 bytes each, in the program ROM.** `$f049` is the
-straight ramp (0, 4, 8 … 252); `$f089` is bent (0, 4, 7, 10, 13 … 252).
+**Sixteen velocity curves of 64 bytes each, in the program ROM.** `$f049` is
+the straight ramp (0, 4, 8 … 252); `$f089` is bent (0, 4, 7, 10, 13 … 252). The
+pointer table runs `$f049` to `$f409` in steps of `0x40`, and index 16 is
+already something else — an earlier pass here said eight because it had only
+walked the first eight. The parts really do reach the top of the table: the
+selector bytes across a bank are 0..3 and 13..15, so a build that stores only
+eight curves loses three quarters of the ones actually in use.
 
 ## The command protocol, and where notes actually arrive
 

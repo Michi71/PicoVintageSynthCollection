@@ -53,7 +53,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import rd_parse  # noqa: E402
 
 NOTES = range(21, 109)
-VELOCITIES = (40, 80, 110, 127)
+# No velocity list any more. The firmware does not have velocity layers: it
+# interpolates every segment between two corner bytes in the parameter ROM,
+# weighted by a curve it picks from the velocity. Storing four sampled results
+# was an artifact of this builder, and an audible one -- between the four
+# points the level was out by up to 10.7 dB. A pack now carries the corners,
+# the velocity map and the curves, and the engine does the interpolation the
+# way the sound CPU does it. Exact at all 128 velocities, and a fifth the size.
+VELOCITIES = (40, 80, 110, 127)     # only for the verification tool now
 
 # Which sample set each patch plays. This is what the pack's "bank" byte means
 # -- the emulator's patchToRomSet, not the parameter bank the patch table gives
@@ -97,37 +104,85 @@ def build_part(rom, part, index):
     return segs
 
 
-def build(rom, patch, out):
-    entries = []
-    for note in NOTES:
-        for vel in VELOCITIES:
-            parsed = rd_parse.parse(rom, note, vel)
-            parts = []
-            for i, p in enumerate(parsed["parts"]):
-                if not p["segments"]:
-                    continue                  # a part the zone leaves unused
-                segs = build_part(rom, p, i)
-                # The release is one segment, and it is not the chain's own ramp
-                # to nothing: the firmware writes destination zero at the speed
-                # in the record's seventh byte, when the key comes up. Its
-                # timestamps run from note-off, not from note-on.
-                rel = [(RELEASE_AT, 0, p["release"])]
-                parts.append((0 if i < 9 else 0xFF, p["pitch"],
-                              p["wave"] >> 8, p["wave"] & 0xFF, segs, rel))
-            entries.append((note, vel, parts))
+def corner_chain(rom, ptr):
+    """The raw six-byte entries of a part's segment list, as they sit in the
+    parameter ROM. Six bytes cover BOTH layers: the firmware reads four bytes
+    from offset 0 for the hard layer and from offset 2 for the soft one, so the
+    two overlap inside the same entry.
 
-    blob = bytearray(b"RDP2")
+    How long the chain is depends on the velocity -- it ends where an
+    interpolated destination reaches zero, and which layer is in use decides
+    which corners are read at all. So both layers are walked and the longer one
+    kept; the engine stops at the zero it computes for its own velocity,
+    exactly as the chip does.
+
+    The stop condition has a closed form. The destination is
+    ((256-w)*lo + w*hi) >> 8, which is linear in w between 256*lo and 256*hi,
+    so it is non-zero for SOME weight exactly when max(lo, hi) > 0. No sweep
+    over the 256 weights is needed -- and walking only one layer, or only the
+    two extreme weights, silently cuts the chain short. It did."""
+    base = rom.cpu_to_off(ptr)
+    longest = 0
+    for layer in (0, 2):
+        at, n = base + layer, 0
+        while n < 64:
+            e = rom.prm[at:at + 4]
+            n += 1
+            if max(e[0], e[2]) == 0:      # zero at every weight -> chain ends
+                break
+            at += 6
+        longest = max(longest, n)
+    return bytes(rom.prm[base:base + longest * 6 + 2]), longest
+
+
+def build(rom, patch, out):
+    notes = []
+    for note in NOTES:
+        # Parsed once, at any velocity: what this needs from it -- which zone,
+        # which parts, their pitch, wave and release -- does not depend on the
+        # velocity at all. Verified across all 128.
+        parsed = rd_parse.parse(rom, note, 127)
+        zbase = rom.a7 + rd_parse.zone_of(note) * 21
+        block = rom.a9 + rom.prm[zbase] * 70
+        parts = []
+        for i, p in enumerate(parsed["parts"]):
+            if not p["segments"]:
+                continue                      # a part the zone leaves unused
+            rec = block + i * 7
+            ptr = (rom.prm[rec + 2] << 8) | rom.prm[rec + 3]
+            corners, nseg = corner_chain(rom, ptr)
+            # Which of the eight curves this part weights its destinations
+            # with. +4 is the hard layer, +5 the soft one, and the engine
+            # picks between them the same way the firmware does.
+            sel_hard = rom.prm[rec + 4] >> 1
+            sel_soft = rom.prm[rec + 5] >> 1
+            parts.append((i, 0 if i < 9 else 0xFF, p["pitch"],
+                          p["wave"] >> 8, p["wave"] & 0xFF,
+                          p["release"], sel_hard, sel_soft, nseg, corners))
+        notes.append((note, parts))
+
+    blob = bytearray(b"RDP3")
     blob += struct.pack("<I", 1)
-    blob += struct.pack("<BBH", patch, SAMPLE_SET[patch], len(entries))
-    for note, vel, parts in entries:
-        blob += struct.pack("<BBB", note, vel, len(parts))
-        for flags, pitch, wlo, whi, segs, rel in parts:
-            blob += struct.pack("<BBHBBBB", flags, ENV_OFFSET, pitch,
-                                wlo, whi, len(segs), len(rel))
-            for t, dest, speed in segs + rel:
-                blob += struct.pack("<IBB", t, dest, speed)
+    blob += struct.pack("<BBH", patch, SAMPLE_SET[patch], len(notes))
+    # The velocity map out of the parameter ROM, then the curves out of the
+    # program ROM. 1280 bytes, and they replace three quarters of the pack.
+    #
+    # SIXTEEN curves, not eight: the pointer table at $ed9d runs $f049 to
+    # $f409 in steps of 0x40, and the parts really do select from all of it --
+    # the selector bytes seen across the bank are 0..3 and 13..15. Index 16 is
+    # already something else. RD_FIRMWARE.md said eight because that pass only
+    # listed the ones it had walked.
+    blob += bytes(rom.prm[rom.a5:rom.a5 + 256])
+    for which in range(16):
+        blob += bytes(rom.curve(which, i) for i in range(64))
+    for note, parts in notes:
+        blob += struct.pack("<BB", note, len(parts))
+        for idx, flags, pitch, wlo, whi, rel, sh, ss, nseg, corners in parts:
+            blob += struct.pack("<BBBHBBBBB", idx, flags, ENV_OFFSET, pitch,
+                                wlo, whi, rel, (sh & 0x0F) | (ss << 4), nseg)
+            blob += corners
     open(out, "wb").write(blob)
-    return len(entries), len(blob)
+    return len(notes), len(blob)
 
 
 def main():

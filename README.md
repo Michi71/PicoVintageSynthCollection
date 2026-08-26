@@ -96,12 +96,19 @@ Raspberry Pi Pico 2 and many other RP2350 boards provide:
 | PicoFaceCP | 4.22 MB | does not fit |
 | PicoFaceJV | 4.34 MB | only with `-DPICOFACEJV_4MB=ON` (3.76 MB, banks A+B) |
 | PicoFaceD5 | 0.86 MB | fits |
-| PicoFaceRD | 5.15 MB | only with `-DPICOFACERD_MODEL=MKS20` (3.01 MB) or `=MK80` (2.53 MB) |
+| PicoFaceRD | 2.56 MB | fits |
 
-The two reduced variants drop something real. The JV loses its user bank and
-the 22 samples only those patches used; the RD ships one of its two machines,
-eight patches instead of sixteen. Both are the same data played the same way --
+The JV's reduced variant drops something real: the user bank, and the 22
+samples only those patches used. Banks A and B are otherwise untouched --
 nothing is resampled or requantised.
+
+**The RD used to need one too, and no longer does.** Its packs held four
+sampled velocity layers of every note; they hold the parameter ROM's own
+corners now and the engine interpolates, which is both exact at all 128
+velocities and a fifth the size. The whole instrument went from 5.15 MB to
+2.56 MB. `-DPICOFACERD_MODEL=MKS20` or `=MK80` still builds one machine on its
+own -- eight patches, and half a ROM set is enough for it -- but nobody needs
+it to fit a board any more.
 
 **CP has no reduced variant**: it carries the Rhodes, Clavinet and E-piano
 sample sets as one indivisible whole, with no subset to drop. Anything from
@@ -169,10 +176,9 @@ repository and must never be, so a build here is the one thing CI cannot cover.
 Name a directory to build there instead and keep the result; add `--variants`
 for the reduced images too.
 
-**On a 4 MB Pico 2**, RD ships one machine instead of two:
-`-DPICOFACERD_MODEL=MKS20` (3.01 MB) or `=MK80` (2.53 MB), eight patches each,
-and only that machine's ROMs are needed. The default `BOTH` is sixteen patches
-and 5.15 MB, so it wants a 16 MB board. See
+RD also builds as a single machine — `-DPICOFACERD_MODEL=MKS20` (1.73 MB) or
+`=MK80` (1.23 MB), eight patches each, and only that machine's ROMs are needed.
+The default is both machines and 2.56 MB, which fits a 4 MB board. See
 [`instruments/PicoFaceRD/README.md`](instruments/PicoFaceRD/README.md) for the
 whole recipe and all sixteen patch offsets.
 
