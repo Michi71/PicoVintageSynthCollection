@@ -269,7 +269,7 @@ section 8.
 Everything is verified host-first on the Mac/Linux side before it touches the device:
 
 ```sh
-RDPIANO=~/rdpiano RDPIANO_REF=~/librdpiano tools/rd_extract/run_regression.sh
+RDPIANO=~/rdpiano tools/rd_extract/run_regression.sh
 ```
 
 builds the sample banks and the packs from `roms/` exactly as the firmware
@@ -279,9 +279,11 @@ expected correlations, and runs stuck-voice stress tests (chord hammering with
 sustain pedal, single- and dual-thread). `REGRESSION PASS/FAIL` with an exit
 code.
 
-Two checkouts, because they are two different things: `RDPIANO` is the upstream
-emulator, whose firmware execution is what the capture watches; `RDPIANO_REF`
-is the adapted one with the model tables
+`RDPIANO` is [giulioz/rdpiano](https://github.com/giulioz/rdpiano) in its
+**original state** -- the A/B test measures against that and refuses an adapted
+copy, because an adaptation can carry per-patch tone shaping the original does
+not have, and then the test measures the adaptation. The capture path is the
+one that wants `RDPIANO_REF`, the adapted one with the model tables
 compiled in, which is what the A/B test compares against. The extraction and
 analysis toolchain is documented in
 [tools/rd_extract/README.md](../../tools/rd_extract/README.md).
