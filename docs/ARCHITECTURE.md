@@ -353,6 +353,10 @@ These defines are deliberately not unified in the helper but set per instrument 
   hold them: the effect chip's algorithms (chorus, equalizer and the 32 reverb
   types stand on the MT-32's Boss reverb as munt documents it) and the absolute
   clock of the envelope ramps, which is calibrated against recordings.
+- `tools/check_clean_build.sh` builds the collection from a fresh clone with the
+  ROMs copied in from outside git. Three instruments need a local ROM set that
+  cannot be in the repository, so whether a stranger with the right ROMs can
+  build them is precisely what CI does not test.
 - PicoFaceRD builds from a ROM set and Python alone -- the descrambling is
   `tools/rd_extract/rd_descramble.py`, the note descriptors are computed from
   the sound CPU's own arithmetic as read out of its firmware, and no emulator
