@@ -85,6 +85,17 @@ First validation (note-by-note, vel 110): r = 0.90–0.97, RMS ratio
 
 ## v2.2: 4-byte sample banks + block doorbell
 
+- **Packs hold the ROM's corners, not finished envelopes (format RDP3).** The
+  sound CPU has no velocity layers: it interpolates every segment between two
+  corner bytes in the parameter ROM, weighted by one of sixteen curves it picks
+  from the velocity. `rd_make_packs.py` used to sample that at four velocities
+  and freeze the results, which left the level out by up to 16 dB in between --
+  correlation could not see it, being scale invariant, so it went unnoticed
+  through every A/B run. A pack now carries the corner bytes, the 256-byte
+  velocity map and the sixteen curves, and `RdNewEngine::buildChain` does the
+  interpolation at note-on. Exact at all 128 velocities, and the sixteen packs
+  went from 3.26 MB to 0.67 MB. `run_regression.sh` gained a velocity sweep,
+  which is the check whose absence let this stand.
 - The sample banks are packed into u32 (bits[13:0]=exp, [14]=exp_sign,
   [23:15]=delta, [24]=delta_sign; the widths hold across all three banks).
   Halves the dominant XIP-miss stream — two entries per 8-byte line — and 1.5 MB

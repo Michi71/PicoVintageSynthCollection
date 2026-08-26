@@ -50,10 +50,12 @@ it is that one.
 
 ### Fitting a 4 MB Pico 2
 
-PicoFaceRD normally carries both machines -- sixteen patches, 5.15 MB, and a
-16 MB board. Either machine on its own is well inside 4 MB, because the two
-halves barely share anything: the MKS-20's eight patches read two sample banks,
-the MK-80's eight read the third.
+PicoFaceRD carries both machines in 2.56 MB, which fits a 4 MB board on its
+own -- so this is a choice about how many patches to ship, not a way to make it
+fit. Either machine alone is smaller again, because the two halves barely share
+anything: the MKS-20's eight patches read two sample banks, the MK-80's eight
+read the third. A single-machine build also needs only that machine's ROMs,
+which is the reason to reach for it.
 
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
@@ -62,9 +64,9 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
 
 | `PICOFACERD_MODEL` | patches | image | board |
 |---|---|---|---|
-| `BOTH` (default) | 16 | 5.15 MB | 16 MB |
-| `MKS20` | 8 | 3.01 MB | fits 4 MB |
-| `MK80` | 8 | 2.53 MB | fits 4 MB |
+| `BOTH` (default) | 16 | 2.56 MB | fits 4 MB |
+| `MKS20` | 8 | 1.73 MB | fits 4 MB |
+| `MK80` | 8 | 1.23 MB | fits 4 MB |
 
 A single-machine build also only needs that machine's ROMs -- three sample
 chips and eight packs -- so half a ROM set is enough to build one.
@@ -192,10 +194,9 @@ compatible 16 MB stand-in — the Waveshare RP2350 Plus has no board file in the
 pinned SDK, and all pins used here are addressed explicitly, so the only thing
 taken from the board file is the 16 MB flash size (which matches).
 
-The 16 MB is not decoration for the default build: the image is **5.15 MB**,
-mostly sample packs, so it does not fit a 4 MB board such as a base Pico 2.
-Building one machine instead of two does fit —
-[Fitting a 4 MB Pico 2](#fitting-a-4-mb-pico-2). An oversized `.uf2` stops
+The image is **2.56 MB** and fits a 4 MB board such as a base Pico 2. It was
+5.15 MB until the packs stopped storing four velocity layers of every note and
+started storing the parameter ROM's corners instead. An oversized `.uf2` stops
 copying without saying why. See
 [How much flash an instrument needs](../../README.md#how-much-flash-an-instrument-needs).
 
@@ -254,7 +255,7 @@ plus about 44 KB of heap for the pack descriptors.
   └───────────────────────────────────────────────┘
 ```
 
-The sound data pipeline is host-side: the sound CPU's own arithmetic, read out of its firmware in [`RD_FIRMWARE.md`](../../tools/rd_extract/RD_FIRMWARE.md) and rewritten in Python, walks each (patch, note, velocity) through the parameter ROM to per-note part descriptors (pitch, wave region, envelope segment chains); a packer emits compact `.rdp` packs that are embedded in the firmware together with losslessly repacked 4-byte sample banks. On-device, `RdNewEngine` replays those descriptors with the same envelope arithmetic as the chip.
+The sound data pipeline is host-side: the sound CPU's own arithmetic, read out of its firmware in [`RD_FIRMWARE.md`](../../tools/rd_extract/RD_FIRMWARE.md) and rewritten in Python, walks each (patch, note) through the parameter ROM to per-note part descriptors (pitch, wave region, the envelope list's corner bytes, the velocity map and curves); a packer emits compact `.rdp` packs that are embedded in the firmware together with losslessly repacked 4-byte sample banks. On-device, `RdNewEngine` replays those descriptors with the same envelope arithmetic as the chip.
 
 Details in [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md). The full engineering log
 with the complete debugging history lives in [doc/RD_PORT.md](doc/RD_PORT.md).

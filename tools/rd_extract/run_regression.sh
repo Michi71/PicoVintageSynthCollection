@@ -197,6 +197,7 @@ build_tool rd_stress2 \
 #           period is what rounding in a phase accumulator does. The cell earns
 #           its place by being sensitive: anything that really changes the top
 #           octave will move it well beyond the 0.002 band.
+vel_cases="0:60 3:72 8:52 14:67"
 ab_cases="0:60:0.999640 0:36:0.998891 2:72:0.994845 3:60:0.991473 3:96:0.986809
           4:60:0.998967 6:48:0.999917 8:60:0.998612 10:84:0.999917 12:60:0.999669
           14:55:0.998802 15:60:0.999899"
@@ -239,6 +240,37 @@ for c in $ab_cases; do
     fi
 done
 
+
+# 4b) Velocity sweep
+# The check that was missing, and its absence cost the instrument its dynamics
+# for months. The packs used to hold four sampled velocity layers and the
+# engine picked the nearest, so between them the level was out by up to 16 dB
+# -- while the CORRELATION stayed at 0.999, because correlation is scale
+# invariant and does not care how loud a waveform is. Every cell above passed
+# throughout. Only the level ratio can see it, and only at velocities the pack
+# did not happen to store.
+#
+# So: sweep across the range, on velocities chosen to fall between the old
+# four, and hold the ratio to a band. 0.9..1.1 is about +-0.9 dB -- loose
+# enough not to trip on the harmless, far tighter than the failure it guards.
+echo "[prep] velocity sweep"
+for c in $vel_cases; do
+    patch="${c%%:*}"
+    note="${c#*:}"
+    for vel in 8 20 33 45 58 70 83 95 108 120; do
+        total=$((total+1))
+        out="$("$WORK/rd_ab_test" "$ROMS" "$ROMS" "$patch" "$note" "$vel" 2>/dev/null)"
+        last="$(printf '%s\n' "$out" | tail -n 1)"
+        rr="$(printf '%s' "$last" | sed -n 's/.* rmsRatio=\([0-9.]*\).*/\1/p')"
+        if flt "$rr" ">=" "0.9" && flt "$rr" "<=" "1.1"; then
+            printf '[ok]   vel p%-2s n%-3s v%-3s rmsRatio=%s\n' "$patch" "$note" "$vel" "$rr"
+        else
+            fails=$((fails+1))
+            printf '[FAIL] vel p%-2s n%-3s v%-3s rmsRatio=%s (want 0.9..1.1)\n' \
+                "$patch" "$note" "$vel" "${rr:-<no output>}"
+        fi
+    done
+done
 # 5) Stress tests (stuck-voice detector)
 # Cases: "instr usePedal dual"; PASS iff tailRMS < 0.001
 while IFS= read -r line; do
