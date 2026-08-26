@@ -49,6 +49,15 @@
 //   +0 start(24), +3 loop(24), +6 end(24), +11 flag, +12 rootKey,
 //   +13 tune(16be), +17 level
 //   `end` is INCLUSIVE: a loop spans end-loop+1 samples.
+//   A ZONE LIST CAN END IN A TERMINATOR, not a zone. Sample 149 -- a 20-frame
+//   body looping over a single frame, so it can sustain nothing -- appears in
+//   nine multisamples (waves 18-25 and 29, the basses) and is the last
+//   occupied zone in every one. It is not playable and the machine does not
+//   play it: measured on St Fretless, the reference tracks 276/311/369/440/522
+//   Hz at notes 85..96, which is the zone BELOW, transposed. Read as a zone it
+//   silenced eight bank-A patches above note 84. Of 577 samples it is the only
+//   one that both loops over a single frame and runs under 64 frames, so it is
+//   recognised by that rather than by its number.
 //   rootKey is exact semitones; tune is 0.1 cent per unit, neutral at 1024.
 //   The machine itself sits 9.4 cents below equal temperament.
 //   All four established by patching rom2 and measuring -- see README.md.

@@ -625,6 +625,28 @@ bool Engine::sampleFor(int waveNumber, uint8_t note, Sample& out) const {
     uint16_t si = be16(idx + zone * 2);
     if (si == 0xFFFF || si >= JV_SAMPLE_COUNT) return false;
 
+    // A zone list can end in a terminator rather than a zone. One sample -- a
+    // twenty-frame body looping over a single frame, which can sustain
+    // nothing -- appears in nine multisamples and is the last occupied zone in
+    // every one of them. All nine are the basses. Reading it as a playable
+    // zone left eight bank-A patches silent above note 84 while the reference
+    // played on, in tune, from the zone below: measured on St Fretless, the
+    // reference tracks 276, 311, 369, 440, 522 Hz at notes 85 to 96 where this
+    // engine produced nothing at all.
+    //
+    // It is recognised rather than hardcoded by number: of 577 samples it is
+    // the only one that both loops over a single frame and is shorter than a
+    // quarter-second's worth of anything -- the other 41 single-frame loops
+    // are one-shots of 298 frames and up, and every other short sample has a
+    // real loop. Fall back to the zone below, which is what the machine plays.
+    for (int guard = 0; guard < 16 && zone > 0; ++guard) {
+        const uint8_t* c = rom_.rom2 + JV_SAMPLE_TABLE + (size_t)si * JV_SAMPLE_STRIDE;
+        const uint32_t cs = be24(c), cl = be24(c + 3), ce = be24(c + 6);
+        if (!(cl == ce && ce - cs < 64)) break;      // a real zone, keep it
+        si = be16(idx + --zone * 2);
+        if (si == 0xFFFF || si >= JV_SAMPLE_COUNT) return false;
+    }
+
     const uint8_t* s = rom_.rom2 + JV_SAMPLE_TABLE + (size_t)si * JV_SAMPLE_STRIDE;
     out.start = be24(s);
     out.loop = be24(s + 3);
