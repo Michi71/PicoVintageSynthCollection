@@ -251,7 +251,11 @@ typedef struct {
                                 //     -100..+100, shortening T2..T4 as the note rises). Cutoff
                                 //     keyfollow is the one that matters: without it every tone
                                 //     filters at the same absolute frequency across the keyboard.
-    uint8_t tvfVeloCurveLpfHpf; // +55 VERIFIED bits3-4 = filter mode: 0 OFF, 8 LPF, 16 HPF, 24 OFF
+    uint8_t tvfVeloCurveLpfHpf; // +55 VERIFIED bits3-4 = filter mode: 0 OFF, 8 LPF, 16 HPF, 24 OFF.
+                                //     Probed directly on the reference rather than inferred: with a
+                                //     low cutoff, mode 0 leaves the output identical at every cutoff
+                                //     value, 8 closes it to 0.2 % of its RMS at cutoff 0 and opens by
+                                //     cutoff 20, and 16 cuts progressively as the cutoff rises.
                                 //     MANUAL: the byte also holds the TVF-ENV velocity curve
                                 //     (one of seven shapes, linear through hard knee) and the
                                 //     resonance mode SOFT/HARD.
