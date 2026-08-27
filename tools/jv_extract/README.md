@@ -2204,6 +2204,32 @@ Short loops: a real difference in what comes out of the decoder, with the level
 offset riding on it. Those want separate investigations, and only the second is
 about the sample path.
 
+## Short loops: the wrap is not where the error is
+
+The obvious suspect on the short-loop zone was the loop wrap itself. This engine
+snapshots the DPCM accumulator at the loop point and restores it there, which puts
+a step in the middle of the four-sample window the B-spline is reading -- and on
+a 37-frame loop that boundary is an eighth of the waveform and comes round some
+900 times a second. It is a good story and it is wrong.
+
+Aligned against the chip's own interpolated value at note 82 and folded onto the
+95-sample period, the residual does not sit at any one phase. It is spread across
+the whole cycle and **tracks the signal**: the largest error, 2.49, falls at
+phase 9 where the signal itself is largest at 3.05, and the smallest error at
+phase 65 where the signal is quiet. A glitch at the wrap would show as a spike at
+one phase and does not.
+
+What it looks like instead is distortion rather than displacement. Fitting the
+best scale factor between the two gives 0.58 with a residual of **0.82 against a
+unity signal** -- so barely a third of the energy is common. The two waveforms
+share their gross shape and differ everywhere within it.
+
+That is where this stops. The wrap is excluded, the loop drift is excluded, the
+rate difference is excluded (-3.37 cents at this note, far too small), aliasing
+is excluded, and the chip's gain path is flat. What remains is the decoder itself
+on short loops, and finding it needs a fresh look rather than another lap of the
+same probe.
+
 ## Credit
 
 The patch and tone field layout comes from
