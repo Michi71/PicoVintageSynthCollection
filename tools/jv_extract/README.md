@@ -1785,6 +1785,70 @@ as a straight comparison instead, the corners agree tolerably: reference 1289,
 1461, 2586, 4609, 8992, 10797 -- within 17 %. The corner is not what is wrong
 with this filter; the resonance is.
 
+## Building the filter stage completely: four attempts, and what blocks it
+
+With `f` and `q` read out of the chip's registers, the filter stage was rebuilt
+from them. It does not work yet, and the reason is now precise enough to be
+worth writing down.
+
+**What was built.** The chip's topology -- naive state-variable, `lp += f*bp;
+hp = in - lp - q*bp; bp += f*hp` -- fed by the measured `f` table indexed
+straight off the cutoff parameter (envelope and modulation already in it) and
+the measured `q = floor(64 * 2^(-res/63.5))/64`, with the resonance-0 cutoff
+slide included. No instability: the chip's `f` saturates at 1.0, so `f + q`
+touches 2.0 only at the single corner of resonance 0 with the cutoff wide open,
+and never crosses. That was what killed the earlier attempt, which had carried
+the old `f = 2 sin(pi fc/fs)` up to 1.98.
+
+**Measured against the reference**, transfer function taken as filtered over
+unfiltered so the source's own spectrum divides out:
+
+| cutoff | reference -3 dB | this build |
+|---|---|---|
+| 20 | 1016 Hz | **1008 Hz** |
+| 40 | 2156 Hz | 1492 Hz |
+| 60 | 4227 Hz | 2258 Hz |
+| 80 | 9984 Hz | 3812 Hz |
+| 100 | open past 14 kHz | 2773 Hz |
+
+At low coefficients it is **exact**. At high ones the reference is far more open
+than the coefficient can put it: `f = 1.0` in a naive filter running at the
+output rate is a corner at `fs/6` = 5.3 kHz, and the reference at that setting
+is flat to 14 kHz. Fitted the other way, the implied update rate is about 32 kHz
+at cutoff 20 and about 54 kHz at cutoff 80 -- so it is not a fixed-rate naive
+filter at the output rate at all.
+
+**Four variants, none better than what is in the engine:**
+
+| | median | below 0.90 |
+|---|---|---|
+| current: zero-delay filter, fitted Hz law | **0.929** | **46** |
+| naive, old coefficient, corner capped for stability | 0.919 | 53 |
+| naive, old coefficient, states clamped | 0.671 | 101 |
+| naive, measured f and q | 0.930 | 49 |
+| naive, measured f and q, saturation treated as open | 0.930 | 48 |
+
+The measured-coefficient builds are a wash: real winners -- RevCymBend 0.807 to
+0.858, Log Drum 0.737 to 0.788, Space Ahh 0.808 to 0.849, Rubber Bs 1 0.909 to
+0.944 -- against real losers, and the losers are the bright patches, because the
+corner sits too low wherever the cutoff is high. Treating saturation as open
+recovers some of those and costs others outright (EP+Exp Pad 0.824 to 0.607,
+Harp 0.895 to 0.786). Shipping any of them would trade one audible error for
+another.
+
+**So the engine keeps its zero-delay filter**, which places the corner correctly
+across the range -- within 17 % of the reference at every cutoff from 20 to 100
+-- and gets the resonance wrong, rather than the reverse.
+
+**The single blocker, stated precisely.** The chip's filter coefficient does not
+map to a corner the way a naive filter at the output rate would. At `f` = 0.16 it
+matches to eight hertz; at `f` = 0.89 the reference is 2.6 times more open than
+the coefficient allows. Either that filter runs faster than the output rate --
+oversampling this engine by four was tried and needs a stability rule the naive
+form does not have at those coefficients -- or there is structure in the chip's
+filter stage not yet found in `pcm.cpp`. That is the question to answer before
+this is worth another attempt.
+
 ## Credit
 
 The patch and tone field layout comes from
