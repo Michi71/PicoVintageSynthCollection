@@ -1849,6 +1849,61 @@ form does not have at those coefficients -- or there is structure in the chip's
 filter stage not yet found in `pcm.cpp`. That is the question to answer before
 this is worth another attempt.
 
+## The filter stage, finished -- and the harness fault that hid it
+
+The note above named a blocker: the chip's coefficient seemed not to map to a
+corner the way a naive filter at the output rate would. **It does. The blocker
+was the measuring harness.**
+
+Two measurements settled it. First, the filter's update rate, counted rather
+than inferred: instrumented, the reference runs its filter **31938 times in
+32000 output samples** -- once per sample, exactly. So it is not running faster.
+
+Second, the filter measured as a black box. Logging its own input and output
+sample by sample and taking the transfer function from those two signals, with
+no assumption about what the coefficient means, the chip agrees with
+
+    lp += f * bp;   hp = in - lp - q * bp;   bp += f * hp
+
+at `f = ram2[11]/16384` and `q = (ram2[6]>>8)/64` **to 0.0 dB at every frequency**,
+at cutoff 20 and cutoff 80 alike. The model was right all along; at cutoff 80 its
+-3 dB point is 10156 Hz against the reference's 9984, not the 4.7 kHz that
+`f = 2 sin(pi fc/fs)` would have put it at. That identity is simply not how the
+naive filter's corner behaves at large coefficients.
+
+**What was wrong** was the engine-side harness: it reused one `jv::Engine` across
+the whole cutoff sweep, so the voice from the previous cutoff was still sounding
+into the next one's spectrum and darkening it, while the reference side got a
+fresh instance every time. Caught by a diagnostic that printed the cutoff
+parameter and saw it alternating between 20 and 40 within one run.
+
+With a fresh engine per point, the rebuilt stage tracks:
+
+| cutoff | reference -3 dB | rebuilt |
+|---|---|---|
+| 20 | 1016 Hz | 1000 Hz |
+| 40 | 2156 Hz | 2109 Hz |
+| 60 | 4227 Hz | 3930 Hz |
+| 80 | 9984 Hz | 10805 Hz |
+| 100 | open past 14 kHz | open past 14 kHz |
+
+Two to eight per cent, against the old filter's seventeen -- and with the
+resonance now behaving, where the old one ran 2.7 to 4.8 dB short at cutoffs 60
+and 80.
+
+**Bank-wide it is a wash**, and that is the honest headline: median third-octave
+similarity 0.929 to 0.930, patches below 0.90 46 to 49, 42 better and 24 worse.
+Winners RevCymBend 0.807 to 0.858, Log Drum 0.737 to 0.788, Space Ahh 0.808 to
+0.849, Nylon+Steel 0.754 to 0.790, Thumpin Bass 0.836 to 0.869, Rubber Bs 1
+0.909 to 0.941; losers Soft Lead 0.843 to 0.789, Pop Piano 3 0.910 to 0.863,
+NightShade 0.935 to 0.890, Ocarina 0.933 to 0.901. No NaN and no runaway at
+velocity 20, 40 or 127.
+
+The losers are all bright patches, and since the *static* cutoff now matches
+across the range, what is left points at the envelope's path into the cutoff --
+`JV_TVF_ENV_DEPTH_PER_UNIT`, fitted against the old filter and not yet re-fitted
+against this one. That is the next thing to look at, and it is bounded.
+
 ## Credit
 
 The patch and tone field layout comes from
