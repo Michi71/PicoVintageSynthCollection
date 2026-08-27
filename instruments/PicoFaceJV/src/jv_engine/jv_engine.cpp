@@ -823,9 +823,14 @@ int32_t Engine::decodeStep(Voice& v) const {
     if (v.ref < -0x80000) v.ref = -0x80000;
 
     // A pure DPCM integrator need not return to the same value after a loop
-    // pass. In practice the factory loops are authored exactly balanced -- the
-    // drift is precisely zero for every sample checked -- but the snapshot
-    // costs nothing and keeps a forward loop from walking into the clamp.
+    // pass, and the factory loops are NOT authored balanced -- an earlier note
+    // here said the drift was precisely zero for every sample checked and that
+    // is wrong. Measured over the eleven zone samples of wave 30 Alto Sax 1 it
+    // runs from 0.2 % of RMS on sample 203 to 38 % on sample 211, whose loop is
+    // only 37 frames long and therefore comes round some 900 times a second.
+    // Without this snapshot such a voice would reach the clamp in a tenth of a
+    // second. The reference is stable there too, so it restores as well or
+    // corrects it some other way.
     ++v.addr;
     if (v.addr == v.smp.loop && !v.loopSeen) {
         v.refAtLoop = v.ref;
