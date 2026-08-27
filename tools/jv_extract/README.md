@@ -1950,6 +1950,45 @@ wrong -- the envelope's timing or its shape rather than its depth is the obvious
 suspect, since the depth is now measured and the level curve independently
 confirmed. The engine keeps the old constant until that is found.
 
+## The TVF envelope multiplies, it does not add
+
+The note above ended on a contradiction: one set of patches wanted almost no TVF
+envelope, another a strong one, and the measured depth law suited neither. The
+contradiction was in the model, not the measurement.
+
+**The envelope multiplies the chip's filter coefficient.** Sweeping the depth at
+cutoff base 0 instead of 20 gave it away: depth 16 at full level moves the cutoff
+47 parameter units at base 20 and only 3 units at base 0 -- but in the
+coefficient it is the same factor both times, 4.05 and 4.00. An additive model
+cannot do that.
+
+Taken as a factor, the law is clean:
+
+| P = depth * level/127 | 1 | 2 | 4 | 6 | 8 | 12 | 16 |
+|---|---|---|---|---|---|---|---|
+| measured log2(factor) | 0.067 | 0.251 | 0.466 | 0.736 | 1.000 | 1.514 | 2.034 |
+| P/8 | 0.125 | 0.250 | 0.500 | 0.750 | 1.000 | 1.500 | 2.000 |
+
+So `f = f_base * 2^(depth * level / (127 * 8))` -- an octave of coefficient per
+eight units of the product, the level entering linearly.
+
+That also explains `JV_TVF_ENV_LEVEL`. Measured through audio it looked like a
+convex curve, within a few hundredths of `(level/127)^1.248`; it was this
+exponential seen through an additive model. Off the register the level is plainly
+linear, and the curve is gone.
+
+**Bank-wide** at note 60 and velocity 100, against the state before any of the
+filter work: median third-octave similarity **0.929 to 0.935**, patches below 0.90
+**46 to 42**, 53 better and 26 worse. Against the filter stage alone: 0.930 to
+0.935, 49 below 0.90 to 42, 35 better and 18 worse.
+
+The brass moves as a family -- TeaJay Brass 0.613 to 0.871, Trumpet 0.781 to
+0.918, Trombone 0.805 to 0.928, Harmon Mute2 0.783 to 0.906, French Horn 0.628 to
+0.806 -- and so do the Rhodes: Stiky Rhodes 0.707 to 0.939, Dig Rhodes 2 0.700 to
+0.903. B47 OverblownPan reaches 0.988. The worst loss is Big n Beefy 0.892 to
+0.755; the rest give up three or four hundredths at most. No NaN, nothing driven
+past full scale and nothing silenced at velocity 20, 40 or 127.
+
 ## Credit
 
 The patch and tone field layout comes from

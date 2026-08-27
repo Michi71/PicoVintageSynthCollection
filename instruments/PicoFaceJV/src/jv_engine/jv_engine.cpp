@@ -33,6 +33,8 @@ float envFallSeconds(int v) { return lookup(JV_ENV_FALL_S, JV_ENV_FALL_N, v); }
 // ram2[11] over 16384 for cutoff 0, 4, 8 ... 124. It climbs by exactly 128 per
 // cutoff unit up to about 32, then accelerates, and saturates from 88 upward --
 // past that the cutoff byte does nothing at all. See tools/jv_extract/README.md.
+// The coefficient's floor, the value the chip shows at cutoff 0.
+#define JV_TVF_F_MIN 0.0078f
 static const float JV_TVF_F[32] = {
     0.0078f, 0.0391f, 0.0703f, 0.1016f, 0.1328f, 0.1641f, 0.1953f, 0.2266f,
     0.2578f, 0.2891f, 0.3281f, 0.3672f, 0.4062f, 0.4531f, 0.5078f, 0.5625f,
@@ -104,15 +106,15 @@ float envLevelToLinear(int v) {
     return powf(10.0f, db * (1.0f / 20.0f));
 }
 
-// A TVF envelope target scales the cutoff excursion and is near-linear.
+// A TVF envelope target is LINEAR in the byte. The curve that used to be here,
+// measured through audio, was this engine's additive cutoff model absorbing the
+// chip's exponential one -- see updateFilterCoeffs. Read off the chip's register,
+// depth 32 at level 32 lands exactly where depth 16 at level 64 does, so the
+// level enters the product linearly and nothing else.
 float tvfEnvLevel(int v) {
     if (v <= 0) return 0.0f;
     if (v > 127) v = 127;
-    const float x = v * (1.0f / 16.0f);
-    const int i = (int)x;
-    if (i >= 8) return JV_TVF_ENV_LEVEL[8];
-    return JV_TVF_ENV_LEVEL[i] +
-           (JV_TVF_ENV_LEVEL[i + 1] - JV_TVF_ENV_LEVEL[i]) * (x - (float)i);
+    return (float)v * (1.0f / 127.0f);
 }
 
 // The patch-common level has its own curve again, between the other two.
@@ -866,12 +868,25 @@ int Engine::allocVoice() {
 void Engine::updateFilterCoeffs(Voice& v) {
     // Cutoff moves with the TVF envelope, scaled by the bipolar depth. The depth
     // scaling is NOT calibrated -- see tools/jv_extract/README.md.
-    float cv = v.cutoffBase +
-               v.envDepth * v.tvf.level * JV_TVF_ENV_DEPTH_PER_UNIT + v.cutoffMod;
+    // The envelope does not add to the cutoff. It MULTIPLIES the chip's filter
+    // coefficient, by 2^(depth * level / (127 * 8)) -- an octave of coefficient
+    // per eight units of the product, with the level taken linearly. Measured
+    // off ram2[11]: for that product at 1, 2, 4, 6, 8, 12 and 16 the factor's
+    // log2 comes out 0.067, 0.251, 0.466, 0.736, 1.000, 1.514 and 2.034 against
+    // a predicted 0.125, 0.250, 0.500, 0.750, 1.000, 1.500 and 2.000. It is the
+    // same factor at every cutoff -- 4.00 at base 0 and 4.05 at base 20 for the
+    // same product -- which is what an additive model could never reproduce, and
+    // is why the level curve that used to sit in tvfEnvLevel looked exponential.
+    float cv = v.cutoffBase + v.cutoffMod;
     // Both coefficients come from the chip's own registers now, not from a
     // frequency and a fitted damping. The cutoff parameter -- envelope and
     // modulation already in it -- indexes the measured f table directly.
     v.coefF = tvfCoefF(cv);
+    if (v.envDepth != 0.0f) {
+        v.coefF *= exp2f(v.envDepth * v.tvf.level * (1.0f / 8.0f));
+        if (v.coefF > 1.0f) v.coefF = 1.0f;
+        else if (v.coefF < JV_TVF_F_MIN) v.coefF = JV_TVF_F_MIN;
+    }
     float res = v.resonance + v.resMod;
     if (res < 0.0f) res = 0.0f; else if (res > 127.0f) res = 127.0f;
     // HARD mode doubles the exponent of the damping law, which is what the
