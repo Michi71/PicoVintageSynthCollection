@@ -1904,6 +1904,52 @@ across the range, what is left points at the envelope's path into the cutoff --
 `JV_TVF_ENV_DEPTH_PER_UNIT`, fitted against the old filter and not yet re-fitted
 against this one. That is the next thing to look at, and it is bounded.
 
+## The TVF envelope's pull on the cutoff, measured -- and a contradiction
+
+With the filter stage now matching, the remaining error pointed at the envelope's
+path into the cutoff. That path was measured the same way as `f` and `q`, off the
+chip's register, and the measurement is clean. Putting it into the engine makes
+things worse, and that contradiction is the result.
+
+**What the chip does.** Sweeping the depth byte at a fixed envelope level, and
+the level at a fixed depth, gives the *same sequence of coefficients* -- depth 32
+at level 32 lands exactly where depth 16 at level 64 does, point for point. So
+what matters is the product, with the level taken **linearly**, not through a
+curve. And the pull is superlinear in that product: for
+`P = depth * level / 127` of 1, 2, 4, 6, 8, 12 and 16 the cutoff shifts by 1, 4,
+8, 14, 20, 33 and 47.5 parameter units, which `1.50 * P^1.248` reproduces across
+the whole range.
+
+Two things the engine already had right: depth bytes 64..127 are inert, and
+negative depths mirror the pull downward (depth -16 at full level moves cutoff 60
+down to about 16, and further negatives floor the coefficient).
+
+A third thing falls out: `JV_TVF_ENV_LEVEL`, measured separately through audio,
+is within a few hundredths of `(level/127)^1.248` -- the same exponent. So the
+level curve already carries its share, and the exponent belongs on the depth
+alone: `pull = 1.50 * depth^1.248 * tvf.level`. That reproduces the chip at full
+level exactly (47.4 against 47) and at half level closely (21.8 against 20.4).
+
+**And it makes the bank worse.** Median third-octave similarity 0.930 to 0.927,
+one patch better and 46 worse -- Stiky Rhodes 0.707 to 0.670, French Horn 0.628
+to 0.584, Clav 1 0.815 to 0.742. The law pulls harder than the old
+`2.4 * depth * level` did (276 parameter units against 151 at depth 63), and
+harder is worse.
+
+The contradiction is sharper than that. A version with a units bug, which made
+the pull *almost vanish* (0.62 units where the chip gives 276), scored the best
+of all three: median 0.934, 44 patches below 0.90 against 49, with French Horn
+0.628 to **0.955**, TeaJay Brass 0.613 to 0.910, Stiky Rhodes 0.707 to 0.961 and
+Dig Rhodes 2 0.700 to 0.914 -- while wrecking others outright, Vibrobell 0.926 to
+-0.046 and Beauty Vox 0.974 to 0.509.
+
+So a set of patches sounds closest to the reference with *almost no* TVF envelope
+at all, another set needs a strong one, and the measured law sits between and
+suits neither. That is not a calibration problem. Something else on this path is
+wrong -- the envelope's timing or its shape rather than its depth is the obvious
+suspect, since the depth is now measured and the level curve independently
+confirmed. The engine keeps the old constant until that is found.
+
 ## Credit
 
 The patch and tone field layout comes from
