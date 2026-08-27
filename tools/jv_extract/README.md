@@ -1681,6 +1681,58 @@ cost per sample is four multiply-adds and an index.
 fundamental: -9.8 dB at 200..400 Hz before the change and -9.8 after. The
 interpolator was a real fault sitting on top of it.
 
+## The TVF: the chip's filter is a naive SVF, and swapping topology is not enough
+
+`pcm.cpp` spells the filter out. Reading its registers:
+
+    lp_new = lp + f * bp
+    hp     = in - lp_new - q * bp
+    bp_new = bp + f * hp
+    out    = (ram2[6] & 2) ? hp : lp_new
+
+That is a Chamberlin state-variable filter -- the naive one, with a sample of
+delay in the loop -- and the mode bit picks the low-pass state or the high-pass
+term. The coefficient is two fields of `ram2[11]`, `f = (filter>>8)/64 +
+((filter>>1)&127)/8192`, so it spans 0..2 the way `2 sin(pi fc / fs)` does; the
+damping is `q = ((ram2[6]>>8)&127)/64`, spanning 0..2. `ram2[11]` is written by
+the same envelope generator that makes the volume, so the TVF envelope moves the
+*coefficient*, not a frequency.
+
+This engine carries a zero-delay (TPT) filter instead, with `g = tan(pi fc/fs)`.
+The two are the same family and agree at low corners, but a zero-delay filter
+holds its Q constant as the corner moves while the naive one sharpens. **The
+reference sharpens with it**, and the gap is measurable: white noise through the
+low-pass, resonant peak taken over the low passband,
+
+| resonance | cutoff 40 | cutoff 60 | cutoff 80 |
+|---|---|---|---|
+| 60  | -0.6 dB | -2.7 dB | -3.1 dB |
+| 100 | -1.0 dB | -3.8 dB | -4.7 dB |
+| 127 | -1.2 dB | -3.9 dB | -4.8 dB |
+
+(this engine minus the reference). At cutoff 40 it agrees, and above that it
+falls behind -- the shape of a Q that should be climbing and is not. It also
+explains why the damping law in `jv_calibration.h`, fitted at a single cutoff of
+48, held only near there.
+
+**Swapping the topology was tried and does not work on its own.** Rebuilt as the
+naive form with `f = 2 sin(pi fc/fs)`, the isolated peak error halves -- mean
+2.22 dB to 1.37, and cutoff 80 goes from -4.8 to -0.9 -- but the bank gets worse,
+because the naive form runs away where the zero-delay one cannot and the
+coefficients feeding it were fitted for a filter that could not. Holding the
+corner under the stability line `f < 2 - q` caps every low-resonance tone at
+about 4.5 kHz and darkens the bright half of the bank: median third-octave
+similarity 0.929 to 0.919, 46 patches below 0.90 becoming 53. Clamping the
+states instead, the way the chip clips at twenty bits, lets the corner stay open
+and lets the filter self-oscillate: median 0.929 to **0.671**, with Alto Sax,
+Sax Section, Flute mod and both Jazz Organs going to *negative* correlation.
+
+So the topology is right but it cannot be dropped in. What it needs is the
+mapping the firmware actually uses -- `f` and `q` as the firmware computes them
+from cutoff, resonance and the TVF envelope, read out of the reference the way
+the velocity curves were -- rather than this engine's Hz-and-damping fit carried
+across. That is the next step, and it is a bigger one than a topology swap.
+
 ## Credit
 
 The patch and tone field layout comes from

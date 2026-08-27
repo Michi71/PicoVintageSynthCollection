@@ -388,6 +388,20 @@ void Engine::Lfo::tick() {
 
 // -------------------------------------------------------------------- filter
 
+// A zero-delay (TPT) state-variable filter. The CHIP's is the naive Chamberlin
+// form -- `lp += f*bp; hp = in - lp - q*bp; bp += f*hp`, mode bit picking lp or
+// hp -- and the difference shows: a zero-delay filter holds its Q as the corner
+// moves, the naive one sharpens, and the reference sharpens with it. Measured
+// through white noise, this engine's resonant peak matches at cutoff 40 and
+// falls 2.7 to 4.8 dB short at cutoffs 60 and 80.
+//
+// Rebuilding it as the naive form is not a drop-in and was tried: the isolated
+// peak error halves, but the coefficients here were fitted for a filter that
+// cannot run away, and the naive one can. Capping the corner at the stability
+// line darkens the bright half of the bank; clamping the states instead lets it
+// self-oscillate, and five patches went to negative correlation. It needs the
+// firmware's own f and q, not this engine's Hz-and-damping fit carried across.
+// See tools/jv_extract/README.md.
 float Engine::Filter::run(float in, float g, float k, int mode) {
     const float a1 = 1.0f / (1.0f + g * (g + k));
     const float a2 = g * a1;
