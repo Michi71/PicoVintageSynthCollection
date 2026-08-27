@@ -2025,6 +2025,45 @@ A52 at 0.046, B13 at 0.022). Some byte the synthetic patch forces is responsible
 and it has not been found, so any low-note measurement made with that patch
 should be discarded.
 
+## The probe repaired: +39's pan keyfollow is neutral at 7, not 0
+
+The warning in the note above -- that the synthetic single-tone patch produces no
+sound on the reference below about note 48 -- has a cause, and it was mine.
+
+Bisecting the patch's overrides one group at a time against an unmodified A01
+found it at once. The tone byte `+39` packs the pan keyfollow in its HIGH nibble
+and the random pitch in its low one, and the pan keyfollow is a fifteen-step
+field running -100 % to +100 % about C4. **Its neutral is step 7. Setting the
+byte to zero asks for -100 %**, which walks a tone three octaves below C4 hard to
+one side -- and the probe measures the left channel only. Setting `T[39] = 0x70`
+instead, the reference sounds at every note: 0.0472, 0.0468, 0.0463 and 0.0454
+RMS at notes 24, 36, 48 and 60.
+
+That invalidates every low-note measurement made with that patch, including the
+one in the note above. The engine reads `+39` correctly; only the probe did not.
+
+**With it fixed**, the isolated sample path -- one tone, white noise, filter off,
+envelope flat -- reads:
+
+| note | 24 | 36 | 48 | 60 | 72 | 84 | 96 |
+|---|---|---|---|---|---|---|---|
+| reference | 0.04724 | 0.04681 | 0.04629 | 0.04536 | 0.04368 | 0.04140 | 0.04002 |
+| this engine | 0.04916 | 0.04927 | 0.04917 | 0.04920 | 0.04933 | 0.04955 | 0.04934 |
+| difference | +0.34 dB | +0.45 | +0.53 | +0.71 | +1.06 | +1.56 | +1.82 |
+
+**The reference loses 1.4 dB as the note rises and this engine loses nothing.**
+That is the tilt, isolated: not in the chip's gain path, which the register
+readout showed is flat, but in what reaches it.
+
+**One caveat, stated rather than buried.** The reference generates at 64 kHz and
+resamples to 32, so it carries an anti-alias filter this engine does not. White
+noise played faster puts more of its energy where that filter works, which on
+this particular test signal could produce the whole fall on its own. The tilt
+measured here may therefore belong to the reference's implementation rather than
+to the machine, and a real instrument tone would show less of it. Before this is
+chased further it should be repeated on a harmonic wave, where the aliasing story
+does not apply.
+
 ## Credit
 
 The patch and tone field layout comes from
