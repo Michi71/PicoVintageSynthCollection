@@ -1989,6 +1989,42 @@ The brass moves as a family -- TeaJay Brass 0.613 to 0.871, Trumpet 0.781 to
 0.755; the rest give up three or four hundredths at most. No NaN, nothing driven
 past full scale and nothing silenced at velocity 20, 40 or 127.
 
+## The level offset: the chip's gain path is flat across the keyboard
+
+The long-standing ~2.4 dB level offset is a tilt across the keyboard, and the
+exclusion list for it is long. One more item can be struck off, this time by
+reading the registers rather than measuring the sound.
+
+The chip applies its volume in **two** stages, with the same two-field
+coefficient structure as the filter: `ram2[9]` and `ram2[10]`, driven by
+`calc_tv` from targets `ram2[3]` and `ram2[4]`, each contributing a gain of
+`volmul/16384`. Read out for a fixed tone across the keyboard:
+
+| note | 36 | 48 | 60 | 72 | 84 | 96 |
+|---|---|---|---|---|---|---|
+| total gain | 11.55 dB | 11.55 | 11.55 | 11.55 | 11.55 | 11.55 |
+
+**Flat, to the last digit.** So whatever tilts the level with the key, it is not
+the chip's gain path.
+
+Measured again on the current engine, over eight tonal bank-A patches, the tilt
+is now **-2.72 dB at note 36, -2.82 at 48, -0.86 at 60, -0.75 at 72 and +1.97 at
+84** -- a 4.7 dB span, wider than the 1.5 dB recorded in August, so the
+interpolator and filter work has moved it. It has not moved it the way either of
+those would on its own: the B-spline attenuates more at higher playback rates and
+would tilt the other way.
+
+**A warning about the probe used above.** The synthetic single-tone patch that
+served for pitch, filter and envelope work is NOT usable for level questions at
+low notes. Written into the reference's temporary area it produces **no sound at
+all** below about note 48 -- for white noise, Ac Piano 1, Alto Sax 1 and Mute GTR
+1 alike -- while this engine sounds normally. Neutralising the pitch and TVA
+keyfollows at +40 and +70 changes nothing. It is not the machine: unmodified
+factory patches play perfectly at note 24 on the reference (A01 at 0.043 RMS,
+A52 at 0.046, B13 at 0.022). Some byte the synthetic patch forces is responsible
+and it has not been found, so any low-note measurement made with that patch
+should be discarded.
+
 ## Credit
 
 The patch and tone field layout comes from
