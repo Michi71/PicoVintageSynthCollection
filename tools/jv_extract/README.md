@@ -1457,6 +1457,56 @@ envelope off changed none of them by more than 0.02 in similarity.
 So: the residual on B63 is still unexplained, and the pitch envelope is no
 longer a candidate.
 
+## The pitch offset: five cents, and a retraction
+
+The pitch-envelope note above ended by saying the machine "runs that note about
+two semitones sharp of what the tuning bytes account for". **That is withdrawn.**
+It was inferred from how long B63 RevCymBend takes to traverse its reversed
+sample, which depends on when the note ends as much as on how fast it is played,
+and it does not survive a direct measurement of the pitch.
+
+Measured properly, both engines are given the SAME synthetic patch -- one tone,
+one wave, held at full level with every modulator neutral and both tunings at
+zero -- ours through `setPatch`, the reference by writing it into its temporary
+patch area at `nvram[0x0d70]` and resetting. The sounding pitch is then read off
+a zero-padded spectrum, searched only within a couple of semitones of the
+expected fundamental so the measurement cannot jump an octave, which is what
+made an earlier autocorrelation pass produce nonsense.
+
+| note | expected | reference | this engine |
+|---|---|---|---|
+| 48 | 130.81 | -6.0 ct | -1.3 ct |
+| 55 | 196.00 | -5.7 ct | -0.9 ct |
+| 60 | 261.63 | -6.0 ct | +1.1 ct |
+| 67 | 392.00 | -4.9 ct | +0.7 ct |
+| 72 | 523.25 | -5.4 ct | -0.1 ct |
+
+**This engine plays equal temperament to about a cent. The reference plays about
+five cents flat of it**, and the median difference is +5.0 cents with this
+engine on the sharp side. It is a constant frequency ratio, not a per-note or
+per-wave effect: waves 0, 12, 30 and 60 give +4.7, +5.3, +3.9 and +5.9 cents
+(wave 96 is a cymbal and measures nothing meaningful). It is not the pitch
+envelope -- that block moves no pitch at all, see above -- and it is not the
+reference's audio path, which runs natively at 64 kHz and divides by exactly two.
+
+**Where it comes from is not established.** The most likely reading is that it
+is the dumped unit's own stored master tune: the reference boots from
+`jv880_nvram.bin`, a 32 KB image of one real machine's battery-backed RAM with
+that machine's system settings in it. Sweeping the plausible bytes at the head
+of that image did not isolate it -- a 16-bit word at `nvram[1..2]` looked like a
+candidate at 1012 against a neutral 1024 and turned out to change nothing across
+976..1072 -- so this is a reading, not a finding.
+
+**Nothing is changed on the strength of it.** Tuning this engine five cents flat
+would match one dumped unit's saved setting rather than the instrument, and the
+nominal figure -- A = 440, equal temperament -- is what this engine already
+produces. Anyone who wants to sit with that unit can dial it: the TUNE page
+offers +-50 cents in one-cent steps.
+
+Worth knowing for every A/B measurement in this file: they all carry this five
+cents. Third-octave band similarity is insensitive to it, so none of the
+conclusions drawn from those numbers turn on it.
+
 ## Credit
 
 The patch and tone field layout comes from
