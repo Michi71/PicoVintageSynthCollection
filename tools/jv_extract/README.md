@@ -2133,6 +2133,38 @@ absolute level error over the bank from 4.09 dB to 3.85 -- and silences a patch,
 because bytes of 0 exist and this ROM gives every other level byte its own dB
 curve. It needs that curve measured before it can be used.
 
+## Not the loop either -- the waveforms simply differ
+
+The loop was the next suspect, since the offset tracks loop length at r = -0.81.
+It is not the mechanism.
+
+**Both engines are stable at the shortest loop there is.** On Alto Sax 1's zone
+10, whose loop is 37 frames and comes round some 900 times a second, neither side
+drifts and neither accumulates DC: across 0.8 seconds the reference holds 0.0637
+to 0.0652 RMS and this engine 0.1380 to 0.1457, with DC under 0.008 on both. The
+repetition period is 95 samples on both, at a self-correlation of 0.99.
+
+That matters because the ROM's loops are **not** balanced. Over the eleven zone
+samples of this wave the per-pass delta sum runs from 0.2 % of RMS on sample 203
+to 38 % on sample 211. A pure integrator would reach the clamp in a tenth of a
+second on the latter. This engine snapshots the accumulator at the loop point and
+restores it; the reference is stable too, so it restores as well or corrects it
+some other way. A comment in `jv_engine.cpp` claiming the factory loops are
+"authored exactly balanced -- the drift is precisely zero for every sample
+checked" was simply wrong, and is corrected.
+
+**What is actually happening is more basic.** Cross-correlated at their best
+alignment, the two engines' waveforms agree at only **0.49** on note 82 and
+**0.39** on note 62 -- with the same pitch, the same period, and amplitude
+ratios of +6.8 and +1.5 dB. They are not the same signal at different levels.
+They are different signals synthesised from the same sample.
+
+So the level difference on isolated sustained tones is a symptom, not the fault,
+and no gain constant will close it. What is left to find is why two decoders
+reading the same DPCM data at the same rate produce waveforms that correlate at
+0.4. That is a bigger question than the calibration it was mistaken for, and it
+is where this stops for now.
+
 ## Credit
 
 The patch and tone field layout comes from
