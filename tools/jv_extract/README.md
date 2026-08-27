@@ -1507,6 +1507,47 @@ Worth knowing for every A/B measurement in this file: they all carry this five
 cents. Third-octave band similarity is insensitive to it, so none of the
 conclusions drawn from those numbers turn on it.
 
+## The fall to silence was 40 dB and should be 32.6
+
+A57 Slap Bass sat 1.8 dB over the reference and would not come closer. Tracked
+across the keyboard, the error turned out not to be a level at all: the attack
+matched to within a decibel at every note, and everything after it drifted. At
+note 40 -- the root of the zone, so no pitch shift at all -- the two agreed at
+the transient and were 2.5 dB apart by 1.3 s. That is a decay rate.
+
+The samples in that patch loop, so once the body has run out the level is
+whatever the envelope says, and the envelope is all this patch has: T1 = 0 to
+full, then T2 = 82 down to zero. Measured there, the reference decays at
+-11.3 dB/s and this engine at -13.8.
+
+Put on a synthetic patch -- one tone, one looping wave, held at full level with
+every modulator neutral -- and timed by a 12 dB drop taken after the body runs
+out, the error is a clean constant. Across stage-2 times 70 to 110 the engine
+reached that point in **0.81 to 0.85** of the reference's time, and its release
+in 0.74 to 0.79. Both stages fall to silence, and both ride on the same figure:
+the engine spent one fall time travelling 40 dB.
+
+The shape was never wrong. Both sides are dB-linear -- at stage-2 time 90 the
+reference measures -6.6 dB/s early and -7.1 dB/s late, this engine a flat -8.2 --
+so only the depth needed moving. Sweeping it crosses unity between 32 and 34
+(34 gives 0.96, 32 gives 1.02), and **32.6** lands the decay at 0.99..1.03 and
+the release at 0.95..0.97 across the whole range. The remaining release gap is
+the 0.1 s the measurement window starts after note-off.
+
+The rise side is untouched and stays exact: at stage-1 time 70 the engine tracks
+the reference within 1 % at every point of a 2.4 s ramp, and reaches 90 % at
+2.0 s against 2.1 s.
+
+On A57 the mean envelope error over the first 1.4 s falls from 1.37 dB to
+**0.52 dB** at note 40, from 3.87 to 2.22 dB at note 48 and from 5.28 to 3.61 dB
+at note 43. Bank-wide at note 60 the change is a wash on third-octave band
+similarity (median 0.911 to 0.910) -- that measure is level-blind and most
+patches carry larger errors elsewhere -- while the mean absolute level error
+moves 4.01 to 3.97 dB.
+
+**Still wrong on A57:** notes 43 and 48 keep 2 to 4 dB after the fix, and both
+sit in zone 1 of the multisample (sample 160) while note 40 sits in zone 0 and
+is now exact. Whatever is left is zone-related, not envelope-related.
 ## Why a reverse sample starts at `end`, and what still ends B63 early
 
 B63 RevCymBend's reference render falls away at about 2.7 s. Walking the whole

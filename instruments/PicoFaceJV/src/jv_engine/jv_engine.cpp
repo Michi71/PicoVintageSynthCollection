@@ -29,6 +29,27 @@ float lookup(const float* tbl, int n, int v) {
 float envRiseSeconds(int v) { return lookup(JV_ENV_RISE_S, JV_ENV_RISE_N, v); }
 float envFallSeconds(int v) { return lookup(JV_ENV_FALL_S, JV_ENV_FALL_N, v); }
 
+// How far a segment falling to silence travels over one fall time. The fall
+// table itself is measured; this is the depth that rides on it, and it is 32.6
+// dB, not the 40 that stood here before.
+//
+// Measured against the reference on a synthetic patch -- one tone, one looping
+// wave, held at full level with every modulator neutral -- by timing a 12 dB
+// drop after the body has run out and only the envelope is still working. At 40
+// the engine reached that point in 0.81..0.85 of the reference's time across
+// stage-2 times 70..110, and its release in 0.74..0.79. Sweeping the figure
+// crosses unity between 32 and 34 (34 gives 0.96, 32 gives 1.02); 32.6 lands
+// the decay at 0.99..1.03 and the release at 0.95..0.97, the remaining release
+// gap being the 0.1 s offset the measurement window starts with.
+//
+// Both stages ride on this: stage 2 whenever its level is zero, which is how
+// most percussive patches are built, and every release to silence. The rise
+// side is untouched and stays exact -- at stage-1 time 70 the engine tracks the
+// reference within 1 % at every point of the ramp.
+#ifndef JV_FALL_TO_SILENCE_DB
+#define JV_FALL_TO_SILENCE_DB 32.6f
+#endif
+
 // A TVA envelope target, on its own measured curve rather than the tone-level
 // one -- the two are up to 9.4 dB apart.
 float envLevelToLinear(int v) {
@@ -203,8 +224,9 @@ float Engine::Env::tick() {
         } else if (target > 1e-6f && level > 1e-6f) {
             decay = powf(target / level, 1.0f / remaining); // linear in dB, to target
         } else {
-            // Falling to silence: the calibration is a 40 dB drop per fall time.
-            decay = powf(10.0f, -40.0f / (20.0f * remaining));
+            // Falling to silence: a fixed dB drop per fall time. Overridable at
+            // compile time so the figure can be swept without editing here.
+            decay = powf(10.0f, -JV_FALL_TO_SILENCE_DB / (20.0f * remaining));
         }
         segmentValid = true;
     }
