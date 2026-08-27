@@ -1370,6 +1370,51 @@ One caveat worth keeping: the manual's own wording for bit 7 is that it
 *disables* velocity response, which is the opposite of what bank A shows. The
 reading here is the measured one.
 
+## The reverse samples, and the roar they were making
+
+Bit 2 of the sample record's flag byte at +11 makes the chip walk the address
+DOWN instead of up. Fifteen samples set it -- 562 to 576 -- and they are exactly
+the fifteen belonging to the fourteen multisamples named `REV ...`: REV Steel DR,
+REV Tin Wave, REV SN 1..4, REV Kick 1, REV Cup, REV Tom, REV Cow Bell, REV TAMB,
+REV Conga, REV Maracas, REV Crash 1.
+
+Two waves settle what the bit does between them. Wave 96 `Crash 1` names sample
+543 at 163489..227837; wave 128 `REV Crash 1` names sample 576 at
+163488..227837. **The same ROM region**, one byte apart, same end address. The
+records differ in the flag alone: 0x01 against 0x05. And the stored audio decays
+like any cymbal -- decoded, it runs from -2 dB at 0.2 s to -19 dB at 1.8 s -- so
+nothing but reading it backwards can produce the swell the machine plays. The
+emulator's own address counter has the matching control bit: `if (b7)
+address_cnt2 -= ...; else += ...`, from `ram2[7] & 0x80`.
+
+Reading the flag costs one line; not reading it cost rather more than a missing
+swell. B63 RevCymBend puts all four of its tones on wave 128, and playing that
+sample forward runs off the end of the body into its alternating loop, where the
+differential integrator does not come back to where it started. Rendered for
+fifteen seconds against the reference, the machine falls to digital silence at
+second 3 and this engine went on roaring at -35 to -47 dBFS through second 13 --
+a ten-second noise burst on every note of the patch. Played backwards the body
+is traversed once and the voice ends at `start`, which is the forward attack,
+and the reference does the same: both go silent at second 3.
+
+Third-octave band similarity over six seconds: 0.539 -> 0.867. The four affected
+patches are B63 RevCymBend and User64 REVERSE MAD, which use the REV waves, and
+B13 Orch Stab 1 and User11 Orch Stab 2, which use the forward Crash 1 and are
+unchanged to the sample -- the runaway needed the reverse record's loop, not the
+alternating bit as such.
+
+**What is still wrong.** The swell is now the right shape and ends at the right
+moment, but its level is not right in the middle: at the peak this engine sits
+6.5 dB under the reference and around 0.9 s it is 27 dB under, while the two
+ends agree to about 5 dB. The sample side is exonerated -- decoded backwards it
+carries no DC (mean 7 of a 3865 RMS), never touches the clamp, and mirrors the
+forward envelope exactly (18.4 dB of swell). Windowed band similarity stays
+between 0.71 and 0.93 throughout, so the content is right and only its amplitude
+over time is not. The patch bends: coarse -8, pitch envelope depth 12 with a
+full negative deflection over T2, which changes how fast the reversed body is
+traversed and so where its swell lands. That makes the pitch envelope the first
+thing to check, and it is not checked yet -- so this is a lead, not a finding.
+
 ## Credit
 
 The patch and tone field layout comes from

@@ -40,6 +40,15 @@ struct Sample {
     // rest. Playing those as forward loops makes the sound repeat exactly once
     // per loop, which is audible as a throb at the loop rate.
     bool     bidir;
+    // Bit 2: the chip walks the address DOWN instead of up. Fifteen samples set
+    // it, 562..576, and they are exactly the fifteen belonging to the fourteen
+    // multisamples named "REV ..." -- REV Crash 1, REV SN 1..4, REV TAMB and the
+    // rest. Wave 96 "Crash 1" and wave 128 "REV Crash 1" settle what the bit
+    // does between them: they name the SAME ROM region (163489..227837 against
+    // 163488..227837) and differ only in this flag. The stored audio decays like
+    // any cymbal, from -2 dB at 0.2 s to -19 dB at 1.8 s, so nothing but reading
+    // it backwards can produce the swell the machine plays.
+    bool     reverse;
 };
 
 enum : int {

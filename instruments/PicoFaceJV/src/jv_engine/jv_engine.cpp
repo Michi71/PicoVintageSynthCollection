@@ -668,6 +668,11 @@ bool Engine::sampleFor(int waveNumber, uint8_t note, Sample& out) const {
     // holds on the last value). An alternating loop needs at least two samples
     // to turn around in.
     out.bidir = (s[11] & 1) != 0 && out.end > out.loop + 1;
+    // Reverse plays the body once, backwards, and never reaches a loop -- so it
+    // overrides the alternating bit, which the REV records carry anyway
+    // (0x05 = both) because they were cut from the forward samples.
+    out.reverse = (s[11] & 4) != 0;
+    if (out.reverse) out.bidir = false;
     // `end` is inclusive, so it is the last address read. A cut-down build
     // zeroes the entries of the samples it dropped, which fails start < loop
     // here and leaves the tone silent rather than playing whatever now lives
@@ -685,6 +690,23 @@ int32_t Engine::decodeStep(Voice& v) const {
     uint8_t nb = w[page | ((a & 0xFFFFF) >> 5)];
     int nib = (a & 0x10) ? ((nb >> 4) & 15) : (nb & 15);
     const int32_t delta = (((int32_t)d << 11) >> ((10 - nib) & 15)) >> 1;
+
+    if (v.dir < 0 && v.smp.reverse) {
+        // Playing the body backwards. The integrator keeps ADDING while the
+        // address walks down, exactly as it does on the return leg of an
+        // alternating loop, so what comes out is the forward waveform negated
+        // and read back to front -- which is the reverse crash, the sign being
+        // inaudible.
+        v.ref += delta;
+        if (v.ref > 0x7FFFF) v.ref = 0x7FFFF;
+        if (v.ref < -0x80000) v.ref = -0x80000;
+        // `start` is the forward attack, so the swell ends there and the voice
+        // ends with it: the reference falls to digital silence rather than
+        // holding the last value or looping.
+        if (v.addr <= v.smp.start) { v.active = false; return 0; }
+        --v.addr;
+        return v.ref;
+    }
 
     if (v.dir < 0) {
         // Retracing an alternating loop. The chip does NOT undo the steps: it
@@ -865,12 +887,13 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel,
     v.velocity = vel;
     v.tone = (uint8_t)toneIndex;
     v.smp = s;
-    v.addr = s.start;
+    // A reverse sample starts at the far end and walks down to `start`.
+    v.addr = s.reverse ? s.end : s.start;
     v.phase = 0;
     v.ref = 0;
     v.refAtLoop = 0;
     v.loopSeen = false;
-    v.dir = 1;
+    v.dir = s.reverse ? -1 : 1;
     v.s0 = v.s1 = 0;
     v.age = ++ageCounter_;
     v.ctlPhase = 0;
