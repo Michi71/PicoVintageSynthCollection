@@ -2313,6 +2313,40 @@ there was nothing to fix. What the round bought is that `JV_KF16` is now measure
 rather than read off the manual, and that the stale comment which caused the
 false alarm is gone. The high nibble is 7 on 534 of 539 tones and is not read.
 
+## The sample record: +17 does nothing, and +15/+16 is not simply a tune
+
+Three questions about the sample record, answered by patching bytes into the
+emulator's in-memory `rom2` before the reset -- which reaches the firmware, since
+patching `+12` there visibly changes the sound while the SHA1 check only guards
+the files on disk.
+
+**+17 does nothing.** Swept across 0, 1, 2, 4, 8, 16, 24, 32, 48, 64, 80, 96,
+107, 112, 117, 120 and 127, the reference's output RMS is **0.045467 at every
+single value** -- one distinct number over the whole range. It carries 21
+different values across the 577 samples and none of them matters. This engine
+reads it into `Sample::level` and never uses it, and that is correct. The note
+above, which called that a gap worth closing, is withdrawn.
+
+**+09 and +10 are dead** -- zero on all 577 samples.
+
+**+15/+16 is a second sixteen-bit field that acts.** Patched, it moves the pitch
+on exactly the same law as the tune word at +13/+14: over the range 800 to 1312
+both shift the pitch about 49.5 cents, so roughly 0.097 cents per unit, neutral
+at 1024. 554 of the 577 samples sit at neutral; the other 23 run from -9.7 to
++10.6 cents and are concentrated -- eleven of them belong to wave 28 Trombone 1,
+three to Harp 1, two to Alto Sax 1.
+
+**And adding it makes the pitch worse.** Measured as the rate drift against the
+reference, which is the method that survives these samples where a partial
+detector does not, Trombone 1 sits at 1.4 to 4.5 cents from the reference without
+the field -- mean 2.89 -- and at 5.3 to 11.6 cents with it, mean **8.25**. The
+field moves the pitch by about its nominal amount, in the wrong direction to
+help. So the reference does not apply it to these samples as a plain addition,
+even though patching it changes the reference's pitch.
+
+Something conditions it, and what that is has not been found. The engine keeps
+reading only +13/+14, which is measurably the closer of the two behaviours.
+
 ## Credit
 
 The patch and tone field layout comes from
