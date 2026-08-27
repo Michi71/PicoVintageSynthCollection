@@ -1188,17 +1188,30 @@ void Engine::noteOn(uint8_t note, uint8_t velocity) {
     soloNote_ = note;
 
     ++panAlt_;   // one step per note, so alternating tones swap sides
+    // Patch common +12 bit 7: the patch velocity switch. See the window test
+    // below -- it decides whether the per-tone velocity window applies at all.
+    const bool velSwitch = (patch_[12] & 0x80) != 0;
     for (int tone = 0; tone < 4; tone++) {
         const uint8_t* t = patch_ + JV_TONE_OFFSET + tone * JV_TONE_SIZE;
         if (!(t[0] & 0x80)) continue;                        // tone switched off
-        // Bytes +03/+04 were read as a velocity window, on the manual's word.
-        // They are not one: on the reference, forcing +03 to 127 or +04 to 30
-        // -- either of which would silence the tone under that reading --
-        // changes its output by nothing at all. What the gate did do was
-        // silence every tone of six bank-A basses below velocity 61, where
-        // they all carry +03 = 61. Measured across bank A, 70 of 1600 cells
-        // had the reference sounding and us silent, all of them at velocity
-        // 20 or 50. See tools/jv_extract/README.md.
+        // Bytes +03/+04 are a velocity window, but a conditional one: it only
+        // gates while bit 7 of the patch common byte -- the patch velocity
+        // switch -- is set. That condition is what made the window look
+        // disproven twice over. Gating unconditionally silenced six bank-A
+        // basses below velocity 61 (St Fretless, House Bass, Thumpin Bass,
+        // Pick Bass, Wonder Bass, Yowza Bass), every one of which carries
+        // +03 = 61 with the switch CLEAR, so the machine ignores the window
+        // and plays them; not gating at all sounded tones the machine keeps
+        // silent, which is audible as a rattle under A20 Marimba SW, whose
+        // third tone is windowed to 126..127 with the switch SET. Bank A
+        // splits cleanly: all ten patches whose window must be ignored have
+        // the switch clear, and all seventeen whose window must bite -- the
+        // Rhodes family, SwitchOnMute, Velo Harmnix, Slap Bass, Marimba SW --
+        // have it set. Measured on the reference: A20 at velocity 100 has no
+        // high-frequency content at all (-35.2 dB against its fundamental)
+        // and at velocity 127 it has +25.9 dB of it, the switched layer
+        // coming in exactly as the window says.
+        if (velSwitch && (velocity < t[3] || velocity > t[4])) continue;
         startVoice(voices_[allocVoice()], tone, note, velocity, glideFrom);
     }
     lastNoteOn_ = clock_;
