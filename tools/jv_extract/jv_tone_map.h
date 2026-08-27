@@ -195,10 +195,16 @@ typedef struct {
                                 //     C4; random pitch is one of 16 cent amounts
                                 //     0/5/10/20/30/40/50/70/100/200/300/400/500/600/800/1200,
                                 //     redrawn per note.
-    uint8_t tvpKFtvaTimeKF;     // +40 MANUAL  packed keyfollows. Pitch keyfollow is 0..15
-                                //     (-100..+200, normal is +100 = one octave per twelve keys)
-                                //     and a tone set away from +100 does not track the keyboard
-                                //     at all -- the engine assumes +100 for every tone.
+    uint8_t tvpKFtvaTimeKF;     // +40 VERIFIED packed keyfollows. The PITCH keyfollow is the LOW
+                                //     nibble, 0..15 spanning -100..+200 about C4, and index 12 --
+                                //     not 7 -- is the normal one octave per twelve keys. Measured
+                                //     across all sixteen values; see JV_KF16 in jv_calibration.h.
+                                //     The engine reads it: `jv_kf16(t[40] & 15)` in startVoice.
+                                //     An earlier note here said the engine "assumes +100 for every
+                                //     tone", which was stale and cost an afternoon -- 507 of 539
+                                //     factory tones carry 12 and the other 32 are handled too.
+                                //     The high nibble is the TVA-ENV time keyfollow and is 7 on
+                                //     534 of 539 tones; it is not read.
     uint8_t tvpVelocity;        // +41 MANUAL  P-ENV velocity level sense, -63..+63
     uint8_t tvpT1T4Velocity;    // +42 MANUAL  P-ENV velocity on/off time sense, two 15-step fields
     uint8_t tvpEnvDepth;        // +43 VERIFIED pitch env depth; saturates above ~16

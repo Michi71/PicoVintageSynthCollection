@@ -2298,12 +2298,20 @@ table says. **This engine's zone selection is right.**
 everywhere else in this ROM. Nibble 7 is about +18 %; nibble 0 runs the pitch
 *down* as the key rises, so it is around -100 %.
 
-That matters because this engine reads none of +40 and assumes +100 % for every
-tone. Across the three banks, **507 of 539 tones carry 12 and 32 do not** -- they
-carry 5, 6, 7, 8 or 10, which on the two measured points would be somewhere
-between -30 % and +100 %. Those 32 tones track the keyboard wrongly here, and
-they are the ones to check next. The high nibble is 7 on 534 of 539, so whatever
-it holds is near enough constant to ignore for now.
+**And the engine already had it right.** The claim written here first -- that
+this engine reads none of +40 and assumes +100 % for every tone -- was taken from
+a stale comment in `jv_tone_map.h` and is wrong: `startVoice` has read
+`jv_kf16(t[40] & 15)` all along. Swept across all sixteen values and timed at
+notes 57 and 63, the keyfollow measures -98.7, -70.7, -49.6, -30.6, -9.5, 0,
++9.5, +21.2, +30.6, +40.1, +49.6, +70.7, +98.7, +121.8, +151.7 and +198.3 per
+cent, against a table already holding -100, -70, -50, -30, -10, 0, 10, 20, 30,
+40, 50, 70, 100, 120, 150, 200. **Every entry within about 1.5 %**, with index 12
+landing on +98.7 where the standard tone must be.
+
+So the 32 tones that carry something other than 12 are handled correctly, and
+there was nothing to fix. What the round bought is that `JV_KF16` is now measured
+rather than read off the manual, and that the stale comment which caused the
+false alarm is gone. The high nibble is 7 on 534 of 539 tones and is not read.
 
 ## Credit
 
