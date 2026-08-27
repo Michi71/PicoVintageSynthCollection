@@ -1548,6 +1548,36 @@ moves 4.01 to 3.97 dB.
 **Still wrong on A57:** notes 43 and 48 keep 2 to 4 dB after the fix, and both
 sit in zone 1 of the multisample (sample 160) while note 40 sits in zone 0 and
 is now exact. Whatever is left is zone-related, not envelope-related.
+## Why a reverse sample starts at `end`, and what still ends B63 early
+
+B63 RevCymBend's reference render falls away at about 2.7 s. Walking the whole
+body backwards at that patch's coarse -8 takes 3.19 s, and walking only
+`loop`..`start` takes 2.83 s -- so starting the reverse at the loop point rather
+than at `end` looked like the answer, and on two metrics it looked like a good
+one: the RMS ratio against the reference went from 0.37 to 1.11 and the
+per-window level error collapsed from -20..-26 dB to within a few dB.
+
+It is wrong, and the way it is wrong is worth keeping.
+
+The decoder is a differential integrator started at zero. Output from a
+backward walk beginning at address A is therefore `v(A) - v(n)`, so it carries a
+DC offset of exactly `v(A)`. For this sample `v(end)` is **0** -- not
+approximately, exactly -- while `v(loop)` is 1584 against a sample RMS of 3865.
+Starting at the loop point injects that as DC, and it shows: measured at the
+output, the reference carries 8-11 % DC against its own RMS and the loop-start
+build carries **88-99 %**. Most of the apparent level improvement was not signal.
+
+So `end` is the only start point that decodes without a DC step, and the ROM is
+authored for it -- the sample's deltas sum to precisely zero over the body,
+which is not an accident. The engine keeps `end`.
+
+What ends the reference early is still unknown. It is not the tuning: pitch
+measures correct to a few cents. It is not the pitch envelope, which moves no
+pitch at all. A centroid fingerprint of the sample was tried as a way to read
+the playback position straight out of the reference and does not discriminate --
+the crash's brightness barely changes across its length (5600 Hz to 5273 Hz), so
+position cannot be recovered that way. The field is narrower than it was, and
+the answer is not here yet.
 
 ## Credit
 
