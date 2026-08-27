@@ -1579,6 +1579,52 @@ the crash's brightness barely changes across its length (5600 Hz to 5273 Hz), so
 position cannot be recovered that way. The field is narrower than it was, and
 the answer is not here yet.
 
+## A57 Slap Bass: what is left is one multisample zone, and it is not any of these
+
+After the fall-to-silence calibration above, A57 is exact where its note sits on
+a zone root and wrong where it does not. Swept across the keyboard against the
+reference, the level ratio steps at the zone boundaries and nowhere else:
+
+| notes | zone | sample | ratio |
+|---|---|---|---|
+| 38..42 | 0 | 159 | 0.90 .. 1.15 |
+| 43..49 | 1 | 160 | 0.69 .. 0.78 |
+| 50..51 | 2 | 161 | 0.91 .. 1.00 |
+
+So the zone *selection* is right -- the step lands exactly at 42/43 and 49/50,
+which is where the split points say it should. Zone 1 is simply rendered about
+3 dB quiet, and not as a gain: the transient matches within half a decibel and
+the deficit appears within 75 ms, long before the loop is reached at 0.63 s.
+
+Spectrally the two engines play the same sample at the same pitch -- the peaks
+line up at 58.3, 87.8 and 116.7 Hz to a tenth of a hertz -- but the balance is
+redistributed. The reference peaks at 116.7 Hz with everything above 145 Hz
+sitting 22 to 26 dB down; this engine peaks at 58.3 Hz, puts 116.7 at -8.3, and
+carries 800..1700 Hz content that the reference has 25 dB below its peak. In
+octave bands over the first 300 ms: -8.7 dB at 100..200 Hz, -9.8 at 200..400,
++3.7 at 800..1600 and +9.3 at 1600..3200.
+
+**Ruled out, each by measurement:**
+
+* *Zone selection* -- boundaries verified as above.
+* *The sample's level byte* -- +17 is 127 on every zone of both waves.
+* *The exponent decoder* -- the shift is `(10 - nib) & 15`, which wraps for
+  nibbles above 10, but a sweep of the whole ROM finds none: the distribution
+  runs 0..10 and stops.
+* *The filter* -- probed directly on the reference and genuinely off. Sweeping
+  +55 with a low cutoff leaves the output identical at every cutoff when
+  bits 3-4 are 0, while 8 closes the sound down to 0.2 % of its RMS at cutoff 0
+  and 16 cuts it progressively as the cutoff rises. So 0 = OFF, 8 = LPF,
+  16 = HPF is now measured rather than inferred, and A57's +55 = 0 means what
+  it says. A57's resonance byte of 128, which is out of the normal range and
+  looked like it might enable something, changes nothing either.
+* *Loop imbalance* -- the integrator drifts 5.3 % of RMS over zone 0's loop and
+  5.9 % over zone 1's, so the two are alike and neither is special.
+
+What remains is that this engine renders sample 160 with too little fundamental
+and too much midrange, at the right pitch, with the filter off on both sides.
+That is where it stands.
+
 ## Credit
 
 The patch and tone field layout comes from
