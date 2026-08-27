@@ -83,6 +83,12 @@ static const float JV_PATCH_LEVEL_DB[9] = {
 // with envDepth 24 over a base cutoff of 8, normalised to L=127. Feeding these
 // through the dB curve gave 0.09 where the machine gives 0.20 at L=32.
 // Index = value/16.
+// SUPERSEDED (27.08.2026) and kept only as a record. This was measured through
+// audio and looked like a curve because the engine was adding the envelope to
+// the cutoff while the chip MULTIPLIES its filter coefficient -- these numbers
+// are that exponential seen through an additive model. Read off the chip's
+// register the level is plainly linear: depth 32 at level 32 lands exactly where
+// depth 16 at level 64 does. See tvfEnvLevel() and updateFilterCoeffs().
 static const float JV_TVF_ENV_LEVEL[9] = {
     0.000f, 0.089f, 0.204f, 0.278f, 0.460f, 0.560f, 0.722f, 0.828f, 1.000f,
 };
@@ -190,6 +196,10 @@ static const float JV_LFO_PITCH_DEPTH_CENTS[9] = {
 // 19.1/37.5/60.5 parameter units, so about 2.4 each. Above 24 the corner leaves
 // the noise sample's bandwidth and the measurement, not the synth, saturates.
 // The field is signed like the LFO depths; negative depths close the filter.
+// SUPERSEDED (27.08.2026). The envelope does not add to the cutoff at all: it
+// multiplies the chip's filter coefficient by 2^(depth * level / (127 * 8)),
+// measured off ram2[11] and the same factor at every cutoff. Kept as a record of
+// what an additive model had to be fitted to.
 #define JV_TVF_ENV_DEPTH_PER_UNIT 2.4f
 
 // tvaVelocity (+72) only ever ATTENUATES, and it attenuates below velocity 127.
