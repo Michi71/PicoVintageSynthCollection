@@ -319,6 +319,14 @@ static const float JV_KF15[15] = {   // 0..14, neutral at index 7
     -100.0f, -70.0f, -50.0f, -40.0f, -30.0f, -20.0f, -10.0f, 0.0f,
       10.0f,  20.0f,  30.0f,  40.0f,  50.0f,  70.0f, 100.0f,
 };
+// MEASURED (27.08.2026) and it confirms the manual exactly. Sweeping the low
+// nibble of +40 on a synthetic single tone and timing the period at notes 57 and
+// 63 gives -98.7, -70.7, -49.6, -30.6, -9.5, 0, +9.5, +21.2, +30.6, +40.1,
+// +49.6, +70.7, +98.7, +121.8, +151.7 and +198.3 per cent -- every entry within
+// about 1.5 % of the values below, index 12 landing on +98.7 where the standard
+// one-octave-per-twelve-keys tone must be. The steps are 20 at the ends and 10
+// in the middle, which is why a linear reading of "0..15 spans -100..+200" comes
+// out wrong in the middle of the range.
 static const float JV_KF16[16] = {   // 0..15, neutral at index 5
     -100.0f, -70.0f, -50.0f, -30.0f, -10.0f, 0.0f, 10.0f, 20.0f,
       30.0f,  40.0f,  50.0f,  70.0f, 100.0f, 120.0f, 150.0f, 200.0f,
