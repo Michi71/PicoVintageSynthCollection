@@ -29,6 +29,32 @@ float lookup(const float* tbl, int n, int v) {
 float envRiseSeconds(int v) { return lookup(JV_ENV_RISE_S, JV_ENV_RISE_N, v); }
 float envFallSeconds(int v) { return lookup(JV_ENV_FALL_S, JV_ENV_FALL_N, v); }
 
+// The chip does not join two samples with a straight line. It carries a
+// three-entry weight table indexed by the fractional position and applies it to
+// the DPCM deltas, which comes to a four-point kernel over the decoded samples:
+// at fractional position zero the weights are 0.174 / 0.653 / 0.173 / 0 rather
+// than 0 / 1 / 0 / 0, so it is smoothing even where a linear interpolator would
+// pass the sample through untouched. Read off the reference's table and turned
+// back into kernel form, those weights are a cubic B-spline to within 0.014 --
+// mean 0.008 -- across all 128 steps, so the formula stands in for the table and
+// nothing has to be copied out of it.
+//
+// The difference is audible because it is a filter. At fractional position zero
+// the spline is -2.3 dB at 6.4 kHz, -5.0 at 9.6 and -9.5 at 16 kHz where linear
+// interpolation is flat; that missing lowpass is why this engine ran bright.
+// 128 steps is the chip's own resolution, so the table is indexed the same way.
+static float kBSpline[128][4];
+static void buildBSpline() {
+    for (int i = 0; i < 128; i++) {
+        const float t = (float)i / 128.0f, u = 1.0f - t;
+        kBSpline[i][0] = u * u * u * (1.0f / 6.0f);
+        kBSpline[i][1] = (3.0f * t * t * t - 6.0f * t * t + 4.0f) * (1.0f / 6.0f);
+        kBSpline[i][3] = t * t * t * (1.0f / 6.0f);
+        // The four weights sum to one, so the last is what the others leave.
+        kBSpline[i][2] = 1.0f - kBSpline[i][0] - kBSpline[i][1] - kBSpline[i][3];
+    }
+}
+
 // How far a segment falling to silence travels over one fall time. The fall
 // table itself is measured; this is the depth that rides on it, and it is 32.6
 // dB, not the 40 that stood here before.
@@ -608,6 +634,7 @@ bool Engine::init(const RomView& rom, uint32_t sampleRate) {
     // one page's worth of exponent nibbles is the floor.
     if (!rom.wave || !rom.rom2 || rom.waveLen < 0x8000 || rom.rom2Len < 0x40000)
         return false;
+    buildBSpline();
     rom_ = rom;
     sr_ = sampleRate;
     memset(voices_, 0, sizeof(voices_));
@@ -922,7 +949,7 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel,
     v.refAtLoop = 0;
     v.loopSeen = false;
     v.dir = s.reverse ? -1 : 1;
-    v.s0 = v.s1 = 0;
+    v.sm1 = v.s0 = v.s1 = v.s2 = 0;
     v.age = ++ageCounter_;
     v.ctlPhase = 0;
 
@@ -1360,9 +1387,10 @@ void Engine::renderBlock(float* left, float* right, int frames) {
             v.phase += v.inc;
             int steps = (int)(v.phase >> 16);
             v.phase &= 0xFFFFu;
-            while (steps-- > 0) { v.s0 = v.s1; v.s1 = decodeStep(v); }
+            while (steps-- > 0) {
+                v.sm1 = v.s0; v.s0 = v.s1; v.s1 = v.s2; v.s2 = decodeStep(v);
+            }
 
-            float frac = (float)v.phase * (1.0f / 65536.0f);
             // 2^19 is the accumulator's full scale, but the ROM samples only
             // reach 13 % of it (median 7.7 %), so normalising to that throws
             // away 12 dB. This factor is what lines the engine up with the
@@ -1374,7 +1402,9 @@ void Engine::renderBlock(float* left, float* right, int frames) {
             // other way once the chorus and reverb existed -- until then it had
             // been carrying their missing energy too. Fitted over all 128
             // factory patches at both velocities.
-            float s = ((float)v.s0 + ((float)v.s1 - (float)v.s0) * frac) * (1.0f / 97867.0f);
+            const float* bw = kBSpline[v.phase >> 9];
+            float s = ((float)v.sm1 * bw[0] + (float)v.s0 * bw[1] +
+                       (float)v.s1  * bw[2] + (float)v.s2 * bw[3]) * (1.0f / 97867.0f);
 
             if (--v.ctlPhase <= 0) {
                 updateModulation(v, clock_ + (uint32_t)i);

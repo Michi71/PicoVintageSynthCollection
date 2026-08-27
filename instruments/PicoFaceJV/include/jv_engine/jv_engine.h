@@ -198,7 +198,9 @@ private:
         int32_t  refAtLoop;   // accumulator when the loop point was first passed
         bool     loopSeen;    // ... and whether that has happened yet
         int8_t   dir;         // +1 forward, -1 retracing an alternating loop
-        int32_t  s0, s1;      // last two decoded samples, for interpolation
+        int32_t  sm1, s0, s1, s2;  // four consecutive decoded samples; the
+                                   // output sits between s0 and s1 and the
+                                   // other two are the B-spline's outer taps
         Sample   smp;
         Env      tva, tvf;
         PEnv     penv;

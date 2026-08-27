@@ -1625,6 +1625,62 @@ What remains is that this engine renders sample 160 with too little fundamental
 and too much midrange, at the right pitch, with the filter off on both sides.
 That is where it stands.
 
+## The sample path: the chip interpolates with a cubic B-spline
+
+Chasing A57 Slap Bass into the sample path turned up the largest single
+correction measured here, and it is not what A57 needed.
+
+The reference's PCM core reads **four** consecutive DPCM bytes per output sample,
+not two, and it does not join them with a straight line. It carries a
+three-entry weight table indexed by the fractional position and applies those
+weights to the deltas, adding them to the running reference. Turned back into a
+kernel over the decoded samples, the weights at fractional position zero are
+
+    0.174   0.653   0.173   0.000
+
+where a linear interpolator would use 0, 1, 0, 0. The chip is smoothing even
+where there is no fraction to interpolate.
+
+Those numbers are a **cubic B-spline**. Fitted across all 128 steps of the
+reference's table the largest coefficient error is 0.014 and the mean is 0.008,
+so the formula
+
+    a = (1-t)^3 / 6
+    b = (3t^3 - 6t^2 + 4) / 6
+    c = (-3t^3 + 3t^2 + 3t + 1) / 6
+    d = t^3 / 6
+
+stands in for the table exactly, and nothing has to be lifted out of the
+reference's source.
+
+The difference is a filter, and that is why it was audible. At fractional
+position zero the spline runs -2.3 dB at 6.4 kHz, -5.0 at 9.6 and -9.5 at
+16 kHz where linear interpolation is flat. This engine was missing that lowpass
+entirely, which showed up as imaging near Nyquist: on A57 at note 40, where the
+zone root makes the rate exactly 1.0 and the phase never moves, the octave from
+12.8 kHz was **29.3 dB** above the reference. With the spline it is -1.3.
+
+Bank-wide at note 60 and velocity 100, against the reference:
+
+| | third-octave similarity | patches below 0.90 |
+|---|---|---|
+| linear | median 0.910 | 57 |
+| **cubic B-spline** | **median 0.929** | **46** |
+
+87 patches improve, 16 lose more than 0.005. The largest gains are B48 Air Lead
+0.824 to 0.977, B47 OverblownPan 0.646 to 0.852, A28 and A29 E.Organ 1 and 2
+about +0.12 each, and A61 Yowza Bass 0.823 to 0.922. The largest loss is A84
+Beauty Vox 0.972 to 0.948. Levels barely move -- the spline has unity gain at DC
+and only takes off top end -- so this is a change of spectral shape, not of
+loudness.
+
+The table is built at init with 128 steps, the chip's own resolution, so the
+cost per sample is four multiply-adds and an index.
+
+**It is not what A57 needed.** Zone 1 there keeps its 3 dB and its missing
+fundamental: -9.8 dB at 200..400 Hz before the change and -9.8 after. The
+interpolator was a real fault sitting on top of it.
+
 ## Credit
 
 The patch and tone field layout comes from
