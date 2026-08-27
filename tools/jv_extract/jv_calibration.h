@@ -748,7 +748,17 @@ static const float JV_MOD_LEVEL_DB[5]   = { 1.29f, 2.37f, 4.31f, 6.28f, 6.28f };
 // engine and reference compared by the same method -- white noise through the
 // low-pass at cutoff 48, peak against the 300-600 Hz passband -- the engine sat
 // a consistent 1.2 to 2.4 dB high across the range. 0.893 -> 1.125 closes it.
-#define JV_TVF_DAMPING(res) (1.125f * expf(-0.0104f * (res)))
+// MEASURED (27.08.2026), not fitted. The damping the firmware writes into the
+// chip is `ram2[6] >> 8` over 64, and read out for a sweep of the resonance byte
+// it runs 64, 61, 58, 56, 53, 49, 45, 41, 38, 34, 32, 29, 26, 24, 22, 20, 19,
+// 17, 16 for resonance 0, 4, 8, 12, 16, 24, 32, ..., 127 -- a halving every 63.5
+// units. `floor(64 * 2^(-res/63.5))` hits 18 of those 19 exactly (resonance 112
+// comes out 18 against the chip's 19).
+//
+// The law that stood here, 1.125 * exp(-0.0104 * res), was fitted through audio
+// at a single cutoff and ran 15 to 21 % high. Too much damping is too little
+// resonance.
+#define JV_TVF_DAMPING(res) (floorf(64.0f * exp2f(-(res) * (1.0f / 63.5f))) * (1.0f / 64.0f))
 
 // The matrix's contribution to an LFO's PITCH depth is linear in cents, not in
 // depth-parameter units: the swing runs 55 and 122 cents at sensitivity 4 and 8,

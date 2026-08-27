@@ -29,6 +29,25 @@ float lookup(const float* tbl, int n, int v) {
 float envRiseSeconds(int v) { return lookup(JV_ENV_RISE_S, JV_ENV_RISE_N, v); }
 float envFallSeconds(int v) { return lookup(JV_ENV_FALL_S, JV_ENV_FALL_N, v); }
 
+// The filter coefficient the firmware writes, read out of the reference's
+// ram2[11] over 16384 for cutoff 0, 4, 8 ... 124. It climbs by exactly 128 per
+// cutoff unit up to about 32, then accelerates, and saturates from 88 upward --
+// past that the cutoff byte does nothing at all. See tools/jv_extract/README.md.
+static const float JV_TVF_F[32] = {
+    0.0078f, 0.0391f, 0.0703f, 0.1016f, 0.1328f, 0.1641f, 0.1953f, 0.2266f,
+    0.2578f, 0.2891f, 0.3281f, 0.3672f, 0.4062f, 0.4531f, 0.5078f, 0.5625f,
+    0.6172f, 0.6797f, 0.7500f, 0.8125f, 0.8906f, 0.9609f, 1.0000f, 1.0000f,
+    1.0000f, 1.0000f, 1.0000f, 1.0000f, 1.0000f, 1.0000f, 1.0000f, 1.0000f
+};
+static float tvfCoefF(float cv) {
+    if (cv <= 0.0f) return JV_TVF_F[0];
+    if (cv >= 124.0f) return 1.0f;
+    const float x = cv * 0.25f;
+    const int i = (int)x;
+    const float t = x - (float)i;
+    return JV_TVF_F[i] + (JV_TVF_F[i + 1] - JV_TVF_F[i]) * t;
+}
+
 // The chip does not join two samples with a straight line. It carries a
 // three-entry weight table indexed by the fractional position and applies it to
 // the DPCM deltas, which comes to a four-point kernel over the decoded samples:
@@ -388,30 +407,34 @@ void Engine::Lfo::tick() {
 
 // -------------------------------------------------------------------- filter
 
-// A zero-delay (TPT) state-variable filter. The CHIP's is the naive Chamberlin
-// form -- `lp += f*bp; hp = in - lp - q*bp; bp += f*hp`, mode bit picking lp or
-// hp -- and the difference shows: a zero-delay filter holds its Q as the corner
-// moves, the naive one sharpens, and the reference sharpens with it. Measured
-// through white noise, this engine's resonant peak matches at cutoff 40 and
-// falls 2.7 to 4.8 dB short at cutoffs 60 and 80.
+// The chip's filter, in the chip's form: a naive state-variable filter with a
+// sample of delay in the loop, exactly as the reference's PCM core runs it --
 //
-// Rebuilding it as the naive form is not a drop-in and was tried: the isolated
-// peak error halves, but the coefficients here were fitted for a filter that
-// cannot run away, and the naive one can. Capping the corner at the stability
-// line darkens the bright half of the bank; clamping the states instead lets it
-// self-oscillate, and five patches went to negative correlation. It needs the
-// firmware's own f and q, not this engine's Hz-and-damping fit carried across.
-// See tools/jv_extract/README.md.
-float Engine::Filter::run(float in, float g, float k, int mode) {
-    const float a1 = 1.0f / (1.0f + g * (g + k));
-    const float a2 = g * a1;
-    const float a3 = g * a2;
-    const float v3 = in - ic2;
-    const float v1 = a1 * ic1 + a2 * v3;
-    const float v2 = ic2 + a2 * ic1 + a3 * v3;
-    ic1 = 2.0f * v1 - ic1;
-    ic2 = 2.0f * v2 - ic2;
-    return (mode == JV_TVF_MODE_HPF) ? (in - k * v1 - v2) : v2;
+//     lp += f * bp;   hp = in - lp - q * bp;   bp += f * hp;
+//
+// with the mode bit picking the low-pass state or the high-pass term, which is
+// what it does with `ram1[3]` against `v3`.
+//
+// This replaced a zero-delay (TPT) filter, and the reason matters. A zero-delay
+// filter holds its Q as the corner moves; the naive one sharpens, and the
+// reference sharpens with it. Measured through white noise, the old filter's
+// resonant peak matched at cutoff 40 and fell 2.7 to 4.8 dB short at cutoffs 60
+// and 80 across resonance 60, 100 and 127 -- the shape of a Q that should have
+// been climbing.
+//
+// An earlier attempt at this swap failed and is worth remembering: it kept the
+// old coefficient, f = 2 sin(pi fc/fs), which runs to 1.98. The naive form is
+// only stable while f + q stays under 2, so that either had to be capped --
+// darkening the bright half of the bank -- or left to self-oscillate, which sent
+// five patches to negative correlation. The chip never has that problem because
+// its own coefficient SATURATES AT 1.0, read straight out of ram2[11]. With the
+// measured table below, f + q reaches 2.0 only at the single corner where
+// resonance is 0 and the cutoff is wide open, and never crosses it.
+float Engine::Filter::run(float in, float f, float q, int mode) {
+    lp += f * bp;
+    const float hp = in - lp - q * bp;
+    bp += f * hp;
+    return (mode == JV_TVF_MODE_HPF) ? hp : lp;
 }
 
 // -------------------------------------------------------------------- chorus
@@ -845,17 +868,22 @@ void Engine::updateFilterCoeffs(Voice& v) {
     // scaling is NOT calibrated -- see tools/jv_extract/README.md.
     float cv = v.cutoffBase +
                v.envDepth * v.tvf.level * JV_TVF_ENV_DEPTH_PER_UNIT + v.cutoffMod;
-    float hz = cutoffToHz(cv);
-    const float nyq = (float)sr_ * 0.49f;
-    if (hz > nyq) hz = nyq;
-    if (hz < 20.0f) hz = 20.0f;
-    v.coefF = tanf(3.14159265f * hz / (float)sr_);          // g
+    // Both coefficients come from the chip's own registers now, not from a
+    // frequency and a fitted damping. The cutoff parameter -- envelope and
+    // modulation already in it -- indexes the measured f table directly.
+    v.coefF = tvfCoefF(cv);
     float res = v.resonance + v.resMod;
     if (res < 0.0f) res = 0.0f; else if (res > 127.0f) res = 127.0f;
     // HARD mode doubles the exponent of the damping law, which is what the
     // measured 0 / 2.8 / 5.1 / 8.3 / 12.1 dB of extra peak comes to.
     v.coefQ = JV_TVF_DAMPING(res * (v.resoHard ? JV_TVF_RESO_HARD_MUL : 1.0f));
     if (v.coefQ < 0.08f) v.coefQ = 0.08f;
+    // At resonance 0 alone the chip adds damping at low cutoffs, its register
+    // sliding 74 down to 64 across cutoffs 0 to 64 and flat above.
+    if (res < 1.0f) {
+        const float extra = (74.0f - 0.15625f * (cv < 0.0f ? 0.0f : cv)) * (1.0f / 64.0f);
+        if (extra > v.coefQ) v.coefQ = (extra > 1.15625f) ? 1.15625f : extra;
+    }
 }
 
 void Engine::updateModulation(Voice& v, uint32_t clock) {

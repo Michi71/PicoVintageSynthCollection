@@ -164,9 +164,9 @@ private:
     // filtering altogether by 64, which is squarely inside the range the
     // modulation matrix reaches.
     struct Filter {
-        float ic1, ic2;
-        void  reset() { ic1 = ic2 = 0.0f; }
-        float run(float in, float g, float k, int mode);
+        float bp, lp;
+        void  reset() { bp = lp = 0.0f; }
+        float run(float in, float f, float q, int mode);
     };
 
     // One LFO. Runs at control rate, not per sample. `out` is UNIPOLAR: 1.0 is
