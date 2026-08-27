@@ -1733,6 +1733,58 @@ from cutoff, resonance and the TVF envelope, read out of the reference the way
 the velocity curves were -- rather than this engine's Hz-and-damping fit carried
 across. That is the next step, and it is a bigger one than a topology swap.
 
+## The filter registers, read out
+
+The TVF note above ends by saying the topology cannot be swapped in without the
+mapping the firmware actually uses. That mapping has now been read, the same way
+the velocity curves were: a copy of the reference with a line added after its
+three `calc_tv` calls, logging `ram2[5]`, `ram2[6]` and `ram2[11]` for the
+sounding slot while a synthetic single-tone patch plays.
+
+**The coefficient, against the cutoff byte** (resonance 0, `f = ram2[11]/16384`):
+
+| cutoff | 0 | 8 | 16 | 24 | 32 | 40 | 48 | 56 | 64 | 72 | 80 | 88+ |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| f | 0.008 | 0.070 | 0.133 | 0.195 | 0.258 | 0.328 | 0.406 | 0.508 | 0.617 | 0.750 | 0.891 | 1.000 |
+
+`ram2[11]` climbs by exactly 128 per cutoff unit to about cutoff 32 -- it is
+`128 * (cutoff + 1)` there, hit exactly at 8, 16, 24 and 32 -- then accelerates,
+and **saturates at 16384 from cutoff 88 upward**. Beyond that the byte does
+nothing.
+
+**The damping, against the resonance byte** (`q = (ram2[6] >> 8)/64`):
+
+| resonance | 0 | 4 | 8 | 12 | 16 | 24 | 32 | 40 | 48 | 56 | 64 | 72 | 80 | 88 | 96 | 104 | 112 | 120 | 127 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `ram2[6]>>8` | 64 | 61 | 58 | 56 | 53 | 49 | 45 | 41 | 38 | 34 | 32 | 29 | 26 | 24 | 22 | 20 | 19 | 17 | 16 |
+
+A clean halving every 63.5 units: `floor(64 * 2^(-res/63.5))` reproduces 18 of
+those 19 exactly (resonance 112 comes out 18 against the chip's 19). It is
+independent of the cutoff at every resonance except **0**, where the register
+also slides from 74 at cutoff 0 down to 64 at cutoff 64 and is flat above.
+
+**What that says about this engine's damping law.** `JV_TVF_DAMPING`, fitted
+through audio at a single cutoff, runs 15 to 21 % high: 0.806 against the chip's
+0.703 at resonance 32, 0.578 against 0.500 at 64, 0.415 against 0.344 at 96,
+0.300 against 0.250 at 127. Too much damping is too little resonance, which is
+the direction of the peak deficit measured above.
+
+**And why it was not simply substituted.** Putting the chip's q into this
+engine's zero-delay filter is a wash -- median third-octave similarity 0.929 to
+0.928, no patch better and seven marginally worse -- because q is a parameter of
+the chip's topology, not a property of the sound. Substituting one model's
+constant into another model is mixing, not correcting. The tables are recorded
+here as the input for doing both together.
+
+**One reading that did NOT hold up.** `f` saturating at 1.0 would put the corner
+at `fs/6` = 5.3 kHz if `f = 2 sin(pi fc/fs)` with the filter running at the
+output rate. Measured, the reference's -6 dB corner at cutoff 100 is 13.0 kHz,
+not 5.3, so it does not run at the output rate and that identity is wrong. Taken
+as a straight comparison instead, the corners agree tolerably: reference 1289,
+2609, 4898, 10758, 13008 Hz at cutoffs 20, 40, 60, 80, 100 against this engine's
+1461, 2586, 4609, 8992, 10797 -- within 17 %. The corner is not what is wrong
+with this filter; the resonance is.
+
 ## Credit
 
 The patch and tone field layout comes from
