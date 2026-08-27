@@ -2165,6 +2165,45 @@ reading the same DPCM data at the same rate produce waveforms that correlate at
 0.4. That is a bigger question than the calibration it was mistaken for, and it
 is where this stops for now.
 
+## The waveform difference is two things, and one of them is only tuning
+
+The note above concluded that the two engines "are different signals synthesised
+from the same sample". **Half of that is withdrawn.**
+
+The comparison is now made against the chip's own interpolated value -- the
+`test` word it hands to its filter, logged sample by sample -- rather than
+against its finished output, and with a positive control that passes: the chip's
+filter input against its own output, with the filter wide open, correlates
+**1.0000** at a lag of one sample.
+
+**On a long loop the waveforms match.** At note 62, zone 3 of Alto Sax 1 with a
+152-frame loop, the correlation is **0.988 over 25 ms** and 0.92 over 50 -- and
+then it falls away: 0.62 at 100 ms, 0.38 at 300. That shape is not two different
+signals. It is one signal at two slightly different rates, drifting apart. Tracked
+by the best alignment of successive 20 ms windows, the drift is **+161 samples per
+second, which is +8.70 cents**. The earlier long-window correlation of 0.39 was
+measuring that and nothing else.
+
+**On the shortest loop they really do differ.** At note 82, zone 10 with a
+37-frame loop, the rate difference is only -3.37 cents -- far too little to
+decorrelate anything over 25 ms -- and yet the short-window correlation is
+**0.573**. There the waveforms are genuinely unlike, and that is the zone whose
+level offset is +6.7 dB.
+
+So the two symptoms separate cleanly:
+
+| | note 62, loop 152 | note 82, loop 37 |
+|---|---|---|
+| correlation over 25 ms | 0.94 – 0.99 | 0.573 |
+| rate difference | +8.70 ct | -3.37 ct |
+| level offset | +1.5 dB | +6.7 dB |
+
+Long loops: a few cents of tuning, which the zone `tune` words could account for
+and which is the same order as the five-cent global difference measured earlier.
+Short loops: a real difference in what comes out of the decoder, with the level
+offset riding on it. Those want separate investigations, and only the second is
+about the sample path.
+
 ## Credit
 
 The patch and tone field layout comes from
