@@ -2230,6 +2230,47 @@ is excluded, and the chip's gain path is flat. What remains is the decoder itsel
 on short loops, and finding it needs a fresh look rather than another lap of the
 same probe.
 
+## An observation about zone selection, NOT yet a finding
+
+Tracing the chip's decoder address sample by sample -- the full address, page
+included, taken from `ram1[4]` after it is written -- turns up something that
+would matter a great deal if it holds up. **It is recorded here as an
+observation, not a finding, because the harness that produced it has been wrong
+four times in this session already and this claim deserves better evidence than
+that.**
+
+On the synthetic single-tone patch with wave 30 Alto Sax 1, the addresses the
+chip reads sit inside these samples:
+
+| note | chip's sample | its root | our sample | its root |
+|---|---|---|---|---|
+| 50 | 203 | 53 | 201 | 47 |
+| 62 | 204 | 56 | **204** | **56** |
+| 74 | 204 | 56 | 209 | 71 |
+| 78 | 205 | 59 | 210 | 74 |
+| 82 | 205 | 59 | 211 | 80 |
+| 86 | 205 | 59 | 211 | 80 |
+
+At note 82 the chip's addresses span 3923716..3923845, which is exactly sample
+205's loop, while this engine is in sample 211's. Same pitch, different sample --
+which would account for the whole short-loop divergence at a stroke: correlation
+0.57, +6.7 dB, and a spectrum that differs everywhere.
+
+**Three things argue against taking it at face value.** This engine's selection
+follows the split table exactly -- zone 9 covers to note 79 and zone 10 to 93, so
+note 82 is zone 10 -- and on A57 Slap Bass the level ratio was measured stepping
+at the split boundaries and nowhere else, which says the rule is right there. The
+chip barely moves across the keyboard here, staying in roots 53 to 59 over three
+octaves, which is not what a multisample is for. And at note 86 from root 59 the
+rate would be 4.76 while the chip's decoder advances at most four steps per
+output sample, so it could not reach that pitch from that sample at all.
+
+Either the trace is reading the wrong slot, or `ram1[4]` is not what it appears
+to be at the moment it is sampled, or the zone selection genuinely differs and
+the pitch is arrived at some other way. Resolving that needs a second, independent
+handle on which sample is sounding -- the obvious one being to zero a candidate
+sample's bytes in the wave blob and hear which notes go silent.
+
 ## Credit
 
 The patch and tone field layout comes from
