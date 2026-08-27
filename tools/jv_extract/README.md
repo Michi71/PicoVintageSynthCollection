@@ -2025,6 +2025,79 @@ A52 at 0.046, B13 at 0.022). Some byte the synthetic patch forces is responsible
 and it has not been found, so any low-note measurement made with that patch
 should be discarded.
 
+## The probe repaired: +39's pan keyfollow is neutral at 7, not 0
+
+The warning in the note above -- that the synthetic single-tone patch produces no
+sound on the reference below about note 48 -- has a cause, and it was mine.
+
+Bisecting the patch's overrides one group at a time against an unmodified A01
+found it at once. The tone byte `+39` packs the pan keyfollow in its HIGH nibble
+and the random pitch in its low one, and the pan keyfollow is a fifteen-step
+field running -100 % to +100 % about C4. **Its neutral is step 7. Setting the
+byte to zero asks for -100 %**, which walks a tone three octaves below C4 hard to
+one side -- and the probe measures the left channel only. Setting `T[39] = 0x70`
+instead, the reference sounds at every note: 0.0472, 0.0468, 0.0463 and 0.0454
+RMS at notes 24, 36, 48 and 60.
+
+That invalidates every low-note measurement made with that patch, including the
+one in the note above. The engine reads `+39` correctly; only the probe did not.
+
+**With it fixed**, the isolated sample path -- one tone, white noise, filter off,
+envelope flat -- reads:
+
+| note | 24 | 36 | 48 | 60 | 72 | 84 | 96 |
+|---|---|---|---|---|---|---|---|
+| reference | 0.04724 | 0.04681 | 0.04629 | 0.04536 | 0.04368 | 0.04140 | 0.04002 |
+| this engine | 0.04916 | 0.04927 | 0.04917 | 0.04920 | 0.04933 | 0.04955 | 0.04934 |
+| difference | +0.34 dB | +0.45 | +0.53 | +0.71 | +1.06 | +1.56 | +1.82 |
+
+**The reference loses 1.4 dB as the note rises and this engine loses nothing.**
+That is the tilt, isolated: not in the chip's gain path, which the register
+readout showed is flat, but in what reaches it.
+
+**One caveat, stated rather than buried.** The reference generates at 64 kHz and
+resamples to 32, so it carries an anti-alias filter this engine does not. White
+noise played faster puts more of its energy where that filter works, which on
+this particular test signal could produce the whole fall on its own. The tilt
+measured here may therefore belong to the reference's implementation rather than
+to the machine, and a real instrument tone would show less of it. Before this is
+chased further it should be repeated on a harmonic wave, where the aliasing story
+does not apply.
+
+**Repeated, and it splits.** Measured full-band and again with everything above
+8 kHz removed, where the anti-alias filter cannot reach:
+
+| wave | tilt, full band | tilt, below 8 kHz |
+|---|---|---|
+| 74 White Noise | +1.14 dB | **-0.04 dB** |
+| 30 Alto Sax 1 | +4.08 dB | +4.10 dB |
+| 12 Mute GTR 1 | +1.88 dB | +1.89 dB |
+
+On noise the tilt vanishes under band-limiting and what remains is a flat +0.2 dB
+across the keyboard -- so that one was the reference's resampling, exactly as
+suspected. On the harmonic waves it survives untouched, so there it is real.
+
+**But it is not a level offset.** Compared band by band rather than as one
+number, the harmonic tones do not differ by a gain: on Alto Sax the third-octave
+correlation runs 0.745 to 0.945 and the residual scatter about the median is
+**7 to 14 dB**, with the median itself swinging from +5.96 dB at note 36 to
+-8.29 dB at note 84. Mute GTR 1 is tighter (0.927 to 0.992, scatter 2.3 to
+10.8 dB) but the same in kind. The two engines produce different spectra on these
+isolated tones, and the broadband RMS difference is only what that summarises to.
+
+So the "~2.4 dB level offset" is probably the wrong framing. There is no single
+gain that would close it, and the per-note numbers depend on which wave is used.
+What is worth measuring instead is the spectral difference itself, wave by wave,
+and whether it tracks transposition -- both waves agree best near their zone
+roots (Alto Sax 0.945 at note 60, four semitones from its root) and worst far
+from them.
+
+A caution for repeating this: per-harmonic comparison does not work on these
+samples. Alto Sax 1's strongest partial is not its fundamental once transposed,
+and a detector centred on the expected pitch reads 51, 369 and 234 cents of error
+on the REFERENCE at notes 36, 48 and 72 -- it is finding a different partial, not
+a detuning.
+
 ## Credit
 
 The patch and tone field layout comes from
