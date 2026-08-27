@@ -230,6 +230,14 @@ typedef struct {
     // pitch early in that note, and it has not been found. Removing the block
     // on the strength of the sweep alone would be a regression.
     //
+    // On "something raises the machine's pitch": a direct measurement has since
+    // put a number on the tuning difference and it is small and constant. This
+    // engine plays equal temperament to about a cent; the reference plays about
+    // FIVE cents flat of it, the same across notes 48..79 and across waves 0,
+    // 12, 30 and 60. That is nowhere near enough to account for B63's duration,
+    // so the duration argument above stands on its own and is still unexplained.
+    // See README.md, "The pitch offset: five cents, and a retraction".
+    //
     // Stakes are small either way: 68 of 539 tones set a depth, 66 of those
     // move their levels, and only 13 have a segment slow enough to hear rather
     // than a blip of a few milliseconds -- four of the thirteen being the four
