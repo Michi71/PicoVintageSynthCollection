@@ -2271,6 +2271,40 @@ the pitch is arrived at some other way. Resolving that needs a second, independe
 handle on which sample is sounding -- the obvious one being to zero a candidate
 sample's bytes in the wave blob and hear which notes go silent.
 
+## The zone-selection observation was the probe again -- and what fell out of it
+
+The observation in the note above -- that the chip appears to play sample 205
+where this engine plays 211 -- is **withdrawn. It was the probe, for the fifth
+time this session.** What it left behind is worth more than the false lead.
+
+**How it was settled.** The wave ROM cannot be patched on disk, but it can be
+zeroed in the emulator's memory after the SHA1 check, which only guards the
+files. Zeroing one sample's bytes and hearing which notes go silent is a handle
+on zone selection that owes nothing to the address trace. With the synthetic
+patch as it stood, zeroing sample 205 silenced notes 78, 82 and 86 outright while
+zeroing 211 changed nothing at all -- so the trace was reporting truly, and the
+machine really was playing 205.
+
+**Why.** The synthetic patch set tone byte +40 to 119. That byte packs the pitch
+keyfollow, and 119 is nibbles 7 and 7. Measured, a tone with +40 = 119 moves from
+208 Hz at note 40 to 360 Hz at note 92 -- **9.5 semitones over 52 keys, about
+18 % tracking**. It was never near note 82 in pitch, so the firmware picked a low
+zone, correctly. Set to A01's own 124 the map becomes sample 203 at note 57, 204
+at 60, 205 at 63 and **211 at notes 81, 84, 88 and 92** -- exactly what the split
+table says. **This engine's zone selection is right.**
+
+**What fell out.** The pitch keyfollow is the **low** nibble of +40, and its
+"one octave per twelve keys" value is **12**, not the 7 that reads as neutral
+everywhere else in this ROM. Nibble 7 is about +18 %; nibble 0 runs the pitch
+*down* as the key rises, so it is around -100 %.
+
+That matters because this engine reads none of +40 and assumes +100 % for every
+tone. Across the three banks, **507 of 539 tones carry 12 and 32 do not** -- they
+carry 5, 6, 7, 8 or 10, which on the two measured points would be somewhere
+between -30 % and +100 %. Those 32 tones track the keyboard wrongly here, and
+they are the ones to check next. The high nibble is 7 on 534 of 539, so whatever
+it holds is near enough constant to ignore for now.
+
 ## Credit
 
 The patch and tone field layout comes from
