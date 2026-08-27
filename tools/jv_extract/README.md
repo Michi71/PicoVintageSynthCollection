@@ -1330,6 +1330,46 @@ Until such a recording exists, leaving the reverb as it is and saying so
 plainly, as `README.md` and `Engine::Reverb` both do, beats rebuilding it around
 numbers of unknown provenance.
 
+## The velocity window, and the switch that turns it on
+
+Each tone carries a velocity window at +03/+04. The window is real, but it is
+*conditional*: it only gates while bit 7 of the patch common byte at +12 — the
+patch velocity switch — is set. Miss that condition and the bytes look wrong in
+both directions, which is exactly what happened here, twice.
+
+Gating on them unconditionally silenced six bank-A basses below velocity 61.
+St Fretless, House Bass, Thumpin Bass, Pick Bass, Wonder Bass and Yowza Bass
+all carry +03 = 61 on every tone, so under an unconditional reading they have
+nothing at all to play below that velocity, while the reference plays them.
+Across bank A that was 70 of 1600 cells sounding on the reference and silent
+here. So the gate came out.
+
+Not gating at all sounds tones the machine keeps silent. A20 Marimba SW is the
+audible case: its third tone is wave 78 "Anklungs", windowed to 126..127, and
+playing it at every velocity lays a rattle under the marimba — about 12 Hz,
+26 % of the modulation energy in the 8–16 Hz band against 1.3 % for the
+reference. It is loud, too: above 1 kHz the engine carried 50–60 dB more
+energy than the machine.
+
+The switch settles it. Measured on the reference at note 60, A20 has no
+high-frequency content at velocity 100 (−35.2 dB against its own fundamental)
+and +25.9 dB of it at velocity 127 — the windowed layer coming in exactly where
++03 says it should. And bank A splits without a single exception: of the 27
+patches carrying a window at all, the 10 whose window must be ignored have the
+switch clear, and the 17 whose window must bite have it set. The second group
+is precisely the velocity-layered material — the Rhodes family, SwitchOnMute,
+Velo Harmnix, Slap Bass, Marimba SW.
+
+With the condition in place, at note 60 and velocities 20/40/100/127 there is
+no patch in banks A and B that the machine sounds and this engine does not.
+Of the 21 patches whose window can bite, none got further from the reference
+and two moved a long way toward it: SwitchOnMute 0.325 → 0.785 and Marimba SW
+−0.008 → 0.444 in third-octave band similarity.
+
+One caveat worth keeping: the manual's own wording for bit 7 is that it
+*disables* velocity response, which is the opposite of what bank A shows. The
+reading here is the measured one.
+
 ## Credit
 
 The patch and tone field layout comes from

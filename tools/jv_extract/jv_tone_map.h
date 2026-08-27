@@ -113,23 +113,37 @@ typedef struct {
                                 //     125 Hz square wave on the playback rate,
                                 //     2.17 % per panel step. Measured -- see
                                 //     jv_calibration.h.
-    uint8_t velocityRangeLow;   // +03 DISPROVEN  the manual calls this a velocity
-                                //     window's lower bound. It is not one, or not one the
-                                //     machine gates on: forced to 127 in a patch written
-                                //     into the reference's temporary patch area -- which
-                                //     under that reading silences the tone below velocity
-                                //     127 -- its output is unchanged at every velocity.
-    uint8_t velocityRangeUp;    // +04 DISPROVEN  likewise, forced to 30 and nothing moves.
-                                //     The engine gated on these two until 26.08.2026 and
-                                //     that silenced six bank-A basses (St Fretless, House
-                                //     Bass, Thumpin Bass, Pick Bass, Wonder Bass, Yowza
-                                //     Bass) below velocity 61, where every one of their
-                                //     tones carries +03 = 61. Whatever these bytes are,
-                                //     do not gate on them.
-                                //     NOTE: the machine DOES gate somewhere -- the user
-                                //     patch "Dist Line" is silent on the reference at
-                                //     velocity 20 and sounds here, at -57 dBFS. Whatever
-                                //     does that is still unfound.
+    uint8_t velocityRangeLow;   // +03 VERIFIED  velocity window, lower bound -- but the
+                                //     window only gates while bit 7 of the patch common
+                                //     byte (+12, the patch velocity switch) is SET. That
+                                //     condition is the whole reason these two bytes read
+                                //     as disproven twice: a probe that forces +03 to 127
+                                //     in a patch whose switch is clear changes nothing,
+                                //     because the machine is not consulting the window at
+                                //     all, and gating unconditionally silenced six bank-A
+                                //     basses (St Fretless, House Bass, Thumpin Bass, Pick
+                                //     Bass, Wonder Bass, Yowza Bass) below velocity 61,
+                                //     every one of which carries +03 = 61 with the switch
+                                //     CLEAR.
+    uint8_t velocityRangeUp;    // +04 VERIFIED  upper bound, same condition.
+                                //     Bank A splits without a single exception: of the 27
+                                //     patches carrying a window at all, the 10 whose window
+                                //     must be ignored have the switch clear and the 17
+                                //     whose window must bite have it set -- the latter are
+                                //     exactly the velocity-layered ones (the Rhodes family,
+                                //     SwitchOnMute, Velo Harmnix, Slap Bass, Marimba SW).
+                                //     Measured on the reference at note 60: A20 Marimba SW,
+                                //     whose third tone is windowed to 126..127 with the
+                                //     switch set, carries no high-frequency content at all
+                                //     at velocity 100 (-35.2 dB against its own fundamental)
+                                //     and +25.9 dB of it at velocity 127 -- the switched
+                                //     layer coming in exactly where the window says. Playing
+                                //     that layer at every velocity is audible as a rattle
+                                //     under the marimba, around 12 Hz.
+                                //     NOTE: the machine gates somewhere else as well -- the
+                                //     user patch "Dist Line" is silent on the reference at
+                                //     velocity 20 and sounds here, at -57 dBFS, with no
+                                //     window in play. Whatever does that is still unfound.
     uint8_t matrixModDestAB;    // +05 VERIFIED dest A = low nibble, B = high nibble
     uint8_t matrixModDestCD;    // +06 UNVERIFIED assumed dest C/D, same packing
     uint8_t matrixModSensA;     // +07 VERIFIED signed, +-63; 64..127 disables. Pitch dest: 19.05 cents/unit
@@ -276,7 +290,13 @@ typedef struct {
     uint8_t revChorConfig;      // bits0-3 reverb type, 4-5 chorus type, 7 velocity
                                 //     reverb type 0..7 = ROOM1, ROOM2, STAGE1, STAGE2, HALL1,
                                 //     HALL2, DELAY, PAN-DLY; chorus type 0..2. Bit 7 is the
-                                //     patch velocity switch, which disables velocity response.
+                                //     patch velocity switch. VERIFIED as the enable for the
+                                //     per-tone velocity window at +03/+04: set, the window
+                                //     gates; clear, the machine ignores it and every tone
+                                //     sounds at every velocity. The engine reads it in
+                                //     noteOn(). An earlier note here had it the other way
+                                //     round, as something that "disables velocity response";
+                                //     bank A contradicts that without exception -- see +03.
     uint8_t reverbLevel;
     uint8_t reverbTime;         //     also the delay time when the type is DELAY / PAN-DLY
     uint8_t reverbFeedback;     //     only meaningful for DELAY / PAN-DLY
