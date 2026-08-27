@@ -887,7 +887,13 @@ void Engine::startVoice(Voice& v, int toneIndex, uint8_t note, uint8_t vel,
     v.velocity = vel;
     v.tone = (uint8_t)toneIndex;
     v.smp = s;
-    // A reverse sample starts at the far end and walks down to `start`.
+    // A reverse sample starts at the far end and walks down to `start`. It has
+    // to be `end` and not the loop point: the decoder is a differential
+    // integrator started at zero, so a backward walk from address A puts out
+    // v(A) - v(n) and carries v(A) as DC. This sample's deltas sum to exactly
+    // zero over the body, which makes v(end) exactly 0 and v(loop) 1584 against
+    // an RMS of 3865 -- starting at the loop point measures 88-99 % DC at the
+    // output where the reference has 8-11 %. See tools/jv_extract/README.md.
     v.addr = s.reverse ? s.end : s.start;
     v.phase = 0;
     v.ref = 0;
