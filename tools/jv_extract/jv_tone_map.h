@@ -210,8 +210,31 @@ typedef struct {
     uint8_t tvpEnvTime3;        // +48 VERIFIED acts on pitch
     uint8_t tvpEnvLevel3;       // +49 MANUAL  bipolar
     uint8_t tvpEnvTime4;        // +50 MANUAL  release segment of the pitch envelope
-    uint8_t tvpEnvLevel4;       // +51 MANUAL  bipolar. The whole pitch envelope is unimplemented:
-                                //     the engine reads none of +40..+51.
+    uint8_t tvpEnvLevel4;       // +51 MANUAL  bipolar.
+    // ------------------------------------------------------------------
+    // A byte-by-byte sweep of the whole 84-byte tone record against the
+    // reference, with a pitch envelope armed at maximum depth and a segment
+    // long enough to glide for a second, found NO byte in +40..+51 that moves
+    // the sounding pitch. Of all 84, only +37 and +38 (the two tunings), +39's
+    // low nibble (random pitch, which at 15 draws over +-1200 cents) and +01
+    // (a different wave) do. A factory patch bears it out: B23 GlassVoices
+    // gives its third tone depth 250 with a 400 ms segment, and the reference
+    // holds a flat 262.5 Hz through the whole note, exactly as this engine
+    // does.
+    //
+    // That is a negative result and it is left standing rather than acted on,
+    // because one measurement pulls the other way: this engine's own pitch
+    // envelope makes B63 RevCymBend end at 2.8 s, which is when the reference
+    // ends, and switching it off pushes the ending out to 3.6 s and the band
+    // similarity down from 0.867 to 0.841. So something raises the machine's
+    // pitch early in that note, and it has not been found. Removing the block
+    // on the strength of the sweep alone would be a regression.
+    //
+    // Stakes are small either way: 68 of 539 tones set a depth, 66 of those
+    // move their levels, and only 13 have a segment slow enough to hear rather
+    // than a blip of a few milliseconds -- four of the thirteen being the four
+    // tones of B63 itself.
+    // ------------------------------------------------------------------
     uint8_t tvfCutoff;          // +52 VERIFIED cutoff, 431 Hz * 2^(v/17.93); needs +55 != OFF
     uint8_t tvfResonance;       // +53 VERIFIED resonance: level and brightness rise together
     uint8_t tvfTimeKFKeyfollow; // +54 PARTIAL reacts; period-2 alternation confirms it is packed

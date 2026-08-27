@@ -1415,6 +1415,48 @@ full negative deflection over T2, which changes how fast the reversed body is
 traversed and so where its swell lands. That makes the pitch envelope the first
 thing to check, and it is not checked yet -- so this is a lead, not a finding.
 
+## The pitch envelope, and a lead that did not survive
+
+B63 RevCymBend was left with a residual: the right swell, ending at the right
+moment, but 6.5 dB under the reference at its peak and 27 dB under in the
+middle. The patch bends -- coarse -8, depth 12, a full negative deflection over
+T2 -- so the pitch envelope was named as the first thing to check, on the
+reasoning that a wrong pitch traverses a reversed sample at the wrong speed.
+It was checked. It is not the cause.
+
+**The sweep.** Every one of the 84 tone bytes was written into the reference's
+temporary patch area at 0 and 127, on a synthetic single-tone patch held
+forever, with a pitch envelope armed at maximum depth and a T2 long enough to
+glide audibly within the measured second. Four bytes move the sounding pitch:
++37 and +38, the two tunings; +39, whose low nibble is the random pitch and at
+15 draws over +-1200 cents; and +01, which is simply a different wave. Nothing
+in +40..+51 moves it at all. The harness is sound -- +67 sweeps the level
+cleanly from silence to 0.086 RMS across the same range, and +37 tracks the
+keyboard in exact semitones (value 8 gives +8, 16 gives +16, 24 gives +24).
+
+A factory patch says the same. B23 GlassVoices gives its third tone depth 250
+with a 400 ms segment, and the reference holds a flat 262.5 Hz through the
+note -- as does this engine.
+
+**Why it is not acted on.** One measurement pulls the other way. This engine's
+pitch envelope puts an octave on B63 at note-on and glides it down, and with
+that in place the note ends at 2.8 s, which is exactly when the reference ends;
+switched off, the ending moves out to 3.6 s and third-octave band similarity
+falls from 0.867 to 0.841. Coarse -8 alone predicts 3.19 s, so the machine is
+running that note about two semitones sharp of what the tuning bytes account
+for, and where that comes from is unknown. Deleting the block on the strength
+of the sweep would trade a modelled sweep for a wrong duration.
+
+**Stakes.** 68 of 539 tones set a depth and 66 of those move their levels, but
+only 13 have a segment slow enough to hear as a sweep rather than a blip of a
+few milliseconds -- and four of the thirteen are the four tones of B63. The
+others are User29 Glasswaves, User49 UTAKATA, User56 Glass Pad, User62 Arctic
+Winds, User63 DistanceCall, B23 GlassVoices and B59 JP-8 Pad. Switching the
+envelope off changed none of them by more than 0.02 in similarity.
+
+So: the residual on B63 is still unexplained, and the pitch envelope is no
+longer a candidate.
+
 ## Credit
 
 The patch and tone field layout comes from
