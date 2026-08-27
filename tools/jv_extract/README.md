@@ -2064,6 +2064,40 @@ to the machine, and a real instrument tone would show less of it. Before this is
 chased further it should be repeated on a harmonic wave, where the aliasing story
 does not apply.
 
+**Repeated, and it splits.** Measured full-band and again with everything above
+8 kHz removed, where the anti-alias filter cannot reach:
+
+| wave | tilt, full band | tilt, below 8 kHz |
+|---|---|---|
+| 74 White Noise | +1.14 dB | **-0.04 dB** |
+| 30 Alto Sax 1 | +4.08 dB | +4.10 dB |
+| 12 Mute GTR 1 | +1.88 dB | +1.89 dB |
+
+On noise the tilt vanishes under band-limiting and what remains is a flat +0.2 dB
+across the keyboard -- so that one was the reference's resampling, exactly as
+suspected. On the harmonic waves it survives untouched, so there it is real.
+
+**But it is not a level offset.** Compared band by band rather than as one
+number, the harmonic tones do not differ by a gain: on Alto Sax the third-octave
+correlation runs 0.745 to 0.945 and the residual scatter about the median is
+**7 to 14 dB**, with the median itself swinging from +5.96 dB at note 36 to
+-8.29 dB at note 84. Mute GTR 1 is tighter (0.927 to 0.992, scatter 2.3 to
+10.8 dB) but the same in kind. The two engines produce different spectra on these
+isolated tones, and the broadband RMS difference is only what that summarises to.
+
+So the "~2.4 dB level offset" is probably the wrong framing. There is no single
+gain that would close it, and the per-note numbers depend on which wave is used.
+What is worth measuring instead is the spectral difference itself, wave by wave,
+and whether it tracks transposition -- both waves agree best near their zone
+roots (Alto Sax 0.945 at note 60, four semitones from its root) and worst far
+from them.
+
+A caution for repeating this: per-harmonic comparison does not work on these
+samples. Alto Sax 1's strongest partial is not its fundamental once transposed,
+and a detector centred on the expected pitch reads 51, 369 and 234 cents of error
+on the REFERENCE at notes 36, 48 and 72 -- it is finding a different partial, not
+a detuning.
+
 ## Credit
 
 The patch and tone field layout comes from
