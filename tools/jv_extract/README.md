@@ -2098,6 +2098,41 @@ and a detector centred on the expected pitch reads 51, 369 and 234 cents of erro
 on the REFERENCE at notes 36, 48 and 72 -- it is finding a different partial, not
 a detuning.
 
+## Not transposition -- the zone, and the loop inside it
+
+The note above guessed that the spectral difference on isolated tones tracks how
+far a note sits from its zone root. **It does not, and that guess is withdrawn** --
+it rested on two points. Measured across seventeen notes of Alto Sax 1 and
+grouped by distance from the root, the third-octave correlation is flat: 0.827
+at 0-2 semitones, 0.864 at 3-5, 0.862 at 6-8, 0.803 at 9-20.
+
+**What it tracks is the zone.** The level offset is constant *within* a zone and
+grows with the zone index. Notes 82, 86 and 90 all sit in zone 10 at +2, +6 and
++10 semitones from its root, and all three read **+6.7 dB**; zone 0 reads +1.3,
+zone 6 +4.4, zone 8 +5.7.
+
+**Aliasing is not the cause**, and that is now measured rather than assumed:
+rendering this engine at 128 kHz and band-limiting it properly back to 32 changes
+nothing at all -- correlation 0.744 against 0.745, scatter identical to a tenth of
+a decibel, RMS identical to a tenth. Whatever it is, it survives four times the
+headroom.
+
+**It correlates with the loop.** Against the logarithm of the loop length across
+Alto Sax's zones the offset gives **r = -0.81**: 258 frames of loop at +1.3 dB,
+182 at +2.4, 129 at +2.7, 53 at +5.5, 37 at +6.7. Short loops are exactly where
+a differential decoder's loop handling shows, since the wrap comes round tens of
+times a second and any per-pass difference compounds. That is the next thing to
+look at.
+
+**One gap found on the way.** The sample record's level byte at +17 is read into
+`Sample::level` and **never used**. It is not constant: across the 577 samples it
+runs 0 to 127 with 40 % of them away from the median 127, which read linearly
+would be 42 dB of range. It does not explain Alto Sax, whose zones all carry 120,
+but it will matter elsewhere. Applied as a straight linear gain it moves the mean
+absolute level error over the bank from 4.09 dB to 3.85 -- and silences a patch,
+because bytes of 0 exist and this ROM gives every other level byte its own dB
+curve. It needs that curve measured before it can be used.
+
 ## Credit
 
 The patch and tone field layout comes from
