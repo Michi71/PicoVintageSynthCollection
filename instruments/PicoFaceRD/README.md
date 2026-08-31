@@ -207,13 +207,19 @@ Encoder **Select** switches the page (with wrap-around), encoders **A** and **B*
 | Page | Encoder A | Encoder B |
 |---|---|---|
 | PATCH | Instrument 1–16 (header shows the bank: `MKS-20` / `MK-80`) | Volume |
-| CHORUS | Depth (0 % = off) | Rate |
-| TREMOLO | Depth (0 % = off) | Rate |
-| PHASER | Depth (0 % = off) | Rate (0.1–5 Hz) |
+| CHORUS | Depth (0 % = off) | Rate, shown in Hz (0.37–5.71) |
+| TREMOLO | **Pan** (0 % = off) — it moves the image, it does not dip the level | Rate, shown in Hz (0.48–7.70) |
+| PHASER | Depth (0 % = off) | Rate, shown in Hz (0.10–5.00) |
 | EQ | Bass (50 % = neutral) | Treble (50 % = neutral) |
 | VOICES | Polyphony 8/16/24/32/**Auto** | — (line B shows live `Act <active>/<limit>`) |
 | TUNE | Master tune ±50 cents | — (line B shows the resulting A4 frequency) |
 | SYS | Vintage DAC filter ON/OFF | MIDI receive channel 1–16 / Omni |
+
+The chorus and tremolo rates are shown in Hz because the figures mean something:
+both service manuals tabulate the LFO period for all fifteen settings, and the
+laws live in one place (`rd_params.h`) so the display cannot drift away from the
+thing it is describing. Verified against the engine: 0.9 % at the slowest
+setting, 0.2 % elsewhere.
 
 The footer shows a live diagnostics line: `<instrument> P<peak-load %> U<buffer underruns> D<dropped events> A<active voices> N<note-on count>`.
 

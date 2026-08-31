@@ -254,7 +254,7 @@ const char *RD_Controller::param2Name() const {
     switch (page_) {
         case RdPage::PATCH:   return "Instr";
         case RdPage::CHORUS:  return "Depth";
-        case RdPage::TREMOLO: return "Depth";
+        case RdPage::TREMOLO: return "Pan";   // it moves the image, it does not dip the level
         case RdPage::PHASER:  return "Depth";
         case RdPage::EQ:      return "Bass";
         case RdPage::VOICES:  return "Voices";
