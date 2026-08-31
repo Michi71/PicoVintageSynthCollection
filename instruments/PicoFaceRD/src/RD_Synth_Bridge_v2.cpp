@@ -76,8 +76,19 @@ const uint8_t RD_Synth_Bridge::s_voiceModeTable[4] = {8, 16, 24, 32};
 
 uint8_t RD_Synth_Bridge::autoBaseLimit() const
 {
-    // Proven per-rate caps; instrument_ must already reflect the new rate.
-    return (s_sampleRates[instrument_] == 32000) ? 12 : 16;
+    // The machine's own limit, not ours. Both service manuals give polyphony per
+    // voice -- MKS-20 "NOTE 16 / 10", MK-80 "Voices 16 max / 10 max" -- and the
+    // split lands exactly on the sample rate: every 16-voice sound in either
+    // list is one of our 20 kHz patches, every 10-voice sound one of our 32 kHz
+    // ones, sixteen for sixteen. Which also says why:
+    //
+    //     16 x 20000 = 320000    voice slots per second
+    //     10 x 32000 = 320000
+    //
+    // A fixed slot budget in the S/A chip, spent either way. The 12 that used to
+    // stand here would have been 384000, twenty percent more than the hardware
+    // has. instrument_ must already reflect the new rate.
+    return (uint8_t)(320000 / s_sampleRates[instrument_]);
 }
 
 void RD_Synth_Bridge::applyVoiceMode(bool resetAuto)

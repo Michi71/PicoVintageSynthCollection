@@ -219,7 +219,7 @@ The footer shows a live diagnostics line: `<instrument> P<peak-load %> U<buffer 
 
 ### Voice governor (Auto mode)
 
-In **Auto**, the polyphony limit follows the CPU load: the base limit is the proven per-rate cap (16 voices for 20 kHz patches, 12 for 32 kHz). When the instantaneous render load reaches 90 % — or a buffer underrun is detected — the governor cuts the limit (down to a floor of 6), and excess voices are faded out within a single 64-sample block (~3 ms, click-free) instead of waiting for their natural decay. Recovery is deliberately slow (+1 voice per 700 ms, only below 70 % load) to avoid pumping. Manual settings bypass the governor entirely.
+In **Auto**, the polyphony limit follows the CPU load: the base limit is the machine's own per-rate cap (16 voices for 20 kHz patches, 10 for 32 kHz -- both service manuals give polyphony per voice, and the split lands exactly on the sample rate, sixteen sounds for sixteen; 16 x 20000 = 10 x 32000 = 320000 voice slots per second, which is the S/A chip's fixed budget). When the instantaneous render load reaches 90 % — or a buffer underrun is detected — the governor cuts the limit (down to a floor of 6), and excess voices are faded out within a single 64-sample block (~3 ms, click-free) instead of waiting for their natural decay. Recovery is deliberately slow (+1 voice per 700 ms, only below 70 % load) to avoid pumping. Manual settings bypass the governor entirely.
 
 ## Building
 
