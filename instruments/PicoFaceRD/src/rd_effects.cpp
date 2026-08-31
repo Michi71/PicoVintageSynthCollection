@@ -94,7 +94,7 @@ void RD_VintageFX::init(float sampleRate)
 // Chorus LFO frequency for a 0..1 setting, from the service notes' CP3 table.
 static inline float chorusLfoHz(float rate01)
 {
-    return 0.370f + 5.344f * rate01;
+    return rd_chorus_rate_hz(rate01);          // law lives in rd_params.h
 }
 
 // Sweep width in samples. The CP3 table gives the LFO amplitude as well as the
@@ -149,7 +149,11 @@ void RD_VintageFX::setSampleRate(float sr)
     bbdLpCoef_ = onePoleCoef(fminf(6000.0f, 0.4f * sr), sr);
 
     // Tremolo LFO: 0.5..8 Hz
-    tremInc_ = (0.5f + 7.5f * tremRate_) / sr;
+    // Measured like the chorus: the CP4 table runs 2100 ms down to 130 ms, which
+    // is 0.476..7.692 Hz. The 0.5..8.0 that stood here was up to 9.8 % out; the
+    // measured fit halves that and hits both ends exactly. It also has to be
+    // right now that the display prints the figure.
+    tremInc_ = rd_trem_rate_hz(tremRate_) / sr;
 
     // Chorus LFO: 0.3..1.2 Hz
     // Measured, not guessed: the service notes tabulate the chorus LFO period at
@@ -159,7 +163,7 @@ void RD_VintageFX::setSampleRate(float sr)
     chorusInc_ = chorusLfoHz(chorusRate_) / sr;
 
     // Phaser rate mapping: 0.1..5 Hz over normalized 0..1
-    phRateHz_ = 0.1f * powf(10.0f, phaserRate_ * 1.69897000433601880479f);
+    phRateHz_ = rd_phaser_rate_hz(phaserRate_);
     phInc_    = phRateHz_ / sr;
 
     // Chorus delay centre + modulation depth in samples
@@ -218,7 +222,7 @@ void RD_VintageFX::setParam(uint8_t id, float v01)
 
     case RD_PARAM_TREM_RATE:
         tremRate_ = v01;
-        tremInc_  = (0.5f + 7.5f * tremRate_) / sampleRate_;
+        tremInc_  = rd_trem_rate_hz(tremRate_) / sampleRate_;
         break;
 
     case RD_PARAM_TREM_DEPTH:
@@ -245,7 +249,7 @@ void RD_VintageFX::setParam(uint8_t id, float v01)
 
     case RD_PARAM_PHASER_RATE:
         phaserRate_ = v01;
-        phRateHz_   = 0.1f * powf(10.0f, phaserRate_ * 1.69897000433601880479f);
+        phRateHz_   = rd_phaser_rate_hz(phaserRate_);
         phInc_      = phRateHz_ / sampleRate_;
         break;
 

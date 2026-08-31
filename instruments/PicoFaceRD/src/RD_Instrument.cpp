@@ -217,6 +217,22 @@ private:
             } else {
                 snprintf(m.lineB, sizeof(m.lineB), "MIDI Ch %d", (int) controller_.param3Value() + 1);
             }
+        } else if (controller_.currentPage() == RdPage::CHORUS ||
+                   controller_.currentPage() == RdPage::TREMOLO ||
+                   controller_.currentPage() == RdPage::PHASER) {
+            // Rates in Hz rather than percent. Two of the three are measured
+            // figures out of the service notes rather than a scale of our own
+            // (see rd_params.h), so the number means something -- and the TUNE
+            // page already sets the precedent of showing the physical value.
+            const float x = (float) controller_.param3Value() * 0.01f;
+            float hz;
+            switch (controller_.currentPage()) {
+                case RdPage::CHORUS:  hz = rd_chorus_rate_hz(x); break;
+                case RdPage::TREMOLO: hz = rd_trem_rate_hz(x);   break;
+                default:              hz = rd_phaser_rate_hz(x); break;
+            }
+            snprintf(m.lineA, sizeof(m.lineA), "%s %d%%", controller_.param2Name(), (int) controller_.param2Value());
+            snprintf(m.lineB, sizeof(m.lineB), "%s %.2fHz", controller_.param3Name(), (double) hz);
         } else {
             // Continuous params are stored as percent (0..100).
             snprintf(m.lineA, sizeof(m.lineA), "%s %d%%", controller_.param2Name(), (int) controller_.param2Value());
