@@ -207,19 +207,28 @@ Encoder **Select** switches the page (with wrap-around), encoders **A** and **B*
 | Page | Encoder A | Encoder B |
 |---|---|---|
 | PATCH | Instrument 1–16 (header shows the bank: `MKS-20` / `MK-80`) | Volume |
-| CHORUS | Depth (0 % = off) | Rate, shown in Hz (0.37–5.71) |
-| TREMOLO | **Pan** (0 % = off) — it moves the image, it does not dip the level | Rate, shown in Hz (0.48–7.70) |
-| PHASER | Depth (0 % = off) | Rate, shown in Hz (0.10–5.00) |
+| CHORUS | Depth (0 % = off) | Rate in Hz, 0.35–5.70 in 0.05 steps |
+| TREMOLO | **Pan** (0 % = off) — it moves the image, it does not dip the level | Rate in Hz, 0.50–7.70 in 0.05 steps |
+| PHASER | Depth (0 % = off) | Rate in Hz, 0.10–5.00 in 0.05 steps |
 | EQ | Bass (50 % = neutral) | Treble (50 % = neutral) |
 | VOICES | Polyphony 8/16/24/32/**Auto** | — (line B shows live `Act <active>/<limit>`) |
 | TUNE | Master tune ±50 cents | — (line B shows the resulting A4 frequency) |
 | SYS | Vintage DAC filter ON/OFF | MIDI receive channel 1–16 / Omni |
 
-The chorus and tremolo rates are shown in Hz because the figures mean something:
-both service manuals tabulate the LFO period for all fifteen settings, and the
-laws live in one place (`rd_params.h`) so the display cannot drift away from the
-thing it is describing. Verified against the engine: 0.9 % at the slowest
-setting, 0.2 % elsewhere.
+The three rates are shown in Hz and **each detent is exactly 0.05 Hz**, so the
+display always reads a round figure. The stored value is the grid index itself
+rather than a percent, which is what makes it exact -- there is no scale for the
+display and the engine to disagree about. The laws live in one place
+(`rd_params.h`); measured across every grid position, display and engine differ
+by at most 0.014 Hz, well inside half a step.
+
+Chorus and tremolo endpoints come from the service manuals, snapped to the grid:
+0.35–5.70 Hz against a measured 0.370–5.714, and 0.50–7.70 against 0.476–7.692.
+That moves them by at most 5 % at the bottom and 0.2 % at the top, comfortably
+inside the scatter of the manuals' own tables. The phaser is not in either table
+-- it is an MK-80 effect -- and its rate went from exponential to linear for the
+sake of the same grid; if the slow end feels too coarse, that is the thing to
+revisit.
 
 The footer shows a live diagnostics line: `<instrument> P<peak-load %> U<buffer underruns> D<dropped events> A<active voices> N<note-on count>`.
 

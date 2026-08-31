@@ -224,13 +224,9 @@ private:
             // figures out of the service notes rather than a scale of our own
             // (see rd_params.h), so the number means something -- and the TUNE
             // page already sets the precedent of showing the physical value.
-            const float x = (float) controller_.param3Value() * 0.01f;
-            float hz;
-            switch (controller_.currentPage()) {
-                case RdPage::CHORUS:  hz = rd_chorus_rate_hz(x); break;
-                case RdPage::TREMOLO: hz = rd_trem_rate_hz(x);   break;
-                default:              hz = rd_phaser_rate_hz(x); break;
-            }
+            // The stored value IS the 0.05 Hz grid index, so this is exact --
+            // no scale conversion to disagree with the engine about.
+            const float hz = rd_rate_hz_from_idx(controller_.param3Value());
             snprintf(m.lineA, sizeof(m.lineA), "%s %d%%", controller_.param2Name(), (int) controller_.param2Value());
             snprintf(m.lineB, sizeof(m.lineB), "%s %.2fHz", controller_.param3Name(), (double) hz);
         } else {
