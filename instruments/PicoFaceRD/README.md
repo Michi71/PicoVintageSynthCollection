@@ -291,6 +291,52 @@ analysis toolchain is documented in
 
 [tools/rd_midi/](../../tools/rd_midi/) holds MIDI utilities for testing: `midi_keyboard_only.py` strips a Standard MIDI File down to pure keyboard performance (notes, damper, pitch bend) so sequencer dumps can be replayed against the device.
 
+### What the service notes settled
+
+The MKS-20 Service Notes (Roland, June 1986) turned up after the effect chain
+was already written from the block diagram and the ear. Three things came out
+of the CPU-B board schematic and the adjustment tables.
+
+**The reconstruction filter was right.** The DAC output runs through FL1
+(`0538-014`, a Roland custom low-pass module whose internals the schematic does
+not show) and then an inverting stage on IC1 (µPC4570) whose feedback is
+R14 33k in parallel with C7 1200 pF -- a pole at **4019 Hz**. Against the
+measured response of the vintage DAC stage in `rd_effects.cpp`:
+
+| | 2 kHz | 4 kHz | 6 kHz | 8 kHz | 12 kHz |
+|---|---|---|---|---|---|
+| this engine | −0.8 | −2.8 | −5.1 | −7.2 | −10.1 dB |
+| pole at 4019 Hz | −0.96 | −2.99 | −5.09 | −6.96 | −9.96 dB |
+
+Within 0.24 dB across the band. A stage that was guessed turns out to match the
+hardware; the guess stands, now with a source behind it.
+
+(The schematic also shows *two* channels with different poles -- the second is
+R11 33k with C6 820 pF, 5882 Hz -- fed from one time-multiplexed PCM54 through
+HI-201 analogue switches and summed by IC2 at a gain of 1.5. Whether those two
+correspond to the 20 kHz and 32 kHz voice groups is a guess the schematic does
+not support.)
+
+**The DAC is 16 bit, not 12.** The parts list names IC4 as a `PCM 54`, "16 bit
+D/A converter". The stage here requantized to 12 bits, and did it with a cast,
+which truncates toward zero and so leaves a dead band one LSB wide either side
+of silence. Measured on a 441 Hz tone, THD+N improved by 14.2 dB at −20 dBFS,
+27.3 dB at −40 dBFS and 33.1 dB at −60 dBFS. Worse than the numbers: the 12-bit
+step over ±1.0 is −66.2 dBFS, so with truncation **everything below about
+−66 dBFS came out as digital silence**. A piano tail did not fade, it stopped.
+
+**The chorus LFO was nearly five times too slow at the top.** The adjustment
+section tabulates the LFO period at CP3 for all fifteen settings, 2700 ms down
+to 175 ms. That is 0.370 to 5.714 Hz, linear in the setting to within 3.7 %.
+The code had 0.3 to 1.2 Hz. Tremolo, tabulated the same way at CP4, was already
+right (0.476 to 7.69 Hz against 0.5 to 8.0).
+
+**Still open from the same tables:** the LFO amplitude at CP3 scales with the
+period at a constant 3.98 mV/ms (±9 % across all fifteen settings) -- a
+constant-slew triangle, so on the original a slower chorus sweeps
+proportionally wider. Rate and depth are independent here. That is a change in
+character rather than a corrected number, so it is not in this change.
+
 ## ROM data & credits
 
 - **[giulioz/rdpiano](https://github.com/giulioz/rdpiano)** — the reverse
