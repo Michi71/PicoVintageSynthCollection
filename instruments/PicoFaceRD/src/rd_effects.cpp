@@ -88,6 +88,49 @@ void RD_VintageFX::init(float sampleRate)
     setSampleRate(sampleRate);
 }
 
+
+// Chorus LFO frequency for a 0..1 setting, from the service notes' CP3 table.
+static inline float chorusLfoHz(float rate01)
+{
+    return 0.370f + 5.344f * rate01;
+}
+
+// Sweep width in samples. The CP3 table gives the LFO amplitude as well as the
+// period, and their ratio is constant at 3.98 mV/ms (+-9 % over all fifteen
+// settings) -- a triangle of constant slope. So the amplitude is proportional
+// to the period, and the sweep widens as the rate falls.
+//
+// What that buys is not width for its own sake. A constant slope on the BBD
+// clock control is a constant rate of change of delay, which is a constant
+// pitch deviation: the original holds its detune and only changes how fast it
+// wobbles. The model here used to hold the delay swing constant instead, so
+// the detune grew with the rate -- nearly none at the slow end, most at the
+// fast end. That is the opposite character.
+//
+// Anchored at the middle setting so the familiar depth stays where it was. The
+// absolute width is NOT derivable from the notes: the table gives volts at the
+// LFO, and the volts-to-delay law lives in the MN3101 clock oscillator, which
+// the schematic does not break out. Proportionality is measured; this anchor
+// is a choice.
+static inline float chorusSweepSamples(float depth01, float rate01, float sr)
+{
+    static const float kRefHz = 3.042f;          // setting 8 of fifteen
+    const float want = depth01 * 0.003f * sr * (kRefHz / chorusLfoHz(rate01));
+
+    // The swing cannot exceed the centre delay, and that is physics rather than
+    // a guard: the delay of a BBD is stages / (2 * clock), so it is positive by
+    // construction. A swing equal to the centre is already a 2:1 clock sweep,
+    // about as far as an MN3007 chorus goes. Without this the delay goes
+    // negative at the slow settings, the read index wraps to the far end of the
+    // line, and the output is garbage rather than chorus.
+    //
+    // At full depth the proportional law therefore holds from the fast end down
+    // to about 1.8 Hz and flattens below that. At the depth settings the factory
+    // patches actually use it holds further down.
+    const float centre = 0.005f * sr;
+    return want < centre ? want : centre;
+}
+
 // Configure all rate/coef-dependent parameters
 void RD_VintageFX::setSampleRate(float sr)
 {
@@ -111,7 +154,7 @@ void RD_VintageFX::setSampleRate(float sr)
     // CP3 for all fifteen settings, 2700 ms down to 175 ms. That is 0.370 to
     // 5.714 Hz, linear in the setting to within 3.7 %. The old 0.3..1.2 Hz was
     // nearly five times too slow at the top of the range.
-    chorusInc_ = (0.370f + 5.344f * chorusRate_) / sr;
+    chorusInc_ = chorusLfoHz(chorusRate_) / sr;
 
     // Phaser rate mapping: 0.1..5 Hz over normalized 0..1
     phRateHz_ = 0.1f * powf(10.0f, phaserRate_ * 1.69897000433601880479f);
@@ -119,7 +162,7 @@ void RD_VintageFX::setSampleRate(float sr)
 
     // Chorus delay centre + modulation depth in samples
     chorusBaseSamples_ = 0.005f * sr;
-    chorusModSamples_  = chorusDepth_ * 0.003f * sr;
+    chorusModSamples_  = chorusSweepSamples(chorusDepth_, chorusRate_, sr);
 
     // Clamp so interpolation stays within the delay buffer
     float maxDelay = (float)(kDelayLen - 4);
@@ -144,12 +187,20 @@ void RD_VintageFX::setParam(uint8_t id, float v01)
 
     case RD_PARAM_CHORUS_RATE:
         chorusRate_ = v01;
-        chorusInc_  = (0.370f + 5.344f * chorusRate_) / sampleRate_;  // see setSampleRate
+        chorusInc_  = chorusLfoHz(chorusRate_) / sampleRate_;
+        // The sweep width follows the rate now, so it has to be recomputed here too.
+        chorusModSamples_ = chorusSweepSamples(chorusDepth_, chorusRate_, sampleRate_);
+        {
+            float maxDelay = (float)(kDelayLen - 4);
+            if (chorusBaseSamples_ + chorusModSamples_ > maxDelay)
+                chorusModSamples_ = maxDelay - chorusBaseSamples_;
+            if (chorusModSamples_ < 0.0f) chorusModSamples_ = 0.0f;
+        }
         break;
 
     case RD_PARAM_CHORUS_DEPTH:
         chorusDepth_ = v01;
-        chorusModSamples_ = chorusDepth_ * 0.003f * sampleRate_;
+        chorusModSamples_ = chorusSweepSamples(chorusDepth_, chorusRate_, sampleRate_);
         {
             float maxDelay = (float)(kDelayLen - 4);
             if (chorusBaseSamples_ + chorusModSamples_ > maxDelay)
