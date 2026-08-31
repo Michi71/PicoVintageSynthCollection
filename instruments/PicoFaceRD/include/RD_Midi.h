@@ -34,7 +34,10 @@ public:
     void onNoteOn(uint8_t note, uint8_t vel, uint8_t ch);
     void onNoteOff(uint8_t note, uint8_t vel, uint8_t ch);
     void onControlChange(uint8_t cc, uint8_t val, uint8_t ch);
-    void onProgramChange(uint8_t program, uint8_t ch);
+    // Returns the instrument index it sent to the engine, or -1 when the
+    // channel did not match -- so the panel can follow without duplicating
+    // the channel test.
+    int  onProgramChange(uint8_t program, uint8_t ch);
     void onPitchBend(uint16_t value, uint8_t ch); // 0..16383, center 8192
 
     // Receiver channel accessors. setRxChannel clamps to 0..RD_MIDI_OMNI.

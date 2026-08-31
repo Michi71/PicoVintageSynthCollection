@@ -86,7 +86,13 @@ public:
     void noteOn(uint8_t ch, uint8_t note, uint8_t vel) override { midi_.onNoteOn(note, vel, ch); }
     void noteOff(uint8_t ch, uint8_t note, uint8_t vel) override { midi_.onNoteOff(note, vel, ch); }
     void controlChange(uint8_t ch, uint8_t cc, uint8_t v) override { midi_.onControlChange(cc, v, ch); }
-    void programChange(uint8_t ch, uint8_t p) override { midi_.onProgramChange(p, ch); }
+    void programChange(uint8_t ch, uint8_t p) override {
+        // The panel draws from its own selection, so it has to follow a program
+        // change too -- otherwise the screen would keep showing the last thing
+        // the encoder chose while the engine played something else.
+        const int idx = midi_.onProgramChange(p, ch);
+        if (idx >= 0) { controller_.adoptInstrument((uint8_t) idx); dirty_ = true; }
+    }
     void pitchBend(uint8_t ch, int16_t bend) override { midi_.onPitchBend((uint16_t)((int32_t) bend + 8192), ch); }
 
     // ---------------------------------------------------------------------
@@ -177,8 +183,15 @@ private:
         // page name in the header, the body shows number + bare name (fits 128px).
         const char* titleName = controller_.pageName();
         const char* bareName  = nm;   // meaningful only on the PATCH page
+        // Everything the header and the patch line show comes from the panel's
+        // own selection, not from the engine. The engine picks a change up on
+        // the next audio block, which is one pass of the main loop LATER than
+        // the tick that drew -- so drawing from it showed the previous
+        // instrument and cleared the dirty flag, and the screen then sat there
+        // until the 500 ms keep-alive. That was the "sehr lange" on hardware.
+        const uint8_t shown = controller_.instrument();
         if (controller_.currentPage() == RdPage::PATCH) {
-            bridge_.instrumentName(nm, sizeof(nm));
+            RD_Synth_Bridge::patchNameOf(shown, nm, sizeof(nm));
             bareName = nm;
             char* colon = strchr(nm, ':');
             if (colon != nullptr) {
@@ -193,12 +206,12 @@ private:
         }
 
         // Header: "<PAGENAME|BANK> <sr>k" plus "<n>/<COUNT>" page indicator.
-        snprintf(m.title, sizeof(m.title), "%s %luk", titleName, (unsigned long)(bridge_.currentSampleRate() / 1000));
+        snprintf(m.title, sizeof(m.title), "%s %luk", titleName, (unsigned long)(RD_Synth_Bridge::sampleRateOf(shown) / 1000));
         snprintf(m.page, sizeof(m.page), "%d/%d", (int) controller_.currentPage() + 1, (int) RdPage::COUNT);
 
         // Body lines depend on the active page.
         if (controller_.currentPage() == RdPage::PATCH) {
-            snprintf(m.lineA, sizeof(m.lineA), "%02d %s", (int) bridge_.instrument() + 1, bareName);
+            snprintf(m.lineA, sizeof(m.lineA), "%02d %s", (int) shown + 1, bareName);
             snprintf(m.lineB, sizeof(m.lineB), "Volume %d%%", (int) controller_.param3Value());
         } else if (controller_.currentPage() == RdPage::VOICES) {
             static const char* const kVoiceModeNames[5] = {"8", "16", "24", "32", "Auto"};

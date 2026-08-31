@@ -82,6 +82,13 @@ public:
     void setInstrument(uint8_t id);
     uint8_t instrument() const { return instrument_; }
     void instrumentName(char* out, uint32_t maxLen);
+
+    // Table lookups for an arbitrary index, with no reference to what the
+    // engine currently has loaded. The panel draws from these: its own
+    // selection is known the instant the encoder moves, where the engine's
+    // only catches up a block later (see RD_Instrument::draw).
+    static void patchNameOf(uint8_t id, char* out, uint32_t maxLen);
+    static uint32_t sampleRateOf(uint8_t id);
     uint32_t currentSampleRate() const;
     bool consumeSampleRateChanged();
     void setFxParam(uint8_t id, uint8_t val255);
