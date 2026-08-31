@@ -230,6 +230,17 @@ inside the scatter of the manuals' own tables. The phaser is not in either table
 sake of the same grid; if the slow end feels too coarse, that is the thing to
 revisit.
 
+The header and the patch line draw from the **panel's own selection**, not from
+what the engine currently has loaded. That is not a detail: the main loop drains
+the IPC ring at the top of a pass and runs the UI tick at the bottom, so a
+change made by the encoder reaches the engine one pass *after* the tick that
+drew it. Drawing from the engine therefore showed the previous instrument and
+cleared the redraw flag in the same breath, and the screen then sat on the wrong
+name until the 500 ms keep-alive -- which is a long time to wonder whether the
+knob did anything. A MIDI program change updates the panel's selection too, so
+the two cannot drift apart. The footer still reports the engine's view, on
+purpose: it is a diagnostics line.
+
 The footer shows a live diagnostics line: `<instrument> P<peak-load %> U<buffer underruns> D<dropped events> A<active voices> N<note-on count>`.
 
 ### Voice governor (Auto mode)

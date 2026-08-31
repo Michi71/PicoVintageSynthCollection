@@ -127,13 +127,14 @@ void RD_Midi::onControlChange(uint8_t cc, uint8_t val, uint8_t ch) {
     }
 }
 
-void RD_Midi::onProgramChange(uint8_t program, uint8_t ch) {
-    if (!channelMatches(ch)) return;
+int RD_Midi::onProgramChange(uint8_t program, uint8_t ch) {
+    if (!channelMatches(ch)) return -1;
 
     // Chart says 0..63; we fold it onto whatever this build ships, which is
     // sixteen patches normally and eight for a single-machine build.
-    ipc_send_dx_param(RD_PARAM_INSTRUMENT,
-                      static_cast<uint16_t>(program % RD_PATCH_COUNT));
+    const uint8_t idx = static_cast<uint8_t>(program % RD_PATCH_COUNT);
+    ipc_send_dx_param(RD_PARAM_INSTRUMENT, static_cast<uint16_t>(idx));
+    return (int)idx;
 }
 
 void RD_Midi::onPitchBend(uint16_t value, uint8_t ch) {

@@ -295,6 +295,20 @@ void RD_Synth_Bridge::setMasterTune(int cents) {
     engine_.setMasterTune(q16);
 }
 
+void RD_Synth_Bridge::patchNameOf(uint8_t id, char* out, uint32_t maxLen)
+{
+    if (maxLen == 0) return;
+    if (id >= RD_PATCH_COUNT) id = 0;
+    strncpy(out, s_patchNames[id], maxLen);
+    out[maxLen - 1] = '\0';
+}
+
+uint32_t RD_Synth_Bridge::sampleRateOf(uint8_t id)
+{
+    if (id >= RD_PATCH_COUNT) id = 0;
+    return (uint32_t)s_sampleRates[id];
+}
+
 void RD_Synth_Bridge::instrumentName(char* out, uint32_t maxLen)
 {
     if (maxLen == 0) return;

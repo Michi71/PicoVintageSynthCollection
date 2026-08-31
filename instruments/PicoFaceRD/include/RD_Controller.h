@@ -49,6 +49,14 @@ public:
     void exportSettings(RdSettingsV1& s) const;
     void importSettings(const RdSettingsV1& s); // clamps, applies, re-sends everything
 
+    // The panel's own view of which instrument is selected. Updated the instant
+    // an encoder moves, so the display never has to wait for the engine.
+    uint8_t instrument() const { return instrument_; }
+
+    // A program change arrived over MIDI and has already gone to the engine.
+    // This keeps the panel's view in step without sending it a second time.
+    void adoptInstrument(uint8_t id) { if (id < RD_PATCH_COUNT) instrument_ = id; }
+
 private:
     RD_Midi& midi_;
     RdPage page_ = RdPage::PATCH;
