@@ -107,7 +107,11 @@ void RD_VintageFX::setSampleRate(float sr)
     tremInc_ = (0.5f + 7.5f * tremRate_) / sr;
 
     // Chorus LFO: 0.3..1.2 Hz
-    chorusInc_ = (0.3f + 0.9f * chorusRate_) / sr;
+    // Measured, not guessed: the service notes tabulate the chorus LFO period at
+    // CP3 for all fifteen settings, 2700 ms down to 175 ms. That is 0.370 to
+    // 5.714 Hz, linear in the setting to within 3.7 %. The old 0.3..1.2 Hz was
+    // nearly five times too slow at the top of the range.
+    chorusInc_ = (0.370f + 5.344f * chorusRate_) / sr;
 
     // Phaser rate mapping: 0.1..5 Hz over normalized 0..1
     phRateHz_ = 0.1f * powf(10.0f, phaserRate_ * 1.69897000433601880479f);
@@ -140,7 +144,7 @@ void RD_VintageFX::setParam(uint8_t id, float v01)
 
     case RD_PARAM_CHORUS_RATE:
         chorusRate_ = v01;
-        chorusInc_  = (0.3f + 0.9f * chorusRate_) / sampleRate_;
+        chorusInc_  = (0.370f + 5.344f * chorusRate_) / sampleRate_;  // see setSampleRate
         break;
 
     case RD_PARAM_CHORUS_DEPTH:
@@ -220,7 +224,16 @@ void RAM_HOT(RD_VintageFX::process)(float in, float* outL, float* outR) {
     //    FULLY gated -- bypassing must restore the clean signal (the old code
     //    ran the lowpass unconditionally, so the toggle did nothing audible).
     if (dacOn_ > 0.5f) {
-        x = (float)((int32_t)(x * 2048.0f)) * (1.0f / 2048.0f);  // true 12 bit over +-1.0
+        // 16 bit, not 12: the MKS-20 service notes list IC4 on the CPU-B board
+        // as a PCM54 -- "16 bit D/A converter" in as many words. The 12 here was
+        // a guess from before the schematic turned up, and it cost 24 dB of
+        // quantization noise the machine never had.
+        //
+        // floorf(x+0.5) rather than a cast, too. A cast truncates toward zero,
+        // which leaves a dead band of one LSB either side of silence -- crossover
+        // distortion, worst exactly where a piano tail spends its time. This is a
+        // plain mid-tread quantizer with no dead band.
+        x = floorf(x * 32768.0f + 0.5f) * (1.0f / 32768.0f);
         dacLpState_  += dacLpCoef_ * (x - dacLpState_);
         dacLpState2_ += dacLpCoef_ * (dacLpState_ - dacLpState2_);
         x = dacLpState2_;
