@@ -16,16 +16,16 @@
 // UI units: percent 0..100; toggles 0/1.
 static constexpr uint8_t kDefVolume       = 80;
 static constexpr uint8_t kDefChorusOn     = 0;
-static constexpr uint8_t kDefChorusRate   = 40;
+static constexpr uint8_t kDefChorusRate   = 50;   // grid index: 2.50 Hz (was 40 % = 2.51 Hz)
 static constexpr uint8_t kDefChorusDepth  = 50;
 static constexpr uint8_t kDefTremOn       = 0;
-static constexpr uint8_t kDefTremRate     = 50;
+static constexpr uint8_t kDefTremRate     = 82;   // grid index: 4.10 Hz (was 50 % = 4.09 Hz)
 static constexpr uint8_t kDefTremDepth    = 50;
 static constexpr uint8_t kDefBass         = 50;
 static constexpr uint8_t kDefTreble       = 50;
 static constexpr uint8_t kDefDacFilterOn  = 1;
 static constexpr uint8_t kDefPhaserOn      = 0;
-static constexpr uint8_t kDefPhaserRate    = 50;
+static constexpr uint8_t kDefPhaserRate    = 14;  // grid index: 0.70 Hz (was 50 % of an exponential = 0.71 Hz)
 static constexpr uint8_t kDefPhaserDepth   = 50;
 
 // Step a percent value by delta (1% per detent), clamped to 0..100.
@@ -51,7 +51,26 @@ static uint8_t toWire(uint8_t id, uint8_t v) {
     if (isToggleParam(id)) {
         return v ? 255 : 0;
     }
+    if (rd_is_rate_param(id)) {
+        // Rates are stored as a 0.05 Hz grid index, not a percent. Map the
+        // index across its own range so the engine's law lands on the same
+        // frequency the display prints.
+        const int lo = (int)rd_rate_idx_min(id);
+        const int hi = (int)rd_rate_idx_max(id);
+        int n = (int)v; if (n < lo) n = lo; if (n > hi) n = hi;
+        return (uint8_t)(((n - lo) * 255 + (hi - lo) / 2) / (hi - lo));
+    }
     return (uint8_t)(((int)v * 255 + 50) / 100);
+}
+
+// One encoder detent = one grid position = exactly 0.05 Hz.
+static uint8_t stepRate(uint8_t id, uint8_t v, int delta) {
+    const int lo = (int)rd_rate_idx_min(id);
+    const int hi = (int)rd_rate_idx_max(id);
+    int n = (int)v + delta;
+    if (n < lo) n = lo;
+    if (n > hi) n = hi;
+    return (uint8_t)n;
 }
 
 // Send a shadow UI value to the engine, converting to wire format.
@@ -196,19 +215,19 @@ void RD_Controller::onEncoder3(int delta) {
             break;
         }
         case RdPage::CHORUS: {
-            uint8_t rate = stepPct(shadow_[RD_PARAM_CHORUS_RATE], delta);
+            uint8_t rate = stepRate(RD_PARAM_CHORUS_RATE, shadow_[RD_PARAM_CHORUS_RATE], delta);
             shadow_[RD_PARAM_CHORUS_RATE] = rate;
             sendParam(RD_PARAM_CHORUS_RATE, rate);
             break;
         }
         case RdPage::TREMOLO: {
-            uint8_t rate = stepPct(shadow_[RD_PARAM_TREM_RATE], delta);
+            uint8_t rate = stepRate(RD_PARAM_TREM_RATE, shadow_[RD_PARAM_TREM_RATE], delta);
             shadow_[RD_PARAM_TREM_RATE] = rate;
             sendParam(RD_PARAM_TREM_RATE, rate);
             break;
         }
         case RdPage::PHASER: {
-            uint8_t rate = stepPct(shadow_[RD_PARAM_PHASER_RATE], delta);
+            uint8_t rate = stepRate(RD_PARAM_PHASER_RATE, shadow_[RD_PARAM_PHASER_RATE], delta);
             shadow_[RD_PARAM_PHASER_RATE] = rate;
             sendParam(RD_PARAM_PHASER_RATE, rate);
             break;
@@ -336,6 +355,10 @@ void RD_Controller::importSettings(const RdSettingsV1& s)
     // Defensive clamping -- a corrupted/foreign record must never escape.
     auto clampPct = [](uint8_t v) -> uint8_t { return (v > 100u) ? 100u : v; };
     auto clampBit = [](uint8_t v) -> uint8_t { return (v != 0u) ? 1u : 0u; };
+    auto clampRate = [](uint8_t id, uint8_t v) -> uint8_t {
+        const uint8_t lo = rd_rate_idx_min(id), hi = rd_rate_idx_max(id);
+        return (v < lo) ? lo : ((v > hi) ? hi : v);
+    };
 
     instrument_        = (s.instrument >= RD_PATCH_COUNT) ? 0u : s.instrument;
     midiCh_            = (s.midiCh > 16u)    ? 16u : s.midiCh;
@@ -344,13 +367,13 @@ void RD_Controller::importSettings(const RdSettingsV1& s)
 
     shadow_[RD_PARAM_VOLUME]        = clampPct(s.volume);
     shadow_[RD_PARAM_CHORUS_ON]     = clampBit(s.chorusOn);
-    shadow_[RD_PARAM_CHORUS_RATE]   = clampPct(s.chorusRate);
+    shadow_[RD_PARAM_CHORUS_RATE]   = clampRate(RD_PARAM_CHORUS_RATE, s.chorusRate);
     shadow_[RD_PARAM_CHORUS_DEPTH]  = clampPct(s.chorusDepth);
     shadow_[RD_PARAM_TREM_ON]       = clampBit(s.tremOn);
-    shadow_[RD_PARAM_TREM_RATE]     = clampPct(s.tremRate);
+    shadow_[RD_PARAM_TREM_RATE]     = clampRate(RD_PARAM_TREM_RATE, s.tremRate);
     shadow_[RD_PARAM_TREM_DEPTH]    = clampPct(s.tremDepth);
     shadow_[RD_PARAM_PHASER_ON]     = clampBit(s.phaserOn);
-    shadow_[RD_PARAM_PHASER_RATE]   = clampPct(s.phaserRate);
+    shadow_[RD_PARAM_PHASER_RATE]   = clampRate(RD_PARAM_PHASER_RATE, s.phaserRate);
     shadow_[RD_PARAM_PHASER_DEPTH]  = clampPct(s.phaserDepth);
     shadow_[RD_PARAM_BASS]          = clampPct(s.bass);
     shadow_[RD_PARAM_TREBLE]        = clampPct(s.treble);
