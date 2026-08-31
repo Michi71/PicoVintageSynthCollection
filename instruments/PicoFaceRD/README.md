@@ -414,7 +414,30 @@ end of the line and the output is garbage.
 
 The absolute width is not derivable from the notes -- the table gives volts at
 the LFO, and the volts-to-delay law lives in the MN3101 clock oscillator, which
-the schematic does not break out. So the anchor is a judgement, and it has been
+the schematic does not break out.
+
+**A period-correct bound, from a different Roland schematic.** A review of the
+MKS-20 describes its chorus as sounding like "a fat CE-1", and the Boss CE-1
+(ET-10D) service schematic is available -- and annotated. Test point G sits on
+the line from the Q3-Q6 multivibrator to pin 2 of IC-2, which is the BBD clock,
+and it is marked **5 µs to 16 µs**. A BBD delays by stages / (2 x clock), so
+with the CE-1's MN3002 at 512 stages that is 1.28 to 4.10 ms; the MKS-20's
+MN3007 has twice the stages, so the same clock range gives it **2.56 to
+8.19 ms**.
+
+Two things follow, neither of which the MKS-20's own notes could give:
+
+- The 5 ms centre delay used here sits inside that window and close to its
+  middle (5.38 ms). It had been simply chosen.
+- The sweep before this change was ±3 ms, which is 6 ms peak to peak -- **106 %
+  of the entire VCO span**, wider than the part can travel at all, and that span
+  covers the CE-1's deeper vibrato mode as well as its chorus. ±0.7 ms is 25 %
+  of it, which is where a chorus rather than a vibrato belongs.
+
+Stated as a dependency: the schematic names the ICs but not their stage counts,
+so 512 for the MN3002 and 1024 for the MN3007 come from the parts rather than
+from the drawing. Were the MN3002 a 1024-stage device the windows would double
+and the "wider than the part can travel" reading would soften to about half. So the anchor is a judgement, and it has been
 made twice. It first preserved whatever depth this engine already had, which
 measured 132 cents of peak detune at full depth and 67 at the shipped default
 of 50 %. Two thirds of a semitone is not a chorus, and hardware testing said so.
