@@ -2,7 +2,9 @@
 // SPDX-FileCopyrightText: 2026 Michi71
 
 // RD_VintageFX: Vintage FX chain for MKS-20/MK-80 emulation.
-// Signal flow: in -> DAC filter -> bass shelf -> treble shelf -> tremolo -> BBD chorus (stereo) -> volume.
+// Signal flow: in -> DAC filter -> bass shelf -> treble shelf -> BBD chorus (stereo)
+//              -> phaser (one per channel) -> tremolo (stereo, antiphase) -> volume.
+// That order is the machines' own -- see rd_effects.cpp.
 // Mono in / stereo out. Native rate 20000/32000 Hz. RP2350 optimized.
 
 #ifndef RD_EFFECTS_H
@@ -61,9 +63,9 @@ private:
     float    phA_;                     // current allpass coefficient
     float    phFb_;                    // current feedback
     uint32_t phCnt_;                   // 8-sample coefficient decimation counter
-    float    phX1_[kPhaserStages];     // APF input history
-    float    phY1_[kPhaserStages];     // APF output history
-    float    phLast_;                  // last feedback sample
+    float    phX1_[2][kPhaserStages];  // APF input history, per channel
+    float    phY1_[2][kPhaserStages];  // APF output history, per channel
+    float    phLast_[2];               // last feedback sample, per channel
 
     // Chorus
     static constexpr int kDelayLen = 512;

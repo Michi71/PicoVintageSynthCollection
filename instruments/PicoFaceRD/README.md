@@ -170,7 +170,7 @@ are, which is why they sit in `roms/` rather than in the tree.
 | Sounds | All 16 patches: MKS-20 (Piano 1–3, Harpsichord, Clavi, Vibraphone, E-Piano 1–2) and MK-80 (Classic, Special, Blend, Contemporary, A. Piano 1–2, Clavi, Vibraphone). A 4 MB build ships one machine's eight — see [Fitting a 4 MB Pico 2](#fitting-a-4-mb-pico-2) |
 | Engine | Timeline-replay of captured S/A voice programming; 10 parts per voice, chip-exact envelope math, native 20 kHz / 32 kHz per patch (no resampling) |
 | Polyphony | 8 / 16 / 24 / 32 voices or **Auto** — a load-adaptive voice governor with active culling (default; the original is 16-voice) |
-| Effects | Vintage DAC stage (12-bit requantization + 2-pole reconstruction filter), bass/treble shelves, tremolo, mono 4-stage phaser, stereo BBD-style chorus |
+| Effects | In the machines' own order: vintage DAC stage (16-bit requantization + 2-pole reconstruction filter), bass/treble shelves, stereo BBD-style chorus, 4-stage phaser per channel, antiphase stereo tremolo |
 | MIDI | USB and DIN MIDI, implementation modeled on the MK-80 MIDI implementation chart (sounding range 21–108 with octave folding, damper, FX switches CC 92/93/95, reset CC 121, all-notes-off CC 123, program change, pitch bend ±2 semitones) — see [doc/MIDI.md](doc/MIDI.md) and the collection's CC table in [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md), section 6a |
 | Tuning | Master tune ±50 cents in 1-cent steps with live A4 frequency display |
 | Persistence | All panel settings in a wear-leveled flash append log (versioned, CRC-protected), auto-saved 2 s after the last edit while idle |
@@ -365,6 +365,59 @@ anchor is the middle setting, chosen so the familiar depth stays where it was.
 And the depth that anchor preserves is very deep for a chorus -- ±135 cents at
 full depth, where a Roland chorus of the period is usually a few tens of cents.
 That is pre-existing and the notes cannot decide it.
+
+### What the MK-80 notes added
+
+The MK-80 Service Notes (Roland, September 1989) arrived after the MKS-20 ones
+and mostly agreed with them -- which is itself worth having, because two of the
+agreements are checks that could not be run before.
+
+**The sample rates are right, confirmed twice.** Both manuals give polyphony
+per voice, 16 or 10. That split lands exactly on the rate table: every
+16-voice sound in either list is one of the 20 kHz patches, every 10-voice
+sound one of the 32 kHz ones, sixteen for sixteen. The rates came out of ROM;
+two service manuals agree with them independently. (The cap itself was wrong
+and is fixed separately -- 16 x 20000 = 10 x 32000 = 320000 voice slots per
+second, the S/A chip's fixed budget.)
+
+**The MK-80 uses the same converter and the same filter.** `PCM 54` and
+`LC Filter LPF 0538-014`, part number 12449269 in both parts lists. Giving both
+machines one reconstruction stage is correct rather than merely convenient.
+
+**The effect chain runs the other way round.** Both block diagrams are
+`EQ -> chorus -> phaser -> tremolo/VCA -> out` (MKS-20 p.4, MK-80 p.17; the
+MKS-20 has no phaser, so its chain is chorus -> tremolo). This engine ran
+`tremolo -> phaser -> chorus`, so the tremolo went *through* the delay line --
+smeared over five milliseconds and split unevenly across the two taps, where
+the original applies it last and cleanly.
+
+**And the tremolo is a pan, not a level wobble.** The MK-80 notes adjust the
+two VCAs separately (VR8 for OUTPUT-L, VR9 for OUTPUT-R) and the scope trace
+for that step shows the channels exactly interleaved: the right swells where
+the left is at its trough, each returning to the baseline. Measured before and
+after, envelope of a 1 kHz tone at full depth:
+
+| | L/R correlation | swing per channel | swing of the sum |
+|---|---|---|---|
+| before | **+1.000** | −14.0 dB | −14.0 dB |
+| after | **−1.000** | −69.8 dB | **−0.0 dB** |
+
+So it used to pump the whole signal by 14 dB and now moves it across the image
+at constant loudness. The trough reaching silence is from the same page: the
+instruction is to set it "at minimum level (possibly zero swing)", where the
+factor here stopped at 0.2 of full scale.
+
+The phaser is per channel now, as it is on the board (IC33 twice, each inside
+its own NE572 compander) -- after the chorus the two sides are no longer the
+same signal, so one mono phaser has nothing coherent to work on. Cost of the
+whole reordering, measured on the host: +5 % through the chain with the phaser
+off, +9 % with it on. The host understates it, as it always does for this kind
+of change, but the chain is a fraction of a percent of the render either way.
+
+One thing the MK-80 has that the MKS-20 does not, noted and not acted on: an
+`IR3109` VCF, and the phaser itself. Strictly the phaser should not be offered
+on MKS-20 patches at all. It is off by default and switchable, so this is
+cosmetic.
 
 ## ROM data & credits
 
