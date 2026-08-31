@@ -289,6 +289,54 @@ compiled in, which is what the A/B test compares against. The extraction and
 analysis toolchain is documented in
 [tools/rd_extract/README.md](../../tools/rd_extract/README.md).
 
+### Output headroom, and the one thing the A/B test cannot see
+
+The A/B matrix measures correlation against the reference emulator, and
+correlation is scale-invariant. It has been fooled by this before -- a 16 dB
+level error once passed it untouched -- so anything about *level* has to be
+measured separately. This is the second such finding.
+
+The bridge scales the engine accumulator by 1/131072, runs the vintage FX, and
+ends on a rational softclip with its knee at 0.9. Measured across 720 cases
+(all sixteen instruments x 1..16 notes x velocity 60..127, at the shipped
+volume default of 80 %), that put **17.2 % of them into the softclip**, with
+the 99th percentile at 12.6 % distortion and the worst case at 20 %.
+
+Those are piano chords. Ten notes under the pedal is ordinary playing, not an
+edge case. And the mechanism is specifically a *transient* one -- the peak loss
+tracks the overdrive almost exactly:
+
+| past the knee | distortion | peak loss |
+|---|---|---|
+| +0.9 dB | 0.24 % | 0.45 dB |
+| +2.9 dB | 2.34 % | 2.19 dB |
+| +4.9 dB | 5.73 % | 4.11 dB |
+| +6.9 dB | 10.36 % | 6.07 dB |
+
+So the attack of a note was being flattened by up to 6 dB while the body of it
+stayed where it was. That is what "harder than the original" sounds like, and
+it is not something a reconstruction filter can fix: the same measurement run
+showed the RD's own output carries only 2.7 % of its attack energy above 4 kHz
+and nothing at all above 8 kHz, and the vintage DAC stage (on by default,
+-2.8 dB at 4 kHz, -7.2 dB at 8 kHz net) already moves the whole signal by
+0.3 dB RMS. There was never any brightness up there to take away.
+
+A trim of 0.5 sits after the FX stage -- after, because the 12-bit
+requantization and the phaser's tanh feedback are nonlinear and trimming ahead
+of them would move their operating point and coarsen the quantizer by a bit
+relative to the music. Re-measured on the changed code:
+
+| | in the softclip | 99th pct distortion | worst | loudest raw peak |
+|---|---|---|---|---|
+| before | 17.2 % | 12.55 % | 20.21 % | +9.33 dB |
+| after | **2.1 %** | **0.83 %** | **4.63 %** | +3.38 dB |
+
+It costs 6 dB of output, which the volume control and the amplifier take back.
+What it buys is the top of the dynamic range: from the 75th percentile to the
+loudest case there used to be 2.5 dB of room (-2.54 to -0.04 dBFS) because
+everything above was pinned against the ceiling. Now there is 8.4 dB
+(-8.56 to -0.13 dBFS), and the headroom is still being used.
+
 [tools/rd_midi/](../../tools/rd_midi/) holds MIDI utilities for testing: `midi_keyboard_only.py` strips a Standard MIDI File down to pure keyboard performance (notes, damper, pitch bend) so sequencer dumps can be replayed against the device.
 
 ## ROM data & credits
