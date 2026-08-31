@@ -75,8 +75,10 @@ void RD_VintageFX::init(float sampleRate)
     phA_     = 0.9f;
     phFb_    = 0.2f;
     phCnt_   = 0;
-    for (int i = 0; i < kPhaserStages; ++i) { phX1_[i] = 0.0f; phY1_[i] = 0.0f; }
-    phLast_  = 0.0f;
+    for (int c = 0; c < 2; ++c) {
+        for (int i = 0; i < kPhaserStages; ++i) { phX1_[c][i] = 0.0f; phY1_[c][i] = 0.0f; }
+        phLast_[c] = 0.0f;
+    }
 
     // Shelf gains derived from current bass_/treble_ params
     bassGain_   = powf(10.0f, (bass_   - 0.5f) * 18.0f / 20.0f) - 1.0f;
@@ -271,7 +273,7 @@ float RD_VintageFX::sinApprox(float phase01)
 void RAM_HOT(RD_VintageFX::process)(float in, float* outL, float* outR) {
     float x = in;
 
-    // 1. Vintage DAC: 12-bit requantization + 2-pole reconstruction lowpass.
+    // 1. Vintage DAC: 16-bit requantization + 2-pole reconstruction lowpass.
     //    FULLY gated -- bypassing must restore the clean signal (the old code
     //    ran the lowpass unconditionally, so the toggle did nothing audible).
     if (dacOn_ > 0.5f) {
@@ -298,15 +300,53 @@ void RAM_HOT(RD_VintageFX::process)(float in, float* outL, float* outR) {
     trebleLpState_ += trebleCoef_ * (x - trebleLpState_);
     x += trebleGain_ * (x - trebleLpState_);
 
-    // 4. Tremolo
-    if (tremOn_ > 0.5f) {
-        tremPhase_ += tremInc_;
-        if (tremPhase_ >= 1.0f) tremPhase_ -= 1.0f;
-        float g = 1.0f - tremDepth_ * 0.8f * (0.5f + 0.5f * sinApprox(tremPhase_));
-        x *= g;
+    // 4. Chorus (BBD), 5. phaser, 6. tremolo -- in that order, which is the
+    //    machines' own and the reverse of what stood here.
+    //
+    //    Both block diagrams run EQ -> chorus -> phaser -> tremolo/VCA -> out
+    //    (MKS-20 service notes p.4, MK-80 p.17; the MKS-20 has no phaser, so its
+    //    chain is chorus -> tremolo). The chain here ran tremolo -> phaser ->
+    //    chorus, so the tremolo went THROUGH the delay line: smeared over five
+    //    milliseconds and split unevenly across the two taps, where the original
+    //    applies it last and cleanly.
+    delay_[writeIdx_] = x;
+    float l, r;
+    if (chorusOn_ > 0.5f) {
+        chorusPhase_ += chorusInc_;
+        if (chorusPhase_ >= 1.0f) chorusPhase_ -= 1.0f;
+        float phB = chorusPhase_ + 0.5f;
+        if (phB >= 1.0f) phB -= 1.0f;
+
+        float delayA = chorusBaseSamples_ + chorusModSamples_ * triangle(chorusPhase_);
+        float delayB = chorusBaseSamples_ + chorusModSamples_ * triangle(phB);
+
+        float readPosA = writeIdx_ - delayA;
+        if (readPosA < 0.0f) readPosA += kDelayLen;
+        int i0A = (int)readPosA;
+        int i1A = (i0A + 1) & (kDelayLen - 1);
+        float fracA = readPosA - i0A;
+        float tapA = delay_[i0A] + fracA * (delay_[i1A] - delay_[i0A]);
+
+        float readPosB = writeIdx_ - delayB;
+        if (readPosB < 0.0f) readPosB += kDelayLen;
+        int i0B = (int)readPosB;
+        int i1B = (i0B + 1) & (kDelayLen - 1);
+        float fracB = readPosB - i0B;
+        float tapB = delay_[i0B] + fracB * (delay_[i1B] - delay_[i0B]);
+
+        bbdLpStateA_ += bbdLpCoef_ * (tapA - bbdLpStateA_);
+        bbdLpStateB_ += bbdLpCoef_ * (tapB - bbdLpStateB_);
+        l = (x + bbdLpStateA_) * 0.7f;
+        r = (x + bbdLpStateB_) * 0.7f;
+    } else {
+        l = x;
+        r = x;
     }
 
-    // 4b. Phaser (mono 4-stage allpass)
+    // 5. Phaser -- one per channel now, sharing the LFO. The MK-80 has two
+    //    (IC33 twice on the effect board, each inside its own NE572 compander),
+    //    and after the chorus the two sides are no longer the same signal, so a
+    //    single mono phaser has nothing coherent to work on.
     if (phaserOn_ > 0.5f) {
         if (++phCnt_ >= 8u) {
             phCnt_ = 0u;
@@ -319,56 +359,41 @@ void RAM_HOT(RD_VintageFX::process)(float in, float* outL, float* outR) {
         phPhase_ += phInc_;
         if (phPhase_ >= 1.0f) phPhase_ -= 1.0f;
 
-        float in = x + phFb_ * fastTanh(phLast_);
-        float sig = in;
-        for (int i = 0; i < kPhaserStages; ++i) {
-            float y = -phA_ * sig + phX1_[i] + phA_ * phY1_[i];
-            phX1_[i] = sig;
-            phY1_[i] = y;
-            sig = y;
+        float* ch[2] = { &l, &r };
+        for (int c = 0; c < 2; ++c) {
+            float sig = *ch[c] + phFb_ * fastTanh(phLast_[c]);
+            for (int i = 0; i < kPhaserStages; ++i) {
+                float y = -phA_ * sig + phX1_[c][i] + phA_ * phY1_[c][i];
+                phX1_[c][i] = sig;
+                phY1_[c][i] = y;
+                sig = y;
+            }
+            phLast_[c] = sig;
+            *ch[c] = 0.5f * *ch[c] + 0.5f * sig;
         }
-        phLast_ = sig;
-        x = 0.5f * x + 0.5f * sig;
     }
 
-    // 5. Chorus and Delay
-    delay_[writeIdx_] = x;
-    if (chorusOn_ > 0.5f) {
-        chorusPhase_ += chorusInc_;
-        if (chorusPhase_ >= 1.0f) chorusPhase_ -= 1.0f;
-        float phB = chorusPhase_ + 0.5f;
-        if (phB >= 1.0f) phB -= 1.0f;
-
-        // Calculate delays
-        float delayA = chorusBaseSamples_ + chorusModSamples_ * triangle(chorusPhase_);
-        float delayB = chorusBaseSamples_ + chorusModSamples_ * triangle(phB);
-
-        // Tap A
-        float readPosA = writeIdx_ - delayA;
-        if (readPosA < 0.0f) readPosA += kDelayLen;
-        int i0A = (int)readPosA;
-        int i1A = (i0A + 1) & (kDelayLen - 1);
-        float fracA = readPosA - i0A;
-        float tapA = delay_[i0A] + fracA * (delay_[i1A] - delay_[i0A]);
-
-        // Tap B
-        float readPosB = writeIdx_ - delayB;
-        if (readPosB < 0.0f) readPosB += kDelayLen;
-        int i0B = (int)readPosB;
-        int i1B = (i0B + 1) & (kDelayLen - 1);
-        float fracB = readPosB - i0B;
-        float tapB = delay_[i0B] + fracB * (delay_[i1B] - delay_[i0B]);
-
-        // BBD lowpass and output mix
-        bbdLpStateA_ += bbdLpCoef_ * (tapA - bbdLpStateA_);
-        *outL = (x + bbdLpStateA_) * 0.7f * volume_;
-
-        bbdLpStateB_ += bbdLpCoef_ * (tapB - bbdLpStateB_);
-        *outR = (x + bbdLpStateB_) * 0.7f * volume_;
-    } else {
-        *outL = x * volume_;
-        *outR = x * volume_;
+    // 6. Tremolo -- stereo and antiphase, which is what it is on the machine
+    //    rather than a stereo dressing. The MK-80 notes adjust the two VCAs
+    //    separately (VR8 for OUTPUT-L, VR9 for OUTPUT-R) and their scope trace
+    //    shows the two channels exactly interleaved: the right swells where the
+    //    left is at its trough. At full depth it is a pan, not a level wobble.
+    //
+    //    The trough goes to silence, too. The instruction is to set it "at
+    //    minimum level (possibly zero swing)", where the factor here used to
+    //    stop at 0.2 of full scale.
+    if (tremOn_ > 0.5f) {
+        tremPhase_ += tremInc_;
+        if (tremPhase_ >= 1.0f) tremPhase_ -= 1.0f;
+        float pR = tremPhase_ + 0.5f;
+        if (pR >= 1.0f) pR -= 1.0f;
+        l *= 1.0f - tremDepth_ * (0.5f + 0.5f * sinApprox(tremPhase_));
+        r *= 1.0f - tremDepth_ * (0.5f + 0.5f * sinApprox(pR));
     }
+
+    *outL = l * volume_;
+    *outR = r * volume_;
+
     writeIdx_ = (writeIdx_ + 1) & (kDelayLen - 1);
 }
 
