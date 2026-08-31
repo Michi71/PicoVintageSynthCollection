@@ -412,13 +412,15 @@ stages / (2 × clock) and cannot go negative, and a swing equal to the centre is
 already a 2:1 clock sweep. Without the clamp the read index wraps to the far
 end of the line and the output is garbage.
 
-Two things this does **not** settle. The absolute width is not derivable from
-the notes: the table gives volts at the LFO, and the volts-to-delay law lives
-in the MN3101 clock oscillator, which the schematic does not break out. The
-anchor is the middle setting, chosen so the familiar depth stays where it was.
-And the depth that anchor preserves is very deep for a chorus -- ±135 cents at
-full depth, where a Roland chorus of the period is usually a few tens of cents.
-That is pre-existing and the notes cannot decide it.
+The absolute width is not derivable from the notes -- the table gives volts at
+the LFO, and the volts-to-delay law lives in the MN3101 clock oscillator, which
+the schematic does not break out. So the anchor is a judgement, and it has been
+made twice. It first preserved whatever depth this engine already had, which
+measured 132 cents of peak detune at full depth and 67 at the shipped default
+of 50 %. Two thirds of a semitone is not a chorus, and hardware testing said so.
+It is now 31 cents at full depth and 16 at the default, which puts the whole
+range inside the 10-to-30 a BBD chorus of the period sits in, with the default
+in the middle of it. Set by ear against what the part can plausibly do.
 
 ### What the MK-80 notes added
 

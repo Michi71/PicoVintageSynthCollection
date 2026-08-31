@@ -109,15 +109,27 @@ static inline float chorusLfoHz(float rate01)
 // the detune grew with the rate -- nearly none at the slow end, most at the
 // fast end. That is the opposite character.
 //
-// Anchored at the middle setting so the familiar depth stays where it was. The
-// absolute width is NOT derivable from the notes: the table gives volts at the
-// LFO, and the volts-to-delay law lives in the MN3101 clock oscillator, which
-// the schematic does not break out. Proportionality is measured; this anchor
-// is a choice.
+// The absolute width is NOT derivable from the notes: the table gives volts at
+// the LFO, and the volts-to-delay law lives in the MN3101 clock oscillator,
+// which the schematic does not break out. Proportionality is measured; the
+// anchor is a judgement, and it has now been made twice.
+//
+// It first preserved whatever depth this engine already had, which measured
+// 132 cents of peak detune at full depth and 67 at the shipped default of
+// 50 %. Two thirds of a semitone is not a chorus, it is a vibrato, and Michael
+// said so on hardware -- "sehr verstimmt, ich kann nicht glauben, dass das so
+// in echt war". He is right, and the number that preserved it was never
+// evidence, only inertia.
+//
+// 0.0007 puts full depth at about 31 cents and the default at 15. A BBD chorus
+// of the period -- Juno, Dimension D -- sits around 10 to 30, so the whole
+// range now lands inside that band with the default in the middle of it. Set by
+// ear against what the part can plausibly do, not by the manuals, which cannot
+// settle it. Easy to move if it wants moving.
 static inline float chorusSweepSamples(float depth01, float rate01, float sr)
 {
     static const float kRefHz = 3.042f;          // setting 8 of fifteen
-    const float want = depth01 * 0.003f * sr * (kRefHz / chorusLfoHz(rate01));
+    const float want = depth01 * 0.0007f * sr * (kRefHz / chorusLfoHz(rate01));
 
     // The swing cannot exceed the centre delay, and that is physics rather than
     // a guard: the delay of a BBD is stages / (2 * clock), so it is positive by
