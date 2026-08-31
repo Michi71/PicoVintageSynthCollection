@@ -14,6 +14,10 @@
 #include "pico/stdlib.h"
 #include "hardware/irq.h"
 #include "pico/bootrom.h"
+#include "hardware/clocks.h"
+#if PICO_RP2350
+#include "hardware/structs/qmi.h"
+#endif
 
 #include "project_config.h"
 #include "pico_hw.h"
@@ -293,6 +297,26 @@ int main(void)
     u8g2_DrawStr(&g_u8g2, (128 - u8g2_GetStrWidth(&g_u8g2, name)) / 2, 28, name);
     u8g2_SetFont(&g_u8g2, u8g2_font_6x10_tf);
     u8g2_DrawStr(&g_u8g2, (128 - u8g2_GetStrWidth(&g_u8g2, PICOFACE_VERSION)) / 2, 44, PICOFACE_VERSION);
+
+    // Bottom line: which silicon this is, and the flash clock actually in force.
+    // Both come up in bug reports (issue #107 turned on exactly this pair) and
+    // neither is otherwise readable: picotool does not report the stepping, and
+    // the flash timing is a compile-time choice with a runtime fallback -- if
+    // set_sys_clock_hz() misses its target the boot keeps the slack timing, so
+    // only the register knows what is really running. Read it, do not assume it.
+#if PICO_RP2350
+    {
+        // CLKDIV encodes the SCK period in system clock cycles; 0 means 256.
+        const uint32_t clkdivRaw = qmi_hw->m[0].timing & QMI_M0_TIMING_CLKDIV_BITS;
+        const uint32_t clkdiv = clkdivRaw ? clkdivRaw : 256u;
+        const uint32_t flashMHz = (clock_get_hz(clk_sys) / clkdiv + 500000u) / 1000000u;
+        char hw[24];
+        snprintf(hw, sizeof hw, "A%u  %uMHz", (unsigned)rp2350_chip_version(),
+                 (unsigned)flashMHz);
+        u8g2_SetFont(&g_u8g2, u8g2_font_5x7_tf);
+        u8g2_DrawStr(&g_u8g2, (128 - u8g2_GetStrWidth(&g_u8g2, hw)) / 2, 60, hw);
+    }
+#endif
     u8g2_SendBuffer(&g_u8g2);   // blocking is fine here, audio is not running yet
 
     // hold the splash for 2000 ms, keeping USB alive
