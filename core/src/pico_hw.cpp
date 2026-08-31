@@ -25,18 +25,8 @@
 #endif
 
 
-// Clock target and the matching flash timing. Five instruments run at 444 MHz
-// with the OC timing; PicoFaceRD sets both to its 480 MHz pair through DEFINES
-// in its instrument.cmake. The two MUST be changed together - the timing encodes
-// a divider of the system clock, so a mismatched pair either runs the flash out
-// of spec or leaves performance on the table.
-#ifndef PICOFACE_SYS_CLOCK_HZ
-#define PICOFACE_SYS_CLOCK_HZ 444000000
-#endif
-
-#ifndef PICOFACE_QMI_M0_TIMING_TARGET
-#define PICOFACE_QMI_M0_TIMING_TARGET PICOFACE_QMI_M0_TIMING_OC
-#endif
+// PICOFACE_SYS_CLOCK_HZ and PICOFACE_QMI_M0_TIMING_TARGET come from
+// project_config.h, which is where the flash-write sites can see them too.
 
 uint8_t u8x8_byte_pico_hw_i2c(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
