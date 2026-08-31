@@ -379,11 +379,40 @@ to 175 ms. That is 0.370 to 5.714 Hz, linear in the setting to within 3.7 %.
 The code had 0.3 to 1.2 Hz. Tremolo, tabulated the same way at CP4, was already
 right (0.476 to 7.69 Hz against 0.5 to 8.0).
 
-**Still open from the same tables:** the LFO amplitude at CP3 scales with the
-period at a constant 3.98 mV/ms (±9 % across all fifteen settings) -- a
-constant-slew triangle, so on the original a slower chorus sweeps
-proportionally wider. Rate and depth are independent here. That is a change in
-character rather than a corrected number, so it is not in this change.
+**The chorus keeps its detune, not its sweep.** The CP3 table gives the LFO
+amplitude as well as the period, and their ratio is constant at 3.98 mV/ms
+(±9 % across all fifteen settings) -- a triangle of constant slope, so the
+amplitude is proportional to the period. What that buys is not width for its
+own sake: a constant slope on the BBD clock control is a constant rate of
+change of delay, which is a constant pitch deviation. The original holds its
+detune and only changes how fast it wobbles.
+
+The model here held the delay swing constant instead, so the detune grew with
+the rate. Measured at full depth on the wet path, peak deviation of a 1 kHz
+tone:
+
+| setting | LFO | before | after |
+|---|---|---|---|
+| 0.00 | 0.370 Hz | ±16 ct | ±27 ct |
+| 0.25 | 1.706 Hz | ±76 ct | ±126 ct |
+| 0.50 | 3.042 Hz | ±135 ct | ±135 ct |
+| 0.75 | 4.378 Hz | ±195 ct | ±135 ct |
+| 1.00 | 5.714 Hz | ±255 ct | ±135 ct |
+
+Flat across the fast half to 0.3 ct, against a fifteen-fold spread before.
+Below about 1.8 Hz at full depth it flattens off, because the swing is clamped
+to the centre delay -- that is physics, not a guard: a BBD's delay is
+stages / (2 × clock) and cannot go negative, and a swing equal to the centre is
+already a 2:1 clock sweep. Without the clamp the read index wraps to the far
+end of the line and the output is garbage.
+
+Two things this does **not** settle. The absolute width is not derivable from
+the notes: the table gives volts at the LFO, and the volts-to-delay law lives
+in the MN3101 clock oscillator, which the schematic does not break out. The
+anchor is the middle setting, chosen so the familiar depth stays where it was.
+And the depth that anchor preserves is very deep for a chorus -- ±135 cents at
+full depth, where a Roland chorus of the period is usually a few tens of cents.
+That is pre-existing and the notes cannot decide it.
 
 ## ROM data & credits
 
