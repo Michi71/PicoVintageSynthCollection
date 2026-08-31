@@ -108,6 +108,27 @@ void pico_init()
     // status line goes through the roof.
     qmi_hw->m[0].timing = PICOFACE_QMI_M0_TIMING_SAFE;
     __dsb();
+    // The datasheet asks for one more thing here, which we were not doing:
+    //
+    //   "If software is increasing CLKDIV in anticipation of an increase in the
+    //    system clock frequency, a dummy access to either memory window (and
+    //    appropriate processor barriers/fences) must be inserted after the
+    //    Mx_TIMING write to ensure the SCK divisor change is in effect _before_
+    //    the system clock is changed."
+    //
+    // That is exactly this write: CLKDIV goes 4 -> 8 ahead of the clk_sys jump.
+    // The barriers order the APB write, but they do not make the QMI run a
+    // transaction, and until it does the new divisor need not be in effect. The
+    // only flash access that followed was the instruction fetch of the code
+    // below -- which the XIP cache may well serve, in which case no transaction
+    // happens at all and clk_sys moves while the old divisor still stands. That
+    // is a board-dependent failure by construction, and it sits in the same
+    // window that hung the 480 MHz build (see the MD README).
+    //
+    // Hence the read through XIP_NOCACHE_NOALLOC_BASE rather than XIP_BASE: a
+    // cached read is allowed to be silent, and a silent dummy access is not one.
+    (void)*(volatile uint32_t *)XIP_NOCACHE_NOALLOC_BASE;
+    __dsb();
     __isb();
 
     const bool clockOk = set_sys_clock_hz(PICOFACE_SYS_CLOCK_HZ, false);
