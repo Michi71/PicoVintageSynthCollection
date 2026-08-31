@@ -89,11 +89,7 @@ static void __no_inline_not_in_flash_func(flash_write_locked)(int eraseSectorIdx
     }
     flash_range_program(VEEPROM_FLASH_OFFSET + progOff, buf, VEEPROM_RECORD_SIZE);
 #if PICO_RP2350
-#ifdef RD_CLOCK_504
-    qmi_hw->m[0].timing = PICOFACE_QMI_M0_TIMING_RD;  // undo boot2 re-init clobber (480 MHz target)
-#else
-    qmi_hw->m[0].timing = PICOFACE_QMI_M0_TIMING_OC;  // undo boot2 re-init clobber
-#endif
+    qmi_hw->m[0].timing = PICOFACE_QMI_M0_TIMING_TARGET;  // undo boot2 re-init clobber
     // Returning from this SRAM-resident function is the first instruction fetch
     // to go through the QMI again, so the timing write must have landed by then.
     // __compiler_memory_barrier() only constrains the compiler; __dsb() is what

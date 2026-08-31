@@ -395,6 +395,67 @@ peak load stays under a third of one core even with 2× oversampling, the
 Model D does not need the headroom, and at a core voltage of 1.60 V the slower
 clock is the kinder choice when it costs nothing.
 
+### The steady-state flash timing, and the boards it does not fit
+
+The section above ends on "the flash chip was never the limit". That was true
+of *that* failure, on *this* board. Issue #107 is the other case, and it is
+worth having both written down next to each other.
+
+A user with third-party 16 MB RP2350 boards could not get any instrument to
+start, while official Pico 2 boards worked. The boards carried the newer A4
+stepping, which is what the report suspected. A4 is documented by Raspberry Pi
+as a drop-in replacement for A2, so that is unlikely on its face -- and the
+decisive observation is in the report itself: lowering `clk_sys` to 300 MHz
+made the boards boot. That change is usually read as "the core cannot hold the
+overclock", but `M0_TIMING` encodes a *divider* of `clk_sys`, so lowering the
+core clock lowers the flash clock with it. The 300 MHz test moved the flash
+from 148 MHz to 100 MHz. Nothing distinguishes the two readings yet.
+
+`RXDELAY` counts half `clk_sys` cycles, and a value of 0 samples on the SCK
+edge that launched the command. In SPI mode 0 the device presents its data
+half an SCK period before that, so the time a flash part has to get data back
+through the pads is `(half an SCK period) + RXDELAY`:
+
+| build | SCK | budget |
+|---|---|---|
+| 444 MHz, `OC` (`CLKDIV=3`, `RXDELAY=3`) | 148.0 MHz | **6.76 ns** |
+| 480 MHz, `RD` (`CLKDIV=4`, `RXDELAY=3`) | 120.0 MHz | 7.29 ns |
+| 444 MHz, `RX4` (`CLKDIV=3`, `RXDELAY=4`) | 148.0 MHz | 7.88 ns |
+| 444 MHz, `CD4` (`CLKDIV=4`, `RXDELAY=4`) | 111.0 MHz | 7.88 ns |
+| 300 MHz, `OC` (the reporter's working test) | 100.0 MHz | 10.00 ns |
+| 444 MHz, `SAFE` (`CLKDIV=8`, `RXDELAY=2`) | 55.5 MHz | 11.26 ns |
+
+So the shipping 444 MHz build has the tightest flash timing in the collection
+-- tighter than the 480 MHz one -- and a W25Q128JV is specified at 6 ns
+clock-to-Q before the pad round trip is counted. There is no margin there at
+all; whether a given part makes it is a property of that part. That is the
+straightforward reason this project fails on a board where, as the report puts
+it, other RP2350 firmware runs fine: none of it drives the flash 11 % past the
+nominal 133 MHz.
+
+This is a hypothesis with a clean experiment behind it, not a conclusion. The
+experiment is to hold `clk_sys` at 444 MHz and change only the flash timing,
+which no test so far has done -- both variables moved together every time. If
+a `SAFE` build boots on those boards, the stepping is exonerated.
+
+The second half of the report is separate and needs no new explanation: at
+300 MHz the DX froze after menu navigation and the D5 and MD made no sound.
+These engines are budgeted for 444 MHz -- the D5's own load figures are about
+7 % of a block per voice plus 11 % fixed -- so at 68 % of the design clock they
+simply do not finish their blocks. That is the downclock, not a second fault.
+
+Groundwork landed with this: `PICOFACE_SYS_CLOCK_HZ` and
+`PICOFACE_QMI_M0_TIMING_TARGET` now live in `core/include/project_config.h`
+rather than in `pico_hw.cpp`, because the boot is not the only place that
+writes `M0_TIMING`. Every flash write re-inits boot2 and clobbers the register,
+and the three restore sites (`core/src/veeprom.cpp`,
+`instruments/PicoFaceRD/src/veeprom.cpp`,
+`instruments/PicoFaceJ6/src/j6_patchstore.cpp`) each held their own copy of the
+value. A `-DPICOFACE_QMI_M0_TIMING_TARGET=...` therefore reached the boot and
+nothing else, and the device reverted to the `OC` timing at the first settings
+save -- which would have quietly spoiled exactly the experiment above. All four
+sites now read one macro.
+
 The same defect was present in PicoFaceRD, PicoFaceCP, PicoFaceDX and
 PicoFaceYC, which share this hardware layer — today they share it as
 `core/src/pico_hw.cpp`. RD ran at 480 MHz

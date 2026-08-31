@@ -87,4 +87,40 @@
 // its instrument.cmake, not a hardware difference - the board is identical for
 // every instrument.
 
+// The clock/timing pair the build actually uses. Five instruments take the
+// defaults below; PicoFaceRD overrides both through DEFINES in its
+// instrument.cmake. They MUST move together -- the timing encodes a divider of
+// clk_sys, so a mismatched pair either runs the flash out of spec or leaves
+// performance on the table.
+//
+// These live here rather than in pico_hw.cpp because the boot is not the only
+// place that writes M0_TIMING: every flash write re-inits boot2, which clobbers
+// the register, and each of those sites has to restore the SAME value. With the
+// default sitting in pico_hw.cpp, a -DPICOFACE_QMI_M0_TIMING_TARGET=... on the
+// command line reached the boot and nothing else, so the device silently
+// reverted to the OC timing at the first settings save.
+#ifndef PICOFACE_SYS_CLOCK_HZ
+#define PICOFACE_SYS_CLOCK_HZ 444000000
+#endif
+
+#ifndef PICOFACE_QMI_M0_TIMING_TARGET
+#define PICOFACE_QMI_M0_TIMING_TARGET PICOFACE_QMI_M0_TIMING_OC
+#endif
+
+// Slower flash timings, for boards whose QSPI part does not survive the 148 MHz
+// the OC value asks for. RXDELAY counts HALF clk_sys cycles and a value of 0
+// samples on the SCK edge that launched the command, so the time a flash device
+// has to get its data back is (half an SCK period) + (RXDELAY half-cycles):
+//
+//   OC   at 444 MHz  148.0 MHz SCK   6.76 ns   <- the collection's tightest
+//   RD   at 480 MHz  120.0 MHz SCK   7.29 ns
+//   RX4  at 444 MHz  148.0 MHz SCK   7.88 ns   full speed, later sample point
+//   CD4  at 444 MHz  111.0 MHz SCK   7.88 ns   within any 133 MHz part's spec
+//   SAFE at 444 MHz   55.5 MHz SCK  11.26 ns   slack enough for anything
+//
+// A W25Q128JV is specified at 6 ns clock-to-Q plus the pad round trip, so the
+// OC value has no margin worth the name and depends on the individual part.
+#define PICOFACE_QMI_M0_TIMING_RX4 0x60007403u   // CLKDIV=3, RXDELAY=4
+#define PICOFACE_QMI_M0_TIMING_CD4 0x60007404u   // CLKDIV=4, RXDELAY=4
+
 #endif // __PROJECT_CONFIG_H__

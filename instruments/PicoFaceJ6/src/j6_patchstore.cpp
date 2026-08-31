@@ -85,7 +85,7 @@ static void __no_inline_not_in_flash_func(bank_write_locked)(const uint8_t* buf)
     flash_range_program(J6_PATCH_FLASH_OFFSET, buf, FLASH_SECTOR_SIZE);
 
 #if PICO_RP2350
-    qmi_hw->m[0].timing = PICOFACE_QMI_M0_TIMING_OC;   /* undo boot2 clobber */
+    qmi_hw->m[0].timing = PICOFACE_QMI_M0_TIMING_TARGET;   /* undo boot2 clobber */
     /* Returning from this SRAM-resident function is the first fetch to go
      * through the QMI again, so the write must have landed. __dsb orders the
      * APB write against those fetches; a compiler barrier would not. */
