@@ -106,6 +106,12 @@ uint8_t u8x8_gpio_and_delay_pico(u8x8_t *u8x8, uint8_t msg,uint8_t arg_int, void
   return 1;
 }
 
+uint32_t picoface_boot_qmi_timing      = 0;
+uint32_t picoface_boot_qmi_rfmt        = 0;
+uint32_t picoface_boot_qmi_rcmd        = 0;
+bool     picoface_flash_is_quad        = true;   // assumed until pico_init() looks
+uint32_t picoface_qmi_timing_effective = PICOFACE_QMI_M0_TIMING_SAFE;
+
 void pico_init()
 {
     // FPU flush-to-zero + default-NaN for THIS core (see pico_hw.h for the
@@ -139,6 +145,58 @@ void pico_init()
     // so keep the slack timing in that case. The symptom is then loud rather
     // than subtle: the synth runs at 150 MHz and the load percentage on the
     // status line goes through the roof.
+    // What did the bootrom actually leave here? On RP2350 boot_stage2 is
+    // compiled but never runs -- the bootrom configures the flash, and every
+    // firmware inherits its read mode, command byte, address and dummy widths
+    // without looking (raspberrypi/pico-sdk#1903). This one used to inherit
+    // them and then overwrite CLKDIV as if quad mode were a given.
+    //
+    // It is not. A board in issue #107 reported RCMD=0xBB and two-bit widths
+    // with DUMMY_LEN=0 and CLKDIV=35 -- the bootrom had failed to establish
+    // quad on that flash and fallen back to a dual-I/O configuration with no
+    // dummy cycles, which is a low-clock arrangement. Writing CLKDIV=3 over
+    // that runs the part twelve times faster than its own bootrom judged safe,
+    // in a mode we never checked. The board does not boot.
+    picoface_boot_qmi_timing = qmi_hw->m[0].timing;
+    picoface_boot_qmi_rfmt   = qmi_hw->m[0].rfmt;
+    picoface_boot_qmi_rcmd   = qmi_hw->m[0].rcmd;
+
+    // Quad means the EBh read command AND a four-bit data phase. Either alone
+    // is not enough to trust: the command byte says what was asked for, the
+    // width says what the QMI will actually clock.
+    const uint32_t bootDataWidth =
+        (picoface_boot_qmi_rfmt & QMI_M0_RFMT_DATA_WIDTH_BITS) >> QMI_M0_RFMT_DATA_WIDTH_LSB;
+    picoface_flash_is_quad =
+        ((picoface_boot_qmi_rcmd & 0xFFu) == 0xEBu) && (bootDataWidth == 2u);
+
+    if (!picoface_flash_is_quad) {
+        // Keep the flash where the bootrom put it. CLKDIV is a divider of
+        // clk_sys, so raising the clock raises the flash with it unless the
+        // divider grows to match -- scale it, keep every other field the
+        // bootrom chose (RXDELAY, cooldown, deselect), and never write the
+        // compile-time target at all.
+        //
+        // The result is slow: preserving a bootrom that chose CLKDIV=35 gives
+        // a few MHz of XIP, and the sample-reading instruments will be far
+        // from usable. That is the point. A board that boots and shows its
+        // flash clock on the splash can be diagnosed; a dead one cannot.
+        uint32_t bootDiv = picoface_boot_qmi_timing & QMI_M0_TIMING_CLKDIV_BITS;
+        if (bootDiv == 0u) bootDiv = 256u;                 // 0 encodes 256
+        const uint32_t clkNow = clock_get_hz(clk_sys);
+        // ceil(target * bootDiv / clkNow), clamped into the 1..255 the field holds
+        uint64_t want = ((uint64_t)PICOFACE_SYS_CLOCK_HZ * bootDiv + clkNow - 1u) / clkNow;
+        if (want < 1u)   want = 1u;
+        if (want > 255u) want = 255u;
+        picoface_qmi_timing_effective =
+            (picoface_boot_qmi_timing & ~QMI_M0_TIMING_CLKDIV_BITS) | (uint32_t)want;
+        qmi_hw->m[0].timing = picoface_qmi_timing_effective;
+        __dsb();
+        (void)*(volatile uint32_t *)XIP_NOCACHE_NOALLOC_BASE;
+        __dsb();
+        __isb();
+        set_sys_clock_hz(PICOFACE_SYS_CLOCK_HZ, false);
+    } else {
+
     qmi_hw->m[0].timing = PICOFACE_QMI_M0_TIMING_SAFE;
     __dsb();
     // The datasheet asks for one more thing here, which we were not doing:
@@ -166,10 +224,12 @@ void pico_init()
 
     const bool clockOk = set_sys_clock_hz(PICOFACE_SYS_CLOCK_HZ, false);
     // The SAFE timing stays in place if the target turned out to be unreachable.
-    qmi_hw->m[0].timing = clockOk ? PICOFACE_QMI_M0_TIMING_TARGET
-                                  : PICOFACE_QMI_M0_TIMING_SAFE;
+    picoface_qmi_timing_effective = clockOk ? PICOFACE_QMI_M0_TIMING_TARGET
+                                            : PICOFACE_QMI_M0_TIMING_SAFE;
+    qmi_hw->m[0].timing = picoface_qmi_timing_effective;
     __dsb();
     __isb();
+    }
 #else
     hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
     sleep_ms(33);

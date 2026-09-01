@@ -311,8 +311,12 @@ int main(void)
         const uint32_t clkdiv = clkdivRaw ? clkdivRaw : 256u;
         const uint32_t flashMHz = (clock_get_hz(clk_sys) / clkdiv + 500000u) / 1000000u;
         char hw[24];
-        snprintf(hw, sizeof hw, "A%u  %uMHz", (unsigned)rp2350_chip_version(),
-                 (unsigned)flashMHz);
+        // Q or D/S: whether the bootrom got the flash into quad mode. On a
+        // board where it did not, the whole fast-timing path is skipped and
+        // the flash keeps the bootrom's own (much slower) clock -- so this
+        // letter and that number together say why an instrument feels slow.
+        snprintf(hw, sizeof hw, "A%u %c %uMHz", (unsigned)rp2350_chip_version(),
+                 picoface_flash_is_quad ? 'Q' : 'D', (unsigned)flashMHz);
         u8g2_SetFont(&g_u8g2, u8g2_font_5x7_tf);
         u8g2_DrawStr(&g_u8g2, (128 - u8g2_GetStrWidth(&g_u8g2, hw)) / 2, 60, hw);
     }
