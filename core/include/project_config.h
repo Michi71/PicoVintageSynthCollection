@@ -30,6 +30,21 @@
 #define PIN_OLED_SDA  2
 #define PIN_OLED_SCL  3
 
+// OLED bus speed. 1 MHz is Fast-mode Plus, and it is what the reference board
+// runs: the display push is paced in half tile rows of roughly 1.5 ms of I2C
+// each, so the rate is directly the UI's frame time -- 400 kHz would make a
+// full screen 60 ms instead of 24.
+//
+// It is also above what an SH1106 datasheet promises (400 kHz), and the only
+// pull-ups are the chip's internal ones at around 50 kOhm. On the short, tidy
+// wiring of the prototype that is fine and has been for every board tested
+// here. On longer jumper leads it is the first thing to suspect when a panel
+// stays dark while the instrument is otherwise alive -- drop it to 400000 and
+// see. Worth adding real 2.2k-4.7k pull-ups before blaming the display.
+#ifndef PICOFACE_OLED_I2C_HZ
+#define PICOFACE_OLED_I2C_HZ (1000 * 1000)
+#endif
+
 //#define PIN_POT_0     28
 #define PIN_POT_1     29
 
