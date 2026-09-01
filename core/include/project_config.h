@@ -146,10 +146,10 @@
 // failure".
 #define PICOFACE_QMI_M0_TIMING_SAFE 0x60007208u
 
-// The default. 148 MHz flash at 444 MHz, sampled as early as it goes, and
-// 2.76 ns for a device that may want 6 in the worst case -- which is why the
-// rungs below exist. It has run on every board tested here, and it is the only
-// value that costs nothing.
+// 148 MHz flash at 444 MHz, sampled as early as it goes: 2.76 ns for a device
+// that may want 6 in the worst case, which places the sample point 11 % into
+// the window where the bit is valid. It was the default until RX4 took over
+// -- same speed, same measured cost, and 28 % into that window.
 #define PICOFACE_QMI_M0_TIMING_OC 0x60007303u
 
 // 480 MHz target: CLKDIV=4, RXDELAY=3 -> 120 MHz flash. Used by PicoFaceRD,
@@ -160,11 +160,19 @@
 // thing to try if an RD ever fails to boot.
 #define PICOFACE_QMI_M0_TIMING_RD 0x60007304u
 
-// First rung. Full flash speed with a later sample point: 3.88 ns for the
+// The default. Full flash speed with a later sample point: 3.88 ns for the
 // device against OC's 2.76, and only RXDELAY moves, so there is no reason to
 // expect it to cost anything. Measurement neither confirms nor denies that --
 // its benchmark numbers sit inside OC's own spread. Still under the 10.0 ns
 // worst case: this is more margin, not enough margin.
+//
+// It is the default because the sample point is better placed. A bit is valid
+// from the device's clock-to-output until the next bit replaces it -- at
+// 148 MHz that is 6.00 to 12.76 ns. OC samples at 6.76, which is 11 % into
+// that window and hard against its leading edge; RX4 samples at 7.88, 28 % in.
+// The two were briefly swapped back in favour of OC on a measurement that
+// RXDELAY costs throughput. That measurement was withdrawn (it was noise in a
+// maximum, see README) and this is the default following the retraction.
 #define PICOFACE_QMI_M0_TIMING_RX4 0x60007403u   // CLKDIV=3, RXDELAY=4
 
 // Second rung, and the first value here that satisfies the worst-case sum:
@@ -196,7 +204,7 @@
 #endif
 
 #ifndef PICOFACE_QMI_M0_TIMING_TARGET
-#define PICOFACE_QMI_M0_TIMING_TARGET PICOFACE_QMI_M0_TIMING_OC
+#define PICOFACE_QMI_M0_TIMING_TARGET PICOFACE_QMI_M0_TIMING_RX4
 #endif
 
 

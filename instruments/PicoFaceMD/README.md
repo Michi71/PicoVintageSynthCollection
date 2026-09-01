@@ -411,14 +411,15 @@ the requirement is 10.0 ns, and at 444 MHz:
 | `RX4` | 3 | 4 | 148.0 MHz | 7.88 ns | 3.88 ns |
 | `OC` | 3 | 3 | 148.0 MHz | 6.76 ns | **2.76 ns** |
 
-`OC` was the default and leaves 2.76 ns where the part asks for 6. It has run on
-every board tested here, because real pads and a real flash at room temperature
-are far better than their worst-case numbers -- but that is exactly the profile
-of a setting that works on one board and not the next, and two issues report
-boards that will not boot.
+`OC` was the default for a while and leaves 2.76 ns where the part asks for 6.
+It has run on every board tested here, because real pads and a real flash at
+room temperature are far better than their worst-case numbers -- but that is
+exactly the profile of a setting that works on one board and not the next, and
+two issues report boards that will not boot. `RX4` is the default now, and the
+ladder is walked at boot rather than handed out by e-mail; both are below.
 
-**`OC` is the default, and getting there took three tries and a lesson about
-the measuring instrument.** The arithmetic alone made `CD4` look right, and it
+**Getting to a default took three tries and a lesson about the measuring
+instrument.** The arithmetic alone made `CD4` look right, and it
 was the default briefly. Then the cost was measured on the D5 -- the most
 XIP-bound of the ten, because it reads its PCM from flash. Boot benchmark,
 four voices:
@@ -445,12 +446,19 @@ nothing measured here separates them.
 `CD4`'s cost does stand: 59 against 51–53 is six to eight points, well outside
 the spread, and about **1.3 voices** before the governor starts trimming tails.
 
-Which leaves whether to buy any margin at all, and the honest answer is *not
-yet*: two boards are reported not to boot and neither reporter has tested a
-thing, so nothing here is known to help. `OC` is the default because it is the
-configuration that runs on every board actually tested and the one nothing has
-argued against. The others are the rungs to hand somebody whose board does not
-boot.
+Which leaves which rung to ship. **`RX4` is the default**, and it is a free
+change: same 148 MHz, and its benchmark numbers sit inside `OC`'s own spread, so
+nothing measured separates them on cost. What separates them is where in the
+valid window the sample point lands. A bit is good from the device's
+clock-to-output until the next bit replaces it -- at 148 MHz, 6.00 to 12.76 ns.
+`OC` samples at 6.76, which is 11 % in and hard against the leading edge; `RX4`
+samples at 7.88, 28 % in. Free margin is worth taking.
+
+There is some history in that sentence. `RX4` was briefly the default, then
+reverted to `OC` on a measurement that RXDELAY costs about five percent of
+throughput. That measurement was withdrawn one PR later -- it was noise in a
+maximum -- but the default never followed the retraction, and stayed on `OC` for
+a reason that no longer existed.
 
 `CD4` itself was wrong when it was added: `RXDELAY=4` gives 9.01 ns, a nanosecond
 short. It had been chosen against the part's 133 MHz rating rather than against
@@ -607,6 +615,78 @@ core clock, and this fix earns its keep by making the next experiment clean --
 it moves the flash to 49 MHz while leaving the core at 444, which no previous
 build did. The reported chip revision was also `A3`, not the `A4` of the issue
 title, and is hand-transcribed like the rest.
+
+
+### Measuring the flash instead of prescribing it
+
+Everything above is an argument about which single timing to ship, and every
+version of that argument has the same hole in it: the right value is a property
+of the board, and the boards are not ours. Waveshare changes flash suppliers
+between production runs; the same part number, bought twice, need not carry the
+same die. The honest hardware requirement for a fixed 148 MHz would read *"a
+QSPI flash that beats its own datasheet by more than a factor of two"*, and
+nobody can shop for that.
+
+Two things are worth separating before the fix, because the dual-mode finding
+above invites the wrong conclusion:
+
+- **Dual is not slower to sample than quad.** Same pins, same clock, same
+  clock-to-output; a 133 MHz part is rated 133 MHz either way. The budget table
+  applies unchanged. **A dual flash can be clocked exactly as high as a quad
+  one** -- what dual costs is *bandwidth*, two bits per clock instead of four.
+- **Dual is usually not a property of the chip either.** Practically every 16 MB
+  SPI NOR supports quad I/O. Coming up in dual normally means the bootrom could
+  not *confirm* quad, because the quad-enable bit sits in a different
+  status-register bit per manufacturer. It is a probe outcome, not something
+  printed on the package -- which is the second reason a hardware requirement
+  would not have helped.
+
+So the timing is measured at boot instead of asserted. Checksum 32 KB of flash
+at the timing the bootrom itself was running -- the chip booted with it, so it
+is the one configuration known good -- raise the clock, then walk the ladder
+fastest-first and keep the first rung that reproduces the checksum:
+
+| rung | SCK | outcome |
+|---|---|---|
+| `RX4` | 148 MHz | kept if it verifies; every board tested lands here |
+| `CD4` | 111 MHz | first fallback, the first value inside the worst-case sum |
+| `SAFE` | 55.5 MHz | second fallback |
+| bootrom's own, `CLKDIV` rescaled | whatever it chose | last resort, taken on trust |
+
+**This must never slow down hardware that already works, and it does not:** a
+board that verifies at `RX4` is left exactly where it was. The ladder only
+rescues boards that would otherwise not start, which is the entire point.
+
+The part that makes it safe rather than merely clever is that the probe, the
+per-rung retry and the ladder all execute **from SRAM**. While a candidate
+timing is in force every flash read is suspect, so a wrong one must corrupt
+*data*, never the instruction stream -- code in flash would fetch garbage and
+fault instead of returning a mismatch. Two details fall out of that and both
+are checked in the built ELF rather than assumed:
+
+- `__not_in_flash_func()` sets the section and **nothing else**. Under this
+  file's `#pragma GCC optimize("Ofast")` the compiler inlined all three routines
+  into `pico_init()`, which lives in flash -- the design was silently gone and
+  the build looked identical. They carry an explicit `noinline` now, and the
+  first version of this section was written against an ELF in which the symbols
+  did not exist at all.
+- The rung constants reach the routine as arguments rather than as a table. A
+  flash-resident array would have to be read while a candidate timing is in
+  force, which is the one thing this code may not do. In the built image the
+  literal pool sits inside the RAM function (`60007403`, `60007504`, `60007208`
+  at `0x200002a8`), every `bl` targets a RAM address, and the probe reads
+  through `0x14000000` -- the no-cache window, because a cached second pass
+  would be answered from SRAM and would "verify" a broken timing.
+
+Cost is about 5 ms at boot on a quad board and under 100 ms on a slow dual one,
+against a splash screen that is held for two seconds.
+
+**What it does not cover:** the check runs at boot temperature, and timing
+margin shrinks as the die warms. A rung that verifies cold could in principle
+fail hot. Taking the rung *below* the fastest that verifies would cover it and
+was rejected -- it would cost every working board 1.3 voices to insure against
+something not yet observed. If a board is ever reported to fail after warming
+up, that is the knob.
 
 ### Double-tap RESET, and why it used to be disabled
 
