@@ -65,7 +65,36 @@
 
 // QMI M0_TIMING values. Bit layout (see hardware/regs/qmi.h):
 //   CLKDIV  [7:0]   flash clock = clk_sys / CLKDIV
-//   RXDELAY [10:8]  read data sample point, in clk_sys cycles
+//   RXDELAY [10:8]  read data sample point, in HALF clk_sys cycles
+//
+// The budget, which the RP2350 datasheet makes computable rather than a matter
+// of taste. QMI samples on the rising SCK edge and RXDELAY pushes that later,
+// so the time a flash device has to get its data back to the sampling register
+// is (half an SCK period) + (RXDELAY half clk_sys cycles), and into that must
+// fit the pads plus the device. Datasheet Table 1292 gives the pads at
+// VDDIO 3.3 V, worst case over process, voltage and temperature: system clock
+// to QSPI output 2.5 ns, QSPI input to system clock 1.5 ns. A 133 MHz QSPI part
+// specifies 6 ns clock-to-output. The requirement is therefore 10.0 ns, and at
+// 444 MHz the four values below come out as:
+//
+//   name  CLKDIV RXDELAY      SCK     budget   left for the device
+//   SAFE     8      2      55.5 MHz   11.26      7.26 ns
+//   CD4      4      5     111.0 MHz   10.14      6.14 ns   <- the default
+//   RX4      3      4     148.0 MHz    7.88      3.88 ns
+//   OC       3      3     148.0 MHz    6.76      2.76 ns
+//
+// The datasheet is explicit that this ceiling belongs to the board rather than
+// to the chip: "the maximum SCK frequency is constrained by the limits of the
+// attached QSPI device, the signal integrity afforded by the PCB layout, and IO
+// delays in the pads". OC leaves 2.76 ns where the part asks for 6, and has run
+// on every board tested here -- real pads and a real flash at room temperature
+// are far better than their worst-case numbers. But that is exactly the profile
+// of a setting that works on one board and not the next, and two issues report
+// boards that will not boot.
+//
+// Sampling too LATE is the other failure and is not close at CD4: the data
+// stays valid for an SCK period plus the device's output hold, so a sample at
+// 10.14 ns sits well inside a window running past 12 ns.
 // The upper bits (COOLDOWN=1, PAGEBREAK=2, MIN_DESELECT=7) are identical in
 // all three values below; only CLKDIV and RXDELAY differ.
 
@@ -76,8 +105,8 @@
 // 444/8 = 55 MHz, where RXDELAY=2 has ample margin.
 //
 // It used to be CLKDIV=4 here, putting that window at 111 MHz. RXDELAY
-// compensates a round-trip delay that is fixed in nanoseconds, so the value
-// needed grows with clk_sys, and 2 is only barely enough at 111 MHz. A 480 MHz
+// compensates a round trip that is fixed in nanoseconds, so the value needed
+// grows with clk_sys, and 2 is only barely enough at 111 MHz. A 480 MHz
 // build of this same code put the window at 120 MHz, where RXDELAY=2 is not
 // enough at all: the core hung on the first instruction fetch after the clock
 // switch and the board would not boot. 444 MHz stayed on the working side of
@@ -85,18 +114,28 @@
 // failure".
 #define PICOFACE_QMI_M0_TIMING_SAFE 0x60007208u
 
-// 444 MHz target: CLKDIV=3, RXDELAY=3 -> 148 MHz flash (above the chip's
-// nominal 133 MHz, hence "overclock"; measured stable on this board).
-// Single source of truth for boot (pico_hw.cpp) AND the post-flash-write
-// restore in veeprom.cpp -- these MUST match or the device runs with
-// wrong flash timing after the first settings save.
+// 148 MHz flash at 444 MHz. Was the default until Table 1292 made the sum
+// above computable; kept because it is measurably faster on a board that
+// tolerates it, and every board tested here does. Opt back in with
+// -DPICOFACE_QMI_M0_TIMING_TARGET=PICOFACE_QMI_M0_TIMING_OC.
 #define PICOFACE_QMI_M0_TIMING_OC 0x60007303u
 
-// 480 MHz target: CLKDIV=4, RXDELAY=3 -> 120 MHz flash, within spec. Used by
-// PicoFaceRD, whose engine needs the higher core clock; the other five run at
-// 444 MHz and use the OC value above. Same single-source-of-truth rule: boot
-// (pico_hw.cpp) and the post-flash-write restore in veeprom.cpp must agree.
+// 480 MHz target: CLKDIV=4, RXDELAY=3 -> 120 MHz flash. Used by PicoFaceRD,
+// whose engine needs the higher core clock. By the budget above this leaves
+// 3.29 ns for the device, which is OC's territory rather than CD4's. It is
+// hardware-confirmed on the reference board and left alone here; RXDELAY=6
+// would cost nothing in throughput and buy 3.1 ns, and is the obvious next
+// thing to try if an RD ever fails to boot.
 #define PICOFACE_QMI_M0_TIMING_RD 0x60007304u
+
+// Full flash speed with a later sample point: 3.88 ns for the device, more
+// than OC and still under the worst case. A middle rung, not a safe one.
+#define PICOFACE_QMI_M0_TIMING_RX4 0x60007403u   // CLKDIV=3, RXDELAY=4
+// The default. The first value here that satisfies the worst-case sum with
+// margin. RXDELAY=5, not 4: at 4 the budget is 9.01 ns against a requirement
+// of 10.0 -- that value was picked against the part's 133 MHz rating, before
+// the pad delays made the real sum computable.
+#define PICOFACE_QMI_M0_TIMING_CD4 0x60007504u   // CLKDIV=4, RXDELAY=5
 
 // Which of the two target values an instrument uses is a software decision in
 // its instrument.cmake, not a hardware difference - the board is identical for
@@ -119,23 +158,8 @@
 #endif
 
 #ifndef PICOFACE_QMI_M0_TIMING_TARGET
-#define PICOFACE_QMI_M0_TIMING_TARGET PICOFACE_QMI_M0_TIMING_OC
+#define PICOFACE_QMI_M0_TIMING_TARGET PICOFACE_QMI_M0_TIMING_CD4
 #endif
 
-// Slower flash timings, for boards whose QSPI part does not survive the 148 MHz
-// the OC value asks for. RXDELAY counts HALF clk_sys cycles and a value of 0
-// samples on the SCK edge that launched the command, so the time a flash device
-// has to get its data back is (half an SCK period) + (RXDELAY half-cycles):
-//
-//   OC   at 444 MHz  148.0 MHz SCK   6.76 ns   <- the collection's tightest
-//   RD   at 480 MHz  120.0 MHz SCK   7.29 ns
-//   RX4  at 444 MHz  148.0 MHz SCK   7.88 ns   full speed, later sample point
-//   CD4  at 444 MHz  111.0 MHz SCK   7.88 ns   within any 133 MHz part's spec
-//   SAFE at 444 MHz   55.5 MHz SCK  11.26 ns   slack enough for anything
-//
-// A W25Q128JV is specified at 6 ns clock-to-Q plus the pad round trip, so the
-// OC value has no margin worth the name and depends on the individual part.
-#define PICOFACE_QMI_M0_TIMING_RX4 0x60007403u   // CLKDIV=3, RXDELAY=4
-#define PICOFACE_QMI_M0_TIMING_CD4 0x60007404u   // CLKDIV=4, RXDELAY=4
 
 #endif // __PROJECT_CONFIG_H__
