@@ -446,9 +446,13 @@ nothing measured here separates them.
 `CD4`'s cost does stand: 59 against 51–53 is six to eight points, well outside
 the spread, and about **1.3 voices** before the governor starts trimming tails.
 
-Which leaves which rung to ship. **`RX4` is the default**, and it is a free
-change: same 148 MHz, and its benchmark numbers sit inside `OC`'s own spread, so
-nothing measured separates them on cost. What separates them is where in the
+Which leaves which rung to ship. **`RX4` is the default, and it is now measured
+rather than argued**: two D5 images built from one tree and differing in exactly
+one byte -- `60007403` against `60007303`, the RXDELAY nibble -- flashed
+back to back on the same board in the same session, both report **B57**.
+RXDELAY costs nothing at constant SCK. The retraction in #127 was right and this
+settles it; see "A benchmark that cannot be compared across builds" below for
+why it took three attempts. What separates them is where in the
 valid window the sample point lands. A bit is good from the device's
 clock-to-output until the next bit replaces it -- at 148 MHz, 6.00 to 12.76 ns.
 `OC` samples at 6.76, which is 11 % in and hard against the leading edge; `RX4`
@@ -687,6 +691,56 @@ fail hot. Taking the rung *below* the fastest that verifies would cover it and
 was rejected -- it would cost every working board 1.3 voices to insure against
 something not yet observed. If a board is ever reported to fail after warming
 up, that is the knob.
+
+
+### A benchmark that cannot be compared across builds
+
+`bootBenchPercent()` has now misled this project three times, and the pattern is
+always the same: two numbers from two different builds, a difference of a few
+points, and a conclusion drawn from it. It is worth stating the rule plainly,
+because the number is genuinely useful for the thing it was built for and
+genuinely useless for the thing it keeps being used for.
+
+**What it is.** The *worst* of 94 blocks rendered at boot with four voices. That
+is the right statistic for the governor -- the worst block is what has to fit --
+and the wrong one for comparing two builds, because a maximum picks up whichever
+transient happened to land in one block.
+
+**How wide it really is.** The `OC` timing has been measured on the same board,
+unchanged, at **51, 53 and 57**. Six points of spread with nothing whatsoever
+different about `OC` between those readings. Any finding smaller than that spread
+that rests on separate sessions is noise.
+
+**And why even a same-session cross-build comparison is unsound.** Adding
+164 lines of *boot-only* code to `pico_hw.cpp` grew `pico_init()` by 204 bytes
+and `main()` by 20. Nothing in the render path changed -- mechanically checked,
+those two are the only functions in the whole image whose size moved. But the
+addresses moved everywhere: **346 of 437 flash functions (79 %) shifted by about
+200 bytes, and 94 of 95 RAM-resident functions with them.** Every one of them
+lands on different XIP cache lines than it did before. A build that is
+semantically identical in its hot loop is not identical in its cache behaviour,
+and a worst-block statistic is exactly what notices.
+
+So the rule, which the two rung comparisons above should have followed:
+
+- **Valid:** two images from one tree, differing in as little as possible,
+  flashed back to back in one session. The `RX4` vs `OC` pair above differed in
+  **one byte** and gave 57 against 57.
+- **Not valid:** a number from today against a number from a build two weeks ago,
+  or against a build that also gained or lost code elsewhere.
+
+This casts some doubt backwards. `CD4`'s cost -- 59 against 51 to 53, read as
+"about 1.3 voices" -- was measured across builds and sessions in exactly the way
+this section warns against. Its *direction* is not in question, because 111 MHz
+is a quarter less flash bandwidth than 148 and that has to cost something. Its
+magnitude was never established the way `RX4`'s absence of cost now has been. It
+is left as it stands, flagged rather than relitigated, because nothing currently
+depends on the exact figure.
+
+The splash line carries the RXDELAY digit for this reason (`A2 Q 148MHz r4`).
+Two builds can differ in the flash timing and still show the same SCK, and an
+A/B whose two halves are indistinguishable at the device is an A/B waiting to be
+misattributed.
 
 ### Double-tap RESET, and why it used to be disabled
 
