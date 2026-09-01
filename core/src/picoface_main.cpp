@@ -315,8 +315,14 @@ int main(void)
         // board where it did not, the whole fast-timing path is skipped and
         // the flash keeps the bootrom's own (much slower) clock -- so this
         // letter and that number together say why an instrument feels slow.
-        snprintf(hw, sizeof hw, "A%u %c %uMHz", (unsigned)rp2350_chip_version(),
-                 picoface_flash_is_quad ? 'Q' : 'D', (unsigned)flashMHz);
+        // RXDELAY too: it is the other half of the flash timing, it is the one
+        // parameter two builds can differ in while showing the same SCK, and
+        // without it an A/B of two timings is unreadable at the device.
+        const uint32_t rxdelay =
+            (qmi_hw->m[0].timing & QMI_M0_TIMING_RXDELAY_BITS) >> QMI_M0_TIMING_RXDELAY_LSB;
+        snprintf(hw, sizeof hw, "A%u %c %uMHz r%u", (unsigned)rp2350_chip_version(),
+                 picoface_flash_is_quad ? 'Q' : 'D', (unsigned)flashMHz,
+                 (unsigned)rxdelay);
         u8g2_SetFont(&g_u8g2, u8g2_font_5x7_tf);
         u8g2_DrawStr(&g_u8g2, (128 - u8g2_GetStrWidth(&g_u8g2, hw)) / 2, 60, hw);
     }
