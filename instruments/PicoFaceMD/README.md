@@ -658,8 +658,13 @@ fastest-first and keep the first rung that reproduces the checksum:
 | bootrom's own, `CLKDIV` rescaled | whatever it chose | last resort, taken on trust |
 
 **This must never slow down hardware that already works, and it does not:** a
-board that verifies at `RX4` is left exactly where it was. The ladder only
-rescues boards that would otherwise not start, which is the entire point.
+board that verifies at `RX4` is left exactly where it was.
+
+**What it cannot do is rescue a board that would otherwise not start** -- which
+was the entire point, and which the next section shows to be false on the one
+board it was tried on. The ladder is kept for what it does prove: that the
+timing a quad board runs at has reproduced a checksum of the flash at least
+once.
 
 The part that makes it safe rather than merely clever is that the probe, the
 per-rung retry and the ladder all execute **from SRAM**. While a candidate
@@ -692,6 +697,74 @@ was rejected -- it would cost every working board 1.3 voices to insure against
 something not yet observed. If a board is ever reported to fail after warming
 up, that is the knob.
 
+
+
+### The ladder cannot rescue a board, and what does
+
+The premise of the ladder is one sentence in the code: a too-fast timing
+corrupts *data*, so the checksum mismatches and the next rung gets a turn. It
+was written as if established. It is not. A 16 MB board with an A4-marked chip
+-- the same class as issue #107, and in hand this time -- settled it with two
+444 MHz images that differ only in their **first** rung:
+
+| image, all at 444 MHz core | first rung | result |
+|---|---|---|
+| shipping `v1.12.0` | `RX4`, 148 MHz | **does not boot** |
+| `SAFE` first | 56 MHz | boots, `444/56` |
+| no ladder, bootrom's own clock | 49 MHz | boots, `444/49 r2` |
+
+And from the core-clock ladder run on the same board: at a 420 MHz core, `RX4`
+*verified* -- 140 MHz flash, `420/140 r4`, running. So the flash on this board
+is good to 140 MHz, dead at 148, and the ladder that was supposed to notice the
+difference and step down never got the chance. Applying the fast rung is not a
+failed read. It takes the chip down.
+
+The likely mechanism, stated as such: both `EB` and `BB` reads carry mode bits
+(the `M7-M0` byte) that tell the part whether the *next* transaction will skip
+the command byte. A read garbled by a too-fast clock can leave those bits in a
+state the QMI did not intend, after which the part and the controller disagree
+about what every following transaction means -- at any speed. Then the next
+rungs fail too, and the return into flash-resident code is the hang. Nothing
+about "data, never instructions" survives that; the fault handler lives in flash
+as well.
+
+This also made `v1.12.0` a regression I introduced. PR #128 on its own -- a
+board the bootrom left in dual keeps the bootrom's clock, and nothing is probed
+-- would have booted both boards known to fail. PR #129 put a fast first rung
+in front of that on every board.
+
+**The fix is #128's rule again, in front of the ladder:** if the bootrom did
+not establish quad, apply its own timing with `CLKDIV` rescaled to hold its
+clock across the jump, and probe nothing. On the board above that is
+`0x60007203` from the bootrom, `0x60007209` in force -- the diagnostic image
+printed both -- and a working instrument at 444 MHz core with 49 MHz flash.
+Quad boards keep the ladder, where every first-rung verification so far has
+succeeded and no fast timing has ever been applied to a board that could not
+take it.
+
+**The cost is real and should be said plainly.** 49 MHz is about a third of what
+this particular board demonstrably handles, and at two bits per clock it is
+about a sixth of a quad board's XIP bandwidth. The MD does not care; the D5,
+which reads its PCM from flash, will. Slow and booting beats fast and dead, but
+it is not the end of the story. The way to get such a board its 140 MHz back is
+a ladder that probes *upward* from the known-good value and **re-synchronises
+the flash after a failed rung** -- the bootrom exposes the exit-from-XIP and
+reset sequences for exactly that -- before trying the next. That needs the
+board in hand to test, and it now is.
+
+Two loose ends from the same session. The `A4` question turned inside out:
+Raspberry Pi's PCN 28 describes A4 as *"some small user-invisible changes to the
+boot ROM"* -- a bootrom revision on A3 silicon, which is why a chip marked
+`RP2350A0A4` reports `A3` in `CHIP_ID`, and why the datasheet's "no hardware
+changes" was true and beside the point. The reporter's suspicion was right in
+substance. The same PCN says the A4 bootrom runs its early boot path four times
+faster (clk_sys about 48 MHz instead of 12), which is a plausible reason the A4
+boards seen here come up in dual where A2 boards come up in quad; that is a
+lead, not a finding. And one reading from this board, `444/56 r4`, cannot be
+produced by any path in the code -- `CLKDIV=8` exists only as `SAFE`, whose
+`RXDELAY` is 2, and the diagnostic confirmed the bootrom's own `RXDELAY` is 2 as
+well. It is most likely `444/56 r2` read off a 5x7 font; nothing above depends
+on it.
 
 ### A benchmark that cannot be compared across builds
 
