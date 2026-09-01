@@ -77,4 +77,9 @@ extern uint32_t picoface_boot_qmi_rcmd;
 extern bool     picoface_flash_is_quad;
 extern uint32_t picoface_qmi_timing_effective;
 
+// False when no rung of the boot-time ladder reproduced the reference checksum
+// and the bootrom's own rescaled timing had to be taken on trust. Boards that
+// verify -- every one tested so far -- set this true.
+extern bool     picoface_flash_verified;
+
 #endif // __PICO_HW_H__

@@ -111,6 +111,89 @@ uint32_t picoface_boot_qmi_rfmt        = 0;
 uint32_t picoface_boot_qmi_rcmd        = 0;
 bool     picoface_flash_is_quad        = true;   // assumed until pico_init() looks
 uint32_t picoface_qmi_timing_effective = PICOFACE_QMI_M0_TIMING_SAFE;
+bool     picoface_flash_verified       = false;  // did the chosen timing prove itself?
+
+#if PICO_RP2350
+// --- Boot-time flash timing self-calibration -------------------------------
+//
+// The timing this project wants is faster than the part is specified for: at
+// 148 MHz the device is given 3.88 ns where a 133 MHz part may ask for 6 in
+// the worst case. It has worked on every board tested, because real silicon at
+// room temperature beats its worst case by a wide margin -- but "works on the
+// boards we own" is not a property one can put in a hardware requirement, and
+// two issues report boards that will not start.
+//
+// So stop asserting it and measure it instead. Checksum a slab of flash at the
+// timing the bootrom itself was using, raise the clock, then walk a ladder from
+// fastest to slowest and keep the first rung that reproduces the checksum. A
+// board that cannot hold 148 MHz lands on 111 or 55 instead of not booting, and
+// a board that can is left exactly where it was -- this must never slow down
+// hardware that already works.
+//
+// Everything from here to the end of the ladder runs from SRAM. That is the
+// part that makes it safe rather than merely clever: while a candidate timing
+// is in force every flash read is suspect, so a wrong one has to corrupt DATA,
+// never the instruction stream. Code in flash would fetch garbage and fault.
+
+// 32 KB of the firmware image itself -- varied data rather than a pattern, and
+// long enough that a marginal sample point shows up as a mismatch rather than
+// getting lucky. Costs about 2 ms per rung at full speed.
+#define PICOFACE_FLASH_PROBE_WORDS (8u * 1024u)
+
+// NOTE on __attribute__((noinline)): pico-sdk's __not_in_flash_func() sets the
+// section and nothing else. Under this file's `#pragma GCC optimize("Ofast")`
+// the compiler happily inlines these three into pico_init(), which lives in
+// flash -- and then the routine that must not execute from flash does exactly
+// that, silently, with no diagnostic. The build looks identical and the design
+// is gone. Keep noinline, and keep the check in the PR that reads the symbol
+// addresses back out of the ELF.
+
+// Read through the no-cache window: a cached second pass would be answered
+// from SRAM and would "verify" any timing at all, including a broken one.
+static __attribute__((noinline)) uint32_t __not_in_flash_func(picoface_flash_probe)(void)
+{
+    const volatile uint32_t *p = (const volatile uint32_t *)XIP_NOCACHE_NOALLOC_BASE;
+    uint32_t h = 2166136261u;                       // FNV-1a over words
+    for (uint32_t i = 0; i < PICOFACE_FLASH_PROBE_WORDS; i++) {
+        h ^= p[i];
+        h *= 16777619u;
+    }
+    return h;
+}
+
+static __attribute__((noinline)) bool __not_in_flash_func(picoface_flash_try)(uint32_t timing, uint32_t ref)
+{
+    qmi_hw->m[0].timing = timing;
+    __dsb();
+    (void)*(volatile uint32_t *)XIP_NOCACHE_NOALLOC_BASE;   // make the divisor take effect
+    __dsb();
+    __isb();
+    return picoface_flash_probe() == ref;
+}
+
+// Rungs arrive as arguments, not as a table: a flash-resident array would have
+// to be read while a candidate timing is in force, which is the one thing this
+// routine may not do. The literals are materialised by the caller, before any
+// of them is applied.
+static __attribute__((noinline)) uint32_t __not_in_flash_func(picoface_flash_autotune)(uint32_t ref,
+                                                             uint32_t fast,
+                                                             uint32_t mid,
+                                                             uint32_t slow,
+                                                             uint32_t fallback,
+                                                             bool *verified)
+{
+    *verified = true;
+    if (picoface_flash_try(fast, ref)) return fast;
+    if (picoface_flash_try(mid,  ref)) return mid;
+    if (picoface_flash_try(slow, ref)) return slow;
+    *verified = false;
+    // Nothing verified. The bootrom's own configuration, rescaled to hold the
+    // flash clock it chose, is the most trustworthy thing left; apply it and
+    // take it either way, because there is nothing below it to fall to.
+    (void)picoface_flash_try(fallback, ref);
+    return fallback;
+}
+#endif
 
 void pico_init()
 {
@@ -169,35 +252,32 @@ void pico_init()
     picoface_flash_is_quad =
         ((picoface_boot_qmi_rcmd & 0xFFu) == 0xEBu) && (bootDataWidth == 2u);
 
-    if (!picoface_flash_is_quad) {
-        // Keep the flash where the bootrom put it. CLKDIV is a divider of
-        // clk_sys, so raising the clock raises the flash with it unless the
-        // divider grows to match -- scale it, keep every other field the
-        // bootrom chose (RXDELAY, cooldown, deselect), and never write the
-        // compile-time target at all.
-        //
-        // The result is slow: preserving a bootrom that chose CLKDIV=35 gives
-        // a few MHz of XIP, and the sample-reading instruments will be far
-        // from usable. That is the point. A board that boots and shows its
-        // flash clock on the splash can be diagnosed; a dead one cannot.
-        uint32_t bootDiv = picoface_boot_qmi_timing & QMI_M0_TIMING_CLKDIV_BITS;
-        if (bootDiv == 0u) bootDiv = 256u;                 // 0 encodes 256
-        const uint32_t clkNow = clock_get_hz(clk_sys);
-        // ceil(target * bootDiv / clkNow), clamped into the 1..255 the field holds
-        uint64_t want = ((uint64_t)PICOFACE_SYS_CLOCK_HZ * bootDiv + clkNow - 1u) / clkNow;
-        if (want < 1u)   want = 1u;
-        if (want > 255u) want = 255u;
-        picoface_qmi_timing_effective =
-            (picoface_boot_qmi_timing & ~QMI_M0_TIMING_CLKDIV_BITS) | (uint32_t)want;
-        qmi_hw->m[0].timing = picoface_qmi_timing_effective;
-        __dsb();
-        (void)*(volatile uint32_t *)XIP_NOCACHE_NOALLOC_BASE;
-        __dsb();
-        __isb();
-        set_sys_clock_hz(PICOFACE_SYS_CLOCK_HZ, false);
-    } else {
+    // The reference: a checksum of a slab of flash taken at the timing the
+    // bootrom itself was using. The chip booted and is executing from flash
+    // with it, which makes it the one configuration known to be correct here.
+    const uint32_t flashRef = picoface_flash_probe();
 
-    qmi_hw->m[0].timing = PICOFACE_QMI_M0_TIMING_SAFE;
+    // The last resort, computed while the old clock still stands: the bootrom's
+    // own timing with CLKDIV scaled so the flash keeps the clock it chose
+    // across the jump. Every other field it picked is preserved -- RXDELAY,
+    // cooldown, deselect -- because none of them was chosen by us.
+    uint32_t bootDiv = picoface_boot_qmi_timing & QMI_M0_TIMING_CLKDIV_BITS;
+    if (bootDiv == 0u) bootDiv = 256u;                 // 0 encodes 256
+    const uint32_t clkNow = clock_get_hz(clk_sys);
+    // ceil(target * bootDiv / clkNow), clamped into the 1..255 the field holds
+    uint64_t want = ((uint64_t)PICOFACE_SYS_CLOCK_HZ * bootDiv + clkNow - 1u) / clkNow;
+    if (want < 1u)   want = 1u;
+    if (want > 255u) want = 255u;
+    const uint32_t scaledBoot =
+        (picoface_boot_qmi_timing & ~QMI_M0_TIMING_CLKDIV_BITS) | (uint32_t)want;
+
+    // Slack across the clock switch. A board the bootrom put in quad gets SAFE,
+    // which is what has always been used here and is known to survive the jump;
+    // anything else gets its own bootrom's settings rescaled, because SAFE's
+    // other fields were never chosen with that flash in mind.
+    const uint32_t slack = picoface_flash_is_quad ? PICOFACE_QMI_M0_TIMING_SAFE
+                                                  : scaledBoot;
+    qmi_hw->m[0].timing = slack;
     __dsb();
     // The datasheet asks for one more thing here, which we were not doing:
     //
@@ -207,7 +287,6 @@ void pico_init()
     //    Mx_TIMING write to ensure the SCK divisor change is in effect _before_
     //    the system clock is changed."
     //
-    // That is exactly this write: CLKDIV goes 4 -> 8 ahead of the clk_sys jump.
     // The barriers order the APB write, but they do not make the QMI run a
     // transaction, and until it does the new divisor need not be in effect. The
     // only flash access that followed was the instruction fetch of the code
@@ -222,14 +301,31 @@ void pico_init()
     __dsb();
     __isb();
 
+    // set_sys_clock_hz() is called with required=false: on an unreachable
+    // target it returns false and silently leaves clk_sys at its default.
+    // 444 MHz is reachable via the PLL (VCO 1332 / 3), but if that ever changes
+    // we must not tighten the flash timing for a clock the part never got to.
     const bool clockOk = set_sys_clock_hz(PICOFACE_SYS_CLOCK_HZ, false);
-    // The SAFE timing stays in place if the target turned out to be unreachable.
-    picoface_qmi_timing_effective = clockOk ? PICOFACE_QMI_M0_TIMING_TARGET
-                                            : PICOFACE_QMI_M0_TIMING_SAFE;
+
+    if (!clockOk) {
+        // clk_sys never moved, so the slack timing is already the right one and
+        // nothing faster may be applied. The symptom is loud rather than
+        // subtle: the synth runs at 150 MHz and the load percentage on the
+        // status line goes through the roof.
+        picoface_qmi_timing_effective = slack;
+        picoface_flash_verified       = false;
+    } else {
+        picoface_qmi_timing_effective =
+            picoface_flash_autotune(flashRef,
+                                    PICOFACE_QMI_M0_TIMING_TARGET,
+                                    PICOFACE_QMI_M0_TIMING_CD4,
+                                    PICOFACE_QMI_M0_TIMING_SAFE,
+                                    scaledBoot,
+                                    &picoface_flash_verified);
+    }
     qmi_hw->m[0].timing = picoface_qmi_timing_effective;
     __dsb();
     __isb();
-    }
 #else
     hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
     sleep_ms(33);
