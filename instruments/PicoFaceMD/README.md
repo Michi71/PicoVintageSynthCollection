@@ -417,35 +417,40 @@ are far better than their worst-case numbers -- but that is exactly the profile
 of a setting that works on one board and not the next, and two issues report
 boards that will not boot.
 
-**`OC` is the default, and the reason is three measurements.** The arithmetic
-alone made `CD4` look right, and it was the default briefly. Then the cost was
-measured on the D5 -- the most XIP-bound of the ten, because it reads its PCM
-from flash -- boot benchmark, four voices, over many power cycles:
+**`OC` is the default, and getting there took three tries and a lesson about
+the measuring instrument.** The arithmetic alone made `CD4` look right, and it
+was the default briefly. Then the cost was measured on the D5 -- the most
+XIP-bound of the ten, because it reads its PCM from flash. Boot benchmark,
+four voices:
 
-| | SCK | RXDELAY | B | voices before the governor trims | for the device |
-|---|---|---|---|---|---|
-| `OC` | 148 MHz | 3 | **51** | 8.1 | 2.76 ns |
-| `RX4` | 148 MHz | 4 | 53–54 | 7.5 | 3.88 ns |
-| `CD4` | 111 MHz | 5 | 59 | 6.8 | 6.14 ns |
+| | SCK | RXDELAY | B | for the device |
+|---|---|---|---|---|
+| `OC` | 148 MHz | 3 | **51** and **53** on different runs | 2.76 ns |
+| `RX4` | 148 MHz | 4 | 53, 54 | 3.88 ns |
+| `CD4` | 111 MHz | 5 | 59 | 6.14 ns |
 
-The benchmark varies by about half a point across boots, so those differences
-are real.
+**Read the spreads before the differences.** `bootBenchPercent()` reports the
+*worst* of 94 blocks, not the mean, and a maximum picks up whatever transient
+landed in one of them — so it swings by two points or more between runs of the
+same image. That is the right statistic for the diagnostic it is (it shows the
+worst case the governor has to survive) and the wrong one for comparing timings
+two points apart.
 
-**The middle row is a finding the datasheet does not carry: RXDELAY costs
-throughput.** `RX4` runs the *same* SCK as `OC` and moves only the sampling
-point, so it was expected to be free — that was the whole argument for making
-it the default. It costs about 2.5 points, five percent. A back-of-envelope says
-it should be a tenth of that: one extra half system clock cycle is 1.13 ns at
-444 MHz, against a cache line fill of some 200 ns. The measurement wins and the
-explanation is missing.
+An earlier version of this section claimed, on one `OC` run against one `RX4`
+run, that RXDELAY costs about five percent of throughput at constant SCK —
+which would have been a finding the datasheet does not carry. A second `OC` run
+came back at 53 and took it away. **Withdrawn.** `OC` and `RX4` overlap and
+nothing measured here separates them.
 
-So there is no free rung, and margin costs voices at much the same rate either
-way — 0.37 ns per benchmark point for `RX4`, 0.42 for `CD4`. Which leaves the
-question of whether to buy any, and the honest answer is *not yet*: two boards
-are reported not to boot and neither reporter has tested a thing, so nothing
-here is known to help. `OC` is the default because it is the configuration that
-runs on every board actually tested, and it is the only one that costs nothing.
-The others are the rungs to hand somebody whose board does not boot.
+`CD4`'s cost does stand: 59 against 51–53 is six to eight points, well outside
+the spread, and about **1.3 voices** before the governor starts trimming tails.
+
+Which leaves whether to buy any margin at all, and the honest answer is *not
+yet*: two boards are reported not to boot and neither reporter has tested a
+thing, so nothing here is known to help. `OC` is the default because it is the
+configuration that runs on every board actually tested and the one nothing has
+argued against. The others are the rungs to hand somebody whose board does not
+boot.
 
 `CD4` itself was wrong when it was added: `RXDELAY=4` gives 9.01 ns, a nanosecond
 short. It had been chosen against the part's 133 MHz rating rather than against
