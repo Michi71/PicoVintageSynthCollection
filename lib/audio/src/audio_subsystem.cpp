@@ -1,3 +1,4 @@
+#include "hardware/pio.h"
 #include "audio_subsystem.h"
 
 // This library is intentionally independent of the instrument configuration
@@ -36,6 +37,16 @@ audio_buffer_pool_t *init_audio(uint32_t sample_freq, uint buffer_count)
         .dma_channel = 0,
         .pio_sm = 0};
 
+#if defined(PICOFACE_PIO_GPIO_BASE) && (PICOFACE_PIO_GPIO_BASE != 0)
+    // The I2S pins sit above GPIO 31 on this board variant. An RP2350 PIO
+    // addresses either GPIO 0-31 or 16-47; re-base this PIO before its first
+    // program is added -- the SDK refuses the call once instruction memory is
+    // in use. Loud on failure: a silent no-op here is a silent instrument.
+    if (pio_set_gpio_base(__CONCAT(pio, PICO_AUDIO_I2S_PIO), PICOFACE_PIO_GPIO_BASE) != PICO_OK)
+    {
+        panic("PicoAudio: cannot set PIO GPIO base %d\n", PICOFACE_PIO_GPIO_BASE);
+    }
+#endif
     output_format = audio_i2s_setup(&s_audio_format, &s_audio_format, &config);
     if (!output_format)
     {
