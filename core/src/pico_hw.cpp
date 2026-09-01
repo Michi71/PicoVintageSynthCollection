@@ -314,6 +314,25 @@ void pico_init()
         // status line goes through the roof.
         picoface_qmi_timing_effective = slack;
         picoface_flash_verified       = false;
+    } else if (!picoface_flash_is_quad) {
+        // The bootrom could not establish quad on this flash. Do NOT probe
+        // upward here.
+        //
+        // The upward ladder rests on an assumption that hardware has now
+        // refuted: that a too-fast timing returns bad data, so the checksum
+        // mismatches and the next rung gets a turn. On a board in issue #107 it
+        // does not -- it takes the chip down, and the ladder never reaches its
+        // second rung. Two 444 MHz images differing only in their FIRST rung
+        // decide it: with a slow one the board boots, with RX4 it is dead.
+        // A faulting XIP read is not confined to data either; the fault handler
+        // itself lives in flash, which is exactly what is broken at that moment.
+        //
+        // So on these boards keep what the bootrom chose, rescaled to hold its
+        // clock. That is slow and it boots, which beats fast and dead. The
+        // ladder stays for boards the bootrom put in quad, where every rung-one
+        // verification so far has succeeded and no bad timing is ever applied.
+        picoface_qmi_timing_effective = scaledBoot;
+        picoface_flash_verified       = false;
     } else {
         picoface_qmi_timing_effective =
             picoface_flash_autotune(flashRef,
