@@ -96,18 +96,31 @@
 // the data stays valid for an SCK period plus the device's output hold, so
 // even CD4's sample at 10.14 ns sits inside a window running past 12 ns.
 //
-// Which one is the default is a trade, and it was measured rather than argued.
-// On the D5 -- the most XIP-bound of the ten, because it reads its PCM from
-// flash -- the boot benchmark went from B51 at 148 MHz to B59 at 111 MHz.
-// Four voices, so 10.0 % per voice against 12.0 %: about 1.3 voices of
-// headroom before the governor starts trimming tails. That is a real price for
-// margin nobody has yet shown we need, since neither reporter of a
-// non-booting board has tested anything.
+// Which one is the default was settled by measurement, on the D5 -- the most
+// XIP-bound of the ten, because it reads its PCM from flash. Boot benchmark,
+// four voices, repeated over many power cycles (it varies by about half a
+// point, so these differences are real):
 //
-// So RX4 is the default. Against the OC it replaces it is strictly better and
-// free: same SCK, same throughput, 1.1 ns more for the device purely by
-// sampling later. CD4 is the next rung and costs those 1.3 voices; it is
-// where to go if a board still will not boot on RX4.
+//   OC   148 MHz, RXDELAY=3    B51        8.1 voices before the governor trims
+//   RX4  148 MHz, RXDELAY=4    B53-54     7.5
+//   CD4  111 MHz, RXDELAY=5    B59        6.8
+//
+// The middle row is the surprise, and it is worth recording because the
+// datasheet does not mention it: RXDELAY costs throughput. RX4 runs the SAME
+// SCK as OC and moves only the sampling point, so it was expected to be free.
+// It is not -- it costs about 2.5 points, five percent. A back-of-envelope
+// says it should be a tenth of that: one extra half system clock cycle is
+// 1.13 ns at 444 MHz, against a cache line fill of some 200 ns. The
+// measurement wins and the explanation is missing.
+//
+// So there is no free rung, and margin costs voices at much the same rate
+// either way -- 0.37 ns per benchmark point for RX4, 0.42 for CD4. Which
+// leaves the question of whether to buy any, and the honest answer is not yet:
+// two boards are reported not to boot and neither reporter has tested a thing,
+// so nothing here is known to help. OC is the default because it is the
+// configuration that runs on every board actually tested, and the others are
+// the rungs to hand somebody whose board does not. Buy margin when there is
+// evidence it fixes something, not before.
 //
 // The upper bits (COOLDOWN=1, PAGEBREAK=2, MIN_DESELECT=7) are identical in
 // all values below; only CLKDIV and RXDELAY differ.
@@ -128,11 +141,10 @@
 // failure".
 #define PICOFACE_QMI_M0_TIMING_SAFE 0x60007208u
 
-// 148 MHz flash at 444 MHz, sampled as early as it goes. The default until
-// Table 1292 made the sum above computable. Superseded by RX4, which runs the
-// same SCK and gives the device 1.1 ns more for nothing -- there is no reason
-// to choose this one, and it is kept only because the 480 MHz boot-failure
-// note above refers to it.
+// The default. 148 MHz flash at 444 MHz, sampled as early as it goes, and
+// 2.76 ns for a device that may want 6 in the worst case -- which is why the
+// rungs below exist. It has run on every board tested here, and it is the only
+// value that costs nothing.
 #define PICOFACE_QMI_M0_TIMING_OC 0x60007303u
 
 // 480 MHz target: CLKDIV=4, RXDELAY=3 -> 120 MHz flash. Used by PicoFaceRD,
@@ -143,15 +155,15 @@
 // thing to try if an RD ever fails to boot.
 #define PICOFACE_QMI_M0_TIMING_RD 0x60007304u
 
-// The default. Full flash speed with a later sample point: 3.88 ns for the
-// device against OC's 2.76, bought by moving RXDELAY and nothing else, so the
-// throughput is identical. Still under the 10.0 ns worst case -- this is more
-// margin, not enough margin.
+// First rung. Full flash speed with a later sample point: 3.88 ns for the
+// device against OC's 2.76. Expected to be free, since only RXDELAY moves;
+// measured at about 2.5 benchmark points on the D5, roughly 0.6 voices. Still
+// under the 10.0 ns worst case -- this is more margin, not enough margin.
 #define PICOFACE_QMI_M0_TIMING_RX4 0x60007403u   // CLKDIV=3, RXDELAY=4
 
-// The next rung, and the first value here that satisfies the worst-case sum:
-// 6.14 ns for the device. Costs 111 MHz instead of 148, which measured as 1.3
-// voices on the D5. RXDELAY=5, not 4: at 4 the budget is 9.01 ns against a
+// Second rung, and the first value here that satisfies the worst-case sum:
+// 6.14 ns for the device. Costs 111 MHz instead of 148, measured at 8 benchmark
+// points on the D5, roughly 1.3 voices. RXDELAY=5, not 4: at 4 the budget is 9.01 ns against a
 // requirement of 10.0 -- that value was picked against the part's 133 MHz
 // rating, before the pad delays made the real sum computable.
 #define PICOFACE_QMI_M0_TIMING_CD4 0x60007504u   // CLKDIV=4, RXDELAY=5
@@ -177,7 +189,7 @@
 #endif
 
 #ifndef PICOFACE_QMI_M0_TIMING_TARGET
-#define PICOFACE_QMI_M0_TIMING_TARGET PICOFACE_QMI_M0_TIMING_RX4
+#define PICOFACE_QMI_M0_TIMING_TARGET PICOFACE_QMI_M0_TIMING_OC
 #endif
 
 
