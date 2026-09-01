@@ -309,8 +309,10 @@ int main(void)
         // CLKDIV encodes the SCK period in system clock cycles; 0 means 256.
         const uint32_t clkdivRaw = qmi_hw->m[0].timing & QMI_M0_TIMING_CLKDIV_BITS;
         const uint32_t clkdiv = clkdivRaw ? clkdivRaw : 256u;
-        const uint32_t flashMHz = (clock_get_hz(clk_sys) / clkdiv + 500000u) / 1000000u;
-        char hw[24];
+        const uint32_t sysHz    = clock_get_hz(clk_sys);
+        const uint32_t coreMHz  = (sysHz + 500000u) / 1000000u;
+        const uint32_t flashMHz = (sysHz / clkdiv + 500000u) / 1000000u;
+        char hw[32];
         // Q or D/S: whether the bootrom got the flash into quad mode. On a
         // board where it did not, the whole fast-timing path is skipped and
         // the flash keeps the bootrom's own (much slower) clock -- so this
@@ -320,9 +322,14 @@ int main(void)
         // without it an A/B of two timings is unreadable at the device.
         const uint32_t rxdelay =
             (qmi_hw->m[0].timing & QMI_M0_TIMING_RXDELAY_BITS) >> QMI_M0_TIMING_RXDELAY_LSB;
-        snprintf(hw, sizeof hw, "A%u %c %uMHz r%u", (unsigned)rp2350_chip_version(),
-                 picoface_flash_is_quad ? 'Q' : 'D', (unsigned)flashMHz,
-                 (unsigned)rxdelay);
+        // The core clock leads: it is what set_sys_clock_hz() may silently have
+        // failed to reach (the flash figure is derived from it and would then
+        // be misread as a flash problem), and it is the parameter the #107
+        // board is suspected on. Reading "core/flash" also makes a set of
+        // images that differ only in clock target tellable apart at the device.
+        snprintf(hw, sizeof hw, "A%u %c %u/%u r%u", (unsigned)rp2350_chip_version(),
+                 picoface_flash_is_quad ? 'Q' : 'D', (unsigned)coreMHz,
+                 (unsigned)flashMHz, (unsigned)rxdelay);
         u8g2_SetFont(&g_u8g2, u8g2_font_5x7_tf);
         u8g2_DrawStr(&g_u8g2, (128 - u8g2_GetStrWidth(&g_u8g2, hw)) / 2, 60, hw);
     }
