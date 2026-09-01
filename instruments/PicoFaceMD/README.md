@@ -395,6 +395,45 @@ peak load stays under a third of one core even with 2× oversampling, the
 Model D does not need the headroom, and at a core voltage of 1.60 V the slower
 clock is the kinder choice when it costs nothing.
 
+### What the datasheet made computable
+
+The section above worked the flash budget out as far as it could without
+numbers for the pads, and settled for "no margin worth the name". The RP2350
+datasheet has the numbers. Table 1292, worst case over process, voltage and
+temperature at VDDIO 3.3 V: **system clock to QSPI output 2.5 ns, QSPI input to
+system clock 1.5 ns**. A 133 MHz QSPI part specifies 6 ns clock-to-output. So
+the requirement is 10.0 ns, and at 444 MHz:
+
+| name | CLKDIV | RXDELAY | SCK | budget | left for the device |
+|---|---|---|---|---|---|
+| `SAFE` | 8 | 2 | 55.5 MHz | 11.26 ns | 7.26 ns |
+| `CD4` | 4 | 5 | 111.0 MHz | 10.14 ns | **6.14 ns** |
+| `RX4` | 3 | 4 | 148.0 MHz | 7.88 ns | 3.88 ns |
+| `OC` | 3 | 3 | 148.0 MHz | 6.76 ns | **2.76 ns** |
+
+`OC` was the default and leaves 2.76 ns where the part asks for 6. It has run on
+every board tested here, because real pads and a real flash at room temperature
+are far better than their worst-case numbers -- but that is exactly the profile
+of a setting that works on one board and not the next, and two issues report
+boards that will not boot. The default is `CD4` now, the first value that
+satisfies the sum with margin, and `OC` is one define away for anyone who wants
+the throughput back.
+
+`CD4` itself was wrong when it was added: `RXDELAY=4` gives 9.01 ns, a nanosecond
+short. It had been chosen against the part's 133 MHz rating rather than against
+this sum, which was not computable until the pad delays turned up.
+
+**And the A4 question is closed.** The datasheet says of that stepping: *"This
+stepping has no hardware changes."* It is identified by `CHIP_ID.REVISION` 0x8
+and differs from A3 only in bootrom. The hardware delta a reporter comparing A2
+against A4 actually sees belongs to **A3** -- GPIO leakage, a QFN-60 NSMASK fix,
+USB and OTP mitigations, and changed reset states for the clock registers --
+and none of it touches flash timing. Of the 28 errata, 13 still affect A4 and
+not one concerns QMI or booting from flash. The datasheet puts the ceiling
+squarely on the board instead: *"the maximum SCK frequency is constrained by the
+limits of the attached QSPI device, the signal integrity afforded by the PCB
+layout, and IO delays in the pads."*
+
 ### The steady-state flash timing, and the boards it does not fit
 
 The section above ends on "the flash chip was never the limit". That was true
