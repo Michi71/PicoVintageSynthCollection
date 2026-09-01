@@ -51,8 +51,29 @@ endif()
 if(NOT DEFINED PICO_PLATFORM)
     set(PICO_PLATFORM "rp2350-arm-s")
 endif()
-if(NOT DEFINED PICO_BOARD)
-    set(PICO_BOARD "sparkfun_promicro_rp2350")
+# --- Board variant -----------------------------------------------------------
+# PICOFACE_BOARD selects the physical board the firmware is built for.
+#   pico             (default) any Pico-2-format RP2350A board: I2S on GP26/27/28
+#   rp2350b_plus_w   Waveshare RP2350B-Plus-W: an RP2350B whose Pico header carries
+#                    GP40/41/42 where a Pico has GP26/27/28. A Pico-Audio HAT on it
+#                    is driven from GP40/41/42, and PIO0 has to be re-based to
+#                    GPIO 16..47 to reach them (RP2350 PIO addresses 0-31 or 16-47).
+set(PICOFACE_BOARD "pico" CACHE STRING "Board variant: pico | rp2350b_plus_w")
+if(PICOFACE_BOARD STREQUAL "rp2350b_plus_w")
+    set(PICO_BOARD "waveshare_rp2350b_plus_w")
+    list(APPEND PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards)
+    set(PICOFACE_I2S_DATA_PIN 40)
+    set(PICOFACE_I2S_CLOCK_PIN_BASE 41)
+    set(PICOFACE_PIO_GPIO_BASE 16)
+elseif(PICOFACE_BOARD STREQUAL "pico")
+    if(NOT DEFINED PICO_BOARD)
+        set(PICO_BOARD "sparkfun_promicro_rp2350")
+    endif()
+    set(PICOFACE_I2S_DATA_PIN 26)
+    set(PICOFACE_I2S_CLOCK_PIN_BASE 27)
+    set(PICOFACE_PIO_GPIO_BASE 0)
+else()
+    message(FATAL_ERROR "PICOFACE_BOARD must be 'pico' or 'rp2350b_plus_w' (got '${PICOFACE_BOARD}')")
 endif()
 
 include(cmake/pico_sdk_import.cmake)

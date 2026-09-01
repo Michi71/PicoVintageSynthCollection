@@ -179,8 +179,8 @@ function(picoface_add_instrument)
     # --- compile definitions -----------------------------------------------------
     set(_defines
         USE_AUDIO_I2S=1
-        PICO_AUDIO_I2S_DATA_PIN=26
-        PICO_AUDIO_I2S_CLOCK_PIN_BASE=27
+        # I2S pins and PIO GPIO base are PUBLIC definitions of the Audio target
+        # (lib/audio/CMakeLists.txt), so every instrument sees the same values.
     )
     # PICO_USE_SW_SPIN_LOCKS and the enlarged stacks are deliberately NOT set
     # here. In the original repositories they were per-instrument: YC, J6, MD

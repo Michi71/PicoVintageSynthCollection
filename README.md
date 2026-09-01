@@ -50,6 +50,16 @@ needs on a small board.
 The pin map is the same for every instrument and lives in
 [core/include/project_config.h](core/include/project_config.h).
 
+**Which RP2350 board.** The default build assumes a Pico-2-format board with an
+RP2350**A** -- Pico 2, Waveshare RP2350-Plus and the like -- where I2S sits on
+GP26/27/28 at header pins 31/32/34. The Waveshare **RP2350B-Plus-W** has the
+same header but carries **GP40/41/42** at those three positions (the RP2350B's
+ADC0-2 take the Pico's ADC spots; GP26-28 are only on the pads underneath), so
+a default image on it drives the I2S lines into thin air: display, MIDI and
+encoders work, only the sound is missing, and every counter reads healthy. It
+is a build-time choice, not a wiring one -- see *Building* for
+`-DPICOFACE_BOARD=rp2350b_plus_w`.
+
 **If the screen stays dark.** The panel is on I2C at 1 MHz with only the chip's
 internal pull-ups. That is above what an SH1106 datasheet promises (400 kHz) and
 it is what the reference board runs, because the display push is paced in half
@@ -147,6 +157,19 @@ cmake --build build
 ```
 
 The artifacts are then in `build/<instrument>.uf2`.
+
+**Board variant.** `-DPICOFACE_BOARD=pico` (the default) builds for any
+Pico-2-format RP2350A board. `-DPICOFACE_BOARD=rp2350b_plus_w` builds for the
+Waveshare RP2350B-Plus-W: it selects an RP2350B board profile (48 GPIOs, 16 MB),
+puts I2S on GP40/41/42, and re-bases PIO0 to GPIO 16-47 before the I2S program
+is loaded, because an RP2350 PIO addresses either GPIO 0-31 or 16-47. The
+released UF2s are the default variant; the RP2350B build is one cmake flag
+away and produces the same ten images.
+
+```bash
+cmake -S . -B build-b -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICOFACE_BOARD=rp2350b_plus_w
+cmake --build build-b
+```
 
 **The splash screen names the build.** Every instrument shows a version taken
 from `git describe`, not a number typed into its `instrument.cmake`: on a

@@ -62,8 +62,15 @@ static inline void audio_i2s_program_init(PIO pio, uint sm, uint offset, uint da
 
     pio_sm_init(pio, sm, offset, &sm_config);
 
-    uint pin_mask = (1u << data_pin) | (3u << clock_pin_base);
-    pio_sm_set_pindirs_with_mask(pio, sm, pin_mask, pin_mask);
+    // 64-bit masks: on RP2350 the pins may sit above 31 (an RP2350B board
+    // variant drives I2S from GP40-42). A 32-bit mask shifted by 40 is
+    // undefined behaviour -- on ARM the shift wraps modulo 32, the mask lands
+    // on pins 8-10 and the SDK's parameter check rejects it silently in a
+    // release build, so the pins never become outputs and the DAC hears
+    // nothing while every other check reads correct. The 64-bit call takes
+    // absolute GPIO numbers and works for pins below 32 exactly as before.
+    const uint64_t pin_mask = (1ull << data_pin) | (3ull << clock_pin_base);
+    pio_sm_set_pindirs_with_mask64(pio, sm, pin_mask, pin_mask);
     pio_sm_set_pins(pio, sm, 0); // clear pins
 
     // set resolution to ISR (use as config value)

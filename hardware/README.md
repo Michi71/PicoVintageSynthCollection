@@ -260,7 +260,14 @@ Still needed:
 - **The pin map matches the firmware**, checked pad by pad against
   `core/include/project_config.h`: MIDI on GP4/GP5 → pins 6/7, display on GP2/GP3
   → pins 4/5, I2S on GP26/27/28 → pins 31/32/34, the three encoders on
-  GP6-GP8/GP10-GP15, stdio on GP0/GP1 → pins 1/2. Ground lands on 3, 8, 13, 18,
+  GP6-GP8/GP10-GP15, stdio on GP0/GP1 → pins 1/2.
+  **This map assumes a Pico-format RP2350A board.** The Waveshare
+  RP2350B-Plus-W keeps every one of these positions *except* pins 31/32/34,
+  which carry GP40/41/42 there (the RP2350B's ADC0-2 take the Pico's ADC
+  positions; GP26-28 are only on the pads underneath). A firmware built for a
+  Pico drives GP26-28 into thin air on that board -- display, MIDI and
+  encoders work, only the sound is missing. Build it with
+  `-DPICOFACE_BOARD=rp2350b_plus_w` instead; see the top-level README. Ground lands on 3, 8, 13, 18,
   23, 28 and 38, and AGND on 33 — which the datasheet allows to be tied to
   digital ground when the ADC is not used, and it is not.
 - **RUN is on pin 30** of the Pico format, so the RUN switch works.
