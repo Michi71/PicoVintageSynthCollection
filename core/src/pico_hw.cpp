@@ -28,6 +28,14 @@
 // PICOFACE_SYS_CLOCK_HZ and PICOFACE_QMI_M0_TIMING_TARGET come from
 // project_config.h, which is where the flash-write sites can see them too.
 
+// A transfer is at most 32 bytes, so 300 us at 1 MHz and 750 us at 400 kHz.
+// 5 ms is more than an order of magnitude of headroom and still bounded.
+static const uint32_t kOledXferTimeoutUs = 5000;
+// Twenty in a row: a healthy bus never produces one.
+static const uint8_t  kOledMaxFailures   = 20;
+static uint8_t s_oledFailures = 0;
+static bool    s_oledDead     = false;
+
 uint8_t u8x8_byte_pico_hw_i2c(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
     static uint8_t buffer[32]; /* u8g2/u8x8 will never send more than 32 bytes between START_TRANSFER and END_TRANSFER */
@@ -46,8 +54,7 @@ uint8_t u8x8_byte_pico_hw_i2c(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *
         }
         break;
     case U8X8_MSG_BYTE_INIT:
-        // SH1106 supports Fast Mode up to 1 MHz for faster display refresh
-        i2c_init(i2c1, 1000 * 1000);
+        i2c_init(i2c1, PICOFACE_OLED_I2C_HZ);
         gpio_set_function(PIN_OLED_SDA, GPIO_FUNC_I2C);
         gpio_set_function(PIN_OLED_SCL, GPIO_FUNC_I2C);
         gpio_pull_up(PIN_OLED_SDA);
@@ -59,7 +66,33 @@ uint8_t u8x8_byte_pico_hw_i2c(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *
         buf_idx = 0;
         break;
     case U8X8_MSG_BYTE_END_TRANSFER:
-        i2c_write_blocking(i2c1, u8x8_GetI2CAddress(u8x8) >> 1, buffer, buf_idx, false);
+        // Bounded, and it gives up. i2c_write_blocking() waits forever for the
+        // TX FIFO to empty, and nothing bounds that wait: any wiring that holds
+        // SDA or SCL low spins there for good. The first transfer happens in
+        // u8g2_InitDisplay(), which runs BEFORE the splash loop -- the only
+        // place tud_task() gets called during startup -- so a shorted display
+        // cable takes the whole instrument down without so much as enumerating
+        // over USB. It reads exactly like "the firmware does not boot".
+        //
+        // A missing display was never the problem: the SDK checks
+        // tx_abrt_source and returns an error on a NACK, so an absent panel
+        // just leaves the screen dark. It is a held line that hangs.
+        //
+        // After kOledMaxFailures consecutive timeouts the panel is written off
+        // for this power cycle. A broken display should cost you the display,
+        // not the MIDI, the audio and the encoders. There is deliberately no
+        // retry: a loose wire that comes and goes would otherwise pay the
+        // timeout on every transfer forever, and a reboot is the honest cure.
+        if (!s_oledDead) {
+            const int r = i2c_write_timeout_us(i2c1, u8x8_GetI2CAddress(u8x8) >> 1,
+                                               buffer, buf_idx, false,
+                                               kOledXferTimeoutUs);
+            if (r < 0) {
+                if (++s_oledFailures >= kOledMaxFailures) s_oledDead = true;
+            } else {
+                s_oledFailures = 0;
+            }
+        }
         break;
     default:
         return 0;

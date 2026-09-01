@@ -50,6 +50,24 @@ needs on a small board.
 The pin map is the same for every instrument and lives in
 [core/include/project_config.h](core/include/project_config.h).
 
+**If the screen stays dark.** The panel is on I2C at 1 MHz with only the chip's
+internal pull-ups. That is above what an SH1106 datasheet promises (400 kHz) and
+it is what the reference board runs, because the display push is paced in half
+tile rows of roughly 1.5 ms of I2C each -- the bus rate is directly the UI's
+frame time, and 400 kHz would make a full screen 60 ms instead of 24. On longer
+jumper leads it is the first thing to suspect. Build with
+`-DPICOFACE_OLED_I2C_HZ=400000`, and consider real 2.2k-4.7k pull-ups before
+blaming the display.
+
+A display that is simply absent costs nothing: the I2C write returns an error on
+a NACK and the firmware carries on. A display that *holds a line low* used to
+take the whole instrument down -- the wait for the bus is unbounded, and the
+first transfer happens before the splash loop, which is the only place USB gets
+serviced during startup, so the board would not even enumerate. It reads exactly
+like a firmware that does not boot. That write is now bounded at 5 ms and the
+panel is written off after twenty consecutive failures, so a broken display
+costs you the display and not the MIDI, the audio and the encoders.
+
 **On the board setting.** The build defaults to `PICO_BOARD=sparkfun_promicro_rp2350`,
 and that is a statement about flash size rather than about hardware: the
 prototype runs a Waveshare RP2350-Plus, and the SparkFun definition was picked
