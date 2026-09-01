@@ -92,11 +92,25 @@
 // of a setting that works on one board and not the next, and two issues report
 // boards that will not boot.
 //
-// Sampling too LATE is the other failure and is not close at CD4: the data
-// stays valid for an SCK period plus the device's output hold, so a sample at
-// 10.14 ns sits well inside a window running past 12 ns.
+// Sampling too LATE is the other failure, and none of these is close to it:
+// the data stays valid for an SCK period plus the device's output hold, so
+// even CD4's sample at 10.14 ns sits inside a window running past 12 ns.
+//
+// Which one is the default is a trade, and it was measured rather than argued.
+// On the D5 -- the most XIP-bound of the ten, because it reads its PCM from
+// flash -- the boot benchmark went from B51 at 148 MHz to B59 at 111 MHz.
+// Four voices, so 10.0 % per voice against 12.0 %: about 1.3 voices of
+// headroom before the governor starts trimming tails. That is a real price for
+// margin nobody has yet shown we need, since neither reporter of a
+// non-booting board has tested anything.
+//
+// So RX4 is the default. Against the OC it replaces it is strictly better and
+// free: same SCK, same throughput, 1.1 ns more for the device purely by
+// sampling later. CD4 is the next rung and costs those 1.3 voices; it is
+// where to go if a board still will not boot on RX4.
+//
 // The upper bits (COOLDOWN=1, PAGEBREAK=2, MIN_DESELECT=7) are identical in
-// all three values below; only CLKDIV and RXDELAY differ.
+// all values below; only CLKDIV and RXDELAY differ.
 
 // Set BEFORE the clk_sys change, and left in place if the change fails.
 // CLKDIV=8, RXDELAY=2 -- deliberately slack, because this is the timing the
@@ -114,10 +128,11 @@
 // failure".
 #define PICOFACE_QMI_M0_TIMING_SAFE 0x60007208u
 
-// 148 MHz flash at 444 MHz. Was the default until Table 1292 made the sum
-// above computable; kept because it is measurably faster on a board that
-// tolerates it, and every board tested here does. Opt back in with
-// -DPICOFACE_QMI_M0_TIMING_TARGET=PICOFACE_QMI_M0_TIMING_OC.
+// 148 MHz flash at 444 MHz, sampled as early as it goes. The default until
+// Table 1292 made the sum above computable. Superseded by RX4, which runs the
+// same SCK and gives the device 1.1 ns more for nothing -- there is no reason
+// to choose this one, and it is kept only because the 480 MHz boot-failure
+// note above refers to it.
 #define PICOFACE_QMI_M0_TIMING_OC 0x60007303u
 
 // 480 MHz target: CLKDIV=4, RXDELAY=3 -> 120 MHz flash. Used by PicoFaceRD,
@@ -128,13 +143,17 @@
 // thing to try if an RD ever fails to boot.
 #define PICOFACE_QMI_M0_TIMING_RD 0x60007304u
 
-// Full flash speed with a later sample point: 3.88 ns for the device, more
-// than OC and still under the worst case. A middle rung, not a safe one.
+// The default. Full flash speed with a later sample point: 3.88 ns for the
+// device against OC's 2.76, bought by moving RXDELAY and nothing else, so the
+// throughput is identical. Still under the 10.0 ns worst case -- this is more
+// margin, not enough margin.
 #define PICOFACE_QMI_M0_TIMING_RX4 0x60007403u   // CLKDIV=3, RXDELAY=4
-// The default. The first value here that satisfies the worst-case sum with
-// margin. RXDELAY=5, not 4: at 4 the budget is 9.01 ns against a requirement
-// of 10.0 -- that value was picked against the part's 133 MHz rating, before
-// the pad delays made the real sum computable.
+
+// The next rung, and the first value here that satisfies the worst-case sum:
+// 6.14 ns for the device. Costs 111 MHz instead of 148, which measured as 1.3
+// voices on the D5. RXDELAY=5, not 4: at 4 the budget is 9.01 ns against a
+// requirement of 10.0 -- that value was picked against the part's 133 MHz
+// rating, before the pad delays made the real sum computable.
 #define PICOFACE_QMI_M0_TIMING_CD4 0x60007504u   // CLKDIV=4, RXDELAY=5
 
 // Which of the two target values an instrument uses is a software decision in
@@ -158,7 +177,7 @@
 #endif
 
 #ifndef PICOFACE_QMI_M0_TIMING_TARGET
-#define PICOFACE_QMI_M0_TIMING_TARGET PICOFACE_QMI_M0_TIMING_CD4
+#define PICOFACE_QMI_M0_TIMING_TARGET PICOFACE_QMI_M0_TIMING_RX4
 #endif
 
 
