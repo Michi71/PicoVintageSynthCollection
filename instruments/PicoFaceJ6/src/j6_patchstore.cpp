@@ -55,6 +55,7 @@ static bool bank_store(void) { return true; }
 #include "pico/platform.h"
 #include "veeprom.h"
 #include "project_config.h"
+#include "pico_hw.h"
 
 #ifndef FLASH_SECTOR_SIZE
 #define FLASH_SECTOR_SIZE 4096u
@@ -85,7 +86,11 @@ static void __no_inline_not_in_flash_func(bank_write_locked)(const uint8_t* buf)
     flash_range_program(J6_PATCH_FLASH_OFFSET, buf, FLASH_SECTOR_SIZE);
 
 #if PICO_RP2350
-    qmi_hw->m[0].timing = PICOFACE_QMI_M0_TIMING_TARGET;   /* undo boot2 clobber */
+    // Whatever pico_init() decided we are actually running -- not the
+    // compile-time target. On a board where the bootrom did not establish
+    // quad mode those are different, and writing the target here would
+    // undo the boot's care at the first settings save.
+    qmi_hw->m[0].timing = picoface_qmi_timing_effective;   /* undo boot2 clobber */
     /* Returning from this SRAM-resident function is the first fetch to go
      * through the QMI again, so the write must have landed. __dsb orders the
      * APB write against those fetches; a compiler barrier would not. */

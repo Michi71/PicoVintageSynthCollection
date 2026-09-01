@@ -66,6 +66,7 @@ void veeprom_sim_reset(void) {
 #include "pico/platform.h"
 #include "hardware/structs/qmi.h"
 #include "project_config.h"
+#include "pico_hw.h"
 
 #ifndef FLASH_SECTOR_SIZE
 #define FLASH_SECTOR_SIZE 4096u
@@ -89,7 +90,11 @@ static void __no_inline_not_in_flash_func(flash_write_locked)(int eraseSectorIdx
     }
     flash_range_program(VEEPROM_FLASH_OFFSET + progOff, buf, VEEPROM_RECORD_SIZE);
 #if PICO_RP2350
-    qmi_hw->m[0].timing = PICOFACE_QMI_M0_TIMING_TARGET;  // undo boot2 re-init clobber
+    // Whatever pico_init() decided we are actually running -- not the
+    // compile-time target. On a board where the bootrom did not establish
+    // quad mode those are different, and writing the target here would
+    // undo the boot's care at the first settings save.
+    qmi_hw->m[0].timing = picoface_qmi_timing_effective;  // undo boot2 re-init clobber
     // Returning from this SRAM-resident function is the first instruction fetch
     // to go through the QMI again, so the timing write must have landed by then.
     // __compiler_memory_barrier() only constrains the compiler; __dsb() is what

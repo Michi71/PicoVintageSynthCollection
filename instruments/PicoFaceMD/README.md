@@ -545,6 +545,69 @@ Two smaller things were corrected in the same place:
   discarded. On an unreachable target it silently leaves `clk_sys` at 150 MHz;
   the aggressive flash timing is now only applied if the switch succeeded.
 
+
+### What the boards actually reported, and the mode we never checked
+
+The experiment above was run. A diagnostic image reads QMI `M0_TIMING`,
+`M0_RFMT` and `M0_RCMD` as the bootrom left them -- captured in `pico_init()`
+before this project touches the flash -- and puts them on the display. On
+RP2350 that is the only way to know: `boot_stage2` is compiled but never runs,
+the bootrom configures the flash, and what it chose was never visible.
+
+| | working A2 board | reporting board |
+|---|---|---|
+| `M0_RCMD` prefix | `EB` (quad I/O) | **`BB` (dual I/O)** |
+| addr / data width | 4 bit | **2 bit** |
+| `DUMMY_LEN` | 4 | **0** |
+| `M0_TIMING` | `0x60007203` | `0x60007023` as reported |
+
+The timing value is almost certainly a transcription slip: the digits were read
+off a screen that could not be photographed and typed by hand, and
+`0x60007023` is one adjacent-digit transposition away from `0x60007203` --
+which is exactly the working board's value. It is treated as such here.
+
+The other two are not slips. `0x00009154` is not a mistyping of `0x000492A8`,
+and the two registers cross-validate: `9154` decodes to precisely the widths
+and turnaround a `BB` dual-I/O read requires. A slip of the pen does not
+accidentally produce a coherent alternative configuration. **The dual mode is
+real.**
+
+That exposes a defect independent of any boot failure. `pico_init()` wrote its
+tuned `M0_TIMING` over whatever the bootrom had established, without ever
+looking at what that was. The tuned value is measured for quad reads with four
+dummy cycles; a dual read with none is a different proposition at the same
+divider -- half the bandwidth per clock, and a turnaround carried entirely by
+the mode byte. We had been overwriting a flash configuration we had never
+looked at.
+
+The fix reads `M0_RCMD` and `M0_RFMT` first and applies the tuned value only
+when the bootrom actually established quad -- prefix `EB` and 4-bit widths.
+Otherwise every field the bootrom chose is kept and only `CLKDIV` is rescaled,
+so the flash keeps the clock it already had across the core-clock change:
+
+| bootrom | flash before | flash after, core at 444 MHz |
+|---|---|---|
+| `CLKDIV=3` @ 150 MHz | 50.0 MHz | 49.3 MHz (`CLKDIV=9`) |
+| without this fix | | 148.0 MHz |
+
+The splash line carries the mode as a `Q` or `D` (`A2 Q 148MHz`), so a board
+running dual is visible in one glance instead of invisible for a fortnight.
+The three post-flash-write restore sites write the value the boot actually
+settled on rather than the compile-time macro, or the first settings save
+would undo the caution.
+
+**This is a correctness fix, not a proven cure.** Two things must be said
+against reading it as the answer to #107. Under the corrected timing value the
+reporting board's bootrom picked the *same* divider as the working one, so the
+flash divider is not what separates them. And the clock ladder does not order
+by flash clock at all: `SAFE`'s 55.5 MHz failed at a 444 MHz core, while `OC`'s
+100 MHz works at a 300 MHz core. No monotone function of flash clock produces
+that; core clock produces it immediately. The prime suspect is therefore the
+core clock, and this fix earns its keep by making the next experiment clean --
+it moves the flash to 49 MHz while leaving the core at 444, which no previous
+build did. The reported chip revision was also `A3`, not the `A4` of the issue
+title, and is hand-transcribed like the rest.
+
 ### Double-tap RESET, and why it used to be disabled
 
 In the standalone repository `pico_bootsel_via_double_reset` was deliberately

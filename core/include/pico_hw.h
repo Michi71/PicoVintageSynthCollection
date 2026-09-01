@@ -64,4 +64,17 @@ static inline void pico_fpu_ftz_enable(void)
 
 void pico_init();
 
+// What the bootrom left in the QMI, captured at the first instruction of
+// pico_init() before anything is changed, plus what we concluded from it.
+// The three registers are diagnostics; the last two are what the flash is
+// actually running with, and every site that restores M0_TIMING after a flash
+// write must use picoface_qmi_timing_effective rather than the compile-time
+// target -- on a board where the bootrom did not establish quad mode, the
+// target is not what we are running.
+extern uint32_t picoface_boot_qmi_timing;
+extern uint32_t picoface_boot_qmi_rfmt;
+extern uint32_t picoface_boot_qmi_rcmd;
+extern bool     picoface_flash_is_quad;
+extern uint32_t picoface_qmi_timing_effective;
+
 #endif // __PICO_HW_H__
