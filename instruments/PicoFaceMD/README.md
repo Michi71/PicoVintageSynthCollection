@@ -699,6 +699,22 @@ up, that is the knob.
 
 
 
+### The "A4 board" that had no sound was a different board
+
+A footnote to everything above, because it would otherwise read as one story.
+The 16 MB A4-marked board used for the flash work turned out to be a Waveshare
+**RP2350B-Plus-W** -- an RP2350B in Pico format. Its flash findings stand: the
+dual-I/O bootrom configuration, the fatal fast rung, the 49 MHz fallback. But it
+also made no sound with any instrument, and that had nothing to do with the
+flash: on that board the header positions where a Pico carries GP26/27/28
+carry GP40/41/42, so the I2S lines were driven into thin air while every
+firmware counter read healthy. A pin probe settled it (the chip was toggling
+BCK/LRCK on 27/28 the whole time), and a board variant fixed it -- with two
+more traps on the way that are recorded in the commit history: the audio
+library did not receive the instrument's pin defines, and the PIO init built
+its pin-direction mask as a 32-bit shift, undefined for pin 40. See the
+top-level README, *Which RP2350 board*.
+
 ### The ladder cannot rescue a board, and what does
 
 The premise of the ladder is one sentence in the code: a too-fast timing
