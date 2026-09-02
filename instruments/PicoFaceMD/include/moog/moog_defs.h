@@ -148,9 +148,31 @@
 #define MOOG_PULSE_WIDE     0.29f
 #define MOOG_PULSE_NARROW   0.15f
 
-/* Break point of the sawtooth-triangular ("shark tooth"): the rising ramp
- * takes this fraction of the cycle, the fall the rest. */
-#define MOOG_TRISAW_BREAK   0.80f
+/* The sawtooth-triangular, the "shark tooth", is not a waveform of its own.
+ * R030 47K and R031 10K are strung between the oscillator's sawtooth and
+ * triangle outputs and the switch taps their junction (Dwg 1448), so position
+ * two carries a resistive mix of the other two:
+ *
+ *     V = (Vsaw/47K + Vtri/10K) / (1/47K + 1/10K)
+ *       = (10*Vsaw + 47*Vtri) / 57
+ *
+ * Two consequences, and both are audible. It is mostly triangle, a sixth of
+ * it sawtooth -- and because that sixth is a sawtooth, the mix carries a real
+ * step at the end of every cycle, 0.35 of full scale. This engine used to
+ * model the shape as a triangle with an off-centre peak, which is continuous
+ * and therefore softer than the original.
+ *
+ * The polarity of the triangle shaper relative to the sawtooth is not legible
+ * on the scan. It does not matter: the two possibilities are time-reverses of
+ * one another, so they carry the same magnitude spectrum.
+ *
+ * Knowingly left out: at the junction the source impedance is 47K||10K, about
+ * 8K, where the sawtooth and triangle positions are driven from followers.
+ * The original's shark tooth is therefore also a little quieter than its
+ * neighbours by an amount that moves with the volume pot -- a couple of dB
+ * that would cost a setting-dependent gain to reproduce. */
+#define MOOG_TRISAW_SAW    (10.0f / 57.0f)   /* 0.1754 */
+#define MOOG_TRISAW_TRI    (47.0f / 57.0f)   /* 0.8246 */
 
 /* Frequency control of oscillators 2 and 3. The panel is marked -7..+7 and
  * the schematic agrees: "7.5V +/-2.5V, +/-5TH(+)" at both controls, a fifth

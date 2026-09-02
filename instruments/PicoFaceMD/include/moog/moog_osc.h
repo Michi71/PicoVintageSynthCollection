@@ -13,12 +13,15 @@
     sawtooth, reverse sawtooth, the three rectangles
         discontinuous in the sample itself -- polyBLEP at every edge
 
-    triangle, sawtooth-triangular
-        continuous, only the slope jumps. Their harmonics fall off at 1/n^2,
-        so the eleventh harmonic of a note at the top of the keyboard is
-        already 40 dB down. Generated directly: a polyBLAMP would cost real
-        cycles to correct something that sits under the noise floor of the
-        original.
+    sawtooth-triangular
+        mostly triangle, but the sixth of it that is sawtooth steps at the end
+        of every cycle, so it takes a polyBLEP scaled to that share
+
+    triangle
+        continuous, only the slope jumps. Its harmonics fall off at 1/n^2, so
+        the eleventh harmonic of a note at the top of the keyboard is already
+        40 dB down. Generated directly: a polyBLAMP would cost real cycles to
+        correct something that sits under the noise floor of the original.
 
   Header-only on purpose. process() is called three times per oversampled
   sample -- at 88.2 kHz that is half a million calls a second, and a function
@@ -130,13 +133,19 @@ public:
                     out = 1.0f - 2.0f * t;
                     out += moogPolyBlep(t, dt);
                 } else {
-                    /* Sawtooth-triangular, the "shark tooth": a long rising
-                     * ramp and a short fall. Continuous, so no correction --
-                     * only the slope steps, not the value. */
-                    out = (t < MOOG_TRISAW_BREAK)
-                            ? (t * (2.0f / MOOG_TRISAW_BREAK) - 1.0f)
-                            : (1.0f - (t - MOOG_TRISAW_BREAK) *
-                                      (2.0f / (1.0f - MOOG_TRISAW_BREAK)));
+                    /* Sawtooth-triangular, the "shark tooth": the resistive
+                     * mix of this oscillator's own sawtooth and triangle that
+                     * the panel taps between R030 and R031 -- see
+                     * MOOG_TRISAW_SAW. Mostly triangle, with enough sawtooth
+                     * in it to rise faster than it falls.
+                     *
+                     * The sawtooth share brings a step with it, so this needs
+                     * the correction after all. Scaled by that share, because
+                     * the step is the sawtooth's own and nothing else here
+                     * jumps. */
+                    out = MOOG_TRISAW_TRI * (1.0f - 4.0f * fabsf(t - 0.5f))
+                        + MOOG_TRISAW_SAW * (2.0f * t - 1.0f);
+                    out -= moogPolyBlep(t, dt) * MOOG_TRISAW_SAW;
                 }
                 break;
 
