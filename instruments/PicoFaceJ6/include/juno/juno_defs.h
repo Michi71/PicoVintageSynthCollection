@@ -361,6 +361,11 @@
 #define JUNO_DC_BLOCK_HZ     12.0f
 #define JUNO_HISS_LEVEL       3.0e-5f
 
+/* Noise inside each voice's filter loop, which is what lets the resonance
+ * self-oscillate from silence the way an IR3109 does on its own transistor
+ * noise -- see the note in juno_voice.h. Bank 7 has no other sound source. */
+#define JUNO_VCF_NOISE_FLOOR  2.0e-4f
+
 /* Pitch bender: the Juno-60 bender is a lever, and its depth is set by the
  * Bend Sens (DCO) control on the bender panel rather than being fixed. That
  * control's own maximum is seven semitones -- the master oscillator takes
