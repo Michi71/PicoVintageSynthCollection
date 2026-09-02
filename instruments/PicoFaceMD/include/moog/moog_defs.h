@@ -185,6 +185,28 @@
  * keep the output from being mathematically silent between notes. */
 #define MOOG_HISS_LEVEL     4.0e-5f
 
+/* Noise source: three outputs, not two.
+ *
+ * The noise board (Dwg 1431) is a chain -- generator, then a "-3db/OCTAVE
+ * FILTER" giving pink, then a "100 Hz LOWPASS FILTER" giving a third output
+ * the drawing calls red. All three are specified at -4 dBm, so each stage
+ * makes back the level its filter takes out.
+ *
+ * The panel switch SW14 is double-pole and moves both taps at once: the audio
+ * mixer gets white or pink, and the modulation mix gets pink or red -- always
+ * one stage darker than what is being heard. The modulation mix amplifier
+ * (Dwg 1444) has its noise input labelled "PINK OR RED NOISE", which is what
+ * gives that away. It matters: red is what makes noise pointed at the filter
+ * a slow random wander rather than a fizz.
+ *
+ * The order of the low-pass is not legible on the scan, but the network
+ * carries two capacitors, so it is modelled with two poles at the corner the
+ * drawing names. The gain is measured rather than derived -- it is what puts
+ * red at the same rms as white, which is what -4 dBm on all three outputs
+ * says the original does. */
+#define MOOG_RED_HZ        100.0f
+#define MOOG_RED_GAIN       2.07f   /* measured: puts red at the rms of white */
+
 /* The noise channel of the mixer is not on the same footing as the other
  * four. Its series resistor into the summing node is R49 12K where the
  * oscillators and the external input all get 33K (Dwg 1446), so the channel

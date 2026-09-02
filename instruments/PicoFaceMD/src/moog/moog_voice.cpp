@@ -27,6 +27,7 @@ void MoogVoice::init(float sampleRate)
     osc3_.init(osSr_, 0xC2B2AE35u, true);
 
     noise_.seed(0x1F123BB5u);
+    noise_.setRate(osSr_);          /* the render loop clocks it oversampled */
     hiss_.seed(0x27D4EB2Fu);
 
     ladder_.init(osSr_);
@@ -558,17 +559,29 @@ void MoogVoice::process(float* out, int frames)
             const float s2 = osc2_.process();
             const float s3 = osc3_.process();
 
+            /* All three stages of the noise board are clocked every sample,
+             * whichever way the switch is thrown -- they are filters with
+             * state, and letting one idle would make the panel switch fade in
+             * rather than change over. */
             const float w  = noise_.white();
-            const float nz = pinkNoise_ ? noise_.pink(w) : w;
+            const float pk = noise_.pink(w);
+            const float rd = noise_.red(pk);
+
+            /* SW14 is double-pole: the mixer hears white or pink, and the
+             * modulation mix is handed the next stage down either way. The
+             * panel legend names what is heard, which is why it says White
+             * and Pink and never mentions red at all. */
+            const float audioNz = pinkNoise_ ? pk : w;
+            const float modNz   = pinkNoise_ ? rd : pk;
 
             /* Oscillator 3 and the noise source feed the modulation mix
              * whether or not the mixer switches let them be heard. */
-            lastMod_ = moogLerp(s3, nz, modMix_) * modWheel_;
+            lastMod_ = moogLerp(s3, modNz, modMix_) * modWheel_;
 
             float mix = s1 * mixGain_[0]
                       + s2 * mixGain_[1]
                       + s3 * mixGain_[2]
-                      + nz * mixGain_[3]
+                      + audioNz * mixGain_[3]
                       + feedback_ * fbGain_;
 
             mix += hiss_.white() * MOOG_HISS_LEVEL;
