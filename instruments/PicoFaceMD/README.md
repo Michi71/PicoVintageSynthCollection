@@ -699,6 +699,52 @@ up, that is the knob.
 
 
 
+### The bit the bootrom never sets, and the mode it leaves behind
+
+Two more things came out of the RP2350B-Plus-W, and both reach further than
+that board.
+
+**Why a flash boots in dual.** The board's part is a Puya P25Q128H (JEDEC
+`85 20 18`), not the Winbond in Waveshare's schematic, and its quad-enable bit
+was clear from the factory. The RP2350 bootrom never sets that bit for any
+vendor. Datasheet 5.2.7: it tries *EBh quad, BBh dual, 0Bh, 03h* at divisors
+3/6/12/24 and boots in the first mode that yields a valid image. A part with QE
+clear answers EBh with garbage, so the bootrom settles on dual -- half the
+bandwidth, for nothing in the silicon -- and the datasheet puts "any further
+setup" on the image itself. A board whose flash ships with QE set (the Winbond
+on the A2 reference board) never shows the problem, which is why it looked
+like a stepping difference for two weeks.
+
+`pico_init()` now does that setup when the bootrom left something slower than
+quad: read the JEDEC id, look the vendor up (Puya, Winbond, GigaDevice, Zbit,
+XTX, Boya, Fudan: status register 2 bit 1; Macronix, ISSI, EON: status
+register 1 bit 6; Micron/XMC share a manufacturer byte and are left alone), set
+the bit **once, non-volatile**, if it is clear, select EBh through the bootrom
+API, and believe it only if a 32 KB checksum of the flash reproduces the one
+taken in the bootrom's own mode. Otherwise dual is put back and proven the same
+way. From then on the bootrom finds quad by itself and this code no longer
+runs on that board. Measured on the D5: boot benchmark **154 in dual at 49 MHz,
+62 in quad at 111 MHz**; the A2 reference reads 51-57.
+
+A board where *we* had to do this runs the cautious rung -- `CD4` at 444 MHz,
+`RD_CAP` at 480 -- because the only such part measured verifies 111 MHz and
+hangs at 148, and a rung that hangs cannot be stepped down from. Everything
+runs from SRAM; `flash_do_cmd()` leaves XIP in 03h serial afterwards, which is
+why every mode is set explicitly and the reference is taken first.
+
+**The mode after a flash write.** This one reached every board. The SDK's
+`flash_range_program()` and `flash_range_erase()` re-enter XIP through
+`rom_flash_enter_cmd_xip()`, documented as *"a standard 03h serial read
+command ... CLKDIV is set to 12"* -- not the mode the bootrom found, and not
+ours. The three write sites (`core/src/veeprom.cpp`, the RD's `veeprom.cpp`,
+the J6's `j6_patchstore.cpp`) restored the **timing** alone, which put every
+board on serial 03h at the fast divider from the first settings save until the
+next reboot: one bit per clock, a quarter of quad's bandwidth, and 03h itself
+is a command most parts rate to about 50 MHz. `picoface_flash_after_write()`
+now restores the mode and then the timing, from RAM, at all three sites. The
+visible symptom on a D5 is the load figure rising after a settings save and
+falling back after a reboot.
+
 ### The "A4 board" that had no sound was a different board
 
 A footnote to everything above, because it would otherwise read as one story.

@@ -162,10 +162,13 @@ The artifacts are then in `build/<instrument>.uf2`.
 Pico-2-format RP2350A board. `-DPICOFACE_BOARD=rp2350b_plus_w` builds for the
 Waveshare RP2350B-Plus-W: it selects an RP2350B board profile (48 GPIOs, 16 MB),
 puts I2S on GP40/41/42, and re-bases PIO0 to GPIO 16-47 before the I2S program
-is loaded, because an RP2350 PIO addresses either GPIO 0-31 or 16-47. It also
-tops the flash timing ladder one rung lower (111 MHz instead of 148; RD 96
-instead of 120): the reference board's Puya P25Q128H verifies 111 MHz in quad
-and hangs at 148, and a rung that hangs cannot be stepped down from. A board
+is loaded, because an RP2350 PIO addresses either GPIO 0-31 or 16-47. The firmware
+also puts such a board's flash into quad by itself when the bootrom left it in
+dual -- the Puya P25Q128H on the reference board ships with its quad-enable bit
+clear, and the bootrom never sets one -- and then tops the flash timing ladder
+one rung lower (111 MHz instead of 148; RD 96 instead of 120): that part
+verifies 111 MHz in quad and hangs at 148, and a rung that hangs cannot be
+stepped down from. See the PicoFaceMD README, *The bit the bootrom never sets*. A board
 with a faster flash can ask for the full rung with
 `-DPICOFACE_QMI_M0_TIMING_TARGET=PICOFACE_QMI_M0_TIMING_RX4`. The released UF2s
 are the default variant; the RP2350B build is one cmake flag away and produces
