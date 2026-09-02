@@ -82,4 +82,15 @@ extern uint32_t picoface_qmi_timing_effective;
 // verify -- every one tested so far -- set this true.
 extern bool     picoface_flash_verified;
 
+// Flash identification and the quad story. picoface_flash_jedec holds the
+// 0x9F answer (manufacturer, type, capacity). picoface_flash_quad_by_us is
+// true when the bootrom left the flash in dual and pico_init() set the part's
+// quad-enable bit and switched it to EBh itself; such boards run the
+// CAUTIOUS rung. picoface_flash_after_write() must be called after every
+// flash program/erase: the SDK re-enters XIP in 03h serial there, and the
+// timing alone does not bring the mode back.
+extern uint32_t picoface_flash_jedec;
+extern bool     picoface_flash_quad_by_us;
+void picoface_flash_after_write(void);
+
 #endif // __PICO_HW_H__

@@ -22,6 +22,8 @@
 #else
 #include <hardware/structs/qmi.h>
 #include <hardware/structs/xip.h>
+#include <hardware/flash.h>          // flash_do_cmd: JEDEC id, status registers, QE bit
+#include <pico/bootrom.h>            // rom_flash_select_xip_read_mode, rom_flash_flush_cache
 #endif
 
 
@@ -195,6 +197,139 @@ static __attribute__((noinline)) uint32_t __not_in_flash_func(picoface_flash_aut
 }
 #endif
 
+// --- Quad enable: the bit the bootrom never sets -------------------------------
+//
+// The RP2350 bootrom does not know any flash vendor's quad-enable bit. It tries
+// EBh quad, BBh dual, 0Bh and 03h at divisors 3/6/12/24 and boots in the first
+// mode that yields a valid image (datasheet 5.2.7). A part whose QE bit is
+// clear answers EBh with garbage, so the bootrom settles on dual and the board
+// runs at half the bandwidth -- for no reason in the silicon. The datasheet
+// puts any further setup on the image itself. This is that setup: identify the
+// part, set QE once and non-volatile (the write is guarded on the bit being
+// clear, so it happens once per board), switch to EBh, and believe it only if
+// a checksum of the flash reproduces the one taken in the bootrom's own mode.
+//
+// Everything here runs from SRAM: each step changes how flash is read, and the
+// code doing it must not itself be fetched from flash meanwhile. flash_do_cmd()
+// leaves XIP in the bootrom's generic 03h serial mode afterwards, which is why
+// every mode below is set explicitly and the reference is taken beforehand.
+uint32_t picoface_flash_jedec      = 0;
+bool     picoface_flash_quad_by_us = false;
+#if PICO_RP2350
+static __attribute__((noinline)) void __not_in_flash_func(picoface_xip_settle)(void)
+{
+    rom_flash_flush_cache();
+    __dsb();
+    (void)*(volatile uint32_t *)XIP_NOCACHE_NOALLOC_BASE;
+    __dsb();
+    __isb();
+}
+
+// Where the quad-enable bit lives, by JEDEC manufacturer byte. reg 2: status
+// register 2, read 35h, written 31h (or 01h with two bytes on older parts).
+// reg 1: status register 1 bit 6, read 05h, written 01h. Vendors not listed
+// are left alone -- Micron/ST (20h) in particular use a different scheme and
+// share the byte with XMC, so neither is touched.
+struct QeSpec { uint8_t mfr; uint8_t reg; uint8_t bit; };
+static const QeSpec kQeTable[] = {
+    {0x85, 2, 0x02},   // Puya      (P25Q128H on the Waveshare RP2350B-Plus-W)
+    {0xEF, 2, 0x02},   // Winbond
+    {0xC8, 2, 0x02},   // GigaDevice
+    {0x5E, 2, 0x02},   // Zbit
+    {0x0B, 2, 0x02},   // XTX
+    {0x68, 2, 0x02},   // Boya
+    {0xA1, 2, 0x02},   // Fudan
+    {0xC2, 1, 0x40},   // Macronix
+    {0x9D, 1, 0x40},   // ISSI
+    {0x1C, 1, 0x40},   // EON
+};
+
+static __attribute__((noinline)) uint8_t __not_in_flash_func(picoface_flash_rd)(uint8_t cmd)
+{
+    uint8_t tx[2] = {cmd, 0}, rx[2] = {0, 0};
+    flash_do_cmd(tx, rx, 2);
+    return rx[1];
+}
+static __attribute__((noinline)) void __not_in_flash_func(picoface_flash_wait_wip)(void)
+{
+    for (int i = 0; i < 200000; ++i) {                 // bounded: a status write takes ~ms
+        if ((picoface_flash_rd(0x05) & 0x01u) == 0u) return;
+    }
+}
+
+// Returns true when the flash now reads correctly in EBh quad.
+static __attribute__((noinline)) bool __not_in_flash_func(picoface_flash_enable_quad)(uint32_t ref)
+{
+    uint8_t tx[4] = {0x9F, 0, 0, 0}, rx[4] = {0, 0, 0, 0};
+    flash_do_cmd(tx, rx, 4);
+    picoface_flash_jedec = ((uint32_t)rx[1] << 16) | ((uint32_t)rx[2] << 8) | rx[3];
+
+    const QeSpec *spec = NULL;
+    for (unsigned i = 0; i < sizeof kQeTable / sizeof kQeTable[0]; ++i) {
+        if (kQeTable[i].mfr == rx[1]) { spec = &kQeTable[i]; break; }
+    }
+    if (spec) {
+        const uint8_t rdcmd = spec->reg == 2 ? 0x35 : 0x05;
+        uint8_t cur = picoface_flash_rd(rdcmd);
+        if ((cur & spec->bit) == 0u) {
+            // Once, non-volatile: the bootrom then finds quad by itself on
+            // every later boot and this code no longer runs on this board.
+            // Other bits (block protection etc.) are written back as read.
+            uint8_t wren[1] = {0x06};
+            if (spec->reg == 2) {
+                uint8_t wr[2] = {0x31, (uint8_t)(cur | spec->bit)};
+                flash_do_cmd(wren, NULL, 1); flash_do_cmd(wr, NULL, 2); picoface_flash_wait_wip();
+                cur = picoface_flash_rd(0x35);
+                if ((cur & spec->bit) == 0u) {         // older parts: 01h takes SR1 and SR2 together
+                    const uint8_t sr1 = picoface_flash_rd(0x05);
+                    uint8_t wr2[3] = {0x01, sr1, (uint8_t)(cur | spec->bit)};
+                    flash_do_cmd(wren, NULL, 1); flash_do_cmd(wr2, NULL, 3); picoface_flash_wait_wip();
+                    cur = picoface_flash_rd(0x35);
+                }
+            } else {
+                uint8_t wr[2] = {0x01, (uint8_t)(cur | spec->bit)};
+                flash_do_cmd(wren, NULL, 1); flash_do_cmd(wr, NULL, 2); picoface_flash_wait_wip();
+                cur = picoface_flash_rd(0x05);
+            }
+        }
+        if ((cur & spec->bit) != 0u) {
+            rom_flash_select_xip_read_mode(BOOTROM_XIP_MODE_EBH_QUAD, 3);
+            picoface_xip_settle();
+            if (picoface_flash_probe() == ref) return true;
+        }
+    }
+    // No quad: put the bootrom's dual back, and prove it, before touching anything else.
+    rom_flash_select_xip_read_mode(BOOTROM_XIP_MODE_BBH_DUAL, 3);
+    picoface_xip_settle();
+    if (picoface_flash_probe() == ref) return false;
+    rom_flash_select_xip_read_mode(BOOTROM_XIP_MODE_03H_SERIAL, 3);
+    picoface_xip_settle();
+    return false;
+}
+#endif
+
+// After a flash program/erase. The SDK's flash_range_program/erase re-enter XIP
+// through rom_flash_enter_cmd_xip(), which is "a standard 03h serial read
+// command ... CLKDIV 12" -- not the mode the bootrom found, and not ours.
+// Restoring the timing alone, as the three write sites did, left every board
+// on serial 03h at the fast divider until the next reboot: one bit per clock,
+// a quarter of quad's bandwidth, after the first settings save. So: the mode
+// first, then the timing pico_init() settled on. RAM-resident, like its callers.
+void __attribute__((noinline)) __not_in_flash_func(picoface_flash_after_write)(void)
+{
+#if PICO_RP2350
+    rom_flash_select_xip_read_mode(picoface_flash_is_quad ? BOOTROM_XIP_MODE_EBH_QUAD
+                                                          : BOOTROM_XIP_MODE_BBH_DUAL, 3);
+    rom_flash_flush_cache();
+    __dsb();
+    qmi_hw->m[0].timing = picoface_qmi_timing_effective;
+    __dsb();
+    (void)*(volatile uint32_t *)XIP_NOCACHE_NOALLOC_BASE;
+    __dsb();
+    __isb();
+#endif
+}
+
 void pico_init()
 {
     // FPU flush-to-zero + default-NaN for THIS core (see pico_hw.h for the
@@ -251,6 +386,19 @@ void pico_init()
         (picoface_boot_qmi_rfmt & QMI_M0_RFMT_DATA_WIDTH_BITS) >> QMI_M0_RFMT_DATA_WIDTH_LSB;
     picoface_flash_is_quad =
         ((picoface_boot_qmi_rcmd & 0xFFu) == 0xEBu) && (bootDataWidth == 2u);
+
+    if (!picoface_flash_is_quad) {
+        // The bootrom settled on something slower than quad. Take a checksum in
+        // that mode as the truth, try to get quad ourselves, and re-read the
+        // registers so everything below sees the result.
+        const uint32_t ref0 = picoface_flash_probe();
+        picoface_flash_quad_by_us = picoface_flash_enable_quad(ref0);
+        picoface_boot_qmi_timing = qmi_hw->m[0].timing;
+        picoface_boot_qmi_rfmt   = qmi_hw->m[0].rfmt;
+        picoface_boot_qmi_rcmd   = qmi_hw->m[0].rcmd;
+        const uint32_t w2 = (picoface_boot_qmi_rfmt & QMI_M0_RFMT_DATA_WIDTH_BITS) >> QMI_M0_RFMT_DATA_WIDTH_LSB;
+        picoface_flash_is_quad = ((picoface_boot_qmi_rcmd & 0xFFu) == 0xEBu) && (w2 == 2u);
+    }
 
     // The reference: a checksum of a slab of flash taken at the timing the
     // bootrom itself was using. The chip booted and is executing from flash
@@ -336,7 +484,8 @@ void pico_init()
     } else {
         picoface_qmi_timing_effective =
             picoface_flash_autotune(flashRef,
-                                    PICOFACE_QMI_M0_TIMING_TARGET,
+                                    picoface_flash_quad_by_us ? PICOFACE_QMI_M0_TIMING_CAUTIOUS
+                                                              : PICOFACE_QMI_M0_TIMING_TARGET,
                                     PICOFACE_QMI_M0_TIMING_CD4,
                                     PICOFACE_QMI_M0_TIMING_SAFE,
                                     scaledBoot,

@@ -90,7 +90,7 @@ static void __no_inline_not_in_flash_func(bank_write_locked)(const uint8_t* buf)
     // compile-time target. On a board where the bootrom did not establish
     // quad mode those are different, and writing the target here would
     // undo the boot's care at the first settings save.
-    qmi_hw->m[0].timing = picoface_qmi_timing_effective;   /* undo boot2 clobber */
+    picoface_flash_after_write();   // mode AND timing: the SDK left 03h serial here
     /* Returning from this SRAM-resident function is the first fetch to go
      * through the QMI again, so the write must have landed. __dsb orders the
      * APB write against those fetches; a compiler barrier would not. */
