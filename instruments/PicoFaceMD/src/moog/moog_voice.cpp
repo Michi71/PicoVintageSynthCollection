@@ -211,7 +211,9 @@ void MoogVoice::applyParameter(int id)
     case MOOG_OSC3_FREQ:
         /* "You will also observe that Oscillator 3's FREQUENCY control has a
          * much wider range when switch (B) is off ... a frequency sweep of 6
-         * octaves rather than one octave." */
+         * octaves rather than one octave." The schematic states the same
+         * thing to the decimal place: "+/-2.75 OCT" on the OSC 3 CONTROL
+         * line, so 5.5 octaves of sweep rather than the rounded 6. */
         oscFine_[2] = (v * 2.0f - 1.0f) *
                       (osc3Kbd_ ? MOOG_FREQ_SEMITONES
                                 : MOOG_FREQ_OCTAVES * 12.0f);
@@ -228,7 +230,10 @@ void MoogVoice::applyParameter(int id)
         mixGain_[2] = moogParamOn(p_[MOOG_OSC3_ON]) ? p_[MOOG_OSC3_VOL] : 0.0f;
         break;
     case MOOG_NOISE_VOL: case MOOG_NOISE_ON:
-        mixGain_[3] = moogParamOn(p_[MOOG_NOISE_ON]) ? p_[MOOG_NOISE_VOL] : 0.0f;
+        /* Scaled against the oscillators as the mixer of the original scales
+         * it -- see MOOG_NOISE_MIX_GAIN. */
+        mixGain_[3] = moogParamOn(p_[MOOG_NOISE_ON])
+                        ? p_[MOOG_NOISE_VOL] * MOOG_NOISE_MIX_GAIN : 0.0f;
         break;
     case MOOG_NOISE_COLOR:
         pinkNoise_ = (moogParamStep(v, 2) == 1);
@@ -590,13 +595,18 @@ void MoogVoice::process(float* out, int frames)
         y = dcOut_.process(y);
         y = toneLp_.process(y);
         y = moogSoftClip(y * 1.10f);
-        y *= volume_;
 
+        /* The tuning tone is injected into the second amplifier stage of the
+         * original (Dwg 1445), which sits ahead of the main volume control --
+         * so the volume knob rides it along with everything else. It stays
+         * clear of the filter and of the loudness contour, as it does there. */
         if (a440On_) {
             a440Phase_ += a440Inc_;
             if (a440Phase_ >= 1.0f) a440Phase_ -= 1.0f;
             y += sinf(a440Phase_ * twoPi) * MOOG_A440_LEVEL;
         }
+
+        y *= volume_;
 
         out[i] = y;
     }

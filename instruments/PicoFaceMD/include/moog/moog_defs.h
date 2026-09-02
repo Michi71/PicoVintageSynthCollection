@@ -85,9 +85,15 @@
 /* ------------------------------------------------------------------------ */
 /* Keyboard                                                                  */
 /*                                                                           */
-/* The original has 44 keys, F1..C5 (MIDI 29..72). Notes outside that range   */
-/* are folded in by octaves rather than dropped -- a controller with 61 keys  */
-/* should not have dead zones at both ends.                                   */
+/* The original has 44 keys, F1..C5 (MIDI 29..72) -- the service manual gives */
+/* the span as "(LO F) (HI C) 0 TO 3.64V" over a string of 43 resistors       */
+/* (Fig. 9-2, Dwg 1436). The keyboard runs at 1.02 V/oct into a 102K summing  */
+/* resistor, which is 1 V/oct exactly by the time the oscillators see it.     */
+/*                                                                            */
+/* The two constants below record that span; they do not gate anything. Notes */
+/* outside it play where they are asked to, because a MIDI instrument with    */
+/* dead zones at both ends of a 61-key controller would be worse, not more    */
+/* faithful.                                                                  */
 /* ------------------------------------------------------------------------ */
 #define MOOG_KEY_FIRST      29      /* F1 */
 #define MOOG_KEY_LAST       72      /* C5 -- 44 keys */
@@ -107,31 +113,54 @@
 /* further position one octave. LO sits far below 32' -- the manual describes */
 /* it as "sub-audio clicks", and with the osc 3 keyboard switch off it is the */
 /* instrument's only LFO.                                                     */
+/*                                                                            */
+/* How far below is in the schematic rather than the prose: the range switch  */
+/* taps a resistor chain of 1K per octave (2'-4'-8'-16'-32'), and from 32'    */
+/* down to LO sits a single 4.75K (Fig. 9-2). LO is therefore 4.75 octaves    */
+/* under 32' and 6.75 under 8' -- middle C comes out at 2.4 Hz, which is the  */
+/* usable end of an LFO. The -8.0 this used to hold put it at 1.0 Hz, too      */
+/* slow across the whole keyboard.                                            */
 /* ------------------------------------------------------------------------ */
 #define MOOG_RANGE_COUNT    6
-#define MOOG_LO_OCTAVES    (-8.0f)  /* LO, relative to 8' */
+#define MOOG_LO_OCTAVES    (-6.75f) /* LO, relative to 8' (32' - 4.75K/1K) */
 
 /* Waveform switch, six positions. Oscillator 3 substitutes a reverse
  * sawtooth for the sawtooth-triangular of oscillators 1 and 2. */
 #define MOOG_WAVE_COUNT     6
 
-/* Pulse widths of the three rectangular positions. The panel calls them
- * square, wide rectangular and narrow rectangular; the values are the
- * measured duty cycles of the original rather than exact fractions -- the
- * "square" of a Model D is not 50 %, and that asymmetry is audible. */
-#define MOOG_PULSE_SQUARE   0.48f
+/* Pulse widths of the three rectangular positions -- square, wide
+ * rectangular, narrow rectangular.
+ *
+ * The service manual pins all three down. A panel divider of 1.5K / 1K / 7.5K
+ * across -10 V (Dwg 1448) offers three tap voltages, 0 V, -1.5 V and -2.5 V,
+ * and the oscillator board is calibrated against two of them: "0V = RECT" and
+ * "-2.5V = 15 % D/CY" at the PW input (Fig. 9-2). The transfer between them is
+ * linear -- a +/-1.75 V triangle against a threshold halved by a 100K/100K
+ * divider -- so the middle tap lands on 29 %.
+ *
+ * The square really is square: note 4 of Fig. 9-1 has the timing components
+ * "FACTORY SELECTED (IF NECESSARY) TO ACHIEVE 50 % +/-1 % RECT. DUTY CYCLE",
+ * and Fig. 9-3 marks the waveform 50 %. An earlier 0.48 here was asserted to
+ * be a measured asymmetry; it is outside the factory tolerance, and it puts a
+ * second harmonic 24 dB down on the one waveform whose character is having
+ * none. */
+#define MOOG_PULSE_SQUARE   0.50f
 #define MOOG_PULSE_WIDE     0.29f
-#define MOOG_PULSE_NARROW   0.14f
+#define MOOG_PULSE_NARROW   0.15f
 
 /* Break point of the sawtooth-triangular ("shark tooth"): the rising ramp
  * takes this fraction of the cycle, the fall the rest. */
 #define MOOG_TRISAW_BREAK   0.80f
 
-/* Frequency control of oscillators 2 and 3, in semitones. The manual gives
- * the range as "as much as a major sixth"; the panel is marked -7..+7. With
- * the osc 3 keyboard switch off, oscillator 3 widens to six octaves. */
+/* Frequency control of oscillators 2 and 3. The panel is marked -7..+7 and
+ * the schematic agrees: "7.5V +/-2.5V, +/-5TH(+)" at both controls, a fifth
+ * either way (Fig. 9-2).
+ *
+ * With the oscillator 3 keyboard switch off the same control widens out. The
+ * owner's manual rounds that to "a frequency sweep of 6 octaves"; the
+ * schematic is more exact and marks the OSC 3 CONTROL line "+/-2.75 OCT". */
 #define MOOG_FREQ_SEMITONES 7.0f
-#define MOOG_FREQ_OCTAVES   3.0f
+#define MOOG_FREQ_OCTAVES   2.75f
 
 /* Master tune, in semitones either way. */
 #define MOOG_TUNE_SEMITONES 2.5f
@@ -155,6 +184,17 @@
 /* Noise floor of the audio path, well below anything played but enough to
  * keep the output from being mathematically silent between notes. */
 #define MOOG_HISS_LEVEL     4.0e-5f
+
+/* The noise channel of the mixer is not on the same footing as the other
+ * four. Its series resistor into the summing node is R49 12K where the
+ * oscillators and the external input all get 33K (Dwg 1446), so the channel
+ * runs 2.75x hotter; against that, the noise source is specified at -4 dBm
+ * (0.49 V rms, Dwg 1431) where an oscillator delivers 3.5 V p-p (1.01 V rms
+ * on a sawtooth), which is 6.3 dB the other way. What is left is the factor
+ * below -- about 2.5 dB, small, but it is the difference between noise that
+ * sits under a patch and noise that is part of it. Both sources come out of
+ * this engine at the same rms, so it applies as a plain channel gain. */
+#define MOOG_NOISE_MIX_GAIN 1.33f
 
 /* ------------------------------------------------------------------------ */
 /* Ladder filter                                                             */
@@ -180,8 +220,16 @@
  * reach past it. */
 #define MOOG_RESONANCE_MAX    1.06f
 
-/* Amount of Contour at maximum, in octaves of cutoff sweep. */
-#define MOOG_CONTOUR_OCTAVES  6.0f
+/* Amount of Contour at maximum, in octaves of cutoff sweep.
+ *
+ * Derived rather than guessed. The filter contour swings +0.1 V to +4.0 V
+ * (Dwg 1437) and reaches the filter's control node through the 5K Amount pot
+ * and R601 47K (Dwg 1446): 3.9 V / 47K = 83 uA. The same node takes the
+ * keyboard at 1.02 V/oct through 100K, so one octave is 10.2 uA -- and the
+ * contour is worth a little over eight of them. Six octaves, which this held
+ * before, is a third short of what makes the filter envelope of a Model D
+ * sound the way it does. */
+#define MOOG_CONTOUR_OCTAVES  8.1f
 
 /* Keyboard control switches. The manual: switch K "couples a small amount",
  * switch L "a larger amount", and with both on "the filter cutoff frequency
@@ -213,8 +261,14 @@
 
 /* ------------------------------------------------------------------------ */
 /* Glide                                                                     */
+/*                                                                           */
+/* A 5 MOhm audio-taper pot charging C102, 1 uF (Dwg 1436) -- a time constant */
+/* of five seconds at the top of the control. The number below is the time to */
+/* cover 90 % of the interval, which is 2.3 time constants, so 11.5 s. The    */
+/* 3.0 that stood here was roughly four times too fast; the squared panel law */
+/* in moog_voice.cpp stands in for the audio taper of the original pot.       */
 /* ------------------------------------------------------------------------ */
-#define MOOG_GLIDE_MAX_S    3.0f
+#define MOOG_GLIDE_MAX_S   11.5f
 
 /* ------------------------------------------------------------------------ */
 /* Output stage                                                              */

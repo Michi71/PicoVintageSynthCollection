@@ -48,12 +48,22 @@
 #include "moog_ladder.h"
 #include "moog_env.h"
 
-/* Depth of the modulation mix at a fully raised mod wheel. Neither the
- * manual nor the schematic puts a number on these; they are set so that the
- * wheel gives a usable vibrato over its first third and a full-blooded
- * effect at the top. */
-#define MOOG_OSC_MOD_OCTAVES  0.60f
-#define MOOG_FILT_MOD_OCTAVES 3.00f
+/* Depth of the modulation mix at a fully raised mod wheel.
+ *
+ * The schematic does put a number on these, contrary to what stood here
+ * before. Fig. 9-2 marks the modulation bus "1.75 P-P MAX", and both
+ * destinations are ordinary summing resistors against a node where the
+ * keyboard's 1.02 V/oct through 102K is one octave:
+ *
+ *   oscillators   R5  100K  ->  1.75 V p-p = 1.75 oct p-p = +/-0.875 oct
+ *   filter        R52  33K  ->  5.3 oct p-p                = +/-2.65 oct
+ *
+ * That makes a fully raised wheel worth ten and a half semitones on the
+ * oscillators, not the seven the earlier 0.60 gave -- the dive bombs the
+ * instrument is known for need the whole of it. The wheel's own taper is
+ * dealt with separately, in the squared panel law in applyParameter(). */
+#define MOOG_OSC_MOD_OCTAVES  0.875f
+#define MOOG_FILT_MOD_OCTAVES 2.65f
 
 class MoogVoice
 {
