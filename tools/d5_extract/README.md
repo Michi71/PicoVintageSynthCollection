@@ -339,12 +339,18 @@ arithmetic (the last 14 samples fill the last 14 pages, one page each, so
 nothing is left to choose), 24 unresolved combination ranges. Regions
 1..76 tile the ROM without a gap.
 
-What the table does **not** carry is a root pitch per sample -- that lives
-in the chip with the addresses. `d5_make_blob.py` measures one from the
-material instead (lowest prominent partial, unpitched material reports 0).
-Those values are estimates; the three pianos come out an octave apart as
-they audibly are, but individual entries can be off by an octave and want
-a pass against reference recordings once the engine plays.
+What the table does **not** carry is a root pitch per sample -- and neither
+does the machine. The firmware's pitch composer subtracts four octaves from
+the pitch word of every PCM partial (IC25 `0x0F44`-`0x0F4E`, keyed on the
+PCM bit of the type byte) and otherwise sends the same word a square would
+get; the PCM number only selects the start page and the length class. With
+the chip's 2048-word reference (munt's LA32 model) that is a step of
+f/250 Hz for every sample, 1.046 at coarse 36 on C4 -- the stored rate.
+The `root_hz` column `d5_make_blob.py` still measures (lowest prominent
+partial, unpitched material reports 0) is the natural pitch of the
+material, kept for reading the ROM, not for playing it: the engine used it
+as a transposition target until issue #142, which put FluteH and Breath two
+octaves low and the Spect loops four octaves high.
 
 **With a real D-50/D-550** (`d5_probe_midi.py` + `d5_match.py`): the
 precision path, open to anyone with the hardware. `d5_probe_midi.py` emits

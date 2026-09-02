@@ -199,9 +199,11 @@ Where this still differs from the machine:
   from the ROM; the one constant that scales all of them was calibrated against
   four measurements in reference recordings, and is good to a few percent
   rather than exact.
-- **Root pitch of the attack samples.** The sustained loops are exact (each is
-  one cycle, so the root is the sample rate divided by its length); the attacks
-  carry a measured estimate.
+- **The PCM sample rate.** Every sample is transposed by the machine's one
+  rule (four octaves below the square of the same coarse, IC25 `0x0F49`; the
+  chip's 2048-word reference from munt), which puts a sample at its stored
+  rate at coarse 36 on C4. The rule is proven; the 32 kHz the blob assumes for
+  the chip is the MT-32's figure, not measured on a D-50.
 - **Sixteen voices are allocated, not always rendered.** The allocator is the
   machine's, but the RP2350 is not the LA32: on the heaviest patches -- two
   resonant synth partials and a three-second release, Spacious Sweep being the

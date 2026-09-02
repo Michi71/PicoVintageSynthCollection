@@ -38,7 +38,6 @@ inline void preset_bind(PatchSpec& spec, const int16_t* blob, int pcm1, int pcm2
         r.start = s.start;
         r.length = s.length;
         r.looped = s.looped;
-        r.root_hz = s.root_hz;
     }
 }
 

@@ -257,7 +257,6 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
         }
         r.length = smp.length;
         r.looped = smp.looped;
-        r.root_hz = smp.root_hz;
     }
 
     // ---- TVF: cutoff, resonance and its envelope

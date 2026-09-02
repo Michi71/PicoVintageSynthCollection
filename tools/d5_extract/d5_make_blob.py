@@ -53,7 +53,8 @@ struct PcmSample {{
     uint32_t start;      // in samples, into d5_pcm_blob
     uint32_t length;     // 48..76: exactly one cycle, so the loop is the entry
     bool     looped;     // 48..76 are the sustained loops
-    float    root_hz;    // 48..76 exact as 32000/length; attacks measured
+    float    root_hz;    // natural pitch of the material, informational only:
+                         // playback is f/250 Hz for every sample (d5_pcm_voice.h)
     char     name[7];
 }};
 
