@@ -209,6 +209,17 @@
 #define PICOFACE_SYS_CLOCK_HZ 444000000
 #endif
 
+// The rung for a board whose flash WE had to put into quad (the bootrom found
+// it in dual). The only such part measured -- a Puya P25Q128H -- verifies
+// 111 MHz in quad and hangs at 148, and a rung that hangs cannot be stepped
+// down from. So such boards top out here rather than at the full rung, at
+// either core clock. A board that turns out faster can override TARGET.
+#if PICOFACE_SYS_CLOCK_HZ == 480000000
+#define PICOFACE_QMI_M0_TIMING_CAUTIOUS PICOFACE_QMI_M0_TIMING_RD_CAP
+#else
+#define PICOFACE_QMI_M0_TIMING_CAUTIOUS PICOFACE_QMI_M0_TIMING_CD4
+#endif
+
 #ifndef PICOFACE_QMI_M0_TIMING_TARGET
 #if defined(WAVESHARE_RP2350B_PLUS_W)
 // The rp2350b_plus_w variant tops out one rung lower. Its reference board
