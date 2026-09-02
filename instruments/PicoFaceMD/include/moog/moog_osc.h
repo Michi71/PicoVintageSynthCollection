@@ -168,11 +168,31 @@ public:
                 if (t2 < 0.0f) t2 += 1.0f;
                 out -= moogPolyBlep(t2, dt);
 
-                /* A narrow pulse has a much smaller mean square than a
-                 * square wave. Without this the waveform switch would double
-                 * as a volume control. */
-                out *= (wave_ == MOOG_W_SQUARE) ? 1.0f
-                     : (wave_ == MOOG_W_WIDE)   ? 1.15f : 1.45f;
+                /* Coupled, as the 10 uF between the waveform switch and the
+                 * mixer's audio node couples it (Fig. 9-2). Without this the
+                 * rectangle arrives at the ladder sitting on its own duty
+                 * cycle -- -0.42 for the wide one, -0.70 for the narrow --
+                 * and biases the saturating input stage, which squashes one
+                 * half of the wave against the other. The original's filter
+                 * never sees that offset.
+                 *
+                 * It is also what makes the three positions differ in level
+                 * at all. The comparator output is a logic swing and knows
+                 * nothing about duty cycle: all three leave the oscillator
+                 * board at the same 3.5 V peak to peak (Fig. 9-2 pin 20B,
+                 * "0 / -3.5V"; Fig. 9-3 puts the triangle and sawtooth at
+                 * +/-1.75 V, the same span). Uncoupled they would all carry
+                 * the same mean square. Coupled, the mean square goes as
+                 * 4*w*(1-w), so 29 % lands 0.8 dB under the square and 15 %
+                 * lands 2.9 dB under it, and the peak turns asymmetric --
+                 * a narrow pulse reaches +1.7 against -0.3, exactly as
+                 * 2.975 V against -0.525 V on the instrument.
+                 *
+                 * So on a Model D the waveform switch really is a little bit
+                 * of a volume control. This engine used to make that back
+                 * with a gain per position, which is convenient and is not
+                 * what the instrument does. */
+                out -= 2.0f * w - 1.0f;
                 break;
             }
         }
