@@ -160,6 +160,12 @@
 // thing to try if an RD ever fails to boot.
 #define PICOFACE_QMI_M0_TIMING_RD 0x60007304u
 
+// RD on the rp2350b_plus_w variant: CLKDIV=5, RXDELAY=5 -> 96 MHz flash at
+// 480 MHz, 10.42 ns for the device. The variant's reference flash (Puya
+// P25Q128H) is proven at 111 MHz and hangs at 148; RD's own 120 MHz rung sits
+// in the unproven gap, and a rung that hangs cannot be stepped down from.
+#define PICOFACE_QMI_M0_TIMING_RD_CAP 0x60007505u   // CLKDIV=5, RXDELAY=5
+
 // The default. Full flash speed with a later sample point: 3.88 ns for the
 // device against OC's 2.76, and only RXDELAY moves, so there is no reason to
 // expect it to cost anything. Measurement neither confirms nor denies that --
@@ -204,7 +210,16 @@
 #endif
 
 #ifndef PICOFACE_QMI_M0_TIMING_TARGET
+#if defined(WAVESHARE_RP2350B_PLUS_W)
+// The rp2350b_plus_w variant tops out one rung lower. Its reference board
+// carries a Puya P25Q128H that verifies 111 MHz in quad and hangs at 148 --
+// in quad exactly as it did in dual -- and the ladder cannot step down from
+// a rung that hangs. CD4 is the fastest timing proven on that part; a board
+// with a faster flash can still ask for RX4 with -DPICOFACE_QMI_M0_TIMING_TARGET.
+#define PICOFACE_QMI_M0_TIMING_TARGET PICOFACE_QMI_M0_TIMING_CD4
+#else
 #define PICOFACE_QMI_M0_TIMING_TARGET PICOFACE_QMI_M0_TIMING_RX4
+#endif
 #endif
 
 
