@@ -62,6 +62,8 @@ public:
         osSr_ = sampleRate * (float) JUNO_OVERSAMPLE;
         dco_.init(osSr_, seed);
         vcf_.init(osSr_);
+        /* Its own seed, so six voices do not hiss in lockstep. */
+        hiss_.seed(seed ^ 0x9E3779B9u);
         env_.init(sampleRate);
         note_   = JUNO_CENTER_NOTE;
         active_ = false;
@@ -178,9 +180,18 @@ public:
             ? junoExp2Fast(lfo * p.dcoLfo * (JUNO_LFO_DCO_SEMIS / 12.0f))
             : 1.0f;
 
+        /* The voice card has a noise floor of its own, and it matters: an
+         * IR3109 turned up to self-oscillation sings on its own transistor
+         * noise. A digital filter fed exactly zero stays at exactly zero
+         * however high the resonance, so without this the eight patches of
+         * bank 7 -- which the owner's manual describes as having "VCF self-
+         * oscillation" for a sound source and which carry no waveform at all
+         * -- are silent. It sits inside the loop, where the original's is.
+         * Far too quiet to hear on a patch that has an oscillator. */
         float out = 0.0f;
         for (int os = 0; os < JUNO_OVERSAMPLE; ++os)
-            out = vcf_.process(dco_.process(pitchMul) * 0.4f);
+            out = vcf_.process(dco_.process(pitchMul) * 0.4f
+                               + hiss_.white() * JUNO_VCF_NOISE_FLOOR);
 
         return out * e;
     }
@@ -189,6 +200,7 @@ private:
     JunoDco    dco_;
     JunoFilter vcf_;
     JunoEnv    env_;
+    JunoNoise  hiss_;          /* the card's own noise, inside the filter */
 
     int   note_    = JUNO_CENTER_NOTE;
     float baseInc_ = 0.0f;

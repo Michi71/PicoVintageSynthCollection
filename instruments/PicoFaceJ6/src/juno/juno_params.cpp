@@ -50,8 +50,8 @@ const char* const kJunoArpRangeLabels[3] = { "1 Oct", "2 Oct", "3 Oct" };
 
 /* Pitch bender travel in semitones, as a rotary switch so the display can name
  * the value without a special case. */
-static const char* const kBendLabels[13] = {
-    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"
+static const char* const kBendLabels[8] = {
+    "0", "1", "2", "3", "4", "5", "6", "7"
 };
 
 /* The contour polarity switch is drawn on the panel as two shapes rather than
@@ -105,7 +105,7 @@ const JunoParamDesc kJunoParams[JUNO_TOTAL_COUNT] = {
 
     /* --- Not on the panel ----------------------------------------------- */
     /* JUNO_TUNE          */ BIPOLAR("Tune",  87, JUNO_TUNE_CENTS),
-    /* JUNO_BEND_RANGE    */ ROTARY ("Bend", 13, 20, kBendLabels),
+    /* JUNO_BEND_RANGE    */ ROTARY ("Bend",  8, 20, kBendLabels),
     /* JUNO_LFO_TRIG      */ ROTARY ("Trig",  2, 104, kJunoTrigLabels),
     /* JUNO_TRANSPOSE     */ ROTARY ("Octave",5, 105, kJunoTransposeLabels),
 
