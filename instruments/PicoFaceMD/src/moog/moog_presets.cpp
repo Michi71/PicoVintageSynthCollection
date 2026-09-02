@@ -164,7 +164,7 @@ const MoogProgram moogPrograms[MOOG_NPROGRAMS] = {
  * little so the preset shows what it does. */
 { "Whistle", {
     CTL(0.15f, ON, 0.00f, 0.167f, ON, OFF),
-    OSCS(F4, W_TRI,  F4, 0.500f, W_TRI,  LO, 0.550f, W_TRI),
+    OSCS(F4, W_TRI,  F4, 0.500f, W_TRI,  LO, 0.327f, W_TRI),
     MIX(0.80f, ON, 0.00f, OFF, 0.00f, OFF, 0.00f, OFF, WHITE, 0.00f, OFF),
     MODF(0.70f, 0.30f, 0.15f, OFF, ON, ON,
          0.15f, 0.40f, 0.80f,  0.18f, 0.40f, 0.92f, ON),
@@ -193,7 +193,7 @@ const MoogProgram moogPrograms[MOOG_NPROGRAMS] = {
  * wheel already past halfway. */
 { "Wobble Bass", {
     CTL(0.16f, OFF, 0.00f, 0.742f, OFF, OFF),
-    OSCS(F16, W_SAW,  F16, 0.520f, W_SAW,  LO, 0.420f, W_TRI),
+    OSCS(F16, W_SAW,  F16, 0.520f, W_SAW,  LO, 0.185f, W_TRI),
     MIX(0.85f, ON, 0.70f, ON, 0.00f, OFF, 0.00f, OFF, WHITE, 0.00f, OFF),
     MODF(0.22f, 0.70f, 0.20f, ON, ON, OFF,
          0.02f, 0.40f, 0.50f,  0.02f, 0.45f, 0.95f, ON),
@@ -202,7 +202,7 @@ const MoogProgram moogPrograms[MOOG_NPROGRAMS] = {
 
 { "Vibrato Lead", {
     CTL(0.20f, ON, 0.00f, 0.205f, ON, OFF),
-    OSCS(F8, W_SAW,  F8, 0.530f, W_ALT,  LO, 0.500f, W_TRI),
+    OSCS(F8, W_SAW,  F8, 0.530f, W_ALT,  LO, 0.273f, W_TRI),
     MIX(0.80f, ON, 0.70f, ON, 0.00f, OFF, 0.00f, OFF, WHITE, 0.00f, OFF),
     MODF(0.48f, 0.45f, 0.35f, OFF, ON, ON,
          0.10f, 0.40f, 0.55f,  0.06f, 0.45f, 0.90f, ON),
@@ -231,7 +231,7 @@ const MoogProgram moogPrograms[MOOG_NPROGRAMS] = {
  * filter: the modulation mix turned all the way over. */
 { "Wind", {
     CTL(0.30f, OFF, 1.00f, 0.592f, OFF, OFF),
-    OSCS(F8, W_TRI,  F8, 0.500f, W_TRI,  LO, 0.350f, W_TRI),
+    OSCS(F8, W_TRI,  F8, 0.500f, W_TRI,  LO, 0.109f, W_TRI),
     MIX(0.00f, OFF, 0.00f, OFF, 0.00f, OFF, 0.90f, ON, PINK, 0.00f, OFF),
     MODF(0.35f, 0.55f, 0.25f, ON, OFF, OFF,
          0.55f, 0.60f, 0.70f,  0.50f, 0.60f, 0.90f, ON),
@@ -297,7 +297,7 @@ const MoogProgram moogPrograms[MOOG_NPROGRAMS] = {
 
 { "Space Drone", {
     CTL(0.40f, OFF, 0.30f, 0.490f, ON, OFF),
-    OSCS(F16, W_SAW,  F8, 0.545f, W_ALT,  LO, 0.300f, W_TRI),
+    OSCS(F16, W_SAW,  F8, 0.545f, W_ALT,  LO, 0.055f, W_TRI),
     MIX(0.70f, ON, 0.65f, ON, 0.00f, OFF, 0.15f, ON, PINK, 0.00f, OFF),
     MODF(0.35f, 0.60f, 0.30f, ON, ON, OFF,
          0.70f, 0.70f, 0.60f,  0.60f, 0.75f, 0.90f, ON),
@@ -364,17 +364,24 @@ const MoogProgram moogPrograms[MOOG_NPROGRAMS] = {
  * Two things the sheet does not give a number for:
  *
  *   The oscillator 3 frequency. It only says the range switch is on LO, which
- *   spans 0.13..8.2 Hz here. 0.882 puts it at 4.96 Hz, a normal vibrato rate.
+ *   spans 0.36..16.3 Hz here. 0.689 puts it at 5.00 Hz, a normal vibrato rate.
+ *
+ *   That value used to be 0.882. It moved when the LO range was corrected
+ *   against the schematic -- LO turned out to sit 6.75 octaves under 8', not
+ *   the 8.0 this engine had assumed, so every setting of this control came
+ *   out 1.25 octaves fast and the vibrato here ran at 10.4 Hz. Five other
+ *   presets that use oscillator 3 as an LFO moved with it. The rate is what
+ *   was authored; only the knob position that reaches it has changed.
  *
  *   The modulation wheel. On the instrument this is played, not set -- you
  *   bring the vibrato in by hand on the long notes, and it is not on for the
  *   whole piece. A preset has to pick something, and this ships at 0.020,
- *   which is about +/-7 cents: a shimmer that is there without the note
- *   sounding as though it were sobbing. Raise it with CC 1 or on the CTL MOD
- *   page for as much wail as the part wants.
+ *   which is about +/-10 cents from oscillator 3: a shimmer that is there
+ *   without the note sounding as though it were sobbing. Raise it with CC 1
+ *   or on the CTL MOD page for as much wail as the part wants.
  *
- *   It shipped at 0.050 first, giving +/-18 cents of 5 Hz vibrato on every
- *   note, which is a lot on a sustained lead. Note that the Modulation Mix
+ *   It shipped at 0.050 first, which is +/-26 cents of 5 Hz vibrato on every
+ *   note, and that is a lot on a sustained lead. Note that the Modulation Mix
  *   is not what makes that dirty: measured at equal depth, oscillator 3
  *   smears the spectrum to 20 dB harmonic-to-rest while the noise source
  *   only reaches 46 dB. Turn Mod Mix to 0 for a clean sine vibrato, but
@@ -391,7 +398,7 @@ const MoogProgram moogPrograms[MOOG_NPROGRAMS] = {
  */
 { "Shine On", {
     CTL(0.10f, OFF, 0.50f, 0.141f, ON, OFF),
-    OSCS(F8, W_SAW,  F8, 0.5029f, W_SAW,  LO, 0.882f, W_TRI),
+    OSCS(F8, W_SAW,  F8, 0.5029f, W_SAW,  LO, 0.689f, W_TRI),
     MIX(0.80f, ON, 0.80f, ON, 0.00f, OFF, 0.00f, OFF, WHITE, 0.35f, ON),
     MODF(0.385f, 0.35f, 0.35f, OFF, ON, OFF,
          0.133f, 0.392f, 0.85f,  0.100f, 0.434f, 1.00f, ON),
