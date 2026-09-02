@@ -272,21 +272,35 @@
 /* At the top of the slider that is 2.786 s of silence and a further second   */
 /* of fade, which again overshoots the specified 1.5 s.                        */
 /* ------------------------------------------------------------------------ */
+/* The specifications page says 20 Hz; the factory adjustment is more exact
+ * and sets the top of the slider to a 45 ms period, which Fig. 29 of the
+ * service notes labels 22 Hz. */
 #define JUNO_LFO_HZ_MIN      0.3f
-#define JUNO_LFO_HZ_MAX     20.0f
+#define JUNO_LFO_HZ_MAX     22.0f
 #define JUNO_LFO_DELAY_MAX_S 2.786f
 #define JUNO_LFO_FADE_MAX_S  1.000f
 /*
  * Pitch modulation at full DCO LFO depth, in semitones.
  *
- * One, not seven. Seven was a guess and it was badly wrong: "Piano I" has the
- * DCO LFO slider at 0.4, which at seven semitones is a wobble of nearly three
- * semitones -- a ghost, not a piano. junox settles it by construction, since
- * its oscillator applies 2^(freqMod/12) with freqMod running to 1, so the
- * slider is worth exactly one semitone at the top. That also reads correctly
- * for the panel: this is a vibrato control, not a siren.
+ * The service notes settle this outright. Describing the master oscillator
+ * (TR58-TR62), which carries the common bender, LFO and tune voltages, they
+ * give its variable range per input:
+ *
+ *     BENDER  +/-700 cents
+ *     LFO     +/-300 cents
+ *     TUNE    +/- 50 cents
+ *
+ * and check the arithmetic themselves -- "when these voltages are summed
+ * together, the maximum shiftable range is +/-1050 cents". So a fully raised
+ * DCO LFO slider is worth three semitones.
+ *
+ * This held 1.0 before, taken from junox by construction rather than from any
+ * measurement, and it made the factory patches too timid to hear: at 1.0 the
+ * fifteen that use the slider get between 10 and 40 cents of vibrato, where
+ * a violin or an oboe wants three or four times that. Seven, which it held
+ * before that, was a guess and was too much.
  */
-#define JUNO_LFO_DCO_SEMIS   1.0f
+#define JUNO_LFO_DCO_SEMIS   3.0f
 
 /* ------------------------------------------------------------------------ */
 /* Chorus -- 2x MN3009 BBD, MN3101 clocks                                    */
@@ -347,14 +361,36 @@
 #define JUNO_DC_BLOCK_HZ     12.0f
 #define JUNO_HISS_LEVEL       3.0e-5f
 
-/* Pitch bender: the Juno-60 bender is a lever, and its range is set by a
- * panel control rather than fixed. Two semitones is what a MIDI controller
- * expects, so that is the default. */
-#define JUNO_BEND_MAX_SEMITONES 12.0f
+/* Pitch bender: the Juno-60 bender is a lever, and its depth is set by the
+ * Bend Sens (DCO) control on the bender panel rather than being fixed. That
+ * control's own maximum is seven semitones -- the master oscillator takes
+ * +/-700 cents from the bender (service notes, master oscillator), and the
+ * bender adjustment proves it twice over: with the lever hard left an E5
+ * must read 442 Hz, and with it hard right a D4 must read 442 Hz, each a
+ * fifth away from A4.
+ *
+ * This offered twelve before, which the instrument cannot reach. Two remains
+ * the default, since that is what a MIDI controller expects and it is well
+ * inside the range. */
+#define JUNO_BEND_MAX_SEMITONES 7.0f
 
 /* ------------------------------------------------------------------------ */
 /* Tuning                                                                    */
 /* ------------------------------------------------------------------------ */
+/*
+ * A deliberate departure, recorded here rather than left to look like an
+ * oversight: a Juno-60 is tuned to A = 442 Hz, not 440.
+ *
+ * The service notes say so four times over -- the master oscillator
+ * adjustment ("hold down A4 key and adjust L1 for 442 Hz"), both halves of
+ * the bender adjustment, the key designation figure, and the frequency table
+ * in the DCB section, which lists A4 at 442.0 Hz.
+ *
+ * 440 is kept because this instrument is played alongside others through
+ * MIDI, where being two hertz sharp is a fault rather than a period detail.
+ * Anyone who wants the original pitch has it on the panel: the rear Tune
+ * control spans +/-50 cents and 442 is 7.85 cents up.
+ */
 #define JUNO_A4_HZ          440.0f
 #define JUNO_NOTE0_HZ       8.1757989157f
 

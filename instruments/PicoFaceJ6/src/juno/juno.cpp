@@ -170,7 +170,9 @@ void Juno::applyParameter(int id)
         tuneSemis_ = (v * 2.0f - 1.0f) * (JUNO_TUNE_CENTS / 100.0f);
         break;
     case JUNO_BEND_RANGE:
-        bendRange_ = (float) junoParamStep(v, 13);
+        /* Eight positions, 0..7 semitones: the range of the instrument's
+         * own Bend Sens (DCO) control. See JUNO_BEND_MAX_SEMITONES. */
+        bendRange_ = (float) junoParamStep(v, 8);
         break;
     case JUNO_TRANSPOSE:
         transpose_ = junoParamStep(v, 5) - 2;

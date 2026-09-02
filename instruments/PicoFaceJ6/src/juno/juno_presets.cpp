@@ -42,7 +42,7 @@
 #define R3(i)  (((float) (i) + 0.5f) /  3.0f)
 #define R4(i)  (((float) (i) + 0.5f) /  4.0f)
 #define R5(i)  (((float) (i) + 0.5f) /  5.0f)
-#define R13(i) (((float) (i) + 0.5f) / 13.0f)
+#define R8(i)  (((float) (i) + 0.5f) /  8.0f)
 
 #define OFF 0.0f
 #define ON  1.0f
@@ -72,7 +72,7 @@
 #define TRIG_MAN  R2(1)
 
 #define OCT0  R5(2)
-#define BEND2 R13(2)
+#define BEND2 R8(2)
 
 #define LFO(rate, delay)  rate, delay
 
