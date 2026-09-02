@@ -60,7 +60,9 @@ public:
      */
     void setCutoff(float hz)
     {
-        hz = junoClamp(hz, 5.0f, sr_ * 0.49f);
+        /* Not Nyquist -- the fits below break long before that. See
+         * JUNO_FILTER_WC_MAX_OVER_2PI. */
+        hz = junoClamp(hz, 5.0f, sr_ * JUNO_FILTER_WC_MAX_OVER_2PI);
         wc_ = 2.0f * (float) M_PI * hz / sr_;
 
         const float w2 = wc_ * wc_;

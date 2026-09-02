@@ -167,6 +167,33 @@
 /* ------------------------------------------------------------------------ */
 #define JUNO_CUTOFF_MIN_HZ     20.0f
 #define JUNO_CUTOFF_MAX_HZ  18000.0f
+
+/*
+ * Ceiling on the cutoff the filter itself will accept, as a fraction of the
+ * rate it runs at: one radian per sample, 1/2pi.
+ *
+ * This is not a nicety. The Huovilainen fits in juno_filter.h are good to
+ * about one radian per sample and no further, and past that the resonance fit
+ * does not merely lose accuracy -- it crosses zero at wc = 1.085 and goes
+ * negative, which turns the feedback around the loop from negative into
+ * positive. What comes out is not a filtered note but a thump at whatever
+ * rate the loop settles into.
+ *
+ * The panel only reaches JUNO_CUTOFF_MAX_HZ, but everything else adds octaves
+ * on top of it -- the contour up to ten of them, key follow, the LFO -- so the
+ * filter is asked for far more than the panel in ordinary playing. Organ 1 at
+ * F4 asks for 9.2 kHz, which at 44.1 kHz is wc = 1.31 and well into the broken
+ * region. That patch, and four others, went silent above the middle of the
+ * keyboard until this was here.
+ *
+ * At the rate this engine runs the filter, one radian per sample is 7.0 kHz.
+ * That is a real ceiling on how far the filter opens, and it is the price of
+ * running the filter at the sample rate rather than oversampled the way
+ * PicoFaceMD does; the alternative costs six voices' worth of CPU that this
+ * instrument does not have. The Moog ladder carries the identical clamp for
+ * the identical reason.
+ */
+#define JUNO_FILTER_WC_MAX_OVER_2PI 0.15915f
 #define JUNO_RESONANCE_MAX      1.06f   /* self-oscillates a little above 1 */
 #define JUNO_VCF_GCOMP          0.85f   /* Moog ladder uses 0.5; see above  */
 
