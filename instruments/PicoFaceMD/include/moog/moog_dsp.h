@@ -196,12 +196,29 @@ struct MoogBiquadLP {
 /* four instructions. The white output is the raw generator; the pink one is  */
 /* Paul Kellet's three-pole economy filter, which tracks a true -3 dB/octave  */
 /* slope to within a tenth of a dB across the audio band.                     */
+/*                                                                           */
+/* red() is the third output of the original's noise board, the one only the  */
+/* modulation mix ever sees -- see MOOG_RED_HZ. It is fed from pink, because  */
+/* the stages of that board are cascaded.                                     */
 /* ------------------------------------------------------------------------ */
 struct MoogNoise {
     uint32_t state = 0x1234567u;
     float b0 = 0.0f, b1 = 0.0f, b2 = 0.0f;
+    float r0 = 0.0f, r1 = 0.0f;
+    /* Default is the corner at the oversampled rate this normally runs at,
+     * so an instance nobody configures still behaves. */
+    float redK = 2.0f * (float) M_PI * MOOG_RED_HZ /
+                 ((float) SAMPLING_RATE * MOOG_OVERSAMPLE);
 
     void seed(uint32_t s) { state = s ? s : 0x1234567u; }
+
+    /* Only red depends on the rate; the pink coefficients below are the
+     * published ones and are left as they are. */
+    void setRate(float sr)
+    {
+        const float w = 2.0f * (float) M_PI * MOOG_RED_HZ / sr;
+        redK = w / (1.0f + w);
+    }
 
     float white()
     {
@@ -218,6 +235,14 @@ struct MoogNoise {
         b1 = 0.96300f * b1 + w * 0.2965164f;
         b2 = 0.57000f * b2 + w * 1.0526913f;
         return (b0 + b1 + b2 + w * 0.1848f) * 0.32f;
+    }
+
+    /* Takes the pink output, as the third stage of the board does. */
+    float red(float p)
+    {
+        r0 += (p - r0) * redK;
+        r1 += (r0 - r1) * redK;
+        return r1 * MOOG_RED_GAIN;
     }
 };
 
