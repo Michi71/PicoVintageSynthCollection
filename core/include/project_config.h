@@ -214,11 +214,13 @@
 // 111 MHz in quad and hangs at 148, and a rung that hangs cannot be stepped
 // down from. So such boards top out here rather than at the full rung, at
 // either core clock. A board that turns out faster can override TARGET.
+#ifndef PICOFACE_QMI_M0_TIMING_CAUTIOUS
 #if PICOFACE_SYS_CLOCK_HZ == 480000000
 #define PICOFACE_QMI_M0_TIMING_CAUTIOUS PICOFACE_QMI_M0_TIMING_RD_CAP
 #else
 #define PICOFACE_QMI_M0_TIMING_CAUTIOUS PICOFACE_QMI_M0_TIMING_CD4
 #endif
+#endif   // overridable, e.g. -DPICOFACE_QMI_M0_TIMING_CAUTIOUS=PICOFACE_QMI_M0_TIMING_SAFE for a flash slower than the reference part
 
 #ifndef PICOFACE_QMI_M0_TIMING_TARGET
 #if defined(WAVESHARE_RP2350B_PLUS_W)
