@@ -136,6 +136,15 @@ if(NOT _rd_pk_rc EQUAL 0)
 endif()
 message(STATUS "PicoFaceRD: ${_rd_pk_out}")
 
+# RD's flash rung follows the board variant: its 120 MHz rung is unproven on
+# the rp2350b_plus_w reference flash (111 MHz verified, 148 fatal), so that
+# variant gets the 96 MHz cap instead. See core/include/project_config.h.
+if(PICOFACE_BOARD STREQUAL "rp2350b_plus_w")
+    set(_rd_qmi_target PICOFACE_QMI_M0_TIMING_RD_CAP)
+else()
+    set(_rd_qmi_target PICOFACE_QMI_M0_TIMING_RD)
+endif()
+
 picoface_add_instrument(
     NAME PicoFaceRD
     PROGRAM_NAME "PicoFaceRD"
@@ -187,7 +196,7 @@ picoface_add_instrument(
         TARGET_RP2350=1
         RD_CLOCK_504=1
         PICOFACE_SYS_CLOCK_HZ=480000000
-        PICOFACE_QMI_M0_TIMING_TARGET=PICOFACE_QMI_M0_TIMING_RD
+        PICOFACE_QMI_M0_TIMING_TARGET=${_rd_qmi_target}
     # Which slice of the sixteen patches this build carries.
         RD_PATCH_BASE=${_rd_patch_base}
         RD_PATCH_COUNT=${_rd_patch_count}

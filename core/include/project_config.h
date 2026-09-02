@@ -160,6 +160,12 @@
 // thing to try if an RD ever fails to boot.
 #define PICOFACE_QMI_M0_TIMING_RD 0x60007304u
 
+// RD on the rp2350b_plus_w variant: CLKDIV=5, RXDELAY=5 -> 96 MHz flash at
+// 480 MHz, 10.42 ns for the device. The variant's reference flash (Puya
+// P25Q128H) is proven at 111 MHz and hangs at 148; RD's own 120 MHz rung sits
+// in the unproven gap, and a rung that hangs cannot be stepped down from.
+#define PICOFACE_QMI_M0_TIMING_RD_CAP 0x60007505u   // CLKDIV=5, RXDELAY=5
+
 // The default. Full flash speed with a later sample point: 3.88 ns for the
 // device against OC's 2.76, and only RXDELAY moves, so there is no reason to
 // expect it to cost anything. Measurement neither confirms nor denies that --
