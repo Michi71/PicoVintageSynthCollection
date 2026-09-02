@@ -6,13 +6,13 @@
 // of the sample ROMs; the synth partials (sawtooth/square with TVF, and the
 // ring modulation that pairs them) are separate.
 //
-// The D-50's own table carries a root pitch per sample, but that table lives
-// in the MB87136's mask ROM and cannot be read out. For the 29 sustained
-// loops it did not need to be: each is one cycle of 2^k words, so the root is
-// 32000/length exactly. The attacks have no cycle to measure against and
-// carry an estimate. Material with no pitch at all -- Noise, and some
-// percussion -- reports 0 and always plays at the ROM rate, because
-// transposing noise onto a note turns it into a buzz.
+// There is no root pitch per sample anywhere in the machine. The firmware
+// sends a PCM partial the pitch word a square would get, four octaves lower
+// (IC25 0x0F49), and the chip turns that into a playback step by one rule
+// for every sample -- see kPcmPitchRefHz below. Roland tuned the material to
+// that rule, not the other way round: the sustained loops are 2^k-word
+// cycles so they land on C octaves, and the attacks sit wherever the patch
+// programmer's coarse puts them. Noise follows the key like everything else.
 #pragma once
 
 #include <cmath>
@@ -34,8 +34,27 @@ struct PcmSampleRef {
     uint32_t start = 0;
     uint32_t length = 0;
     bool looped = false;
-    float root_hz = 0.0f;
 };
+
+// The D-50 transposes every PCM sample by one rule, whatever the material.
+// Firmware IC25 0x0F44-0x0F4E (and again at 0x0F9A, the negative-keyfollow
+// branch of the same composer) shifts the partial's type byte and, when the
+// carry -- bit 7, the PCM flag -- is set, subtracts 0x4000 from the pitch
+// word: exactly four octaves in the chip's 4096-per-octave scale. The chip
+// itself (munt LA32WaveGenerator: synth step 2^(p/4096+4) over a 2^20
+// period, PCM step 2^(p/4096+3) in 1/256 word) advances a PCM by
+// f*2048/32000 words per output sample for the pitch word that makes a
+// square wave sound at f. Together: words per sample = f / (32000/128) =
+// f / 250 Hz. At coarse 36 on C4 that is 1.046, the stored rate -- which is
+// also why every sustained loop is a 2^k-word cycle: 32000/2^k Hz times
+// 261.6/250 lands them on the C octaves by construction. Nothing in the
+// firmware carries a root pitch per sample; the PCM number only selects the
+// start page and the length class (IC25 0x04B0-0x04CF). So the natural
+// pitch of the material must not enter the playback rate. It did, until
+// issue #142: FluteH and Breath (~1 kHz material) were transposed onto the
+// square's pitch and came out two octaves low, the Spect loops four octaves
+// high, the bass and piano loops one to two octaves high.
+inline constexpr float kPcmPitchRefHz = 32000.0f / 128.0f;
 
 class PcmVoice {
 public:
@@ -48,8 +67,7 @@ public:
         active_ = s.data != nullptr && s.length > 0;
         gain_ = velocity;
         const float f = 440.0f * std::pow(2.0f, (note - 69.0f) / 12.0f);
-        // Unpitched material has nothing to transpose from: play it as stored.
-        rate_ = (s.root_hz > 0.0f) ? f / s.root_hz : 1.0f;
+        rate_ = f / kPcmPitchRefHz;
         rate_ *= sample_rate > 0.0f ? (32000.0f / sample_rate) : 1.0f;
         rate_ *= detune;
         sr_ = sample_rate;
@@ -90,9 +108,10 @@ private:
     // second. This is also *more* precise: the integer part cannot lose bits
     // to the mantissa however long the note is held.
     //
-    // The whole-word step never reaches the sample length: it is
-    // freq * length / 32000, and no MIDI note reaches 32 kHz. So one
-    // conditional subtract is enough to wrap, no division and no modulo.
+    // The whole-word step is f/250 words: past the length of a 128-word
+    // cycle only for a square pitch above 32 kHz, which no key and coarse
+    // combination in the bank produces. One conditional subtract wraps;
+    // the modulo below is the guard for the absurd case.
     void advance(float step) {
         frac_ += step;
         const uint32_t whole = static_cast<uint32_t>(frac_);
