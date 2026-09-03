@@ -355,11 +355,14 @@ private:
         // precomputes to zero -- cut held notes to silence in one sample.
         // That was the light pop on every pluck released early.
         //
-        // Log-linear glide for FALLING segments only: a decay at constant
-        // dB/s is what the chip's linear log-domain ramp produces, but a
-        // rise in the log domain spends most of its time inaudibly near
-        // the floor -- attacks keep the linear ramp.
-        seg_log_ = spec_.log_segments && target < level_;
+        // Log-linear glide for every segment after the attack: the chip
+        // ramps its log-domain level at a constant rate in both directions,
+        // and Roland's D-50 VST shows it -- a T3 of 70 rising from 0 to 100
+        // climbs at 12.5 dB/s, straight in dB, from -35 to -3 dB in 2.6 s;
+        // the linear-amplitude rise we had reached -10 dB by 1.8 s where the
+        // VST was still at -23. The attack keeps the linear ramp (its law
+        // was calibrated that way on the VST's Arco onset).
+        seg_log_ = spec_.log_segments && (target < level_ || seg >= 1);
         // -60 dB, not -96: the last segment glides to "zero" through this
         // floor, and the deeper it lies the steeper that dive reads in
         // dB/s against what a recording shows.

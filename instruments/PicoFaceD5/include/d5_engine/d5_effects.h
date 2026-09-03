@@ -119,11 +119,19 @@ public:
         const int hq = clamp_index(spec.high_q, 9);
         low_.set_low_shelf(kLowEqFreq[lf], spec.low_gain_db, sr);
         high_.set_peaking(kHighEqFreq[hf], kHighEqQ[hq], spec.high_gain_db, sr);
+        // A boost costs headroom: Roland's D-50 VST pulls the whole signal
+        // down by half the boost (+12 dB low shelf: shelf +5.5, the rest
+        // -6.2; +6: +2.5 and -3.5), cuts leave the rest alone. Shape,
+        // corner frequencies and Q match ours without it.
+        const float boost = (spec.low_gain_db > 0.0f ? spec.low_gain_db : 0.0f)
+                          + (spec.high_gain_db > 0.0f ? spec.high_gain_db : 0.0f);
+        makeup_ = std::pow(10.0f, -0.5f * boost / 20.0f);
     }
 
-    float D5_HOT(process)(float x) { return high_.process(low_.process(x)); }
+    float D5_HOT(process)(float x) { return makeup_ * high_.process(low_.process(x)); }
 
 private:
+    float makeup_ = 1.0f;
     static int clamp_index(int v, int n) { return v < 0 ? 0 : (v >= n ? n - 1 : v); }
     Biquad low_{};
     Biquad high_{};

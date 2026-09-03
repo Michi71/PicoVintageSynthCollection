@@ -56,6 +56,28 @@ inline constexpr Structure kStructures[7] = {
 
 // How far a partial follows one of the three LFOs. The panel writes this as
 // +1..+3 / -1..-3 (which LFO, and in which direction) plus a depth.
+#ifndef D5_TVA_LFO_DB
+#define D5_TVA_LFO_DB 17.5f
+#endif
+#ifndef D5_TVF_LFO_UNITS
+#define D5_TVF_LFO_UNITS 26.0f
+#endif
+#ifndef D5_PW_LFO_SWING
+#define D5_PW_LFO_SWING 0.55f
+#endif
+// Roland's D-50 VST, one partial with LFO-1 (rate 50) on the route:
+//   TVA: 4.4/8.7/13.1/17.5 dB peak to peak at depth 25/50/75/100, downward
+//        from the static level, a straight line.
+//   TVF: the centroid of a cutoff-50 sawtooth swings 560-612 / 543-646 /
+//        531-684 / 525-725 Hz; 26 units of swing reproduce it (24 -> 524-703).
+//   PW:  a square's duty reaches 0.355 / 0.248 / 0.168 / 0.106 at the narrow
+//        turn, i.e. 32 / 65 / 101 / 143 register units -- 1.3 per depth unit,
+//        so 0.55 of the 0..255 register at depth 100 (the wide turn stays at
+//        the 0.5 floor).
+inline constexpr float kTvaLfoDb = D5_TVA_LFO_DB;       // pk-pk duck at depth 100
+inline constexpr float kTvfLfoUnits = D5_TVF_LFO_UNITS; // cutoff swing amplitude at depth 100
+inline constexpr float kPwLfoSwing = D5_PW_LFO_SWING;   // of the 0..255 register at depth 100
+
 struct LfoRoute {
     int lfo = 0;            // 0..2
     float depth = 0.0f;     // -1..+1, sign is the panel's polarity
@@ -401,13 +423,20 @@ public:
                 partial_st != 0.0f ? fast_exp2(partial_st * (1.0f / 12.0f))
                                    : 1.0f;
             const float tgt_pitch = factor * ctl_bend * glide;
-            mod_[i].pw = 0.5f * spec_.pw_lfo[i].depth * lfo_value(l, spec_.pw_lfo[i])
+            // Route depths are linear 0..1 (d5_patch_map.h lfo_route), the
+            // VST's laws: the pulse width swings kPwLfoSwing of the 0..255
+            // register at full depth (the VST's swing hits the narrow floor
+            // from depth 50 on), the cutoff swings kTvfLfoUnits chip units,
+            // and the amplitude ducks kTvaLfoDb dB peak to peak, downward
+            // from the static level.
+            mod_[i].pw = kPwLfoSwing * spec_.pw_lfo[i].depth * lfo_value(l, spec_.pw_lfo[i])
                        + 0.65f * spec_.pw_at[i] * at_;
-            mod_[i].cutoff = 0.5f * spec_.tvf_lfo[i].depth * lfo_value(l, spec_.tvf_lfo[i])
+            mod_[i].cutoff = (kTvfLfoUnits / 100.0f) * spec_.tvf_lfo[i].depth * lfo_value(l, spec_.tvf_lfo[i])
                            + 0.65f * spec_.tvf_at[i] * at_;
-            // amplitude modulation only ever ducks, never boosts past unity
-            const float am = spec_.tva_lfo[i].depth * lfo_value(l, spec_.tva_lfo[i]);
-            float tgt_amp = 1.0f + 0.5f * (am - std::fabs(spec_.tva_lfo[i].depth));
+            const float tva_d = std::fabs(spec_.tva_lfo[i].depth);
+            const float tva_l = spec_.tva_lfo[i].depth < 0.0f ? -lfo_value(l, spec_.tva_lfo[i])
+                                                              : lfo_value(l, spec_.tva_lfo[i]);
+            float tgt_amp = fast_exp2(-kTvaLfoDb * tva_d * 0.5f * (1.0f - tva_l) * (1.0f / 6.0206f));
             // TVA aftertouch (ROM 0x11A9): a positive range rests ~3 dB down
             // and rises to unity at full press; a negative one ducks ~3 dB
             // (the ROM's scale is 2|s| chip units of 0.376 dB, i.e. ~5.3 dB
