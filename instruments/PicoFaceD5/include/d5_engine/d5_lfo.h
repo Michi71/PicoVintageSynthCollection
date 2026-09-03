@@ -86,7 +86,13 @@ public:
         spec_ = spec;
         sr_ = sample_rate;
         inc_ = lfo_rate_hz(spec.rate) / sr_;
-        if (spec_.sync != 0) phase_ = 0.0f;
+        // A synced LFO starts at phase 0, the top of its triangle (Roland's
+        // D-50 VST: the vibrato starts at its highest pitch and falls, the
+        // tremolo fully ducked). A free-running one starts half a cycle
+        // in, at the bottom: the VST's rate-0 tremolo sits open right after
+        // the patch loads, and Ham and Organ lives on that.
+        phase_ = spec_.sync != 0 ? 0.0f : 0.5f;
+        half_ = phase_ >= 0.5f;
         rng_ = seed ? seed : 0x2545F491u;
         sample_ = next_random();
         restart_delay();
@@ -96,6 +102,7 @@ public:
     // its delay in the voices already sounding.
     void retrigger() {
         phase_ = 0.0f;
+        half_ = false;
         restart_delay();
     }
 
@@ -118,19 +125,28 @@ public:
     // Returns the gated value; raw() and gate() expose the parts.
     float next_n(int32_t n) {
         float v;
+        // Shapes as the VST plays them on the pitch route: the triangle
+        // starts at +1 and falls, the sawtooth falls from +1 to -1, the
+        // square is +/-0.5 (half the triangle's swing, high first), the
+        // random value is drawn from +/-0.5 and holds for HALF a period.
         switch (spec_.wave) {
-            case LfoWave::kSawtooth: v = 2.0f * phase_ - 1.0f; break;
-            case LfoWave::kSquare:   v = phase_ < 0.5f ? 1.0f : -1.0f; break;
+            case LfoWave::kSawtooth: v = 1.0f - 2.0f * phase_; break;
+            case LfoWave::kSquare:   v = phase_ < 0.5f ? 0.5f : -0.5f; break;
             case LfoWave::kRandom:   v = sample_; break;
             case LfoWave::kTriangle:
-            default: v = phase_ < 0.5f ? (4.0f * phase_ - 1.0f)
-                                       : (3.0f - 4.0f * phase_); break;
+            default: v = phase_ < 0.5f ? (1.0f - 4.0f * phase_)
+                                       : (4.0f * phase_ - 3.0f); break;
         }
         raw_ = v;
         phase_ += inc_ * n;
+        if (!half_ && phase_ >= 0.5f) {
+            half_ = true;
+            sample_ = next_random();
+        }
         while (phase_ >= 1.0f) {
             phase_ -= 1.0f;
-            sample_ = next_random();      // random holds for one period
+            half_ = false;
+            sample_ = next_random();
         }
         if (delay_left_ > 0.0f) {
             delay_left_ -= n;
@@ -161,13 +177,14 @@ private:
         rng_ ^= rng_ << 13;
         rng_ ^= rng_ >> 17;
         rng_ ^= rng_ << 5;
-        return (rng_ >> 8) * (2.0f / 16777216.0f) - 1.0f;
+        return (rng_ >> 8) * (1.0f / 16777216.0f) - 0.5f;   // +/-0.5, the VST's random swing
     }
 
     LfoSpec spec_{};
     float sr_ = 32000.0f;
     float inc_ = 0.0f;
     float phase_ = 0.0f;
+    bool half_ = false;           // second half of the period reached (random redraw)
     float delay_left_ = 0.0f;
     float gate_ = 0.0f;
     float gate_step_ = 1.0f;

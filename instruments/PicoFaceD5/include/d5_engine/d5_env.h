@@ -26,6 +26,13 @@ struct Env5Spec {
     // dives. TVA envelopes set this; TVF keeps linear segments because its
     // output feeds a cutoff that is already exponential.
     bool log_segments = false;
+    // Amplitude of chip level 0 (100 units under full, -37.6 dB) for the
+    // TVA: a segment to level 0 ramps there in its own time and then keeps
+    // falling at that rate to silence -- the VST's fall from 48 to 0 at
+    // T4 68 runs at 25 dB/s where the fall from 100 runs at 52, the rate
+    // scaling with the start level, and both continue straight past -40
+    // to -80 dB. Zero (the default) keeps the plain floor.
+    float zero = 0.0f;
     // Per-segment decay RATES in dB/s, used for falling log segments when
     // non-zero. The LA chip's time bytes set rates, not durations -- the
     // proof is Horn Section, whose measured release of -37.8 dB/s equals
@@ -155,6 +162,11 @@ inline int tva_chip_level(int p35, int p36, int p14, bool is_pcm,
         bias = prod >> 5;
     }
     int chip = base + velT - bias;
+    // The chip level tops out at 142 -- Roland's D-50 VST: level 100 and
+    // level 90 with velocity sensitivity 100 both land at the same +4.2 dB
+    // over level 100's neutral at velocity 127, level 80 stays 3.8 dB
+    // under it, and a bias point below the key comes off before the cap.
+    if (chip > 142) chip = 142;
     return chip < 0 ? 0 : chip;
 }
 
@@ -214,6 +226,7 @@ inline void build_tva_env(const EnvBytes& b, int key, int vel127,
     const int kf = env_kf_shift(key, b.time_kf, 4);
     const int voff = (vel127 - 64) >> (6 - (b.vel_kf > 4 ? 4 : b.vel_kf));
     out.log_segments = true;
+    out.zero = level * fast_exp2(-6.25f);
     for (int k = 0; k < 3; ++k)
         out.l[k] = fast_exp2((static_cast<int>(b.l[k]) - 100) * 0.0625f) * level;
     out.sustain = b.l[3] == 0
@@ -225,11 +238,18 @@ inline void build_tva_env(const EnvBytes& b, int key, int vel127,
     // ~3 ms), NOT an instant jump -- a snapped attack steps the sample by
     // a quarter of full scale and crackles in sequences. Only a zero
     // target has no distance to travel.
+    // Duration against Roland's D-50 VST (one partial, L1 100, time to
+    // -1 dB): T1 40/50/60/70 take 0.07/0.16/0.38/0.89 s there, 0.53 of the
+    // firmware-index reading; a lower target lengthens the VST's attack
+    // only mildly (L1 50: x1.2, L1 25: x1.6), half the law's effect. And
+    // the chip climbs in the log domain here as well -- -20 dB at two
+    // thirds of the way, -6 dB at 0.9 -- so Env5 ramps the attack like
+    // the other segments (kFloor up).
     if (b.l[0] == 0) {
         out.t[0] = 0.0f;
     } else {
-        const int idx = env_clamp_idx(b.t[0] + env_law(b.l[0]) - voff - kf);
-        out.t[0] = env_ramp_seconds(160 + b.l[0], idx);
+        const int idx = env_clamp_idx(b.t[0] + env_law(b.l[0]) / 2 - voff - kf);
+        out.t[0] = env_ramp_seconds(160 + b.l[0], idx) * 0.53f;
     }
     out.r[0] = 0.0f;
     for (int k = 1; k < 4; ++k) {
@@ -293,8 +313,17 @@ public:
     }
 
     bool finished() const { return !held_ && seg_ >= 5; }
+    // Past chip zero the ramp keeps its rate down to -90 dB, then silence.
+    void coast_step() {
+        level_ *= factor_;
+        if (level_ <= 3.2e-5f) {
+            level_ = 0.0f;
+            coast_ = false;
+            if (!held_ && seg_ == 4) seg_ = 5;
+        }
+    }
     float level() const {
-        if (spec_.log_segments && level_ <= 1.05e-3f && remaining_ <= 0) return 0.0f;
+        if (spec_.log_segments && remaining_ <= 0 && !coast_ && level_ <= 1.05e-3f) return 0.0f;
         return level_ < 0.0f ? 0.0f : level_;
     }
 
@@ -314,6 +343,9 @@ public:
                 n -= k;
             } else if (held_ && seg_ < 3) {
                 arm(seg_ + 1, seg_ + 1 < 3 ? spec_.l[seg_ + 1] : spec_.sustain);
+            } else if (coast_) {
+                for (int32_t j = 0; j < n && coast_; ++j) coast_step();
+                break;
             } else if (held_) {
                 level_ = spec_.sustain;
                 break;
@@ -335,6 +367,8 @@ public:
             --remaining_;
         } else if (held_ && seg_ < 3) {
             arm(seg_ + 1, seg_ + 1 < 3 ? spec_.l[seg_ + 1] : spec_.sustain);
+        } else if (coast_) {
+            coast_step();
         } else if (held_ && seg_ == 3) {
             level_ = spec_.sustain;          // hold until release
         } else if (!held_ && seg_ == 4) {
@@ -355,21 +389,33 @@ private:
         // precomputes to zero -- cut held notes to silence in one sample.
         // That was the light pop on every pluck released early.
         //
-        // Log-linear glide for every segment after the attack: the chip
+        // Log-linear glide for every segment, the attack included: the chip
         // ramps its log-domain level at a constant rate in both directions,
         // and Roland's D-50 VST shows it -- a T3 of 70 rising from 0 to 100
         // climbs at 12.5 dB/s, straight in dB, from -35 to -3 dB in 2.6 s;
         // the linear-amplitude rise we had reached -10 dB by 1.8 s where the
-        // VST was still at -23. The attack keeps the linear ramp (its law
-        // was calibrated that way on the VST's Arco onset).
-        seg_log_ = spec_.log_segments && (target < level_ || seg >= 1);
+        // VST was still at -23. The attack reaches -20 dB at two thirds of
+        // its time and -6 dB at 0.9 (T1 60: 0.235/0.34/0.38 s), the mark
+        // of a rise from the floor at constant dB/s.
+        seg_log_ = spec_.log_segments;
         // -60 dB, not -96: the last segment glides to "zero" through this
         // floor, and the deeper it lies the steeper that dive reads in
         // dB/s against what a recording shows.
         const float kFloor = 1.0e-3f;
+        coast_ = false;
         if (seg_log_) {
-            const float from = level_ < kFloor ? kFloor : level_;
-            const float to = target < kFloor ? kFloor : target;
+            // A level already under the floor (a coasting tail) starts a
+            // FALLING segment from where it is -- raising it to the floor
+            // first put a -60 dB bump under every key-up of a percussive
+            // note, a faint ghost tone. Rises still start at the floor.
+            const float kBelow = 3.2e-5f;
+            const bool rising = target > level_;
+            const float lo = rising ? kFloor : kBelow;
+            const float from = level_ < lo ? lo : level_;
+            const float z = spec_.zero > kFloor ? spec_.zero : kFloor;
+            const bool to_zero = target <= z && (seg >= 3 || (seg == 4));
+            const float to = to_zero ? z : (target < kFloor ? kFloor : target);
+            coast_ = to_zero && spec_.zero > 0.0f;
             if (spec_.r[seg] > 0.0f) {
                 // Rate semantics: duration follows from the dB distance.
                 const float dist_db = 20.0f * std::log10(from / to);
@@ -382,7 +428,7 @@ private:
             }
             step_ = 0.0f;
             factor_ = std::pow(to / from, 1.0f / static_cast<float>(remaining_));
-            if (level_ < kFloor) level_ = kFloor;
+            if (level_ < from) level_ = from;
             return;
         }
         if (spec_.r[seg] > 0.0f && target < level_) {
@@ -401,6 +447,7 @@ private:
     float step_ = 0.0f;
     float factor_ = 1.0f;
     bool seg_log_ = false;
+    bool coast_ = false;          // ramping past chip zero at the segment's rate
     int32_t remaining_ = 0;
     int seg_ = 0;
     bool held_ = false;

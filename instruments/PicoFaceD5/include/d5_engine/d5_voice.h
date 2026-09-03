@@ -432,19 +432,31 @@ public:
             mod_[i].pw = kPwLfoSwing * spec_.pw_lfo[i].depth * lfo_value(l, spec_.pw_lfo[i])
                        + 0.65f * spec_.pw_at[i] * at_;
             mod_[i].cutoff = (kTvfLfoUnits / 100.0f) * spec_.tvf_lfo[i].depth * lfo_value(l, spec_.tvf_lfo[i])
-                           + 0.65f * spec_.tvf_at[i] * at_;
-            const float tva_d = std::fabs(spec_.tva_lfo[i].depth);
+                           + 0.85f * spec_.tvf_at[i] * at_;   // VST: range 14 at full pressure lifts the centroid 583 -> 1018 Hz
+            // A PCM partial has no TVA modulation at all in Roland's D-50
+            // VST: LFO depth 100 on either route and an aftertouch range of
+            // 14 leave it exactly where it is (pitch LFO and bias do act).
+            // Like the TVF, the modulation block belongs to the synth path.
+            const bool pcm_partial = ((i == 0) ? st.p1 : st.p2) == PartialType::kPcm;
+            const float tva_d = pcm_partial ? 0.0f : std::fabs(spec_.tva_lfo[i].depth);
             const float tva_l = spec_.tva_lfo[i].depth < 0.0f ? -lfo_value(l, spec_.tva_lfo[i])
                                                               : lfo_value(l, spec_.tva_lfo[i]);
+            // The VST's tremolo (select byte 1, our negative route) starts fully
+            // ducked on a synced LFO, where the vibrato starts at its highest
+            // pitch; with the route sign folded into tva_l that is (1 - l)/2.
             float tgt_amp = fast_exp2(-kTvaLfoDb * tva_d * 0.5f * (1.0f - tva_l) * (1.0f / 6.0206f));
-            // TVA aftertouch (ROM 0x11A9): a positive range rests ~3 dB down
-            // and rises to unity at full press; a negative one ducks ~3 dB
-            // (the ROM's scale is 2|s| chip units of 0.376 dB, i.e. ~5.3 dB
-            // at s=7 -- the 3-dB reading is PLAUSIBLE, hearing test pending).
-            const float g = spec_.tva_at[i];
+            // TVA aftertouch, measured on Roland's D-50 VST: the attenuation
+            // is 2 * u^2 chip units (0.755 dB * u^2, u = range - 7), a
+            // positive range resting fully attenuated and lifted linearly
+            // by the pressure (range 10: -6.8 dB at rest, range 14: -37;
+            // pressure 64 halves it), a negative range resting at unity
+            // and ducking with the pressure. The "3 dB" reading of the ROM
+            // transform at 0x11A9 was off by an order of magnitude.
+            const float g = pcm_partial ? 0.0f : spec_.tva_at[i];
             if (g != 0.0f) {
-                const float x = (g > 0.0f ? g * (at_ - 1.0f) : g * at_) * 0.5f;
-                tgt_amp *= fast_exp2(x);
+                const float u2 = 49.0f * g * g;
+                const float w = g > 0.0f ? (1.0f - at_) : at_;
+                tgt_amp *= fast_exp2(-0.755f * u2 * w * (1.0f / 6.0206f));
             }
             if (tgt_amp < 0.0f) tgt_amp = 0.0f;
             dpitch_[i] = (tgt_pitch - mod_[i].pitch) * (1.0f / kModPeriod);
