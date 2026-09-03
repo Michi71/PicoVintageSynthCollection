@@ -69,11 +69,17 @@ inline constexpr float kDepthCurve[101] = {
     0.499967f, 0.535880f, 0.574344f, 0.615556f, 0.659776f, 0.707071f,
     0.757833f, 0.812259f, 0.870544f, 0.933015f, 1.000000f};
 
+// The three modulation routes read their depth LINEARLY -- Roland's D-50
+// VST, one partial with LFO-1 on the route: TVA depth 25/50/75/100 ducks
+// 4.4/8.7/13.1/17.5 dB peak to peak (a straight line, downward only),
+// the TVF cutoff swing and the pulse-width swing grow in the same steps.
+// Through kDepthCurve they were near-silent up to 75 and wild at 100 --
+// Ham and Organ and Star Peace Chorus sat 25 dB under the VST on it.
 inline LfoRoute lfo_route(uint8_t select, uint8_t depth) {
     LfoRoute r;
     const int s = select > 5 ? 0 : select;
     r.lfo = s / 2;
-    r.depth = ((s & 1) ? -1.0f : 1.0f) * kDepthCurve[depth > 100 ? 100 : depth];
+    r.depth = ((s & 1) ? -1.0f : 1.0f) * (depth > 100 ? 100 : depth) * 0.01f;
     return r;
 }
 
