@@ -496,7 +496,10 @@ inline PatchSpec patch_from_bytes(const uint8_t* patch, const int16_t* blob) {
     // Organ's byte 58 puts the tail 6 dB under the playing (recorded: 7.4)
     // and Pizzagogo's byte 33 puts it at 15 (recorded: 13.6). Read linearly
     // they were both practically as loud as the notes.
-    p.reverb.balance = kAmountCurve[pb[31] > 100 ? 100 : pb[31]];
+    // Linear 0..1 of the panel byte; the mixer applies the D-50's own
+    // crossfade (wet up to full at 50, dry down to zero from 50) in
+    // Reverb::process.
+    p.reverb.balance = (pb[31] > 100 ? 100 : pb[31]) * 0.01f;
     p.volume = level01(pb[32]);
     p.balance = level01(pb[33]);
 

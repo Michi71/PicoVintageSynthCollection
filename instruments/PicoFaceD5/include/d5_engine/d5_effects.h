@@ -299,9 +299,12 @@ private:
 // machine (see the file header) plus a tapped delay line for the delay
 // family. Type names follow the panel list; rows are zero-based (pb30),
 // the panel shows row + 1. Decay times are calibrated on Roland's D-50
-// VST (one note, reverb balance 100, per type): Small Hall 1.5 s, Medium
-// Hall 2.9, Large Hall 3.3, Chapel 6.5, Medium Large Room 2.0, Large Room
-// 2.1 (its sides inverted, correlation -0.95); the short rooms and the
+// VST (one note, reverb balance 100, per type), as the slope of the late
+// tail 0.8 to 2.6 s after the note -- the same metric on both sides; an
+// energy-decay fit from the first 100 ms reads 30 % shorter on this
+// core: Small Hall 1.6 s, Medium Hall 2.9, Large Hall 3.2, Chapel 6.4,
+// Medium Large Room 2.0, Large Room 2.1 (its sides inverted, correlation
+// -0.95); the VST's tail decays alike in every band; the short rooms and the
 // gates hide under the source's own 55 dB/s release there, so they only
 // carry an upper bound of about a second. The delays showed the direct
 // copy on the right and the delayed tap on the left, at 0.35..0.5 of it,
@@ -330,23 +333,23 @@ struct ReverbType {
 };
 
 inline constexpr ReverbType kReverbTypes[32] = {
-    {1, 1, 1.23f,   0,   0, 0.0f,   0.0f,   0.0f, 0.3900f}, //  1 Small Hall   (VST T60 1.5)
-    {1, 6, 0.85f,   0,   0, 0.0f,   0.0f,   0.0f, 0.5000f}, //  2 Medium Hall  (VST T60 2.9)
-    {1, 5, 0.89f,   0,   0, 0.0f,   0.0f,   0.0f, 0.5150f}, //  3 Large Hall   (VST T60 3.3)
-    {1, 5, 0.95f,   0,   0, 0.0f,   0.0f,   0.0f, 0.5700f}, //  4 Chapel       (VST T60 6.5)
+    {1, 1, 1.23f,   0,   0, 0.0f,   0.0f,   0.0f, 0.3550f}, //  1 Small Hall   (VST late tail 1.6 s)
+    {1, 6, 0.85f,   0,   0, 0.0f,   0.0f,   0.0f, 0.4680f}, //  2 Medium Hall  (VST late tail 2.9 s)
+    {1, 5, 0.89f,   0,   0, 0.0f,   0.0f,   0.0f, 0.4830f}, //  3 Large Hall   (VST late tail 3.2 s)
+    {1, 5, 0.95f,   0,   0, 0.0f,   0.0f,   0.0f, 0.5620f}, //  4 Chapel       (VST late tail 6.4 s)
     {0, 0, 1.26f,   0,   0, 0.0f,   0.0f,   0.0f, 0.0000f}, //  5 Box
     {2, 2, 1.02f,   0,   0, 0.0f,   0.0f,   0.0f, 0.0000f}, //  6 Small Metal Room (plate ring)
     {0, 1, 1.20f,   0,   0, 0.0f,   0.0f,   0.0f, 0.0000f}, //  7 Small Room   (T60 0.9)
-    {0, 3, 1.00f,   0,   0, 0.0f,   0.0f,   0.0f, 0.3500f}, //  8 Medium Room  (VST: under the 55 dB/s source, T60 <= 1)
-    {1, 2, 1.15f,   0,   0, 0.0f,   0.0f,   0.0f, 0.4500f}, //  9 Medium Large Room (VST T60 2.0)
-    {0, 3, 0.92f,   0,   0, 0.0f,   0.0f,   0.0f, 0.4800f, 1.0f, -1.0f}, // 10 Large Room (VST T60 2.1, sides inverted, corr -0.95)
+    {0, 3, 1.00f,   0,   0, 0.0f,   0.0f,   0.0f, 0.3000f}, //  8 Medium Room  (VST: under the 55 dB/s source; 1.0 s)
+    {1, 2, 1.15f,   0,   0, 0.0f,   0.0f,   0.0f, 0.4000f}, //  9 Medium Large Room (VST late tail 2.0 s)
+    {0, 3, 0.92f,   0,   0, 0.0f,   0.0f,   0.0f, 0.4450f, 1.0f, -1.0f}, // 10 Large Room (VST late tail 2.1 s, sides inverted, corr -0.95)
     {3, 0, 1.20f, 102,   0, 0.50f,  0.0f,   0.0f, 0.0000f, -0.5f}, // 11 Single Delay (102 ms; as 20)
     {3, 0, 1.20f, 180,   0, 0.30f,  0.0f,   0.0f, 0.0000f,  0.35f}, // 12 Cross Delay (180 ms; VST: right direct, left 180, tail under the source)
     {3, 0, 1.20f, 224,   0, 0.40f,  0.0f,   0.0f, 0.0000f,  0.40f}, // 13 Cross Delay (224 ms; as 23)
     {3, 0, 1.20f, 148,   0, 0.40f,  0.0f,   0.0f, 0.0000f,  0.40f}, // 14 Cross Delay (148 ms; as 23)
     {1, 3, 1.05f,   0,   0, 0.0f, 200.0f,   0.0f, 0.0000f}, // 15 Short Gate (200 ms)
     {1, 3, 1.05f,   0,   0, 0.0f, 480.0f,   0.0f, 0.0000f}, // 16 Long Gate (480 ms)
-    {1, 5, 0.89f,   0,   0, 0.0f,   0.0f,   0.0f, 0.5312f}, // 17 Bright Hall (brighter injection, fb 88)
+    {1, 5, 0.89f,   0,   0, 0.0f,   0.0f,   0.0f, 0.5000f}, // 17 Bright Hall (2.7 s, easier damping)
     {1, 6, 0.80f,   0,   0, 0.0f,   0.0f,   0.0f, 0.4600f}, // 18 Large Cave (dark: loop damping x1.25, T60 4.4; fb < 0.53 or it rings)
     {2, 5, 0.77f,   0,   0, 0.0f,   0.0f,   0.0f, 0.0000f}, // 19 Steel Pan (plate, metallic)
     {3, 0, 1.20f, 248,   0, 0.53f,  0.0f,   0.0f, 0.0000f, -0.5f}, // 20 Delay (248 ms; VST: right direct, left inverted, T60 2.7)
@@ -361,7 +364,7 @@ inline constexpr ReverbType kReverbTypes[32] = {
     {3, 0, 1.20f, 160,   0, 0.00f,  0.0f,   0.0f, 0.0000f,  0.50f}, // 29 Slap Back (mid)
     {3, 0, 1.20f, 240,   0, 0.00f,  0.0f,   0.0f, 0.0000f,  0.50f}, // 30 Slap Back (long)
     {1, 7, 0.65f,   0,   0, 0.0f,   0.0f,   0.0f, 0.0000f}, // 31 Twisted Space (T60 ~14 s)
-    {1, 6, 0.84f,   0,   0, 0.0f,   0.0f,   0.0f, 0.5508f}, // 32 Space (T60 ~6.0, anchor 6.0, fb 8D)
+    {1, 6, 0.84f,   0,   0, 0.0f,   0.0f,   0.0f, 0.5600f}, // 32 Space (6.2 s)
 };
 
 struct ReverbSpec {
@@ -527,10 +530,10 @@ public:
 
     // Rebind the three tail loops with another feedback, geometry and
     // damping unchanged. Calibration and tests only: it clears the loops.
-    void set_feedback(float fb) {
+    void set_feedback(float fb, float damp_scale = 1.0f) {
         if (mode_ >= 3) return;
         const BossMode& m = *boss_;
-        const float filt_scale = spec_.type == 16 ? 0.85f : (spec_.type == 17 ? 1.25f : 1.0f);
+        const float filt_scale = (spec_.type == 16 ? 0.85f : (spec_.type == 17 ? 1.25f : 1.0f)) * damp_scale;
         for (int c = 0; c < 3; ++c) {
             comb_[c].bind(pool_ + 6900 + 4600 * c,
                           static_cast<int>(m.comb_sizes[1 + c] * sr_scale_),
@@ -556,7 +559,9 @@ public:
     // chorus halves are exact inverses now.
     void D5_HOT(process)(float send, float xl, float xr, float& l, float& r) {
         float wl, wr;
-        const float x = 0.5f * send;
+        // 0.595 = 0.5 * 1.19: the VST's wet-only sits 7.5 dB under the dry
+        // alone (Medium Hall, Arco Upper P1); ours sat 9.0 under it.
+        const float x = 0.595f * send;
         if (mode_ < 3) {
             const BossMode& m = *boss_;
             entr_.process(x);
@@ -622,9 +627,18 @@ public:
             ++age_;
         }
 
+        // The D-50's crossfade (EPROM page 2, the send rows at 0xB64C with
+        // R6 from the balance): below 50 the wet rises linearly and the dry
+        // stays, above 50 the dry falls linearly and the wet stays. Roland's
+        // D-50 VST measures the same, Medium Hall on one note: wet -6.8 dB
+        // at 25 re 50, dry -7 dB at 75 re 0, both flat on their other half.
+        // The old x^1.8 amount curve on a 1-b/b mix was 15 dB short of wet
+        // at 25 and 50 -- the bank's median balance is 40.
         const float b = clamp01(spec_.balance);
-        l = xl * (1.0f - b) + wl * b * wet_ * g;
-        r = xr * (1.0f - b) + pol_r_ * wr * b * wet_ * g;
+        const float dry = b > 0.5f ? 2.0f * (1.0f - b) : 1.0f;
+        const float wet = b < 0.5f ? 2.0f * b : 1.0f;
+        l = xl * dry + wl * wet * wet_ * g;
+        r = xr * dry + pol_r_ * wr * wet * wet_ * g;
     }
 
 private:

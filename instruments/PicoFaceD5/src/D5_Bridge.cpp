@@ -199,7 +199,7 @@ void D5_Bridge::applyLevels() {
     // Through the same curves the patch mapping uses, so the panel's number
     // means what the D-50's own parameter means: the reverb balance rides
     // the amount family (x^1.8), the chorus balance is linear.
-    patch_.set_reverb_balance(d5::kAmountCurve[reverb_ > 100 ? 100 : reverb_]);
+    patch_.set_reverb_balance(reverb_ * 0.01f);
     patch_.set_chorus_balance(chorus_ * 0.01f);
     patch_.set_master_cents(static_cast<float>(tune_));
 }
