@@ -125,7 +125,10 @@ public:
         return true;
     }
 
-    void note_off(int note) {
+    // cut: the solo modes replace the old note rather than release it --
+    // Roland's D-50 VST drops it by 67 dB within 200 ms where our envelope
+    // release still held it at -21; a 20 ms fade cannot click.
+    void note_off(int note, bool cut = false) {
         for (int i = 0; i < kVoices; ++i) {
             // Keyed by the KEY, not by whether the voice still sounds:
             // the firmware's key array outlives the envelope, so a
@@ -134,7 +137,10 @@ public:
             // back when it does.
             if (!key_[i] || note_[i] != note) continue;
             key_[i] = false;
-            if (active_[i]) voices_[i].note_off();
+            if (active_[i]) {
+                if (cut) voices_[i].quick_release();
+                else voices_[i].note_off();
+            }
             // The slot rejoins the pool at key-up, not when its release
             // ends -- that is what lets a fast passage keep taking voices
             // whose tails are still audible.
@@ -304,6 +310,11 @@ struct PatchSpec {
     // The "-S" key modes (WHOL-S, DUAL-S, SEP-S) play monophonically: one
     // note at a time, the new note ends the old one's hold at once.
     bool solo = false;
+    // The split solo modes (SPL-US, SPL-LS) hold one note per side only:
+    // Roland's D-50 VST plays byte 5 as a split with a polyphonic Lower
+    // and a monophonic Upper, byte 6 the other way round.
+    bool solo_upper = false;
+    bool solo_lower = false;
     int split_point = 60;         // panel "Split Point", C4 by default
     float balance = 0.5f;         // panel "Tone Balance", upper to lower
     // Panel "Bender Range", pb[26], 0..12 semitones. Patch-common: the
@@ -355,7 +366,7 @@ public:
         upper_.silence();
         lower_.silence();
         reverb_.configure(spec_.reverb, sr_);
-        solo_note_ = -1;
+        solo_note_[0] = solo_note_[1] = -1;
     }
 
     void configure(const PatchSpec& spec, float sample_rate) {
@@ -377,39 +388,43 @@ public:
         // release segment rather than cutting it -- close enough to the
         // steal that no factory patch tells them apart, and it cannot
         // click.
-        if (spec_.solo && solo_note_ >= 0 && solo_note_ != note) {
-            upper_.note_off(solo_note_);
-            lower_.note_off(solo_note_);
-        }
         bool sounded = false;
         switch (spec_.key_mode) {
             case KeyMode::kDual: {
+                if (spec_.solo) solo_cut(0, note), solo_cut(1, note);
                 const bool u = upper_.note_on(note, velocity);
                 const bool l = lower_.note_on(note, velocity);
                 sounded = u || l;
+                if (spec_.solo) solo_note_[0] = solo_note_[1] = note;
                 break;
             }
-            case KeyMode::kSplit:
-                sounded = (note >= spec_.split_point)
-                              ? upper_.note_on(note, velocity)
-                              : lower_.note_on(note, velocity);
+            case KeyMode::kSplit: {
+                const int side = note >= spec_.split_point ? 0 : 1;
+                const bool solo = side == 0 ? spec_.solo_upper : spec_.solo_lower;
+                if (solo) solo_cut(side, note);
+                sounded = side == 0 ? upper_.note_on(note, velocity)
+                                    : lower_.note_on(note, velocity);
+                if (solo) solo_note_[side] = note;
                 break;
+            }
             case KeyMode::kWhole:
             default:
+                if (spec_.solo) solo_cut(0, note);
                 sounded = upper_.note_on(note, velocity);
+                if (spec_.solo) solo_note_[0] = note;
                 break;
         }
         // The gate and reverse reverbs time their wet envelope against the
         // note; a note the pool refused never reached the chip, so it must
         // not re-arm them either.
         if (sounded) reverb_.note_activity();
-        if (spec_.solo) solo_note_ = note;
     }
 
     void note_off(int note) {
         upper_.note_off(note);
         lower_.note_off(note);
-        if (note == solo_note_) solo_note_ = -1;
+        for (int i = 0; i < 2; ++i)
+            if (note == solo_note_[i]) solo_note_[i] = -1;
     }
 
     // Mono fold is the L/MONO jack again: the left side as it ships. In the
@@ -565,7 +580,15 @@ private:
     Tone<8> lower_{};
     Reverb reverb_{};
     float sr_ = 32000.0f;
-    int solo_note_ = -1;          // the solo modes' single held note
+    int solo_note_[2] = {-1, -1}; // the solo modes' held note per tone (0 upper, 1 lower)
+
+    // A solo side ends its previous note when a new one arrives.
+    void solo_cut(int side, int note) {
+        if (solo_note_[side] >= 0 && solo_note_[side] != note) {
+            if (side == 0) upper_.note_off(solo_note_[side], true);
+            else lower_.note_off(solo_note_[side], true);
+        }
+    }
 };
 
 }  // namespace d5
