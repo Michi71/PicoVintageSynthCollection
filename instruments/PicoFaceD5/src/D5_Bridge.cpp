@@ -241,7 +241,7 @@ void D5_Bridge::setChorusDepth(int v) {
     choDepth_ = clampTo(v, 100);
     // The depth family the whole machine uses: read linearly, a patch
     // asking for a breath of chorus got half a semitone of it.
-    patch_.set_chorus_depth(d5::kDepthCurve[choDepth_]);
+    patch_.set_chorus_depth(choDepth_ / 100.0f);   // linear, as the patch mapper reads it
 }
 
 void D5_Bridge::applyEq() {
