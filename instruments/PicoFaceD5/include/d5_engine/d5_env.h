@@ -404,7 +404,14 @@ private:
         const float kFloor = 1.0e-3f;
         coast_ = false;
         if (seg_log_) {
-            const float from = level_ < kFloor ? kFloor : level_;
+            // A level already under the floor (a coasting tail) starts a
+            // FALLING segment from where it is -- raising it to the floor
+            // first put a -60 dB bump under every key-up of a percussive
+            // note, a faint ghost tone. Rises still start at the floor.
+            const float kBelow = 3.2e-5f;
+            const bool rising = target > level_;
+            const float lo = rising ? kFloor : kBelow;
+            const float from = level_ < lo ? lo : level_;
             const float z = spec_.zero > kFloor ? spec_.zero : kFloor;
             const bool to_zero = target <= z && (seg >= 3 || (seg == 4));
             const float to = to_zero ? z : (target < kFloor ? kFloor : target);
@@ -421,7 +428,7 @@ private:
             }
             step_ = 0.0f;
             factor_ = std::pow(to / from, 1.0f / static_cast<float>(remaining_));
-            if (level_ < kFloor) level_ = kFloor;
+            if (level_ < from) level_ = from;
             return;
         }
         if (spec_.r[seg] > 0.0f && target < level_) {
