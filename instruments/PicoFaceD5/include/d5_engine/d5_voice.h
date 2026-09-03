@@ -433,7 +433,12 @@ public:
                        + 0.65f * spec_.pw_at[i] * at_;
             mod_[i].cutoff = (kTvfLfoUnits / 100.0f) * spec_.tvf_lfo[i].depth * lfo_value(l, spec_.tvf_lfo[i])
                            + 0.85f * spec_.tvf_at[i] * at_;   // VST: range 14 at full pressure lifts the centroid 583 -> 1018 Hz
-            const float tva_d = std::fabs(spec_.tva_lfo[i].depth);
+            // A PCM partial has no TVA modulation at all in Roland's D-50
+            // VST: LFO depth 100 on either route and an aftertouch range of
+            // 14 leave it exactly where it is (pitch LFO and bias do act).
+            // Like the TVF, the modulation block belongs to the synth path.
+            const bool pcm_partial = ((i == 0) ? st.p1 : st.p2) == PartialType::kPcm;
+            const float tva_d = pcm_partial ? 0.0f : std::fabs(spec_.tva_lfo[i].depth);
             const float tva_l = spec_.tva_lfo[i].depth < 0.0f ? -lfo_value(l, spec_.tva_lfo[i])
                                                               : lfo_value(l, spec_.tva_lfo[i]);
             // The VST's tremolo (select byte 1, our negative route) starts fully
@@ -447,7 +452,7 @@ public:
             // pressure 64 halves it), a negative range resting at unity
             // and ducking with the pressure. The "3 dB" reading of the ROM
             // transform at 0x11A9 was off by an order of magnitude.
-            const float g = spec_.tva_at[i];
+            const float g = pcm_partial ? 0.0f : spec_.tva_at[i];
             if (g != 0.0f) {
                 const float u2 = 49.0f * g * g;
                 const float w = g > 0.0f ? (1.0f - at_) : at_;
