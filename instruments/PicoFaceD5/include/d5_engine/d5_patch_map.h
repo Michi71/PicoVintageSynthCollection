@@ -547,8 +547,11 @@ inline PatchSpec patch_from_bytes(const uint8_t* patch, const int16_t* blob) {
     // -3.9 dB across the whole bank. Roland's own level relationships are
     // untouched -- the spread from Glockenspiel to Power Key Bs is theirs and
     // stays -- this only moves the ceiling out of the way of it.
-    p.upper.level = 0.37f;
-    p.lower.level = 0.37f;
+    // Doubled from 0.37 when output mode 1 went to half amplitude per tone
+    // (d5_patch.h next_stereo): the mode-1 majority keeps its loudness, the
+    // 37 patches in modes 2-4 gain the 6 dB the VST gives them.
+    p.upper.level = 0.74f;
+    p.lower.level = 0.74f;
 
     // Portamento is patch-common: switch pb[41], time pb[28], and mode
     // pb[20] -- 0 = upper only, 1 = lower only, 2 = both (the U/L/UL of

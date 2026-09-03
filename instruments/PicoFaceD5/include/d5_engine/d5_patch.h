@@ -434,7 +434,7 @@ public:
     float D5_HOT(next)() {
         float l, r;
         next_stereo(l, r);
-        return spec_.output_mode == 0 ? l : 0.5f * (l + r);
+        return (spec_.key_mode == KeyMode::kWhole || spec_.output_mode == 0) ? l : 0.5f * (l + r);
     }
 
     // Stereo: the tones keep their own left and right through the balance
@@ -458,21 +458,30 @@ public:
         float ul, ur, ll, lr;
         upper_.next_stereo(ul, ur);
         lower_.next_stereo(ll, lr);
-        if (spec_.output_mode == 0) {
-            const float send = ul * uw + ll * lw;
-            reverb_.process(send, ul * uw + ll * lw, ur * uw + lr * lw, l, r);
+        // Output mode gains, measured on Roland's D-50 VST with one tone at
+        // a time (Stereo Polysynth and Arco Strings, dry): mode 1 puts each
+        // tone at HALF amplitude on both outputs, modes 2 to 4 put each tone
+        // at full amplitude on its own output -- 5.8 dB apart, the EPROM
+        // mixer's rows 0x80 against 0xFF. A whole patch ignores the output
+        // mode: both outputs, mode-1 level, in every mode. The reverb send
+        // is both tones at half in modes 1 and 2 (rows 80 80) and one tone
+        // at full in modes 3 and 4.
+        const int om = spec_.key_mode == KeyMode::kWhole ? 0 : spec_.output_mode;
+        if (om == 0) {
+            const float xl = 0.5f * (ul * uw + ll * lw);
+            const float xr = 0.5f * (ur * uw + lr * lw);
+            reverb_.process(xl, xl, xr, l, r);
         } else {
-            // Output modes 2-4: Lower left, Upper right, each tone as its
-            // L/MONO signal. Mode 2 sends both tones to the reverb and its
-            // return reaches both outputs (the VST puts the Upper's tail on
-            // the left at -48 dB, on the right at -41). Modes 3 and 4 send
-            // one tone, and its return stays on that tone's own side -- the
-            // other channel is digitally silent in the VST -- while the
-            // other tone goes to its output dry and whole, past the balance.
+            // Lower left, Upper right, each tone as its L/MONO signal. Mode
+            // 2 sends both tones and its return reaches both outputs (the
+            // VST puts the Upper's tail on the left at -48 dB, on the right
+            // at -41). Modes 3 and 4 send one tone, and its return stays on
+            // that tone's own side -- the other channel is digitally silent
+            // in the VST -- while the other tone goes to its output dry.
             const float lo = ll * lw, up = ul * uw;
-            if (spec_.output_mode == 1) {
-                reverb_.process(lo + up, lo, up, l, r);
-            } else if (spec_.output_mode == 2) {
+            if (om == 1) {
+                reverb_.process(0.5f * (lo + up), lo, up, l, r);
+            } else if (om == 2) {
                 reverb_.process(up, 0.0f, up, l, r);
                 l = lo;
             } else {
