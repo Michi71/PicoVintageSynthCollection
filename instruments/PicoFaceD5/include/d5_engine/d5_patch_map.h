@@ -336,7 +336,7 @@ inline void map_partial(const uint8_t* p, int index, VoiceSpec& v,
     s.bias_above = (p[16] >> 6) & 1;
     const int bias_lv = p[17] > 14 ? 14 : p[17];
     s.bias_slope = (bias_lv < 7 ? -1.0f : 1.0f)
-                   * kBiasMag[bias_lv] * (1.0f / 128.0f);
+                   * kBiasMag[bias_lv] * (1.0f / 64.0f);
 
     // ---- modulation routes
     // WG Mod LFO Mode, offset 3: OFF, (+), (-), A&L. The magnitude is not

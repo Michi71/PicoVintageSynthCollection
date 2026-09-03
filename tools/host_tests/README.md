@@ -12,7 +12,7 @@ land next to their script and are gitignored.
 |---|---|---|
 | [`veeprom/`](veeprom/) | nothing | unit test of the core's virtual EEPROM: wear levelling, CRC, oversize rejection, 1000 saves. Prints PASS/FAIL per case. This one covers `core/`, not an instrument. |
 | [`yc/`](yc/) | nothing | renders the YC organ engine to a WAV file. No audio device involved. |
-| [`d5/`](d5/) | nothing | pins the D-50 PCM pitch law (every sample advances at f/250 words per output sample: four octaves below the square in the firmware, 2048-word reference in the chip) with synthetic cycles. Prints pass/FAIL per case. |
+| [`d5/`](d5/) | nothing | pins two D-50 laws read from the firmware: the PCM pitch (every sample advances at f/250 words per output sample) with synthetic cycles, and the TVF base cutoff (2 × panel + 54 chip units, capped by the pitch) through the harmonic profile of a sawtooth. Prints pass/FAIL per case. |
 | [`ob/`](ob/) | nothing | regression checks on the OB-X engine - pitch bend ranges, LFO->cutoff without LFO->pitch, mod lever vibrato, all presets finite - plus a WAV render. Prints pass/FAIL per case. |
 | [`dx_sysex/`](dx_sysex/) | nothing | round trip through PicoFaceDX's SysEx layer, both directions: a voice dump requested by an editor is parsed back and compared byte for byte, and a voice sent by an editor is compared against what reaches the engine. Prints pass/FAIL per direction. |
 | [`j6/build_ui.sh`](j6/) | nothing | drives `J6_Controller` and the patch store through a scripted panel session - menu navigation, patch save/load, the free-slot rule. |
