@@ -225,11 +225,18 @@ inline void build_tva_env(const EnvBytes& b, int key, int vel127,
     // ~3 ms), NOT an instant jump -- a snapped attack steps the sample by
     // a quarter of full scale and crackles in sequences. Only a zero
     // target has no distance to travel.
+    // Duration against Roland's D-50 VST (one partial, L1 100, time to
+    // -1 dB): T1 40/50/60/70 take 0.07/0.16/0.38/0.89 s there, 0.53 of the
+    // firmware-index reading; a lower target lengthens the VST's attack
+    // only mildly (L1 50: x1.2, L1 25: x1.6), half the law's effect. And
+    // the chip climbs in the log domain here as well -- -20 dB at two
+    // thirds of the way, -6 dB at 0.9 -- so Env5 ramps the attack like
+    // the other segments (kFloor up).
     if (b.l[0] == 0) {
         out.t[0] = 0.0f;
     } else {
-        const int idx = env_clamp_idx(b.t[0] + env_law(b.l[0]) - voff - kf);
-        out.t[0] = env_ramp_seconds(160 + b.l[0], idx);
+        const int idx = env_clamp_idx(b.t[0] + env_law(b.l[0]) / 2 - voff - kf);
+        out.t[0] = env_ramp_seconds(160 + b.l[0], idx) * 0.53f;
     }
     out.r[0] = 0.0f;
     for (int k = 1; k < 4; ++k) {
@@ -355,14 +362,15 @@ private:
         // precomputes to zero -- cut held notes to silence in one sample.
         // That was the light pop on every pluck released early.
         //
-        // Log-linear glide for every segment after the attack: the chip
+        // Log-linear glide for every segment, the attack included: the chip
         // ramps its log-domain level at a constant rate in both directions,
         // and Roland's D-50 VST shows it -- a T3 of 70 rising from 0 to 100
         // climbs at 12.5 dB/s, straight in dB, from -35 to -3 dB in 2.6 s;
         // the linear-amplitude rise we had reached -10 dB by 1.8 s where the
-        // VST was still at -23. The attack keeps the linear ramp (its law
-        // was calibrated that way on the VST's Arco onset).
-        seg_log_ = spec_.log_segments && (target < level_ || seg >= 1);
+        // VST was still at -23. The attack reaches -20 dB at two thirds of
+        // its time and -6 dB at 0.9 (T1 60: 0.235/0.34/0.38 s), the mark
+        // of a rise from the floor at constant dB/s.
+        seg_log_ = spec_.log_segments;
         // -60 dB, not -96: the last segment glides to "zero" through this
         // floor, and the deeper it lies the steeper that dive reads in
         // dB/s against what a recording shows.
