@@ -293,6 +293,18 @@ public:
         // 50) carry one; a square's mean is zero.
         dc_shape_ = h_frac_ > 0.0f ? 2.0f * pulse_frac_ - 1.0f
                                    : 2.0f * edge_frac_ - 1.0f;
+        // A narrow pulse keeps its level: Roland's D-50 VST holds a square
+        // within 0.5 dB from duty 0.5 down to the 1/16 floor (a fixed-
+        // amplitude pulse would lose 6.4 dB at the floor, and ours did).
+        // The sawtooth, a square ring-modulated with its cosine, is flat
+        // against the pulse width on both sides and needs nothing.
+        if (spec_.waveform == Waveform::kSquare) {
+            // the pulse the chip actually plays: never narrower than its edge pair
+            const float d = pulse_frac_ > edge_frac_ ? pulse_frac_ : edge_frac_;
+            pw_gain_ = std::pow(0.25f / (d * (1.0f - d)), 0.47f);
+        } else {
+            pw_gain_ = 1.0f;
+        }
     }
 
     float D5_HOT_TAG(d5_synth_next, next)(const Modulation& mod = Modulation{}) {
@@ -390,10 +402,9 @@ public:
         // partial -- DC included -- but the D-50's line out is AC-coupled
         // and never passes it. A saw keeps its shape mean on the cosine
         // carrier (mean zero), so only the square reports one.
-        dc_out_ = spec_.waveform == Waveform::kSquare
-                      ? dc_shape_ * atten_ * amp * gain_ * mod.amp * 0.5f
-                      : 0.0f;
-        return out * amp * gain_ * mod.amp * 0.5f;
+        const float scale = amp * gain_ * mod.amp * 0.5f * pw_gain_;
+        dc_out_ = spec_.waveform == Waveform::kSquare ? dc_shape_ * atten_ * scale : 0.0f;
+        return out * scale;
     }
 
     // DC of this partial's contribution next() just returned (see above).
@@ -435,6 +446,7 @@ private:
     float pulse_frac_ = 0.5f;
     float h_frac_ = 0.0f;
     float dc_shape_ = 0.0f;        // mean of the bare shape (duty imbalance)
+    float pw_gain_ = 1.0f;         // narrow-pulse level compensation (VST)
     float dc_out_ = 0.0f;          // dc_shape_ with all output scaling on
     float atten_ = 1.0f;           // sub-middle broadband attenuation
     bool res_on_ = false;

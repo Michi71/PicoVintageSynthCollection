@@ -26,6 +26,13 @@ struct Env5Spec {
     // dives. TVA envelopes set this; TVF keeps linear segments because its
     // output feeds a cutoff that is already exponential.
     bool log_segments = false;
+    // Amplitude of chip level 0 (100 units under full, -37.6 dB) for the
+    // TVA: a segment to level 0 ramps there in its own time and then keeps
+    // falling at that rate to silence -- the VST's fall from 48 to 0 at
+    // T4 68 runs at 25 dB/s where the fall from 100 runs at 52, the rate
+    // scaling with the start level, and both continue straight past -40
+    // to -80 dB. Zero (the default) keeps the plain floor.
+    float zero = 0.0f;
     // Per-segment decay RATES in dB/s, used for falling log segments when
     // non-zero. The LA chip's time bytes set rates, not durations -- the
     // proof is Horn Section, whose measured release of -37.8 dB/s equals
@@ -155,6 +162,11 @@ inline int tva_chip_level(int p35, int p36, int p14, bool is_pcm,
         bias = prod >> 5;
     }
     int chip = base + velT - bias;
+    // The chip level tops out at 142 -- Roland's D-50 VST: level 100 and
+    // level 90 with velocity sensitivity 100 both land at the same +4.2 dB
+    // over level 100's neutral at velocity 127, level 80 stays 3.8 dB
+    // under it, and a bias point below the key comes off before the cap.
+    if (chip > 142) chip = 142;
     return chip < 0 ? 0 : chip;
 }
 
@@ -214,6 +226,7 @@ inline void build_tva_env(const EnvBytes& b, int key, int vel127,
     const int kf = env_kf_shift(key, b.time_kf, 4);
     const int voff = (vel127 - 64) >> (6 - (b.vel_kf > 4 ? 4 : b.vel_kf));
     out.log_segments = true;
+    out.zero = level * fast_exp2(-6.25f);
     for (int k = 0; k < 3; ++k)
         out.l[k] = fast_exp2((static_cast<int>(b.l[k]) - 100) * 0.0625f) * level;
     out.sustain = b.l[3] == 0
@@ -300,8 +313,17 @@ public:
     }
 
     bool finished() const { return !held_ && seg_ >= 5; }
+    // Past chip zero the ramp keeps its rate down to -90 dB, then silence.
+    void coast_step() {
+        level_ *= factor_;
+        if (level_ <= 3.2e-5f) {
+            level_ = 0.0f;
+            coast_ = false;
+            if (!held_ && seg_ == 4) seg_ = 5;
+        }
+    }
     float level() const {
-        if (spec_.log_segments && level_ <= 1.05e-3f && remaining_ <= 0) return 0.0f;
+        if (spec_.log_segments && remaining_ <= 0 && !coast_ && level_ <= 1.05e-3f) return 0.0f;
         return level_ < 0.0f ? 0.0f : level_;
     }
 
@@ -321,6 +343,9 @@ public:
                 n -= k;
             } else if (held_ && seg_ < 3) {
                 arm(seg_ + 1, seg_ + 1 < 3 ? spec_.l[seg_ + 1] : spec_.sustain);
+            } else if (coast_) {
+                for (int32_t j = 0; j < n && coast_; ++j) coast_step();
+                break;
             } else if (held_) {
                 level_ = spec_.sustain;
                 break;
@@ -342,6 +367,8 @@ public:
             --remaining_;
         } else if (held_ && seg_ < 3) {
             arm(seg_ + 1, seg_ + 1 < 3 ? spec_.l[seg_ + 1] : spec_.sustain);
+        } else if (coast_) {
+            coast_step();
         } else if (held_ && seg_ == 3) {
             level_ = spec_.sustain;          // hold until release
         } else if (!held_ && seg_ == 4) {
@@ -375,9 +402,13 @@ private:
         // floor, and the deeper it lies the steeper that dive reads in
         // dB/s against what a recording shows.
         const float kFloor = 1.0e-3f;
+        coast_ = false;
         if (seg_log_) {
             const float from = level_ < kFloor ? kFloor : level_;
-            const float to = target < kFloor ? kFloor : target;
+            const float z = spec_.zero > kFloor ? spec_.zero : kFloor;
+            const bool to_zero = target <= z && (seg >= 3 || (seg == 4));
+            const float to = to_zero ? z : (target < kFloor ? kFloor : target);
+            coast_ = to_zero && spec_.zero > 0.0f;
             if (spec_.r[seg] > 0.0f) {
                 // Rate semantics: duration follows from the dB distance.
                 const float dist_db = 20.0f * std::log10(from / to);
@@ -409,6 +440,7 @@ private:
     float step_ = 0.0f;
     float factor_ = 1.0f;
     bool seg_log_ = false;
+    bool coast_ = false;          // ramping past chip zero at the segment's rate
     int32_t remaining_ = 0;
     int seg_ = 0;
     bool held_ = false;
