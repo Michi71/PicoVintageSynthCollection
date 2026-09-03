@@ -311,6 +311,22 @@ struct PatchSpec {
     // C59A -> FE04/FE0C) and lets an RPN-0 data entry overwrite it until
     // the next load (0x4E72, clamped to 12).
     int bend_range = 2;
+    // Panel "Output Mode", pb[29], stored 0..3 for modes 1..4. Mode 1 mixes
+    // both tones to both outputs with the reverb on both. Modes 2, 3 and 4
+    // put the Upper tone on the right output and the Lower tone on the
+    // left, each folded to its L/MONO signal -- Roland's D-50 VST, recorded
+    // dry with one tone at a time, leaves the other channel digitally
+    // silent in all three, and its Stereo Polysynth is exactly this: two
+    // detuned tones hard left and right. They differ in the reverb feed
+    // (EPROM page 2, mixer rows 0xB4C5 + 6*mode): modes 1 and 2 send both
+    // tones at half, modes 3 and 4 send one tone at full and are each
+    // other's mirror: the VST, recorded one tone at a time with the reverb
+    // at 50, hangs the tail on the Upper's side in mode 3 and leaves the
+    // Lower dry, so mode 3 sends the Upper and mode 4 the Lower.
+    // The patch loader copies the byte to CD99 and rebuilds the mixer
+    // (0x66BB -> 0xB4DD). Bank 1: Jazz Guitar Duo, Stereo Polysynth,
+    // Picked Guitar Duo, Slap Bass n Brass and Pianissimo use mode 2.
+    int output_mode = 0;
     ReverbSpec reverb{};
     float volume = 1.0f;
 };
@@ -396,11 +412,14 @@ public:
         if (note == solo_note_) solo_note_ = -1;
     }
 
-    // Mono fold is the L/MONO jack again: the left side as it ships.
+    // Mono fold is the L/MONO jack again: the left side as it ships. In the
+    // split output modes the jack would carry only the Lower tone, so there
+    // the fold sums both sides -- each tone is mono on its own side, nothing
+    // anti-phase can cancel.
     float D5_HOT(next)() {
         float l, r;
         next_stereo(l, r);
-        return l;
+        return spec_.output_mode == 0 ? l : 0.5f * (l + r);
     }
 
     // Stereo: the tones keep their own left and right through the balance
@@ -424,7 +443,27 @@ public:
         float ul, ur, ll, lr;
         upper_.next_stereo(ul, ur);
         lower_.next_stereo(ll, lr);
-        reverb_.process(ul * uw + ll * lw, ur * uw + lr * lw, l, r);
+        if (spec_.output_mode == 0) {
+            reverb_.process(ul * uw + ll * lw, ur * uw + lr * lw, l, r);
+        } else {
+            // Output modes 2-4: Lower left, Upper right, each tone as its
+            // L/MONO signal. Mode 2 sends both tones to the reverb and its
+            // return reaches both outputs (the VST puts the Upper's tail on
+            // the left at -48 dB, on the right at -41). Modes 3 and 4 send
+            // one tone, and its return stays on that tone's own side -- the
+            // other channel is digitally silent in the VST -- while the
+            // other tone goes to its output dry and whole, past the balance.
+            const float lo = ll * lw, up = ul * uw;
+            if (spec_.output_mode == 1) {
+                reverb_.process(lo, up, l, r);
+            } else if (spec_.output_mode == 2) {
+                reverb_.process(0.0f, up, l, r);
+                l = lo;
+            } else {
+                reverb_.process(lo, 0.0f, l, r);
+                r = up;
+            }
+        }
         l = saturate(l * spec_.volume);
         r = saturate(r * spec_.volume);
     }

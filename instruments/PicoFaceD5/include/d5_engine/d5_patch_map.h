@@ -488,6 +488,7 @@ inline PatchSpec patch_from_bytes(const uint8_t* patch, const int16_t* blob) {
     // 1.0, which 80 of the bank's partials do not use.
     p.upper.voice.key_shift = static_cast<int>(pb[22]) - 24;
     p.lower.voice.key_shift = static_cast<int>(pb[23]) - 24;
+    p.output_mode = pb[29] > 3 ? 3 : pb[29];   // see PatchSpec::output_mode
     p.reverb.type = pb[30];
     // Reverb Balance is another panel value on the amount family, and the
     // reference recordings vouch for it: through this curve Cathedral
