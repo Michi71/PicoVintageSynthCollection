@@ -434,12 +434,13 @@ inline void map_common(const uint8_t* c, ToneSpec& tone) {
     tone.eq.high_gain_db = static_cast<float>(c[41]) - 12.0f;
     tone.chorus.type = c[42];
     tone.chorus.rate = level01(c[43]);
-    // Chorus depth is another 0..100 "Depth" and takes the same law as the
-    // rest of that family. Linear reading left String Ensemble with +-10
-    // cents of coherent pitch wobble from the chorus alone -- the audible
-    // "eiern"; through the curve its setting of 53..58 becomes a few cents
-    // of shimmer.
-    tone.chorus.depth = kDepthCurve[c[44] > 100 ? 100 : c[44]];
+    // Chorus depth is linear, not the pitch-mod depth curve: on Roland's
+    // D-50 VST the delay swing at panel 50 is about half of what it is at
+    // 100 (d5_effects.h). The curve had turned String Ensemble's 53..58
+    // into a few cents of shimmer where the VST sweeps several
+    // milliseconds -- the earlier "eiern" was the single wet on both
+    // sides, which the counter-swept pair no longer produces.
+    tone.chorus.depth = level01(c[44]);
     tone.chorus.balance = level01(c[45]);
 
     v.partials_on = c[46] & 0x3;

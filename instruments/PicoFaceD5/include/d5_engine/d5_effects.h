@@ -131,25 +131,33 @@ private:
 
 // ------------------------------------------------------------------ chorus
 
-// The eight types differ in how many voices move, how far apart they sit and
-// whether the delayed signal is fed back; rate, depth and balance are the
-// panel's own controls on top.
+// The eight panel types by the Owner's Manual's names (p. 29): Chorus 1,
+// Chorus 2, Flanger 1, Flanger 2, Feedback Chorus, Tremolo, Chorus Tremolo,
+// Dimension. Two of them are measured on Roland's D-50 VST with one
+// sawtooth partial, chorus balance 100 (wet only), reverb off (03.09.2026):
+// type 1 is a single modulated delay whose two outputs sweep in opposite
+// directions and are each other's inverse (depth 0: L = -R exactly), and
+// type 6 is a stereo tremolo with no pitch modulation at all, its two
+// sides in counter-phase, about 15 dB deep at panel depth 50 and running
+// at twice the chorus LFO. The base delays, spreads, feedbacks and voice
+// counts of the other six are still by name only.
 struct ChorusType {
     float base_ms;
     float spread_ms;
-    int voices;
+    int voices;          // modulated delay reads; 0 = no delay at all
     float feedback;
+    bool tremolo;        // amplitude modulation on top (types 6 and 7)
 };
 
 inline constexpr ChorusType kChorusTypes[8] = {
-    {12.0f, 0.0f,  1, 0.00f},   // 1  single voice, gentle
-    {18.0f, 0.0f,  1, 0.20f},   // 2  deeper, a little feedback
-    {10.0f, 6.0f,  2, 0.00f},   // 3  two voices apart
-    {14.0f, 9.0f,  2, 0.15f},   // 4
-    { 8.0f, 5.0f,  3, 0.00f},   // 5  three voices, ensemble
-    {16.0f, 11.0f, 3, 0.10f},   // 6
-    { 3.5f, 1.5f,  2, 0.45f},   // 7  short and resonant, flanger-ish
-    { 2.0f, 0.8f,  2, 0.60f},   // 8
+    {12.0f, 0.0f,  1, 0.00f, false},   // 1  Chorus 1 (measured)
+    {18.0f, 0.0f,  1, 0.20f, false},   // 2  Chorus 2
+    { 2.0f, 0.0f,  1, 0.50f, false},   // 3  Flanger 1
+    { 3.5f, 0.0f,  1, 0.70f, false},   // 4  Flanger 2
+    {12.0f, 0.0f,  1, 0.45f, false},   // 5  Feedback Chorus
+    { 0.0f, 0.0f,  0, 0.00f, true },   // 6  Tremolo (measured)
+    {12.0f, 0.0f,  1, 0.00f, true },   // 7  Chorus Tremolo
+    { 8.0f, 5.0f,  2, 0.00f, false},   // 8  Dimension
 };
 
 struct ChorusSpec {
@@ -166,8 +174,7 @@ public:
         spec_ = spec;
         sr_ = sr;
         phase_ = 0.0f;
-        // 0.098 .. 20 Hz per the specification sheet's "CHORUS LFO"
-        inc_ = (0.098f * std::pow(20.0f / 0.098f, clamp01(spec.rate))) / sr;
+        inc_ = rate_hz(spec.rate) / sr;
         for (int i = 0; i < kMaxDelay; ++i) buf_[i] = 0.0f;
         write_ = 0;
     }
@@ -181,8 +188,17 @@ public:
     void set_depth(float d) { spec_.depth = clamp01(d); }
     void set_rate(float r) {
         spec_.rate = clamp01(r);
-        inc_ = (0.098f * std::pow(20.0f / 0.098f, spec_.rate)) / sr_;
+        inc_ = rate_hz(spec_.rate) / sr_;
     }
+
+    // Panel rate to Hz, from the VST's wet pitch modulation: 1.1-1.4 Hz at
+    // panel 50, 6.1 Hz at 100, 0.3-0.5 Hz at 0 -- an exponential of 0.26 Hz
+    // to 6.1 Hz. The specification sheet's 0.098-20 Hz that stood here was
+    // the chip's range, not the panel's.
+    static float rate_hz(float r) { return 0.26f * std::pow(23.5f, clamp01(r)); }
+    // Panel depth to the delay swing, linear: +-10.5 ms at 100, +-4 to 6 at
+    // 50 on the VST. Through the pitch-mod depth curve it was 0.125 ms at 50.
+    static constexpr float kSwingMs = 10.5f;
 
     // Mono is the L/MONO jack of the real unit: dry + wet, exactly what the
     // left side carries. Averaging l and r would cancel the anti-phase wet
@@ -193,25 +209,46 @@ public:
         return l;
     }
 
-    // Stereo the way the Roland effects of the era do it: left gets
-    // dry + wet, right gets dry - wet. The same modulated wet, inverted --
-    // even a whisper of depth then opens the field around a steady center,
-    // which is the chorus width the instrument is known for. The mono path
-    // above takes the left side (dry + wet), identical to the fold a L/MONO
-    // jack hears on the real unit.
+    // Stereo the way the Roland effects of the era do it, and the way the
+    // VST measures: the left side takes dry + wet, the right side dry minus
+    // a second wet whose delay sweeps the other way. At depth 0 the two
+    // wets coincide and the sides are exact inverses (VST: correlation
+    // -1.00); with depth the sweeps pull them apart. The reverb no longer
+    // sees this pair -- it has its own mono send (Reverb::process) -- so
+    // the inversion can be exact without starving the room.
     void D5_HOT(process)(float x, float& l, float& r) {
         const ChorusType& t = kChorusTypes[clamp_index(spec_.type, 8)];
-        float wet = 0.0f;
-        for (int v = 0; v < t.voices; ++v) {
-            const float ph = phase_ + static_cast<float>(v) / t.voices;
-            const float ms = t.base_ms + t.spread_ms * v +
-                             clamp01(spec_.depth) * 4.0f * fast_sin(ph);   // wraps on its own
-            const float ds = ms * 0.001f * sr_;
-            wet += read(ms * 0.001f * sr_);
+        const float d = clamp01(spec_.depth);
+        float wl = 0.0f, wr = 0.0f;
+        if (t.voices == 0) {
+            wl = x;
+            wr = x;
+        } else {
+            const float swing = d * kSwingMs;
+            for (int v = 0; v < t.voices; ++v) {
+                const float ph = phase_ + static_cast<float>(v) / t.voices;   // wraps on its own
+                const float ms = t.base_ms + t.spread_ms * v;
+                // The right side sweeps 0.3 of a turn behind the left, not
+                // half: the VST's two pitch tracks correlate at -0.2 to -0.6
+                // across depths and rates, a pure counter-sweep would sit
+                // at -1 and coincide with the left twice per cycle.
+                wl += read((ms + swing * fast_sin(ph)) * 0.001f * sr_);
+                wr += read((ms + swing * fast_sin(ph + 0.3f)) * 0.001f * sr_);
+            }
+            wl /= static_cast<float>(t.voices);
+            wr /= static_cast<float>(t.voices);
         }
-        wet /= static_cast<float>(t.voices);
+        if (t.tremolo) {
+            // Counter-phased amplitude modulation at twice the LFO rate
+            // (VST type 6: 2.65 Hz at panel rate 50 against 1.26 Hz of
+            // pitch sweep on type 1), about 14 dB deep at panel depth 50.
+            const float m = d * 1.6f > 1.0f ? 1.0f : d * 1.6f;
+            const float sq = fast_sin(2.0f * phase_);
+            wl *= 1.0f - m * 0.5f * (1.0f + sq);
+            wr *= 1.0f - m * 0.5f * (1.0f - sq);
+        }
 
-        buf_[write_] = x + wet * t.feedback;
+        buf_[write_] = x + wl * t.feedback;
         if (++write_ >= kMaxDelay) write_ = 0;
 
         phase_ += inc_;
@@ -219,21 +256,8 @@ public:
 
         const float b = clamp01(spec_.balance);
         const float dry = x * (1.0f - b);
-        l = dry + wet * b;
-        // The right side takes the wet inverted, but NOT exactly: at a
-        // perfect inversion the two sides cancel the moment the dry is
-        // gone, and the reverb -- which folds its stereo input to mono the
-        // way the Boss chip does -- then receives nothing at all. Eighteen
-        // factory patches sit at chorus balance 100 (Griitttarr, Staccato
-        // Heaven, Calliope ...) with reverb balances of 36 to 50, so on the
-        // real machine a full-wet chorus certainly does reach the room --
-        // and such a patch would vanish entirely on a mono desk, which
-        // Roland would not ship. A real stereo chorus decorrelates its two
-        // sides rather than negating one; 0.7 keeps almost all of the width
-        // (-1.4 dB of side) while leaving the sum alive. The dry path of the
-        // left side is untouched; what does change there is the reverb's
-        // contribution, because the room now hears the chorus at all.
-        r = dry - wet * b * 0.7f;
+        l = dry + wl * b;
+        r = dry - wr * b;
     }
 
 private:
@@ -483,16 +507,21 @@ public:
 
     float D5_HOT(process)(float x) {
         float l, r;
-        process(x, x, l, r);
+        process(x, x, x, l, r);
         return l;
     }
 
     // The chip folds its stereo input to mono and builds the field of the
     // reverb from tap positions; the dry side passes straight through, so
     // the chorus width of the tones lives in the dry part of the mix.
-    void D5_HOT(process)(float xl, float xr, float& l, float& r) {
+    // `send` feeds the room (the tones' L/MONO signals, dry + chorus wet,
+    // summed by the patch); xl and xr are what passes to the outputs dry.
+    // The Boss chip folds to mono at its input, and so does this -- but
+    // from a send that cannot cancel, not from the stereo pair, whose
+    // chorus halves are exact inverses now.
+    void D5_HOT(process)(float send, float xl, float xr, float& l, float& r) {
         float wl, wr;
-        const float x = 0.25f * (xl + xr);
+        const float x = 0.5f * send;
         if (mode_ < 3) {
             const BossMode& m = *boss_;
             entr_.process(x);

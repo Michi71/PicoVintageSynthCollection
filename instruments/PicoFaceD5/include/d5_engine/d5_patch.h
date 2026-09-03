@@ -444,7 +444,8 @@ public:
         upper_.next_stereo(ul, ur);
         lower_.next_stereo(ll, lr);
         if (spec_.output_mode == 0) {
-            reverb_.process(ul * uw + ll * lw, ur * uw + lr * lw, l, r);
+            const float send = ul * uw + ll * lw;
+            reverb_.process(send, ul * uw + ll * lw, ur * uw + lr * lw, l, r);
         } else {
             // Output modes 2-4: Lower left, Upper right, each tone as its
             // L/MONO signal. Mode 2 sends both tones to the reverb and its
@@ -455,12 +456,12 @@ public:
             // other tone goes to its output dry and whole, past the balance.
             const float lo = ll * lw, up = ul * uw;
             if (spec_.output_mode == 1) {
-                reverb_.process(lo, up, l, r);
+                reverb_.process(lo + up, lo, up, l, r);
             } else if (spec_.output_mode == 2) {
-                reverb_.process(0.0f, up, l, r);
+                reverb_.process(up, 0.0f, up, l, r);
                 l = lo;
             } else {
-                reverb_.process(lo, 0.0f, l, r);
+                reverb_.process(lo, lo, 0.0f, l, r);
                 r = up;
             }
         }
