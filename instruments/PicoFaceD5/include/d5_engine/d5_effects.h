@@ -191,14 +191,18 @@ public:
         inc_ = rate_hz(spec_.rate) / sr_;
     }
 
-    // Panel rate to Hz, from the VST's wet pitch modulation: 1.1-1.4 Hz at
-    // panel 50, 6.1 Hz at 100, 0.3-0.5 Hz at 0 -- an exponential of 0.26 Hz
-    // to 6.1 Hz. The specification sheet's 0.098-20 Hz that stood here was
-    // the chip's range, not the panel's.
-    static float rate_hz(float r) { return 0.26f * std::pow(23.5f, clamp01(r)); }
-    // Panel depth to the delay swing, linear: +-10.5 ms at 100, +-4 to 6 at
-    // 50 on the VST. Through the pitch-mod depth curve it was 0.125 ms at 50.
-    static constexpr float kSwingMs = 10.5f;
+    // Panel rate to Hz, from the VST's wet pitch modulation: 1.3-1.6 Hz at
+    // panel 50, 7.4 Hz at 100, about half a hertz at 0 -- an exponential of
+    // 0.28 Hz to 7.4 Hz. The specification sheet's 0.098-20 Hz that stood
+    // here was the chip's range, not the panel's.
+    static float rate_hz(float r) { return 0.28f * std::pow(26.0f, clamp01(r)); }
+    // Panel depth to the delay swing, linear: +-2.4 ms at 100, +-1.1 to
+    // 2.1 at 50 on the VST (rms of the wet's pitch track with the quiet
+    // moments dropped -- percentiles of that track count the spikes where
+    // the sweeping wet cancels, and read four times too much; that first
+    // reading turned Arco Strings into a swarm of bees). Through the
+    // pitch-mod depth curve it was 0.125 ms at 50.
+    static constexpr float kSwingMs = 2.4f;
 
     // Mono is the L/MONO jack of the real unit: dry + wet, exactly what the
     // left side carries. Averaging l and r would cancel the anti-phase wet
