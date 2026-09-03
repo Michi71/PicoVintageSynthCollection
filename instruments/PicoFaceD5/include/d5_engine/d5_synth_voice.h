@@ -134,18 +134,44 @@ public:
                      * velTerm * (100.0f / 256.0f) * 0.01f;
         // env_units_ is "chip units per unit of envelope level" -- the
         // Env5 output 0..1 scales it below.
-        base_cv_ = spec.cutoff * 100.0f + 78.0f
+        // The D-50's own base cutoff, byte-exact from IC25 0x0809-0x08EB:
+        // a 16-bit accumulator takes (cutoff + 27) * 128, plus or minus
+        // the bias (table 0x08EC magnitude times the distance past the
+        // bias point) and the keyfollow ((kfTVF - kfWG) times the KEY
+        // relative to C4, each keyfollow as the high byte of table 0x01F1,
+        // i.e. 85 * ratio), then shifts left twice and keeps the high byte
+        // -- everything lands divided by 64. So the chip register is
+        // 2 * cutoff + 54 for the panel value, two chip units per panel
+        // step, 154 at panel 50. The MT-32's CPU writes cutoff + 78 into
+        // the same register (munt TVF.cpp), which is what stood here until
+        // 02.09.2026 and left every D-50 partial 26 units -- more than an
+        // octave and a half -- duller than the machine at panel 50, and
+        // drifting further shut above it. Roland's D-50 VST, dry, puts
+        // Arco Strings' tenth harmonic at -25 dB on three octaves; the old
+        // base gave -57.
+        base_cv_ = spec.cutoff * 200.0f + 54.0f
                    + (spec.cutoff_keyfollow - spec.pitch_keyfollow)
-                     * (21.0f / 16.0f) * (note - 60.0f);
+                     * (85.0f / 64.0f) * static_cast<float>(key_rel60);
         // TVF bias: past the bias point, in its direction, the cutoff
-        // tilts. The table maxima give 170/128 = 1.33 units per semitone,
-        // which sits right beside the 21/16 the keyfollow uses -- the two
-        // unit systems agree.
+        // tilts by magnitude/64 chip units per semitone (0x081B-0x0830,
+        // same /64 as everything else in that accumulator).
         if (spec.bias_slope != 0.0f) {
             const int rel = key_rel60 - spec.bias_note_rel;
             const int dist = spec.bias_above ? (rel > 0 ? rel : 0)
                                              : (rel < 0 ? -rel : 0);
             base_cv_ += spec.bias_slope * static_cast<float>(dist);
+        }
+        // The pitch cap (IC25 0x08CF-0x08DE): the note-on routine adds the
+        // high byte of the composed pitch word -- 128 on C4, 16 per octave,
+        // the word being relative to C4 -- to the base and, when the sum
+        // carries past 256 by 0x58 or more, takes the excess off the base.
+        // So the base cannot exceed 344 minus that byte: 216 on C4, 200 on
+        // C5, 184 on C6. Panel 100 (254) is capped from the lowest keys
+        // up, panel 70 (194) above C5, Arco Strings' 154 never below C8.
+        // munt's TVF.cpp has the MT-32's form of the same guard.
+        {
+            const float cap = 216.0f - (16.0f / 12.0f) * (note - 60.0f);
+            if (base_cv_ > cap) base_cv_ = cap;
         }
         // Pulse width: panel byte to the chip's 0..255, velocity-shifted
         // (Partial.cpp:222-227); at or below 128 the wave is symmetric.
