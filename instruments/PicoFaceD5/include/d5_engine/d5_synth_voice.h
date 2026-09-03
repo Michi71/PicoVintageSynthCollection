@@ -271,8 +271,19 @@ public:
         float pw = pw255_ + mod.pw * 255.0f;
         if (pw < 0.0f) pw = 0.0f;
         if (pw > 255.0f) pw = 255.0f;
-        pulse_frac_ = pw > 128.0f ? fast_exp2((64.0f - pw) * (1.0f / 64.0f))
-                                  : 0.5f;
+        // The chip's pulse law, calibrated on Roland's D-50 VST with one
+        // square partial, dry: panel 0/25/50/75 give duties of 50/25/12.5/
+        // 6.25 % -- the spectral nulls sit at h4, h8 and h16 -- and panel
+        // 100 stays at 1/16. Halving every 25 panel steps is munt's
+        // exponent (64 register units) but it runs from register 0, not
+        // from 128: munt's "at or below 128 the wave is symmetric" gate
+        // (LA32WaveGenerator.cpp:84) does not hold on this machine, and
+        // the Owner's Manual (p. 35) draws panel 50 asymmetric. The
+        // firmware writes T[panel] + velocity straight into the register
+        // (IC25 0x07E6-0x0805, 0x072A), so the register IS the panel scale.
+        // Until 03.09.2026 panel 1..50 were all squares here.
+        pulse_frac_ = pw < 192.0f ? fast_exp2(-1.0f - pw * (1.0f / 64.0f))
+                                  : 0.0625f;
         h_frac_ = pulse_frac_ - edge_frac_;
         if (h_frac_ < 0.0f) h_frac_ = 0.0f;
         // The shape's DC: the half-cosine edges average to zero, so the
