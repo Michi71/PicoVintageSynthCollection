@@ -130,7 +130,15 @@ public:
         }
         float velTerm = velUnits * (1.0f / 109.0f);
         if (velTerm < 0.0f) velTerm = 0.0f;
-        env_units_ = spec.tvf_env_depth * 100.0f * (109.0f / 64.0f)
+        // The firmware's target byte is L * CC80 / 256 with CC80 = depth *
+        // velTerm / 64 (IC25 0x0938-0x0951), which this product reproduces
+        // -- and the chip applies that byte at two cutoff units per unit.
+        // Roland's D-50 VST, dry, on Arco Strings: the sustain sits 44
+        // units above the base at velocity 127 and 30 at 64; the byte says
+        // 22 and 15. The base register itself is one unit per unit
+        // (2 * panel + 54 lands where the VST's cutoff sweep lands), so the
+        // factor belongs to the envelope path alone.
+        env_units_ = 2.0f * spec.tvf_env_depth * 100.0f * (109.0f / 64.0f)
                      * velTerm * (100.0f / 256.0f) * 0.01f;
         // env_units_ is "chip units per unit of envelope level" -- the
         // Env5 output 0..1 scales it below.
