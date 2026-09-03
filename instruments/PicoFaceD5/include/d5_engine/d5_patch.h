@@ -320,8 +320,9 @@ struct PatchSpec {
     // detuned tones hard left and right. They differ in the reverb feed
     // (EPROM page 2, mixer rows 0xB4C5 + 6*mode): modes 1 and 2 send both
     // tones at half, modes 3 and 4 send one tone at full and are each
-    // other's mirror. Which of the two tones mode 3 sends is not settled
-    // (two of the 384 patches use it); mode 3 sends the Upper here.
+    // other's mirror: the VST, recorded one tone at a time with the reverb
+    // at 50, hangs the tail on the Upper's side in mode 3 and leaves the
+    // Lower dry, so mode 3 sends the Upper and mode 4 the Lower.
     // The patch loader copies the byte to CD99 and rebuilds the mixer
     // (0x66BB -> 0xB4DD). Bank 1: Jazz Guitar Duo, Stereo Polysynth,
     // Picked Guitar Duo, Slap Bass n Brass and Pianissimo use mode 2.
@@ -446,18 +447,21 @@ public:
             reverb_.process(ul * uw + ll * lw, ur * uw + lr * lw, l, r);
         } else {
             // Output modes 2-4: Lower left, Upper right, each tone as its
-            // L/MONO signal. The reverb sees both tones (mode 2), the Upper
-            // alone (mode 3) or the Lower alone (mode 4); a tone it does not
-            // see goes to its output dry and whole, past the balance.
+            // L/MONO signal. Mode 2 sends both tones to the reverb and its
+            // return reaches both outputs (the VST puts the Upper's tail on
+            // the left at -48 dB, on the right at -41). Modes 3 and 4 send
+            // one tone, and its return stays on that tone's own side -- the
+            // other channel is digitally silent in the VST -- while the
+            // other tone goes to its output dry and whole, past the balance.
             const float lo = ll * lw, up = ul * uw;
             if (spec_.output_mode == 1) {
                 reverb_.process(lo, up, l, r);
             } else if (spec_.output_mode == 2) {
                 reverb_.process(0.0f, up, l, r);
-                l += lo;
+                l = lo;
             } else {
                 reverb_.process(lo, 0.0f, l, r);
-                r += up;
+                r = up;
             }
         }
         l = saturate(l * spec_.volume);
