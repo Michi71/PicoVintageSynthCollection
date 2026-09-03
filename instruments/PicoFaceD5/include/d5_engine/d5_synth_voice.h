@@ -421,8 +421,11 @@ private:
     // reads 240 for the MT-32; Roland's D-50 VST says about 218: Intruder
     // FX releases its TVF to full depth (target byte 66 on base 156, twice
     // that in chip units) with resonance 30, and the peak settles at
-    // 3255 Hz -- 216 puts it at 3016, 220 at 3541. One key (C4) measured;
-    // whether the ceiling follows the key like the base cap is open.
+    // 3255 Hz -- 216 puts it at 3016, 220 at 3541. The ceiling is flat,
+    // not key-following like the base cap: at note 48 the VST's peak
+    // sits in the 1.6 kHz band and at note 72 near 5 kHz, which is what
+    // 218 gives at both (a key-following 234/202 would put them at 3.2
+    // and 2.5-3.2 kHz).
 #ifndef D5_CUTOFF_CEILING
 #define D5_CUTOFF_CEILING 218.0f
 #endif
