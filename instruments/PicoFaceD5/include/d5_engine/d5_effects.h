@@ -482,6 +482,9 @@ public:
         pol_r_ = t.pol_r;
         mode_ = t.mode < 3 ? t.mode : 3;
         age_ = 0;
+        follow_ = 0.0f;
+        hold_ = 0;
+        gain_ = 0.0f;
         gate_ = static_cast<int>(t.gate_ms * 0.001f * sr);
         reverse_ = static_cast<int>(t.reverse_ms * 0.001f * sr);
         if (mode_ < 3) {
@@ -588,12 +591,28 @@ public:
         // one-sample cut of a sounding tail reads as a pop.
         float g = 1.0f;
         if (gate_ > 0) {
-            const int fade = static_cast<int>(sr_ * 0.005f);
-            g = age_ < gate_ ? 1.0f
-                : (age_ < gate_ + fade
-                       ? 1.0f - static_cast<float>(age_ - gate_) / fade
-                       : 0.0f);
-            ++age_;
+            // The gate follows the send, not the note: a gated reverb opens
+            // while its input is above the threshold and closes the gate
+            // time after it fell below. Intruder FX is the proof -- Long
+            // Gate at balance 100 (no dry at all) under an Upper tone that
+            // swells in over seconds and releases over more: cut 480 ms
+            // after the note starts, the patch was a half-second blip and
+            // then digital silence under the held key. Followed, the tail
+            // rides through, and the release is cut 480 ms after it sinks
+            // under the threshold -- the tone after the key that the VST
+            // plays. Threshold and hold are PLAUSIBLE, not measured.
+            const float a = x < 0.0f ? -x : x;
+            follow_ = a > follow_ ? a : follow_ * kFollowDecay;
+            if (follow_ > kGateThreshold) {
+                hold_ = gate_;
+            } else if (hold_ > 0) {
+                --hold_;
+            }
+            const float step = 1.0f / (sr_ * 0.005f);   // 5 ms ramps
+            const float target = hold_ > 0 ? 1.0f : 0.0f;
+            gain_ += gain_ < target ? (target - gain_ < step ? target - gain_ : step)
+                                    : (gain_ - target < step ? target - gain_ : -step);
+            g = gain_;
         } else if (reverse_ > 0) {
             const int fade = static_cast<int>(sr_ * 0.005f);
             g = age_ < reverse_ ? static_cast<float>(age_) / reverse_
@@ -622,6 +641,13 @@ private:
     int gate_ = 0;
     int reverse_ = 0;
     int age_ = 0;
+    // Gate follower state: rectified send with a 30 ms decay, the hold
+    // countdown, and the ramped gain.
+    static constexpr float kGateThreshold = 1e-5f;     // -100 dBFS on x: the VST's Long Gate cuts Intruder FX only at -106 dB, i.e. when the input is gone
+    static constexpr float kFollowDecay = 0.99896f;    // exp(-1/(0.03*32000))
+    float follow_ = 0.0f;
+    int hold_ = 0;
+    float gain_ = 0.0f;
 
     float pool_[kPool] = {};
     ReverbAllpass ap_[3];

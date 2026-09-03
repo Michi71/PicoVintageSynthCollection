@@ -228,7 +228,7 @@ public:
         // mod.cutoff arrives on the old 0..1 scale from the LFO routes;
         // 100 units span that scale, same as the panel byte.
         float cv = base_cv_ + env_units_ * 100.0f * env + mod.cutoff * 100.0f;
-        if (cv > 240.0f) cv = 240.0f;                       // the chip's clamp
+        if (cv > kCutoffCeiling) cv = kCutoffCeiling;       // the chip's clamp
         edge_frac_ = 0.5f;
         inv_edge_ = 2.0f;
         atten_ = 1.0f;
@@ -417,6 +417,19 @@ private:
     float phase_ = 0.0f;
     float base_cv_ = 128.0f;       // cutoffVal at env 0, chip units
     float env_units_ = 0.0f;       // chip units per unit of envelope level
+    // Ceiling of the composed cutoff (base + envelope + modulation). munt
+    // reads 240 for the MT-32; Roland's D-50 VST says about 218: Intruder
+    // FX releases its TVF to full depth (target byte 66 on base 156, twice
+    // that in chip units) with resonance 30, and the peak settles at
+    // 3255 Hz -- 216 puts it at 3016, 220 at 3541. The ceiling is flat,
+    // not key-following like the base cap: at note 48 the VST's peak
+    // sits in the 1.6 kHz band and at note 72 near 5 kHz, which is what
+    // 218 gives at both (a key-following 234/202 would put them at 3.2
+    // and 2.5-3.2 kHz).
+#ifndef D5_CUTOFF_CEILING
+#define D5_CUTOFF_CEILING 218.0f
+#endif
+    static constexpr float kCutoffCeiling = D5_CUTOFF_CEILING;
     float edge_frac_ = 0.5f;       // cosine edge as fraction of the period
     float inv_edge_ = 2.0f;        // 1/edge_frac_, a block constant
     float pulse_frac_ = 0.5f;
