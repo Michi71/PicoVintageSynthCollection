@@ -559,23 +559,42 @@ public:
     // chorus halves are exact inverses now.
     void D5_HOT(process)(float send, float xl, float xr, float& l, float& r) {
         float wl, wr;
-        // 0.595 = 0.5 * 1.19: the VST's wet-only sits 7.5 dB under the dry
-        // alone (Medium Hall, Arco Upper P1); ours sat 9.0 under it.
-        const float x = 0.595f * send;
+        // 0.316: the VST's wet-only sits 7.5 dB under the dry alone (Medium
+        // Hall on a held C4, Arco Upper P1), which 0.595 reproduced -- at
+        // 262 Hz. Three combs at a loop gain near 0.75 give this core a
+        // steady-state gain that swings 22 dB between neighbouring
+        // frequencies (sines 50..1000 Hz: mean -2.4 dB, 262 Hz -7.9), so a
+        // one-note calibration lands on a dip; the send is set 5.5 dB lower
+        // to put the mean where the VST's C4 sits. A sweep of the loop
+        // length by a few samples did nothing to the ripple (the modes move
+        // 0.3 %); smoothing it would take tens of samples, audible chorusing.
+        const float x = 0.316f * send;
         if (mode_ < 3) {
             const BossMode& m = *boss_;
             entr_.process(x);
             float link = entr_.out_at(static_cast<int>(m.comb_sizes[0] * sr_scale_) - 1);
             link = ap_[0].process(link);
             link = ap_[1].process(link);
+            const float early_r = link;
             link = ap_[2].process(link);
             const float out_l1 = comb_[0].out_at(static_cast<int>(m.out_l[0] * sr_scale_) - 1);
             for (int c = 0; c < 3; ++c) comb_[c].process(link);
-            wl = 1.5f * (out_l1 + comb_[1].out_at(static_cast<int>(m.out_l[1] * sr_scale_)))
-                     + comb_[2].out_at(static_cast<int>(m.out_l[2] * sr_scale_));
-            wr = 1.5f * (comb_[0].out_at(static_cast<int>(m.out_r[0] * sr_scale_))
-                     + comb_[1].out_at(static_cast<int>(m.out_r[1] * sr_scale_)))
-                     + comb_[2].out_at(static_cast<int>(m.out_r[2] * sr_scale_));
+            // Early part plus tail. Roland's D-50 VST puts most of the wet
+            // energy into the first tens of milliseconds and keeps the
+            // diffuse tail some 20 dB below it (Medium Hall on a held Arco
+            // note: the wet follows the dry's own release for 0.4 s before
+            // the 20 dB/s tail shows; a plucked Jazz Guitar Duo leaves a
+            // tail 28 dB under its peak). The Boss core alone is all tail
+            // -- normalized to the same steady level it rang 15-20 dB too
+            // loud after every note. The early signal is the diffused
+            // input: after three allpasses on the left, two on the right.
+            wl = kTailMix * (1.5f * (out_l1 + comb_[1].out_at(static_cast<int>(m.out_l[1] * sr_scale_)))
+                             + comb_[2].out_at(static_cast<int>(m.out_l[2] * sr_scale_)))
+               + kEarlyMix * link;
+            wr = kTailMix * (1.5f * (comb_[0].out_at(static_cast<int>(m.out_r[0] * sr_scale_))
+                                     + comb_[1].out_at(static_cast<int>(m.out_r[1] * sr_scale_)))
+                             + comb_[2].out_at(static_cast<int>(m.out_r[2] * sr_scale_)))
+               + kEarlyMix * early_r;
             // A type with an inverted right side sends the same wet to both
             // outputs (the VST's Large Room: L/R correlation -0.95); the
             // chip's own tap pairs are decorrelated and would stay so.
@@ -643,6 +662,14 @@ public:
 
 private:
     static constexpr int kPool = 21000;  // floats: 3x1950 allpass, 1050 entrance, 3x4600 combs (up to 20700), or 16.2k tap line
+#ifndef D5_REV_EARLY
+#define D5_REV_EARLY 2.2f
+#endif
+#ifndef D5_REV_TAIL
+#define D5_REV_TAIL 0.6f
+#endif
+    static constexpr float kEarlyMix = D5_REV_EARLY;
+    static constexpr float kTailMix = D5_REV_TAIL;
 
     static float clamp01(float v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
     static int clamp_index(int v, int n) { return v < 0 ? 0 : (v >= n ? n - 1 : v); }
