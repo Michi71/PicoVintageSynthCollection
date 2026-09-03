@@ -22,12 +22,14 @@ SR = 32000
 
 def metrics(x, hold, f0):
     """x: (n, 2) float32 at 32 kHz. Levels in dB, profile re h1."""
-    m = x.mean(axis=1)
+    # Levels and spectra as the power mean of both channels, never the mono
+    # fold: a reverb with inverted sides (Large Room) cancels in L+R.
     def lev(a, b):
-        seg = m[int(a*SR):int(b*SR)]; return 10*np.log10((seg**2).mean()+1e-20)
+        seg = x[int(a*SR):int(b*SR)]; return 10*np.log10((seg**2).mean()+1e-20)
     t1 = max(0.1, hold - 0.6)
-    seg = m[int(t1*SR):int(hold*SR)]
-    w = seg*np.hanning(len(seg)); S = np.abs(np.fft.rfft(w))**2; f = np.fft.rfftfreq(len(seg), 1/SR)
+    seg = x[int(t1*SR):int(hold*SR)]
+    w = np.hanning(len(seg))[:, None]
+    S = (np.abs(np.fft.rfft(seg*w, axis=0))**2).sum(axis=1); f = np.fft.rfftfreq(len(seg), 1/SR)
     prof = [10*np.log10(S[(f > k*f0*0.97) & (f < k*f0*1.03)].max()+1e-20) for k in range(1, 11)]
     band = (f > 30) & (f < 12000); cent = (f[band]*S[band]).sum()/(S[band].sum()+1e-20)
     l, r = x[int(t1*SR):int(hold*SR), 0], x[int(t1*SR):int(hold*SR), 1]
