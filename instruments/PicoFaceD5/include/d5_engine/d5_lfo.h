@@ -254,17 +254,29 @@ public:
         for (int i = 0; i < 4; ++i) {
             int idx = static_cast<int>(spec_.t_idx[i]) + off;
             idx = idx < 0 ? 0 : (idx > 50 ? 50 : idx);
-            t_[i] = idx == 0 ? 0.0f : kPEnvTicks[idx] * (1.0f / kTickHz);
+            // Index 0 jumps to the target at its tick -- and the next
+            // segment only moves at the tick after that, so the jump holds
+            // for one tick (the VST: jump at ~14 ms, plateau until ~26 ms).
+            t_[i] = (idx == 0 ? 1.0f : static_cast<float>(kPEnvTicks[idx])) * (1.0f / kTickHz);
+            jump_[i] = idx == 0;
         }
         level_ = spec_.l0;
         seg_ = 0;
         held_ = true;
-        arm(0, spec_.l1);
+        // The envelope is stepped by the tick engine, and Roland's D-50 VST
+        // makes its first move about 1.4 ticks (14 ms) after the note-on:
+        // an instant first segment to +1200 cents lands between 12 and 16
+        // ms, every time, while the TVA is already 2 ms in. Until then the
+        // pitch rests on L0. (Two partials on opposite P-ENV modes owe
+        // their later phase relation to exactly this area.)
+        pre_ = static_cast<int32_t>(kPEnvStartTicks * sr_ / kTickHz);
+        if (pre_ <= 0) arm(0, spec_.l1);
     }
 
     void release() {
         if (held_) {
             held_ = false;
+            pre_ = 0;
             arm(3, spec_.end);
         }
     }
@@ -272,7 +284,12 @@ public:
     // Pitch factor, advanced n samples at once (control rate).
     float next_n(int32_t n) {
         while (n > 0) {
-            if (remaining_ > 0) {
+            if (pre_ > 0) {
+                const int32_t k = pre_ < n ? pre_ : n;
+                pre_ -= k;
+                n -= k;
+                if (pre_ == 0) arm(0, spec_.l1);
+            } else if (remaining_ > 0) {
                 const int32_t k = remaining_ < n ? remaining_ : n;
                 level_ += step_ * k;
                 remaining_ -= k;
@@ -292,7 +309,9 @@ public:
 
     // Pitch factor to multiply the playback rate / frequency by.
     float next() {
-        if (remaining_ > 0) {
+        if (pre_ > 0) {
+            if (--pre_ == 0) arm(0, spec_.l1);
+        } else if (remaining_ > 0) {
             level_ += step_;
             --remaining_;
         } else if (held_ && seg_ < 2) {
@@ -310,19 +329,27 @@ private:
     void arm(int seg, float target) {
         seg_ = seg;
         remaining_ = static_cast<int32_t>(t_[seg] * sr_);
+        if (jump_[seg]) {
+            level_ = target;          // instant, then hold the tick out
+            step_ = 0.0f;
+            return;
+        }
         step_ = remaining_ > 0 ? (target - level_) / remaining_ : 0.0f;
         if (remaining_ <= 0) level_ = target;
     }
 
     PitchEnvSpec spec_{};
     float t_[4] = {0.0f, 0.0f, 0.0f, 0.0f};   // seconds, resolved per note
+    bool jump_[4] = {false, false, false, false};
     float depth_cents_ = 0.0f;
     float sr_ = 32000.0f;
     float level_ = 0.0f;
     float step_ = 0.0f;
     int32_t remaining_ = 0;
+    int32_t pre_ = 0;             // samples until the tick engine first moves
     int seg_ = 0;
     bool held_ = false;
+    static constexpr float kPEnvStartTicks = 1.4f;
 };
 
 }  // namespace d5
