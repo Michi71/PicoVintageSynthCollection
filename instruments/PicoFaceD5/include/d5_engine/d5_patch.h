@@ -45,7 +45,7 @@ public:
         eq_.configure(spec.eq, sample_rate);
         chorus_.configure(spec.chorus, sample_rate);
         // The tone's three LFOs are single shared instances -- the D-50's
-        // 112-Hz tick walks one phase word per LFO per tone (IC25
+        // 97.66-Hz tick walks one phase word per LFO per tone (IC25
         // 0x1508-0x160D), so a chord vibrates coherently and a legato note
         // joins the running wobble. They free-run from here on.
         for (int i = 0; i < 3; ++i) {

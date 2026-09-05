@@ -33,39 +33,35 @@ struct LfoSpec {
 };
 
 // The engine's control tick, the rate at which the D-50's CPU walks its
-// LFO and envelope counters. Not read from a register: pinned by the
-// service notes' P-ENV span against the tick tables below -- 1 tick and
-// 1020 ticks against "9 ms .. 9 s" both land at ~112 Hz.
-inline constexpr float kTickHz = 112.0f;
+// LFO and envelope counters. Read from the firmware's own timer setup:
+// the sound-engine init on EPROM page 3 (CPU 0x81AC, reached from the
+// reset path via 0x2815) writes STBC = 0 (uPD78312A full speed, fCLK =
+// 12 MHz / 2 = 6 MHz -- the same init sets BRG = 48, which is exactly
+// 31250 baud at that clock), then TM1 = MD1 = 0x2800 and starts TM1 on
+// fCLK/6 (TMC1 TCLK1 = 0). TM1's underflow is TMF1, vector 0x0010 ->
+// 0x2018 -> 0x27F0, the LFO/envelope/portamento tick. So one tick is
+// 10240 us: 6 MHz / 6 / 10240 = 97.65625 Hz. The earlier 112 Hz came
+// from the D-05's rate table top (a different machine); Roland's D-50
+// VST plays 25 Hz at rate 100, i.e. an idealised 100-Hz tick.
+inline constexpr float kTickHz = 6.0e6f / 6.0f / 10240.0f;
 
 // Panel 0..100 to Hz, the firmware's own law end to end: the tick engine
-// subtracts table 0x0213[2k] from a 16-bit phase per tick, the table is
-// exactly 16 * 2^(k/10) (byte-verified), so a full cycle at panel 100
-// takes 65536/16384 = 4 ticks. The absolute anchor is the tick: the
-// D-05 remake's rate table tops out at 27.9847 Hz, which against the
-// 4-tick cycle pins the tick at 111.94 Hz -- the same ~112 the service
-// notes' P-ENV span demands. One clock, three independent anchors. The
-// 5.6 Hz once measured in the Living Calliope reference does not fit it
-// (byte 74 lands at 4.62) -- but that recording's vibrato runs through
-// the player's lever, and the firmware is the master template.
-inline constexpr float kLfoRateHz[101] = {
-    0.0273288f, 0.0292903f, 0.0313926f, 0.0336457f, 0.0360606f, 0.0386488f,
-    0.0414227f, 0.0443958f, 0.0475822f, 0.0509974f, 0.0546576f, 0.0585806f,
-    0.0627851f, 0.0672914f, 0.0721212f, 0.0772975f, 0.0828455f, 0.0887916f,
-    0.0951644f, 0.101995f, 0.109315f, 0.117161f, 0.12557f, 0.134583f,
-    0.144242f, 0.154595f, 0.165691f, 0.177583f, 0.190329f, 0.203989f,
-    0.21863f, 0.234322f, 0.25114f, 0.269166f, 0.288485f, 0.30919f,
-    0.331382f, 0.355166f, 0.380658f, 0.407979f, 0.437261f, 0.468645f,
-    0.502281f, 0.538331f, 0.576969f, 0.61838f, 0.662764f, 0.710332f,
-    0.761316f, 0.815958f, 0.874522f, 0.937289f, 1.00456f, 1.07666f,
-    1.15394f, 1.23676f, 1.32553f, 1.42066f, 1.52263f, 1.63192f,
-    1.74904f, 1.87458f, 2.00912f, 2.15333f, 2.30788f, 2.47352f,
-    2.65105f, 2.84133f, 3.04526f, 3.26383f, 3.49809f, 3.74916f,
-    4.01825f, 4.30665f, 4.61575f, 4.94704f, 5.30211f, 5.68266f,
-    6.09052f, 6.52766f, 6.99618f, 7.49831f, 8.03649f, 8.6133f,
-    9.23151f, 9.89409f, 10.6042f, 11.3653f, 12.181f, 13.0553f,
-    13.9924f, 14.9966f, 16.073f, 17.2266f, 18.463f, 19.7882f,
-    21.2084f, 22.7306f, 24.3621f, 26.1106f, 27.9847f};
+// subtracts table 0x0213[2k] from a 16-bit phase per tick, so a cycle
+// takes 65536 / T[k] ticks and the rate is T[k] / 65536 * kTickHz. The
+// table is the internal ROM's, byte for byte (IC25 0x0213, 101 words,
+// within 1 of 16 * 2^(k/10)); panel 100 runs at 16383 / 65536 * 97.66 =
+// 24.41 Hz. Roland's D-50 VST plays 25.0 Hz there (an idealised 100-Hz
+// tick), the D-05 remake's table tops out at 27.98 Hz (a 112-Hz tick) --
+// the hardware timer of the D-50 itself decides between them.
+inline constexpr uint16_t kLfoRateInc[101] = {
+    16, 17, 18, 20, 21, 23, 24, 26, 28, 30, 32, 34, 37, 39, 42, 45, 49,
+    52, 56, 60, 64, 69, 74, 79, 84, 91, 97, 104, 111, 119, 128, 137, 147,
+    158, 169, 181, 194, 208, 223, 239, 256, 274, 294, 315, 338, 362, 388,
+    416, 446, 478, 512, 549, 588, 630, 676, 724, 776, 832, 891, 955, 1024,
+    1097, 1176, 1261, 1351, 1448, 1552, 1663, 1783, 1911, 2048, 2195, 2353,
+    2521, 2702, 2896, 3104, 3327, 3566, 3822, 4096, 4390, 4705, 5043, 5405,
+    5793, 6208, 6654, 7132, 7643, 8192, 8780, 9410, 10086, 10809, 11585,
+    12417, 13308, 14263, 15287, 16383};
 
 // The fade-in after the delay: the firmware waits out the silence, then
 // walks an 8-bit ramp by this table's value per tick, indexed by the delay
@@ -77,7 +73,7 @@ inline constexpr uint8_t kLfoFadeStep[13] = {
 inline float lfo_rate_hz(float v) {
     if (v < 0.0f) v = 0.0f;
     if (v > 1.0f) v = 1.0f;
-    return kLfoRateHz[static_cast<int>(v * 100.0f + 0.5f)];
+    return kLfoRateInc[static_cast<int>(v * 100.0f + 0.5f)] * (kTickHz / 65536.0f);
 }
 
 class Lfo {
@@ -160,7 +156,7 @@ public:
     float raw() const { return raw_; }
     float gate() const { return delay_left_ > 0.0f ? 0.0f : gate_; }
 
-    // The D-50's LFOs are tone-global: the 112-Hz tick walks exactly one
+    // The D-50's LFOs are tone-global: the 97.66-Hz tick walks exactly one
     // phase word per LFO per tone (IC25 0x1508-0x160D), and every sounding
     // voice reads the same words from the CD40 merge area. So the tone owns
     // the LFOs and steps them once per sample...

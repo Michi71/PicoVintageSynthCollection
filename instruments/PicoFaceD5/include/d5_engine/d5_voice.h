@@ -213,7 +213,7 @@ public:
         sr_ = sample_rate;
         const Structure& st = structure();
         const PartialType types[2] = {st.p1, st.p2};
-        // The LFOs belong to the TONE: the 112-Hz tick walks one phase word
+        // The LFOs belong to the TONE: the 97.66-Hz tick walks one phase word
         // per LFO per tone (IC25 0x1508-0x160D) and every voice reads the
         // shared words from the CD40 merge area -- notes in a chord vibrate
         // together. bind_lfos() hands a real voice the tone's three
@@ -382,7 +382,7 @@ public:
 
         for (int i = 0; i < 2; ++i) {
             // Advance the glide by one block, then fold its offset into the
-            // pitch factor: T/64 semitones per 112-Hz tick, scaled to this
+            // pitch factor: T/64 semitones per 97.66-Hz tick, scaled to this
             // block. The walk is linear in pitch space, so its octave rate
             // is constant -- the D-50's portamento is tempo-based, not the
             // per-distance kind the envelopes are.
@@ -567,7 +567,7 @@ private:
     }
 
     // Semitones per control block at the panel time: the ROM's 4 * T[time]
-    // units of 1/256 semitone per 112-Hz tick, pre-multiplied for the
+    // units of 1/256 semitone per 97.66-Hz tick, pre-multiplied for the
     // block. T[0] is never reached (time 0 snaps at note_on), so indexing
     // is safe for any byte.
     static float porta_step(int time, float sr) {
