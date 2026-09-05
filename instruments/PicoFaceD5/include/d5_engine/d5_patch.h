@@ -365,6 +365,7 @@ public:
     void silence() {
         upper_.silence();
         lower_.silence();
+        pend_head_ = pend_count_ = 0;
         reverb_.configure(spec_.reverb, sr_);
         solo_note_[0] = solo_note_[1] = -1;
     }
@@ -391,20 +392,24 @@ public:
         bool sounded = false;
         switch (spec_.key_mode) {
             case KeyMode::kDual: {
-                if (spec_.solo) solo_cut(0, note), solo_cut(1, note);
+                if (spec_.solo) solo_cut(0, note);
                 const bool u = upper_.note_on(note, velocity);
-                const bool l = lower_.note_on(note, velocity);
-                sounded = u || l;
-                if (spec_.solo) solo_note_[0] = solo_note_[1] = note;
+                if (spec_.solo) solo_note_[0] = note;
+                lower_later(note, velocity, true, spec_.solo);
+                sounded = u || true;
                 break;
             }
             case KeyMode::kSplit: {
                 const int side = note >= spec_.split_point ? 0 : 1;
                 const bool solo = side == 0 ? spec_.solo_upper : spec_.solo_lower;
-                if (solo) solo_cut(side, note);
-                sounded = side == 0 ? upper_.note_on(note, velocity)
-                                    : lower_.note_on(note, velocity);
-                if (solo) solo_note_[side] = note;
+                if (side == 0) {
+                    if (solo) solo_cut(0, note);
+                    sounded = upper_.note_on(note, velocity);
+                    if (solo) solo_note_[0] = note;
+                } else {
+                    lower_later(note, velocity, true, solo);
+                    sounded = true;
+                }
                 break;
             }
             case KeyMode::kWhole:
@@ -422,9 +427,8 @@ public:
 
     void note_off(int note) {
         upper_.note_off(note);
-        lower_.note_off(note);
-        for (int i = 0; i < 2; ++i)
-            if (note == solo_note_[i]) solo_note_[i] = -1;
+        if (note == solo_note_[0]) solo_note_[0] = -1;
+        lower_later(note, 0.0f, false, false);
     }
 
     // Mono fold is the L/MONO jack again: the left side as it ships. In the
@@ -442,6 +446,8 @@ public:
     // each -- the chorus width of a tone survives into the room. The laws
     // themselves are unchanged from the mono path.
     void D5_HOT(next_stereo)(float& l, float& r) {
+        ++clock_;
+        if (pend_count_ != 0 && pending_[pend_head_].due == clock_) service_lower();
         // Tone balance per the firmware's mixer (bank code 0xB397): each
         // tone's factor is min(4*b, 255)/200 of its side, so the center
         // is 1.0 each and a full tilt reaches +2.1 dB on the loud side --
@@ -590,6 +596,57 @@ private:
     Reverb reverb_{};
     float sr_ = 32000.0f;
     int solo_note_[2] = {-1, -1}; // the solo modes' held note per tone (0 upper, 1 lower)
+
+    // The lower tone runs 128 samples (4.0 ms) behind the upper: Roland's
+    // D-50 VST starts it exactly that much later on every note, key and
+    // waveform tried (cross-correlation +128 at 32 kHz, corr 1.000; onsets
+    // 64 against 192). Two identical tones therefore never sum coherently
+    // -- a Tines or Warm Strings dual patch came out 6 dB louder here than
+    // there -- and a dual patch carries a 4-ms doubling. Note-ons and
+    // note-offs for the lower tone queue here, in order, and fire from the
+    // sample loop.
+    static constexpr uint32_t kLowerLag = 128;
+    static constexpr int kPendingMax = 32;
+    struct PendingLower {
+        uint32_t due;
+        float velocity;
+        int16_t note;
+        bool on;
+        bool solo;
+    };
+    PendingLower pending_[kPendingMax];
+    int pend_head_ = 0;
+    int pend_count_ = 0;
+    uint32_t clock_ = 0;
+
+    void lower_later(int note, float velocity, bool on, bool solo) {
+        if (pend_count_ >= kPendingMax) { lower_now(note, velocity, on, solo); return; }
+        PendingLower& e = pending_[(pend_head_ + pend_count_) % kPendingMax];
+        e.due = clock_ + kLowerLag + 1;   // +1: the upper already sounds in the next sample
+        e.velocity = velocity;
+        e.note = static_cast<int16_t>(note);
+        e.on = on;
+        e.solo = solo;
+        ++pend_count_;
+    }
+    void lower_now(int note, float velocity, bool on, bool solo) {
+        if (on) {
+            if (solo) solo_cut(1, note);
+            lower_.note_on(note, velocity);
+            if (solo) solo_note_[1] = note;
+        } else {
+            lower_.note_off(note);
+            if (note == solo_note_[1]) solo_note_[1] = -1;
+        }
+    }
+    void service_lower() {
+        while (pend_count_ != 0 && pending_[pend_head_].due == clock_) {
+            const PendingLower e = pending_[pend_head_];
+            pend_head_ = (pend_head_ + 1) % kPendingMax;
+            --pend_count_;
+            lower_now(e.note, e.velocity, e.on, e.solo);
+        }
+    }
 
     // A solo side ends its previous note when a new one arrives.
     void solo_cut(int side, int note) {

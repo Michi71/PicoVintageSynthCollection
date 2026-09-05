@@ -452,7 +452,11 @@ public:
             // pressure 64 halves it), a negative range resting at unity
             // and ducking with the pressure. The "3 dB" reading of the ROM
             // transform at 0x11A9 was off by an order of magnitude.
-            const float g = pcm_partial ? 0.0f : spec_.tva_at[i];
+            // In a ring structure the pair shares partial 1's aftertouch
+            // range: Roland's VST attenuates the product twice by P1's
+            // range and not at all by P2's (P2's byte is dead there), in a
+            // mix structure each partial follows its own byte.
+            const float g = pcm_partial ? 0.0f : spec_.tva_at[st.ring ? 0 : i];
             if (g != 0.0f) {
                 const float u2 = 49.0f * g * g;
                 const float w = g > 0.0f ? (1.0f - at_) : at_;
@@ -503,13 +507,29 @@ public:
 
         // The chip multiplies in the log domain, which is an ordinary product
         // once decoded: sum and difference frequencies, and silence whenever
-        // either side is silent. The product uses the raw partials -- the
+        // either side is silent. Muting partial 1 keeps the product -- the
         // bank forces this reading: Glockenspiel (bank 4) mutes partial 1 of
         // a ring structure, a dead preset if the mute reached the product,
         // whereas gating only the direct path is exactly the classic trick
-        // of hiding the carrier and keeping the metallic product.
-        const float second = st.ring ? a_raw * b_raw - dca_raw * dcb_raw
-                                     : b - dcb;
+        // of hiding the carrier and keeping the metallic product. Muting
+        // partial 2 kills it (Roland's VST: P1 alone has no sidebands).
+        // The product is formed from DC-free partials: the VST's product of
+        // a narrow pulse with a sawtooth is 3 dB QUIETER than a square's,
+        // where the DC leak term (dc * saw, a copy of the other partial)
+        // made ours 3 dB louder. And its level sits above the plain
+        // product of our 0.5-scaled partials: +3.3 dB with two synth
+        // partials, +2.5 with one, +0.2 for PCM x PCM, on every pitch pair,
+        // velocity and envelope level tried (the ratio to P1's direct
+        // output is what was measured, so it tracks both TVAs).
+        float second;
+        if (st.ring) {
+            const int ns = (st.p1 == PartialType::kSynth) + (st.p2 == PartialType::kSynth);
+            const float rg = ns == 2 ? 1.46f : (ns == 1 ? 1.33f : 1.0f);
+            second = (spec_.partials_on & 0x2)
+                         ? rg * (a_raw - dca_raw) * (b_raw - dcb_raw) : 0.0f;
+        } else {
+            second = b - dcb;
+        }
 
         // The firmware's balance curve (EPROM bank code 0xB450): the
         // quieter side falls linearly to zero, the louder side RISES from
