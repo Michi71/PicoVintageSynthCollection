@@ -121,13 +121,18 @@ public:
     // Returns the gated value; raw() and gate() expose the parts.
     float next_n(int32_t n) {
         float v;
-        // Shapes as the VST plays them on the pitch route: the triangle
+        // Shapes as the VST plays them, measured on all three routes at
+        // rate 80 (pitch, TVA and TVF, hundreds of periods): the triangle
         // starts at +1 and falls, the sawtooth falls from +1 to -1, the
-        // square is +/-0.5 (half the triangle's swing, high first), the
-        // random value is drawn from +/-0.5 and holds for HALF a period.
+        // square sits in the UPPER half of the triangle's swing (+1 for
+        // the first half period, 0 for the second: on the TVA and TVF
+        // routes it moves between the triangle's floor and its middle,
+        // never reaching the static level), the random value is uniform
+        // over the full +/-1 and holds for HALF a period (its spread
+        // equals the triangle's on every route).
         switch (spec_.wave) {
             case LfoWave::kSawtooth: v = 1.0f - 2.0f * phase_; break;
-            case LfoWave::kSquare:   v = phase_ < 0.5f ? 0.5f : -0.5f; break;
+            case LfoWave::kSquare:   v = phase_ < 0.5f ? 1.0f : 0.0f; break;
             case LfoWave::kRandom:   v = sample_; break;
             case LfoWave::kTriangle:
             default: v = phase_ < 0.5f ? (1.0f - 4.0f * phase_)
@@ -173,7 +178,7 @@ private:
         rng_ ^= rng_ << 13;
         rng_ ^= rng_ >> 17;
         rng_ ^= rng_ << 5;
-        return (rng_ >> 8) * (1.0f / 16777216.0f) - 0.5f;   // +/-0.5, the VST's random swing
+        return (rng_ >> 8) * (1.0f / 8388608.0f) - 1.0f;    // uniform +/-1, the VST's random swing
     }
 
     LfoSpec spec_{};

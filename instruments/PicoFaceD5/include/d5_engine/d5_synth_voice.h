@@ -227,8 +227,16 @@ public:
         const float env = tvf_.next_n(kModPeriod);
         // mod.cutoff arrives on the old 0..1 scale from the LFO routes;
         // 100 units span that scale, same as the panel byte.
-        float cv = base_cv_ + env_units_ * 100.0f * env + mod.cutoff * 100.0f;
+        // The ceiling clamps the composed static cutoff (base + envelope,
+        // the register the firmware writes); the LFO and aftertouch travel
+        // through the chip's own modulation registers (E500..) and add on
+        // top of it: Roland's VST lifts a cutoff-50 sawtooth's centroid to
+        // 1018 Hz under full pressure at range 14, past the 961 Hz the
+        // ceiling alone allows. The final clamp is the register's range.
+        float cv = base_cv_ + env_units_ * 100.0f * env;
         if (cv > kCutoffCeiling) cv = kCutoffCeiling;       // the chip's clamp
+        cv += mod.cutoff * 100.0f;
+        if (cv > kCutoffMax) cv = kCutoffMax;
         edge_frac_ = 0.5f;
         inv_edge_ = 2.0f;
         atten_ = 1.0f;
@@ -441,6 +449,7 @@ private:
 #define D5_CUTOFF_CEILING 218.0f
 #endif
     static constexpr float kCutoffCeiling = D5_CUTOFF_CEILING;
+    static constexpr float kCutoffMax = 240.0f;   // munt's LA32 cutoff range
     float edge_frac_ = 0.5f;       // cosine edge as fraction of the period
     float inv_edge_ = 2.0f;        // 1/edge_frac_, a block constant
     float pulse_frac_ = 0.5f;
