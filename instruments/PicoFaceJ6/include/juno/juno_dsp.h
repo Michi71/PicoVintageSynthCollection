@@ -238,12 +238,36 @@ static inline float junoNoteToHz(float note)
  * Attack: measured 0.001 / 0.03 / 0.24 / 0.65 / 3.25 s at slider positions
  * 0 / 2.5 / 5 / 7.5 / 10.
  */
+/*
+ * The attack slider against the time it takes, measured off Roland's plugin at
+ * 0.05 steps as the time to half amplitude (with a Hilbert envelope on a
+ * filtered tone, because a boxcar over a raw sawtooth quantises the reading
+ * badly at the short end) and divided by the 0.400 of a segment that our own
+ * attack curve needs to get there.
+ *
+ * The shape it replaces was junox's, and only the range under it came from the
+ * specifications page. It ran nearly three times slow over the first third of
+ * the travel and a sixth fast at the top.
+ *
+ * Both ends against the specification page's 1 ms .. 3 s: the bottom comes out
+ * at 1.25 ms, and the top at 3.6 s -- 20 % over. That is well inside how
+ * approximate these figures are; the same page puts the decay at 12 s where a
+ * measured instrument gave 19.8.
+ */
+static const float kJunoAttackTime[21] = {
+    0.00125f, 0.0030f, 0.0050f, 0.0095f, 0.0168f, 0.0283f, 0.0455f,
+    0.0720f,  0.1098f, 0.1610f, 0.2275f, 0.3063f, 0.4125f, 0.5470f,
+    0.7008f,  0.9125f, 1.1838f, 1.5440f, 2.0285f, 2.6445f, 3.5985f
+};
+
 static inline float junoAttackTime(float v)
 {
     v = junoClamp(v, 0.0f, 1.0f);
-    const float k = JUNO_ATTACK_CURVE * 10.0f;
-    return JUNO_ATTACK_MIN_S +
-           (expf(v * k) - 1.0f) / (expf(k) - 1.0f) * JUNO_ATTACK_MAX_S;
+    const float x = v * 20.0f;
+    const int   i = (int) x;
+    if (i >= 20) return kJunoAttackTime[20];
+    const float f = x - (float) i;
+    return kJunoAttackTime[i] + f * (kJunoAttackTime[i + 1] - kJunoAttackTime[i]);
 }
 
 /*

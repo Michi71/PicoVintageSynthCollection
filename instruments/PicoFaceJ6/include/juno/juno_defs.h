@@ -313,9 +313,13 @@
 /*   attack at slider 10 reaches 0.224 after half a second of a 3.25 s rise,  */
 /*   where a straight line would be at 0.154. Juno60 fits (1-e^-x)/0.632.     */
 /* ------------------------------------------------------------------------   */
+/*
+ * The specifications page's own figures, kept for the record. The slider is a
+ * measured table now -- kJunoAttackTime in juno_dsp.h -- and it comes out at
+ * 1.25 ms and 3.6 s at the two ends.
+ */
 #define JUNO_ATTACK_MIN_S    0.001f
 #define JUNO_ATTACK_MAX_S    3.000f   /* adjustment 10: ENV TIME VR6 */
-#define JUNO_ATTACK_CURVE    0.5f     /* exponent of the slider mapping      */
 #define JUNO_ATTACK_SHAPE    0.632f   /* 1 - 1/e; normalises (1-e^-x)        */
 
 #define JUNO_DECAY_MIN_S     0.002f
