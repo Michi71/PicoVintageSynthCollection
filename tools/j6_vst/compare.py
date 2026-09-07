@@ -14,6 +14,7 @@ when the question is about the voice rather than about the chorus.
 """
 import argparse, os, subprocess, sys, tempfile
 import numpy as np
+from scipy.signal import butter, sosfilt
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from j6vst import J6VST, read_bank, NPARAM, CHORUS
 
@@ -21,8 +22,28 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SR = 44100
 
 
+_HP = None
+
+
+def subsonic_cut(x):
+    """Drop everything under 20 Hz before measuring anything.
+
+    A pulse whose width the LFO moves carries a wandering DC term, and the
+    plugin has nothing to block it: on Organ 3 that subsonic wobble is 99 % of
+    the total energy, at a few hertz, where neither a speaker nor an ear will
+    ever find it. Measured raw it buries the patch, and comparing two engines
+    that block it differently compares their DC blockers rather than their
+    sound.
+    """
+    global _HP
+    if _HP is None:
+        _HP = butter(2, 20.0, 'highpass', fs=SR, output='sos')
+    return sosfilt(_HP, x, axis=0).astype(np.float32)
+
+
 def metrics(x, hold, f0):
     """x: (n, 2) float32 at 44.1 kHz. Levels in dB, the profile re h1."""
+    x = subsonic_cut(x)
     def lev(a, b):
         seg = x[int(a * SR):int(b * SR)]
         return 10 * np.log10((seg ** 2).mean() + 1e-20) if len(seg) else -200.0
@@ -50,9 +71,12 @@ def metrics(x, hold, f0):
                 peak=float(np.abs(x).max()), env=env)
 
 
+ENGINE = os.path.join(HERE, 'render_note')
+
+
 def render_ours(idx, q, note, hold, tail, dry, out):
     ps = ','.join(f'{v:.6f}' for v in q)
-    subprocess.run([os.path.join(HERE, 'render_note'), out, '--params', ps,
+    subprocess.run([ENGINE, out, '--params', ps,
                     str(note), '100', str(hold), str(tail)] + (['dry'] if dry else []),
                    check=True)
     return np.fromfile(out, dtype=np.float32).reshape(-1, 2)
@@ -68,12 +92,16 @@ def main():
     ap.add_argument('--dry', action='store_true', help='chorus off on both sides')
     ap.add_argument('--csv')
     ap.add_argument('--keep', help='directory to keep the renders (f32 stereo)')
+    ap.add_argument('--engine', help='a different render_note binary, to compare two engine builds')
     a = ap.parse_args()
+    global ENGINE
+    if a.engine:
+        ENGINE = os.path.abspath(a.engine)
 
     tmp = a.keep or tempfile.mkdtemp(prefix='j6vst_')
     os.makedirs(tmp, exist_ok=True)
     bankfile = os.path.join(tmp, 'bank.txt')
-    subprocess.run([os.path.join(HERE, 'render_note'), 'dumpbank', bankfile], check=True)
+    subprocess.run([ENGINE, 'dumpbank', bankfile], check=True)
     bank = read_bank(bankfile)
     idxs = list(range(len(bank))) if a.all else a.idx
     if not idxs:

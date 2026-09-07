@@ -164,6 +164,43 @@ static inline float junoCutoffOct(float v)
     return kJunoCutoffOct[i] + f * (kJunoCutoffOct[i + 1] - kJunoCutoffOct[i]);
 }
 
+/*
+ * The resonance compensation, against the panel's resonance setting.
+ *
+ * A transistor ladder takes its feedback from inside the ladder, so the low
+ * end drains away as the resonance comes up; an OTA cascade with a separate
+ * feedback amplifier does not, and this term is how much of the input is fed
+ * forward to hold it. It stood at a flat 0.85 on that reasoning -- "a Juno
+ * with the resonance up is never thin" -- and the reasoning was never
+ * measured.
+ *
+ * Roland's plugin says a Juno does get thinner: its passband loses 7.2 dB
+ * between no resonance and full, where ours lost 1.9. Measured at 0.05 steps
+ * on a fundamental well inside the passband, and turned into the term this
+ * topology needs by (1 + k*g)/(1 + k). It comes out near the Model D's 0.5 at
+ * the bottom of the travel and falls to a third at the top.
+ *
+ * Left as it was, a resonant patch carried about 4.4 dB too much gain across
+ * the whole band and a bass bump the plugin does not have -- which is most of
+ * what was left on the organs once the VCA switch stopped opening their
+ * filter.
+ */
+static const float kJunoVcfGComp[21] = {
+    0.4899f, 0.4899f, 0.4805f, 0.4814f, 0.4728f, 0.4661f, 0.4635f,
+    0.4577f, 0.4525f, 0.4476f, 0.4429f, 0.4396f, 0.4349f, 0.4301f,
+    0.4259f, 0.4175f, 0.3995f, 0.3810f, 0.3632f, 0.3488f, 0.3347f
+};
+
+static inline float junoVcfGComp(float res01)
+{
+    if (res01 <= 0.0f) return kJunoVcfGComp[0];
+    if (res01 >= 1.0f) return kJunoVcfGComp[20];
+    const float x = res01 * 20.0f;
+    const int   i = (int) x;
+    const float f = x - (float) i;
+    return kJunoVcfGComp[i] + f * (kJunoVcfGComp[i + 1] - kJunoVcfGComp[i]);
+}
+
 static const float kJunoDcoLevel[21] = {
     0.0000f, 0.0206f, 0.0412f, 0.0602f, 0.0808f, 0.1014f, 0.1204f,
     0.1410f, 0.1616f, 0.1822f, 0.2028f, 0.2311f, 0.2861f, 0.3613f,

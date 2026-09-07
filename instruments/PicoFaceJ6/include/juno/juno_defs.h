@@ -228,7 +228,14 @@
  * settled level from there on -- so the threshold belongs at 0.8.
  */
 #define JUNO_RESONANCE_MAX      1.35f
-#define JUNO_VCF_GCOMP          0.85f   /* Moog ladder uses 0.5; see above  */
+/*
+ * The resonance compensation is a measured curve now, kJunoVcfGComp in
+ * juno_dsp.h -- near the Moog ladder's 0.5 at the bottom of the resonance
+ * travel and a third at the top. A flat 0.85 stood here on the reasoning that
+ * an OTA cascade with its own feedback amplifier does not lose its low end.
+ * Roland's plugin says it loses 7.2 dB of it, where that reasoning kept all
+ * but 1.9.
+ */
 
 /*
  * How far the contour can open the filter, at Env fully up.
