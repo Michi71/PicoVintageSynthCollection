@@ -150,14 +150,13 @@ public:
         float pw;
         switch (p.pwmMode) {
             case 1:  /* manual */
-                pw = JUNO_PW_MIN + p.pwm * (JUNO_PW_MAX - JUNO_PW_MIN);
+                pw = JunoDco::widthOf(p.pwm);
                 break;
             case 2:  /* contour */
-                pw = JUNO_PW_MIN + p.pwm * e * (JUNO_PW_MAX - JUNO_PW_MIN);
+                pw = JunoDco::widthOf(p.pwm * e);
                 break;
             default: /* LFO -- centred, so the width sweeps both ways */
-                pw = JUNO_PW_MIN + p.pwm * (0.5f + 0.5f * lfo) *
-                                   (JUNO_PW_MAX - JUNO_PW_MIN);
+                pw = JunoDco::widthOf(p.pwm * (0.5f + 0.5f * lfo));
                 break;
         }
         dco_.setPulseWidth(pw);

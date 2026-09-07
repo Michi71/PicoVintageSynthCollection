@@ -91,6 +91,28 @@ public:
         pw_ = junoClamp(pw, JUNO_PW_MIN, JUNO_PW_MAX);
     }
 
+    /*
+     * The panel's PWM setting as a pulse width. It was a straight line from
+     * JUNO_PW_MIN to JUNO_PW_MAX; measured against Roland's plugin it is a
+     * raised cosine between the same two ends, which is what a sawtooth
+     * compared against a moving threshold gives. The line was up to five
+     * points of duty out in the middle of the travel -- 7 dB on the second
+     * harmonic at a quarter of the way up.
+     *
+     * The modulated modes hand their own effective setting to the same curve;
+     * that they share it is an assumption, not a measurement.
+     *
+     * u*u*(3-2u) stands in for (1-cos(pi*u))/2, which it matches to better
+     * than a hundredth -- under a point of duty, against the two points the
+     * fit itself is worth -- and costs three multiplies instead of a cosine
+     * per voice per sample.
+     */
+    static inline float widthOf(float u)
+    {
+        u = junoClamp(u, 0.0f, 1.0f);
+        return JUNO_PW_MIN + (JUNO_PW_MAX - JUNO_PW_MIN) * u * u * (3.0f - 2.0f * u);
+    }
+
     float process(float pitchMul)
     {
         const float dt = inc_ * pitchMul;
@@ -112,16 +134,22 @@ public:
         }
 
         if (pulse_) {
+            /*
+             * No level compensation. A narrow pulse carries less energy than a
+             * square and is meant to: measured against Roland's plugin, its
+             * level follows 2*sqrt(d(1-d)) all the way down -- 8.6 dB from the
+             * square to the narrowest setting, within a decibel of what the
+             * arithmetic says an uncompensated pulse does. The width control
+             * really does double as a volume control, which is what PWM
+             * sounds like. A compensation term used to stand here and lifted
+             * the narrow end by up to 3.3 dB.
+             */
             float p = (t < pw_) ? 1.0f : -1.0f;
             p += junoPolyBlep(t, dt);
             float t2 = t - pw_;
             if (t2 < 0.0f) t2 += 1.0f;
             p -= junoPolyBlep(t2, dt);
-            /* A narrow pulse carries far less energy than a square. Without
-             * this the pulse-width control would double as a volume
-             * control. */
-            out += p * (0.6f + 0.8f * (pw_ - JUNO_PW_MIN) /
-                                      (JUNO_PW_MAX - JUNO_PW_MIN));
+            out += p;
         }
 
         if (sub_ > 0.0f) {
