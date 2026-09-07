@@ -523,13 +523,16 @@ What it has settled so far:
 | The sub and noise sliders are a fader taper | Two halves with a knee at the middle, linear at 0.406 below it. Reading them straight put the sub 8 dB high through the middle of its travel. |
 | The mixer trims what it sums | A ±1 square sits 4.77 dB over a plain ramp; the plugin holds them 3.35 dB apart. |
 | The VCA gate was being overwritten | Its rise and fall shared the contour's coefficients, and the panel writes the mode before the sliders — so every gate patch ran on its contour. |
+| A contour heading for silence carries on | Decay and release ran their segment to −40 dB and snapped. The plugin holds the same rate past −110. Synth Drum, whose only sound source is the filter singing at a sustain of zero, went silent under a held key. |
+| Both LFO depths are curves, not lines | The pitch depth is the square of the setting reaching 3.9 semitones; the filter depth is an S-curve reaching 3.6 octaves. Taken straight, the bottom third of either slider is three to ten times too deep — and that is where nearly every patch that uses them sits. |
 
 Where the two still disagree, and the service notes win: the LFO reaches 22 Hz
 at the top of its slider, which is factory adjustment 7 and Fig. 29 of the
 service notes (a 45 ms period); the plugin runs to something above 40 Hz.
 
 Confirmed rather than changed: pitch and the octave switch across the keyboard,
-the contour's ten octaves, the release curve at every setting of its slider,
+the contour's ten octaves, the shape of the release at every setting of its
+slider,
 the attack within 10–20 % across the travel, and the whole chorus — rate, delay
 range and which channel is inverted, on all three settings, agreeing with the
 Juno60 measurements it was built from.
@@ -539,6 +542,13 @@ It runs hot enough to clip at the top of its own level slider, so a reference
 taken there flatters everything compared against it. And its chorus modulates
 its output amplitude at twice the rate of its delay, which reads as a chorus
 running at double speed unless the delay itself is tracked.
+
+Recorded and left alone, because the difference is smaller than the one between
+the sources already on the shelf: the decay and release times run 15–20 % fast
+between a third and half of the slider and 10–15 % slow between two thirds and
+four fifths, and the chorus rates differ by 10 % on II and 5 % on I+II. The
+specification sheet and the instrument that was measured for it are 12 s and
+19.8 s apart on the same decay, so a fifth either way settles nothing.
 
 ## Deliberate deviations from the original
 
@@ -557,10 +567,13 @@ running at double speed unless the delay itself is tracked.
    take the filter from shut to open, so it has to cover essentially that whole
    range. Measured against Roland's plugin afterwards, its contour is worth
    about 10.8 octaves at full — the guess was a good one.
-5. **The DCO LFO is worth three semitones at full depth.** Seven was a guess
-   and badly wrong: "Piano 1" has the slider at 0.4, which at seven semitones
-   is a wobble of nearly three — a ghost, not a piano. Roland's plugin puts
-   full deflection at 379 cents, so three is where it belongs.
+5. **The DCO LFO is worth 3.9 semitones at full depth, and the slider reaches
+   it as a square.** Seven was a guess and badly wrong; three was closer but
+   still straight. Measured against Roland's plugin at 0.1 steps, the pitch is
+   384 cents times the square of the setting, and the square fits all ten
+   points to a hundredth. The slider at a tenth is three cents, not
+   twenty-nine — the difference between a hint of vibrato and a wobble, and
+   nearly all of the sixteen patches that use it sit down at that end.
 6. **The VCA level is squared.** It was linear, because the imported junox
    patch set was authored against a linear mapping. That argument lapsed with
    the transcription from the owner's manual, whose level column cannot be

@@ -255,7 +255,13 @@
 #define JUNO_CONTOUR_OCTAVES   10.0f
 #endif
 
-#define JUNO_LFO_VCF_OCTAVES    3.0f
+/*
+ * How far the LFO moves the cutoff is no longer a single number: measured
+ * against Roland's plugin the slider follows a strong S-curve, from a
+ * fortieth of an octave at 0.1 to 3.6 either side at full. kJunoVcfLfoOct in
+ * juno_dsp.h carries the measured points. Three octaves, taken as a straight
+ * line, stood here.
+ */
 
 /* ------------------------------------------------------------------------   */
 /* HPF                                                                        */
@@ -385,7 +391,12 @@
  * a violin or an oboe wants three or four times that. Seven, which it held
  * before that, was a guess and was too much.
  */
-#define JUNO_LFO_DCO_SEMIS   3.0f
+/*
+ * Pitch at full LFO depth, as a half-swing, and the slider reaches it as a
+ * square rather than a straight line -- see JUNO_DCO_LFO in juno.cpp. 3.0
+ * stood here against Roland's plugin's 3.9.
+ */
+#define JUNO_LFO_DCO_SEMIS   3.9f
 
 /* ------------------------------------------------------------------------   */
 /* Chorus -- 2x MN3009 BBD, MN3101 clocks                                     */

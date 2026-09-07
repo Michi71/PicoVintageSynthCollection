@@ -44,7 +44,7 @@ struct JunoVoiceParams {
     float resonance  = 0.0f;
     float envAmount  = 0.0f;
     float envPolarity= 1.0f;    /* +1 or -1                                 */
-    float lfoAmount  = 0.0f;
+    float lfoOct     = 0.0f;    /* LFO to cutoff, in octaves either side */
     float keyFollow  = 0.0f;
 
     /* ENV / VCA */
@@ -167,7 +167,7 @@ public:
          * in the instrument. Key follow is measured from C4. */
         float oct = p.cutoffOct
                   + p.envAmount * p.envPolarity * e * JUNO_CONTOUR_OCTAVES
-                  + p.lfoAmount * lfo * JUNO_LFO_VCF_OCTAVES
+                  + p.lfoOct * lfo
                   + p.keyFollow * ((float) note_ - (float) JUNO_CENTER_NOTE)
                                 * (1.0f / 12.0f);
 

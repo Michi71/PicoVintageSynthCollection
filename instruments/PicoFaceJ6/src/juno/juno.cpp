@@ -102,7 +102,17 @@ void Juno::applyParameter(int id)
         vp_.octave = kOct[junoParamStep(v, JUNO_RANGE_COUNT)];
         break;
     }
-    case JUNO_DCO_LFO:       vp_.dcoLfo   = v; break;
+    /*
+     * Squared. Measured against Roland's plugin at 0.1 steps, the pitch it
+     * reaches is 384 cents times the square of the setting, and the square
+     * fits every one of those ten points to a hundredth. Taken straight -- as
+     * it was -- the slider at a tenth gives 29 cents where the instrument
+     * gives three, which is the difference between a hint of vibrato and a
+     * wobble. Sixteen factory patches use it, nearly all of them down at that
+     * end: the violin, the clarinet and the oboe are meant to have a few cents
+     * of it, not tens.
+     */
+    case JUNO_DCO_LFO:       vp_.dcoLfo   = v * v; break;
     case JUNO_DCO_PWM:       vp_.pwm      = v; break;
     case JUNO_DCO_PWM_MODE:  vp_.pwmMode  = junoParamStep(v, 3); break;
     case JUNO_DCO_SAW:       vp_.saw      = junoParamOn(v); break;
@@ -140,7 +150,8 @@ void Juno::applyParameter(int id)
     case JUNO_VCF_POLARITY:
         vp_.envPolarity = (junoParamStep(v, 2) == 1) ? 1.0f : -1.0f;
         break;
-    case JUNO_VCF_LFO:      vp_.lfoAmount = v; break;
+    /* Held in octaves, through the measured curve. */
+    case JUNO_VCF_LFO:      vp_.lfoOct = junoVcfLfoOctaves(v); break;
     case JUNO_VCF_KYBD:     vp_.keyFollow = v; break;
 
     /* --- VCA ------------------------------------------------------------ */

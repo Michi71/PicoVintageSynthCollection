@@ -99,6 +99,34 @@ static inline float junoLimit(float x)
  * sub eight decibels too loud through the middle of its travel, and most of
  * the factory patches that use it sit exactly there.
  */
+/*
+ * The VCF LFO slider against how far it actually moves the corner, in octaves
+ * either side of it, measured off Roland's plugin at 0.05 steps by tracking a
+ * resonant peak under a very slow LFO.
+ *
+ * It is nothing like the straight line this used to be. The bottom third of
+ * the travel barely moves the filter at all -- a fortieth of an octave at 0.1,
+ * an eighth at 0.2 -- and the top reaches 3.6 octaves rather than 3. Thirteen
+ * of the fifteen factory patches that use it sit between 0.10 and 0.30, where
+ * the straight line was three to ten times too deep: a wobble where the
+ * instrument has a hint of one.
+ */
+static const float kJunoVcfLfoOct[21] = {
+    0.000f, 0.008f, 0.023f, 0.061f, 0.137f, 0.280f, 0.441f,
+    0.651f, 0.920f, 1.175f, 1.481f, 1.755f, 1.992f, 2.260f,
+    2.481f, 2.662f, 2.859f, 2.991f, 3.131f, 3.385f, 3.597f
+};
+
+static inline float junoVcfLfoOctaves(float v)
+{
+    if (v <= 0.0f) return 0.0f;
+    if (v >= 1.0f) return kJunoVcfLfoOct[20];
+    const float x = v * 20.0f;
+    const int   i = (int) x;
+    const float f = x - (float) i;
+    return kJunoVcfLfoOct[i] + f * (kJunoVcfLfoOct[i + 1] - kJunoVcfLfoOct[i]);
+}
+
 static const float kJunoDcoLevel[21] = {
     0.0000f, 0.0206f, 0.0412f, 0.0602f, 0.0808f, 0.1014f, 0.1204f,
     0.1410f, 0.1616f, 0.1822f, 0.2028f, 0.2311f, 0.2861f, 0.3613f,
