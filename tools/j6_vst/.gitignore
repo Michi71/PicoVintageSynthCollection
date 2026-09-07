@@ -1,0 +1,4 @@
+render_note
+__pycache__/
+.venv/
+*.csv
