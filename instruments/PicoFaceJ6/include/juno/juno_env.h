@@ -223,11 +223,27 @@ public:
                 phase_ += dStep_;
                 curve_ *= dMul_;                    /* e^(-k phase)        */
                 const float s = effSustain();
-                if (phase_ >= 1.0f) {
-                    level_ = s;
-                    stage_ = SUSTAIN;
+                /*
+                 * The segment's nominal length carries the exponential to
+                 * -40 dB, and a decay that is heading for a sustain of zero
+                 * used to be cut off there. Roland's plugin carries the same
+                 * rate on down: a decay of half travel falls at a steady
+                 * 33 dB a second past -110 dB without a kink anywhere. Cutting
+                 * it at -40 turns the tail of every percussive patch into a
+                 * step, and on a patch whose only sound source is the filter
+                 * singing -- Synth Drum, and the rest of bank 7 -- it silences
+                 * the note outright where the plugin holds a clean tone.
+                 *
+                 * So the phase only ends the segment when there is a sustain
+                 * to end it at; heading for silence it runs until it is
+                 * silent.
+                 */
+                if (s > kSilence) {
+                    if (phase_ >= 1.0f) { level_ = s; stage_ = SUSTAIN; }
+                    else                { level_ = s + (1.0f - s) * curve_; }
                 } else {
-                    level_ = s + (1.0f - s) * curve_;
+                    level_ = curve_;
+                    if (level_ <= kSilence) { level_ = 0.0f; stage_ = SUSTAIN; }
                 }
                 break;
             }
@@ -237,14 +253,13 @@ public:
                 break;
 
             case RELEASE:
+                /* Same as the decay: a release always heads for silence, so
+                 * the rate carries it there rather than the segment length
+                 * cutting it off at -40 dB. */
                 phase_ += rStep_;
                 curve_ *= rMul_;
-                if (phase_ >= 1.0f) {
-                    level_ = 0.0f;
-                    stage_ = IDLE;
-                } else {
-                    level_ = relFrom_ * curve_;
-                }
+                level_ = relFrom_ * curve_;
+                if (level_ <= kSilence) { level_ = 0.0f; stage_ = IDLE; }
                 break;
 
             case IDLE:
@@ -256,6 +271,10 @@ public:
     }
 
 private:
+    /* Below this a contour counts as arrived: -120 dB, under the voice's own
+     * noise floor and under anything 16 bits can carry. */
+    static constexpr float kSilence = 1.0e-6f;
+
     /* Phase advance per sample for a segment of the given duration. */
     float stepFor(float seconds) const
     {
