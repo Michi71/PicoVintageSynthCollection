@@ -91,6 +91,28 @@ public:
         pw_ = junoClamp(pw, JUNO_PW_MIN, JUNO_PW_MAX);
     }
 
+    /*
+     * The panel's PWM setting as a pulse width. It was a straight line from
+     * JUNO_PW_MIN to JUNO_PW_MAX; measured against Roland's plugin it is a
+     * raised cosine between the same two ends, which is what a sawtooth
+     * compared against a moving threshold gives. The line was up to five
+     * points of duty out in the middle of the travel -- 7 dB on the second
+     * harmonic at a quarter of the way up.
+     *
+     * The modulated modes hand their own effective setting to the same curve;
+     * that they share it is an assumption, not a measurement.
+     *
+     * u*u*(3-2u) stands in for (1-cos(pi*u))/2, which it matches to better
+     * than a hundredth -- under a point of duty, against the two points the
+     * fit itself is worth -- and costs three multiplies instead of a cosine
+     * per voice per sample.
+     */
+    static inline float widthOf(float u)
+    {
+        u = junoClamp(u, 0.0f, 1.0f);
+        return JUNO_PW_MIN + (JUNO_PW_MAX - JUNO_PW_MIN) * u * u * (3.0f - 2.0f * u);
+    }
+
     float process(float pitchMul)
     {
         const float dt = inc_ * pitchMul;
@@ -99,22 +121,35 @@ public:
         float out = 0.0f;
 
         if (saw_) {
-            /* The Juno sawtooth falls rather than rises, which matters only
-             * for how it sums with the pulse. */
-            out += (2.0f * t - 1.0f) - junoPolyBlep(t, dt);
+            /*
+             * The Juno sawtooth falls rather than rises, and that is not
+             * cosmetic: it decides whether the sawtooth and the pulse add or
+             * subtract. A rising ramp has a fundamental of -sin, the pulse
+             * has +sin, and the eleven factory patches that switch both on
+             * lost 14 dB of every odd harmonic to the cancellation -- their
+             * fundamental first of all. Measured against Roland's plugin,
+             * where the two add.
+             */
+            out += (1.0f - 2.0f * t) + junoPolyBlep(t, dt);
         }
 
         if (pulse_) {
+            /*
+             * No level compensation. A narrow pulse carries less energy than a
+             * square and is meant to: measured against Roland's plugin, its
+             * level follows 2*sqrt(d(1-d)) all the way down -- 8.6 dB from the
+             * square to the narrowest setting, within a decibel of what the
+             * arithmetic says an uncompensated pulse does. The width control
+             * really does double as a volume control, which is what PWM
+             * sounds like. A compensation term used to stand here and lifted
+             * the narrow end by up to 3.3 dB.
+             */
             float p = (t < pw_) ? 1.0f : -1.0f;
             p += junoPolyBlep(t, dt);
             float t2 = t - pw_;
             if (t2 < 0.0f) t2 += 1.0f;
             p -= junoPolyBlep(t2, dt);
-            /* A narrow pulse carries far less energy than a square. Without
-             * this the pulse-width control would double as a volume
-             * control. */
-            out += p * (0.6f + 0.8f * (pw_ - JUNO_PW_MIN) /
-                                      (JUNO_PW_MAX - JUNO_PW_MIN));
+            out += p * JUNO_PULSE_TRIM;
         }
 
         if (sub_ > 0.0f) {
@@ -124,7 +159,7 @@ public:
             float t3 = subPhase_ - 0.5f;
             if (t3 < 0.0f) t3 += 1.0f;
             s -= junoPolyBlep(t3, dts);
-            out += s * sub_;
+            out += s * sub_ * JUNO_SUB_TRIM;
 
             subPhase_ += dts;
             if (subPhase_ >= 1.0f) subPhase_ -= 1.0f;
@@ -139,7 +174,7 @@ public:
             /* Low-passed at 5 kHz -- the note on the AR80017A filter clone
              * says the instrument's noise source is, and without it the noise
              * sits on top of the tone instead of inside it. */
-            out += noiseLp_.process(noise_.white()) * nz_ * 1.6f;
+            out += noiseLp_.process(noise_.white()) * nz_ * (1.6f * JUNO_NOISE_TRIM);
         }
 
         phase_ += dt;

@@ -102,14 +102,25 @@ void Juno::applyParameter(int id)
         vp_.octave = kOct[junoParamStep(v, JUNO_RANGE_COUNT)];
         break;
     }
-    case JUNO_DCO_LFO:       vp_.dcoLfo   = v; break;
+    /*
+     * Squared. Measured against Roland's plugin at 0.1 steps, the pitch it
+     * reaches is 384 cents times the square of the setting, and the square
+     * fits every one of those ten points to a hundredth. Taken straight -- as
+     * it was -- the slider at a tenth gives 29 cents where the instrument
+     * gives three, which is the difference between a hint of vibrato and a
+     * wobble. Sixteen factory patches use it, nearly all of them down at that
+     * end: the violin, the clarinet and the oboe are meant to have a few cents
+     * of it, not tens.
+     */
+    case JUNO_DCO_LFO:       vp_.dcoLfo   = v * v; break;
     case JUNO_DCO_PWM:       vp_.pwm      = v; break;
     case JUNO_DCO_PWM_MODE:  vp_.pwmMode  = junoParamStep(v, 3); break;
     case JUNO_DCO_SAW:       vp_.saw      = junoParamOn(v); break;
     case JUNO_DCO_PULSE:     vp_.pulse    = junoParamOn(v); break;
     case JUNO_DCO_SUB:       vp_.subOn    = junoParamOn(v); break;
-    case JUNO_DCO_SUB_LEVEL: vp_.subLevel = v; break;
-    case JUNO_DCO_NOISE:     vp_.noise    = v; break;
+    /* Through the measured fader taper, once here rather than per sample. */
+    case JUNO_DCO_SUB_LEVEL: vp_.subLevel = junoDcoLevel(v); break;
+    case JUNO_DCO_NOISE:     vp_.noise    = junoDcoLevel(v); break;
 
     /* --- HPF ------------------------------------------------------------ */
     case JUNO_HPF:
@@ -118,30 +129,58 @@ void Juno::applyParameter(int id)
 
     /* --- VCF ------------------------------------------------------------ */
     case JUNO_VCF_FREQ:
-        vp_.cutoffOct = v * log2f(JUNO_CUTOFF_MAX_HZ / JUNO_CUTOFF_MIN_HZ);
+        /*
+         * Where the 20 Hz .. 18 kHz of the specifications page sits on the
+         * slider. It used to be spread over the whole travel, and it is not:
+         * measured against Roland's plugin the corner climbs 17 octaves per
+         * unit of slider, passing 20 Hz at 0.16 and 18 kHz at 0.74, with the
+         * ends flat. The range is the service notes' and unchanged; only its
+         * placement moves, and that is what the plugin is being asked.
+         *
+         * Below 0.16 the plugin keeps going down to about 13 Hz rather than
+         * stopping, but that is under the specification's own floor and below
+         * anything a note reaches through four poles, so the floor stays where
+         * the service notes put it.
+         */
+        vp_.cutoffOct = junoClamp(v * JUNO_CUTOFF_OCT_PER_UNIT - JUNO_CUTOFF_OCT_ZERO,
+                                  0.0f, log2f(JUNO_CUTOFF_MAX_HZ / JUNO_CUTOFF_MIN_HZ));
         break;
     case JUNO_VCF_RES:      vp_.resonance = v * JUNO_RESONANCE_MAX; break;
     case JUNO_VCF_ENV:      vp_.envAmount = v; break;
     case JUNO_VCF_POLARITY:
         vp_.envPolarity = (junoParamStep(v, 2) == 1) ? 1.0f : -1.0f;
         break;
-    case JUNO_VCF_LFO:      vp_.lfoAmount = v; break;
+    /* Held in octaves, through the measured curve. */
+    case JUNO_VCF_LFO:      vp_.lfoOct = junoVcfLfoOctaves(v); break;
     case JUNO_VCF_KYBD:     vp_.keyFollow = v; break;
 
     /* --- VCA ------------------------------------------------------------ */
     case JUNO_VCA_LEVEL:
         /*
-         * Linear, not squared.
+         * Squared.
          *
-         * A squared taper looked like the more slider-ish choice and cost
-         * every patch up to 3 dB: the 48 factory settings were authored
-         * against a linear mapping (junox multiplies the output by patch.vca
-         * directly), so bending the curve underneath them misrepresents all of
-         * them at once. This is also the level that drives the chorus, so it
-         * changes how hard the bucket-brigade lines are pushed -- see
-         * juno_fx.h.
+         * It was linear, on the grounds that the imported junox patch set was
+         * authored against a linear mapping and bending the curve underneath
+         * it would misrepresent every patch at once. That argument has since
+         * lapsed: the 56 patches now come from the owner's manual chart, whose
+         * level column could not be read at all, so every one of them carries
+         * the same 0.700 and no patch is authored against either curve.
+         *
+         * Roland's plugin settles it. Its level slider follows the square of
+         * the setting to within a decibel over the top two thirds of the
+         * travel -- 0.5 gives -12.3 dB where linear would give -6 -- and eases
+         * off below 0.3, where it runs up to 3 dB above the square. The square
+         * is taken here and the easing is not: it is the bottom of a level
+         * control, and no factory patch is anywhere near it.
+         *
+         * The 0.700 that the whole bank sits at loses 3.1 dB to the change, so
+         * the headroom constant on the summed voices makes it back (0.35 ->
+         * 0.50) and the bank comes out exactly where it was. This is also the
+         * level that drives the chorus, so it decides how hard the
+         * bucket-brigade lines are pushed -- and that product, too, is
+         * unchanged for the bank.
          */
-        volume_ = v;
+        volume_ = v * v;
         break;
     case JUNO_VCA_MODE: {
         const bool gate = (junoParamStep(v, 2) == 1);
@@ -505,7 +544,7 @@ void Juno::processFloat(float* out_l, float* out_r, int frames)
 
             /* Six voices at once would otherwise run out of headroom before
              * the filter does. */
-            sum *= 0.35f;
+            sum *= 0.50f;
 
             for (int os = 0; os < JUNO_OVERSAMPLE; ++os)
                 sum = dec_[2].process(dec_[1].process(dec_[0].process(sum)));

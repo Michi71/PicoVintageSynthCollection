@@ -140,6 +140,19 @@
 /* Sub-oscillator: a square one octave below the DCO.                         */
 #define JUNO_SUB_OCTAVES   (-1.0f)
 
+/*
+ * What the mixer does to each source on its way in, relative to the sawtooth.
+ *
+ * A plain +/-1 square sits 4.77 dB above a plain sawtooth ramp, and that is
+ * what came out of here. Roland's plugin holds them 3.35 dB apart, and its sub
+ * -- also a square -- the same. Measured with the level well down so that
+ * neither side clips, since the plugin runs hot enough at full to do so and a
+ * clipped reference flatters everything measured against it.
+ */
+#define JUNO_PULSE_TRIM     0.861f   /* -1.3 dB */
+#define JUNO_SUB_TRIM       0.861f   /* -1.3 dB */
+#define JUNO_NOISE_TRIM     0.813f   /* -1.8 dB */
+
 /* Noise. A note on the AR80017A filter clone says the noise source is
  * low-passed at 5 kHz, which is what keeps it from sounding like a hiss
  * generator bolted to the side. */
@@ -169,6 +182,19 @@
 #define JUNO_CUTOFF_MAX_HZ  18000.0f
 
 /*
+ * How that range is laid out along the slider, measured off Roland's plugin
+ * by reading the corner as the resonant peak: 17.0 octaves per unit of
+ * travel, so 20 Hz falls at 0.158 and 18 kHz at 0.735, and the ends are flat.
+ *
+ * Spreading the range evenly over the whole travel, which is what this did
+ * before, puts the middle of the slider an octave low and its upper third
+ * two to three octaves low. The specification's range is not in question --
+ * only where on the slider it sits, and the specification does not say.
+ */
+#define JUNO_CUTOFF_OCT_PER_UNIT 17.0f
+#define JUNO_CUTOFF_OCT_ZERO      2.69f
+
+/*
  * Ceiling on the cutoff the filter itself will accept, as a fraction of the
  * rate it runs at: one radian per sample, 1/2pi.
  *
@@ -194,7 +220,19 @@
  * the identical reason.
  */
 #define JUNO_FILTER_WC_MAX_OVER_2PI 0.15915f
-#define JUNO_RESONANCE_MAX      1.06f   /* self-oscillates a little above 1 */
+/*
+ * Where the resonance slider puts the loop gain, as a multiple of the gain at
+ * which the ladder sings -- so 1.0 is the threshold and the panel maximum sits
+ * a quarter above it.
+ *
+ * This was 1.06, which put the threshold at slider 0.94 and left the last
+ * sixteenth of the travel to do all of the singing: bank 7, whose eight
+ * patches the owner's manual describes as having "VCF self-oscillation" for a
+ * sound source, only just started to speak and did so 20 dB too quietly.
+ * Roland's plugin crosses over between 0.7 and 0.8 -- sharply, and at a
+ * settled level from there on -- so the threshold belongs at 0.8.
+ */
+#define JUNO_RESONANCE_MAX      1.35f
 #define JUNO_VCF_GCOMP          0.85f   /* Moog ladder uses 0.5; see above  */
 
 /*
@@ -217,7 +255,13 @@
 #define JUNO_CONTOUR_OCTAVES   10.0f
 #endif
 
-#define JUNO_LFO_VCF_OCTAVES    3.0f
+/*
+ * How far the LFO moves the cutoff is no longer a single number: measured
+ * against Roland's plugin the slider follows a strong S-curve, from a
+ * fortieth of an octave at 0.1 to 3.6 either side at full. kJunoVcfLfoOct in
+ * juno_dsp.h carries the measured points. Three octaves, taken as a straight
+ * line, stood here.
+ */
 
 /* ------------------------------------------------------------------------   */
 /* HPF                                                                        */
@@ -293,6 +337,12 @@
 
 /* Gate mode, measured: attack 3 ms, release 6 ms. Present to stop clicks
  * rather than to shape anything. */
+/*
+ * The sustain slider against the level it actually holds, measured off
+ * Roland's plugin: 1 - (1-s)^1.6. See JunoEnv::setSustain.
+ */
+#define JUNO_SUSTAIN_CURVE   1.6f
+
 #define JUNO_GATE_ATTACK_S   0.003f
 #define JUNO_GATE_RELEASE_S  0.006f
 
@@ -341,7 +391,12 @@
  * a violin or an oboe wants three or four times that. Seven, which it held
  * before that, was a guess and was too much.
  */
-#define JUNO_LFO_DCO_SEMIS   3.0f
+/*
+ * Pitch at full LFO depth, as a half-swing, and the slider reaches it as a
+ * square rather than a straight line -- see JUNO_DCO_LFO in juno.cpp. 3.0
+ * stood here against Roland's plugin's 3.9.
+ */
+#define JUNO_LFO_DCO_SEMIS   3.9f
 
 /* ------------------------------------------------------------------------   */
 /* Chorus -- 2x MN3009 BBD, MN3101 clocks                                     */

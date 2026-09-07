@@ -44,7 +44,7 @@ struct JunoVoiceParams {
     float resonance  = 0.0f;
     float envAmount  = 0.0f;
     float envPolarity= 1.0f;    /* +1 or -1                                 */
-    float lfoAmount  = 0.0f;
+    float lfoOct     = 0.0f;    /* LFO to cutoff, in octaves either side */
     float keyFollow  = 0.0f;
 
     /* ENV / VCA */
@@ -150,14 +150,13 @@ public:
         float pw;
         switch (p.pwmMode) {
             case 1:  /* manual */
-                pw = JUNO_PW_MIN + p.pwm * (JUNO_PW_MAX - JUNO_PW_MIN);
+                pw = JunoDco::widthOf(p.pwm);
                 break;
             case 2:  /* contour */
-                pw = JUNO_PW_MIN + p.pwm * e * (JUNO_PW_MAX - JUNO_PW_MIN);
+                pw = JunoDco::widthOf(p.pwm * e);
                 break;
             default: /* LFO -- centred, so the width sweeps both ways */
-                pw = JUNO_PW_MIN + p.pwm * (0.5f + 0.5f * lfo) *
-                                   (JUNO_PW_MAX - JUNO_PW_MIN);
+                pw = JunoDco::widthOf(p.pwm * (0.5f + 0.5f * lfo));
                 break;
         }
         dco_.setPulseWidth(pw);
@@ -168,11 +167,11 @@ public:
          * in the instrument. Key follow is measured from C4. */
         float oct = p.cutoffOct
                   + p.envAmount * p.envPolarity * e * JUNO_CONTOUR_OCTAVES
-                  + p.lfoAmount * lfo * JUNO_LFO_VCF_OCTAVES
+                  + p.lfoOct * lfo
                   + p.keyFollow * ((float) note_ - (float) JUNO_CENTER_NOTE)
                                 * (1.0f / 12.0f);
 
-        vcf_.setCutoff(JUNO_CUTOFF_MIN_HZ * junoExp2Wide(oct));
+        vcf_.setCutoffOct(oct);
         vcf_.setResonance(p.resonance);
 
         /* --- Audio ------------------------------------------------------ */
