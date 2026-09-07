@@ -252,16 +252,15 @@
  * sloppily.
  */
 #ifndef JUNO_CONTOUR_OCTAVES
-#define JUNO_CONTOUR_OCTAVES   10.0f
+#define JUNO_CONTOUR_OCTAVES   10.96f
 #endif
 
 /*
- * How far the LFO moves the cutoff is no longer a single number: measured
- * against Roland's plugin the slider follows a strong S-curve, from a
- * fortieth of an octave at 0.1 to 3.6 either side at full. kJunoVcfLfoOct in
- * juno_dsp.h carries the measured points. Three octaves, taken as a straight
- * line, stood here.
+ * Full scale of the LFO route into the cutoff, either side. The slider reaches
+ * it along kJunoVcfDepth in juno_dsp.h, which the contour route shares. Three
+ * octaves, taken as a straight line, stood here.
  */
+#define JUNO_LFO_VCF_OCTAVES    3.597f
 
 /* ------------------------------------------------------------------------   */
 /* HPF                                                                        */

@@ -100,31 +100,36 @@ static inline float junoLimit(float x)
  * the factory patches that use it sit exactly there.
  */
 /*
- * The VCF LFO slider against how far it actually moves the corner, in octaves
- * either side of it, measured off Roland's plugin at 0.05 steps by tracking a
- * resonant peak under a very slow LFO.
+ * What a VCF modulation-depth slider is worth, as a fraction of its full
+ * scale. Measured off Roland's plugin at 0.05 steps by tracking a resonant
+ * peak -- once with a very slow LFO driving the corner and once with the
+ * contour holding it -- and the two came out the same curve to within a
+ * hundredth at every point. One taper, one slider design, two destinations.
  *
- * It is nothing like the straight line this used to be. The bottom third of
- * the travel barely moves the filter at all -- a fortieth of an octave at 0.1,
- * an eighth at 0.2 -- and the top reaches 3.6 octaves rather than 3. Thirteen
- * of the fifteen factory patches that use it sit between 0.10 and 0.30, where
- * the straight line was three to ten times too deep: a wobble where the
- * instrument has a hint of one.
+ * It is nothing like the straight line these used to be. The bottom third of
+ * the travel barely moves the filter at all: a hundredth of full scale at 0.1,
+ * a twentieth at 0.2. Thirteen of the fifteen factory patches that use the LFO
+ * route sit between 0.10 and 0.30, and the contour route is on nearly every
+ * patch in the bank -- so the straight line was wrong where it mattered most,
+ * by three to ten times.
+ *
+ * The two full scales differ: 3.6 octaves either side for the LFO,
+ * JUNO_CONTOUR_OCTAVES for the contour.
  */
-static const float kJunoVcfLfoOct[21] = {
-    0.000f, 0.008f, 0.023f, 0.061f, 0.137f, 0.280f, 0.441f,
-    0.651f, 0.920f, 1.175f, 1.481f, 1.755f, 1.992f, 2.260f,
-    2.481f, 2.662f, 2.859f, 2.991f, 3.131f, 3.385f, 3.597f
+static const float kJunoVcfDepth[21] = {
+    0.0000f, 0.0022f, 0.0064f, 0.0170f, 0.0381f, 0.0778f, 0.1226f,
+    0.1810f, 0.2558f, 0.3267f, 0.4117f, 0.4879f, 0.5538f, 0.6283f,
+    0.6897f, 0.7401f, 0.7948f, 0.8315f, 0.8704f, 0.9411f, 1.0000f
 };
 
-static inline float junoVcfLfoOctaves(float v)
+static inline float junoVcfDepth(float v)
 {
     if (v <= 0.0f) return 0.0f;
-    if (v >= 1.0f) return kJunoVcfLfoOct[20];
+    if (v >= 1.0f) return 1.0f;
     const float x = v * 20.0f;
     const int   i = (int) x;
     const float f = x - (float) i;
-    return kJunoVcfLfoOct[i] + f * (kJunoVcfLfoOct[i + 1] - kJunoVcfLfoOct[i]);
+    return kJunoVcfDepth[i] + f * (kJunoVcfDepth[i + 1] - kJunoVcfDepth[i]);
 }
 
 static const float kJunoDcoLevel[21] = {

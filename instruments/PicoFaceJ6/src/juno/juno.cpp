@@ -146,12 +146,19 @@ void Juno::applyParameter(int id)
                                   0.0f, log2f(JUNO_CUTOFF_MAX_HZ / JUNO_CUTOFF_MIN_HZ));
         break;
     case JUNO_VCF_RES:      vp_.resonance = v * JUNO_RESONANCE_MAX; break;
-    case JUNO_VCF_ENV:      vp_.envAmount = v; break;
+    /*
+     * Through the same taper the LFO route uses -- one slider design, and the
+     * plugin gives the two the same curve to a hundredth. Taken straight it
+     * was wrong wherever a patch uses less than half of it, which is most of
+     * them: Whistle sang a fifth of an octave above its base corner in the
+     * plugin and an octave and a half above it here.
+     */
+    case JUNO_VCF_ENV:      vp_.envAmount = junoVcfDepth(v); break;
     case JUNO_VCF_POLARITY:
         vp_.envPolarity = (junoParamStep(v, 2) == 1) ? 1.0f : -1.0f;
         break;
     /* Held in octaves, through the measured curve. */
-    case JUNO_VCF_LFO:      vp_.lfoOct = junoVcfLfoOctaves(v); break;
+    case JUNO_VCF_LFO:      vp_.lfoOct = junoVcfDepth(v) * JUNO_LFO_VCF_OCTAVES; break;
     case JUNO_VCF_KYBD:     vp_.keyFollow = v; break;
 
     /* --- VCA ------------------------------------------------------------ */
