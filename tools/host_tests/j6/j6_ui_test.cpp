@@ -34,6 +34,50 @@ static J6_Midi midi;
 void J6_Midi::setRxChannel(uint8_t) {}
 
 /* ------------------------------------------------------------------------ */
+/*
+ * Werksnamen stehen hier nirgends als Literal. Die Bank ist einmal neu aus dem
+ * Owner's Manual transkribiert worden -- aus "Piano I" wurde "Piano 1" --, und
+ * danach fielen zehn Pruefungen aus, von denen keine einzige etwas mit Namen
+ * zu tun hatte. Geprueft werden die Regeln des Namensfeldes, nicht sein
+ * Inhalt, also kommt der Inhalt aus junoPrograms[].
+ */
+
+/* Was von einem Werksnamen im Speicher ankommt: das Feld haelt elf Zeichen.
+ * Ein Puffer, also immer nur ein Aufruf je Ausdruck. */
+static const char* storedName(int patch)
+{
+    static char buf[J6_PATCH_NAME_LEN];
+    snprintf(buf, sizeof(buf), "%s", junoPrograms[patch].name);
+    return buf;
+}
+
+/*
+ * Ein Werksklang, an dem sich das Namensfeld pruefen laesst: lang genug, dass
+ * sich der Cursor darin bewegen kann, und kurz genug, dass hinter ihm im Feld
+ * noch eine Leerstelle frei bleibt.
+ */
+static int shortFactoryPatch(void)
+{
+    for (int i = 0; i < JUNO_NPROGRAMS; ++i) {
+        const size_t len = strlen(junoPrograms[i].name);
+        if (len >= 4 && len < J6_NAME_EDIT_LEN) return i;
+    }
+    return -1;
+}
+
+/* Und der laengste -- der Fall, den das Feld kuerzen muss. */
+static int longFactoryPatch(void)
+{
+    int    best    = -1;
+    size_t longest = J6_NAME_EDIT_LEN;
+    for (int i = 0; i < JUNO_NPROGRAMS; ++i) {
+        const size_t len = strlen(junoPrograms[i].name);
+        if (len > longest) { longest = len; best = i; }
+    }
+    return best;
+}
+
+/* ------------------------------------------------------------------------ */
 static void test_list(J6_Controller& c)
 {
     group("Die Patchliste fuehrt Werksklaenge und Speicher");
@@ -42,14 +86,20 @@ static void test_list(J6_Controller& c)
     ck(j6_patch_name(0)[0] == 0, "ein freier Platz hat keinen Namen");
 
     goToPage(c, "PATCH", "PATCH");
-    ck(c.listCount() == JUNO_NPROGRAMS + J6_USER_PATCHES,
-       "die Liste hat 48 + 56 Eintraege");
+    char what[48];
+    snprintf(what, sizeof(what), "die Liste hat %d + %d Eintraege",
+             JUNO_NPROGRAMS, J6_USER_PATCHES);
+    ck(c.listCount() == JUNO_NPROGRAMS + J6_USER_PATCHES, what);
 
-    char e[32];
-    c.listEntry(0, e, sizeof(e));
-    ck(strncmp(e, " 1 Strings I", 12) == 0, "Eintrag 1 ist ein Werksklang");
+    const int first = 0;
+    char e[32], want[48];
+    c.listEntry(first, e, sizeof(e));
+    snprintf(want, sizeof(want), "%2d %s", first + 1, junoPrograms[first].name);
+    ck(strcmp(e, want) == 0, "Eintrag 1 ist ein Werksklang");
     c.listEntry(JUNO_NPROGRAMS, e, sizeof(e));
-    ck(strcmp(e, "U01 -free-") == 0, "Eintrag 49 ist Speicherplatz 1, frei");
+    snprintf(what, sizeof(what), "Eintrag %d ist Speicherplatz 1, frei",
+             JUNO_NPROGRAMS + 1);
+    ck(strcmp(e, "U01 -free-") == 0, what);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -64,7 +114,7 @@ static void test_write(J6_Controller& c)
 
     ck(c.runPatchAction(), "Schreiben gemeldet");
     ck(j6_patch_valid(0), "Platz 1 ist belegt");
-    ck(strcmp(j6_patch_name(0), "Strings I") == 0,
+    ck(strcmp(j6_patch_name(0), storedName(0)) == 0,
        "Name vom geladenen Klang uebernommen");
 
     goToPage(c, "PATCH", "PATCH");
@@ -82,7 +132,8 @@ static void test_roundtrip(J6_Controller& c)
 {
     group("Bearbeiten, schreiben, zurueckladen");
 
-    selectPatch(c, 8);                       /* Piano I */
+    const int patch = 8;
+    selectPatch(c, patch);
     char loaded[32]; c.paramAText(loaded, sizeof(loaded));
     note("geladen: %s", loaded);
 
@@ -95,7 +146,9 @@ static void test_roundtrip(J6_Controller& c)
 
     setWriteTarget(c, 1);
     ck(c.runPatchAction(), "auf Platz 2 geschrieben");
-    ck(strcmp(j6_patch_name(1), "Piano I") == 0, "Name \"Piano I\" uebernommen");
+    char what[48];
+    snprintf(what, sizeof(what), "Name \"%s\" uebernommen", junoPrograms[patch].name);
+    ck(strcmp(j6_patch_name(1), storedName(patch)) == 0, what);
 
     selectPatch(c, 0);
     goToPage(c, "VCF", "VCF");
@@ -142,7 +195,8 @@ static void test_name_lineage(J6_Controller& c)
     /* Genau der Weg, auf dem jeder Speicher "Init" hiess: in der Liste bis zu
      * einem freien Platz blaettern -- der laedt absichtlich nichts, der Klang
      * spielt weiter, und nach dessen Namen wurde nicht gefragt. */
-    selectPatch(c, 4);                        /* Organ II */
+    const int patch = 4;
+    selectPatch(c, patch);
     char sound[32]; c.paramAText(sound, sizeof(sound));
     note("Klang gewaehlt: %s", sound);
 
@@ -153,13 +207,13 @@ static void test_name_lineage(J6_Controller& c)
     setWriteTarget(c, 4);
     c.runPatchAction();
     note("U05 heisst \"%s\"", j6_patch_name(4));
-    ck(strcmp(j6_patch_name(4), "Organ II") == 0,
+    ck(strcmp(j6_patch_name(4), storedName(patch)) == 0,
        "der Name kommt vom geladenen Klang");
 
     selectPatch(c, JUNO_NPROGRAMS + 4);       /* jetzt belegt */
     setWriteTarget(c, 5);
     c.runPatchAction();
-    ck(strcmp(j6_patch_name(5), "Organ II") == 0,
+    ck(strcmp(j6_patch_name(5), storedName(patch)) == 0,
        "von einem belegten Platz aus wird er weitergereicht");
 }
 
@@ -171,33 +225,38 @@ static void test_scrolling(J6_Controller& c)
     /*
      * Eine Raste je Aufruf, so wie der Encoder sie liefert -- und damit der
      * Weg, auf dem man sich den Klang wegblaettert, den man speichern wollte:
-     * von Patch 40 bis U01 sind es acht Werksklaenge, und der letzte davon ist
-     * am Ende geladen. Das ist kein Fehler, sondern der Grund, warum das Ziel
-     * auf der WRITE-Seite gewaehlt wird und nicht in der Liste.
+     * von hier bis U01 liegen lauter Werksklaenge, und der letzte davon ist am
+     * Ende geladen. Das ist kein Fehler, sondern der Grund, warum das Ziel auf
+     * der WRITE-Seite gewaehlt wird und nicht in der Liste.
      */
-    selectPatch(c, 39);                       /* 40 PWM Chorus */
+    const int   patch = 39;
+    const char* name  = junoPrograms[patch].name;
+    const int   toU01 = JUNO_NPROGRAMS - patch;
+
+    selectPatch(c, patch);
     char from[32]; c.paramAText(from, sizeof(from));
     note("geladen: %s", from);
 
-    stepPatch(c, 9);                          /* bis U01, Raste fuer Raste */
+    stepPatch(c, toU01);                      /* bis U01, Raste fuer Raste */
     char at[32]; c.paramAText(at, sizeof(at));
-    note("nach neun Rasten: %s", at);
+    note("nach %d Rasten: %s", toU01, at);
     ck(strncmp(at, "U01", 3) == 0, "der Zeiger steht auf U01");
 
     goToPage(c, "PATCH", "PATCH WRITE");
     char a[40], b[40]; bodyLines(c, a, sizeof(a), b, sizeof(b));
     note("die WRITE-Seite zeigt: %s | %s", a, b);
-    ck(strstr(b, "PWM Chorus") == nullptr,
+    ck(strstr(b, name) == nullptr,
        "und nennt nicht mehr den Klang, von dem aus geblaettert wurde");
 
     /* Der Weg, der taugt: Ziel auf der WRITE-Seite, Liste unberuehrt. */
-    selectPatch(c, 39);
+    selectPatch(c, patch);
     setWriteTarget(c, 10);
     bodyLines(c, a, sizeof(a), b, sizeof(b));
-    ck(strstr(b, "PWM Chorus >") != nullptr,
+    char want[40]; snprintf(want, sizeof(want), "%s >", storedName(patch));
+    ck(strstr(b, want) != nullptr,
        "ueber die WRITE-Seite bleibt der geladene Klang stehen");
     ck(c.runPatchAction(), "auf U11 geschrieben");
-    ck(strcmp(j6_patch_name(10), "PWM Chorus") == 0, "und dort liegt er auch");
+    ck(strcmp(j6_patch_name(10), storedName(patch)) == 0, "und dort liegt er auch");
 }
 
 /* ------------------------------------------------------------------------ */
@@ -205,24 +264,36 @@ static void test_naming(J6_Controller& c)
 {
     group("Namen selbst vergeben");
 
-    selectPatch(c, 0);
+    const int patch = shortFactoryPatch();
+    ck(patch >= 0, "ein Werksname, in dem der Cursor Platz hat");
+    if (patch < 0) return;
+    const char* name = junoPrograms[patch].name;
+    const int   mid  = (int) strlen(name) / 2;
+
+    selectPatch(c, patch);
     goToPage(c, "PATCH", "PATCH NAME");
     showScreen(c, "frisch geladen");
 
     ck(c.paramAName()[0] == 0, "der Name hat kein Label, er nimmt die Zeile");
     ck(strcmp(c.paramBName(), "Char") == 0, "der zweite Wert heisst Char");
 
-    char v[40];
+    char v[40], want[40];
     c.paramAText(v, sizeof(v));
-    ck(strcmp(v, "[S]trings I") == 0, "Cursor auf dem ersten Zeichen");
+    snprintf(want, sizeof(want), "[%c]%s", name[0], name + 1);
+    ck(strcmp(v, want) == 0, "Cursor auf dem ersten Zeichen");
 
-    cursorTo(c, 4);
+    cursorTo(c, mid);
     c.paramAText(v, sizeof(v));
-    ck(strcmp(v, "Stri[n]gs I") == 0, "Cursor laesst sich bewegen");
+    snprintf(want, sizeof(want), "%.*s[%c]%s", mid, name, name[mid], name + mid + 1);
+    ck(strcmp(v, want) == 0, "Cursor laesst sich bewegen");
 
-    cursorTo(c, 10);
+    /* Auf die letzte Stelle des Feldes, die dieser Name nicht mehr fuellt: die
+     * Leerstellen davor muessen stehenbleiben, sonst springt der Cursor
+     * optisch an das Ende des Textes zurueck. */
+    cursorTo(c, J6_NAME_EDIT_LEN - 1);
     c.paramAText(v, sizeof(v));
-    ck(strcmp(v, "Strings I [ ]") == 0, "hinter dem Ende bleiben Leerstellen sichtbar");
+    snprintf(want, sizeof(want), "%-*s[ ]", J6_NAME_EDIT_LEN - 1, name);
+    ck(strcmp(v, want) == 0, "hinter dem Ende bleiben Leerstellen sichtbar");
     c.paramBText(v, sizeof(v));
     ck(strcmp(v, "space") == 0, "Char zeigt dort space");
 
@@ -239,7 +310,7 @@ static void test_naming(J6_Controller& c)
     char e[32]; c.listEntry(JUNO_NPROGRAMS + 2, e, sizeof(e));
     ck(strcmp(e, "U03 Shine On") == 0, "die Patchliste zeigt ihn");
 
-    selectPatch(c, 0);
+    selectPatch(c, patch);
     selectPatch(c, JUNO_NPROGRAMS + 2);
     cursorTo(c, 0);
     c.paramAText(v, sizeof(v));
@@ -257,23 +328,24 @@ static void test_truncation(J6_Controller& c)
 {
     group("Zu lange Werksnamen lassen sich reparieren");
 
-    int longest = -1;
-    for (int i = 0; i < JUNO_NPROGRAMS; ++i)
-        if (strcmp(junoPrograms[i].name, "Harpsichord I") == 0) { longest = i; break; }
-    ck(longest >= 0, "Harpsichord I gefunden");
-    if (longest < 0) return;
+    const int patch = longFactoryPatch();
+    ck(patch >= 0, "ein Werksname, der laenger ist als das Feld");
+    if (patch < 0) return;
+    const char* name = junoPrograms[patch].name;
 
-    selectPatch(c, longest);
+    selectPatch(c, patch);
     setWriteTarget(c, 6);
     c.runPatchAction();
-    note("13 Zeichen abgelegt als \"%s\"", j6_patch_name(6));
-    ck(strcmp(j6_patch_name(6), "Harpsichord") == 0,
+    note("\"%s\", %zu Zeichen, abgelegt als \"%s\"",
+         name, strlen(name), j6_patch_name(6));
+    ck((int) strlen(j6_patch_name(6)) == J6_NAME_EDIT_LEN &&
+       strncmp(j6_patch_name(6), name, J6_NAME_EDIT_LEN) == 0,
        "das Feld kuerzt auf elf Zeichen");
 
-    setName(c, "Harpsi I");
+    setName(c, "Kurzname");
     setWriteTarget(c, 7);
     c.runPatchAction();
-    ck(strcmp(j6_patch_name(7), "Harpsi I") == 0, "und laesst sich neu vergeben");
+    ck(strcmp(j6_patch_name(7), "Kurzname") == 0, "und laesst sich neu vergeben");
 }
 
 /* ------------------------------------------------------------------------ */
