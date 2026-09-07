@@ -172,7 +172,7 @@ public:
                   + p.keyFollow * ((float) note_ - (float) JUNO_CENTER_NOTE)
                                 * (1.0f / 12.0f);
 
-        vcf_.setCutoff(JUNO_CUTOFF_MIN_HZ * junoExp2Wide(oct));
+        vcf_.setCutoffOct(oct);
         vcf_.setResonance(p.resonance);
 
         /* --- Audio ------------------------------------------------------ */

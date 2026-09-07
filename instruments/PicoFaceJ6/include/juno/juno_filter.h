@@ -9,9 +9,19 @@
   setting the amount of feedback around each.
 
   That is four OTA integrator sections in series inside a feedback loop -- the
-  same class of circuit as the transistor ladder in a Model D, and modelled the
-  same way: Huovilainen's tuning of the four one-poles, with Krajeski's
-  arrangement of the feedback and one saturating stage at the input.
+  same class of circuit as the transistor ladder in a Model D. The four
+  one-poles are topology-preserving transforms and the loop around them is
+  solved for the current sample rather than delayed, with one saturating stage
+  at the input.
+
+  It was Huovilainen's polynomial fit before, and that fit is only good to
+  about one radian per sample: past that its resonance term crosses zero and
+  the feedback turns positive. The filter therefore carried a ceiling at
+  sr/2pi -- 7.0 kHz at this rate, and in practice a resonant peak that stopped
+  at 3.8 kHz. Every patch with the cutoff slider past the middle was duller
+  than it should be, which is what measuring against Roland's plugin showed.
+  A TPT ladder is tuned correctly at every frequency up to Nyquist, so the
+  ceiling is gone and nothing takes its place.
 
   junox models it as a diode ladder instead. A diode ladder is an EMS and
   TB-303 topology; it is not an IR3109, and it costs about twice as much to
@@ -39,87 +49,138 @@ class JunoFilter
 public:
     void init(float sampleRate)
     {
-        sr_ = sampleRate;
+        setSampleRate(sampleRate);
         reset();
-        setCutoff(1000.0f);
+        setCutoffOct(5.0f);
         setResonance(0.0f);
     }
 
-    void setSampleRate(float sampleRate) { sr_ = sampleRate; }
+    void setSampleRate(float sampleRate)
+    {
+        sr_ = sampleRate;
+        buildTable(sampleRate);
+    }
 
     void reset()
     {
-        for (int i = 0; i < 5; ++i) { state_[i] = 0.0f; delay_[i] = 0.0f; }
+        for (int i = 0; i < 4; ++i) s_[i] = 0.0f;
     }
 
     /*
-     * Cutoff in Hz. wc is the angular frequency normalised to the sample rate;
-     * the polynomial is Huovilainen's fit for the tuning of the one-pole
-     * sections, which keeps the corner where it is asked for instead of
-     * flattening out towards Nyquist as a plain bilinear transform does.
+     * Cutoff in octaves above JUNO_CUTOFF_MIN_HZ, which is the form everything
+     * upstream already has: the panel, the contour, key follow and the LFO all
+     * add in octaves, exactly as their control voltages do in the instrument.
+     * Taking octaves here saves the exponential the voice used to do, and the
+     * table is indexed by them directly.
      */
+    void setCutoffOct(float oct)
+    {
+        float x = (oct - kOctMin) * kPerOct;
+        if (x < 0.0f) x = 0.0f;
+        if (x > (float) (kTableN - 1)) x = (float) (kTableN - 1);
+        const int   i = (int) x;
+        const float f = x - (float) i;
+        g_ = table_[i] + f * (table_[i + 1] - table_[i]);   /* g/(1+g) */
+        updateCoeffs();
+    }
+
+    /* Kept for callers that think in Hz -- the host tests do. */
     void setCutoff(float hz)
     {
-        /* Not Nyquist -- the fits below break long before that. See
-         * JUNO_FILTER_WC_MAX_OVER_2PI. */
-        hz = junoClamp(hz, 5.0f, sr_ * JUNO_FILTER_WC_MAX_OVER_2PI);
-        wc_ = 2.0f * (float) M_PI * hz / sr_;
-
-        const float w2 = wc_ * wc_;
-        const float w3 = w2 * wc_;
-        const float w4 = w3 * wc_;
-
-        g_ = 0.9892f * wc_ - 0.4342f * w2 + 0.1381f * w3 - 0.0202f * w4;
-
-        /* The resonance correction depends on the cutoff, so it has to come
-         * out again here -- otherwise a sweep at a fixed Resonance setting
-         * would change its resonance on the way. */
-        updateRes();
+        setCutoffOct(log2f(junoClamp(hz, 1.0f, 1.0e6f) / JUNO_CUTOFF_MIN_HZ));
     }
 
     /* 0 .. JUNO_RESONANCE_MAX; self-oscillates a little above 1, which is what
-     * the specifications page means by "0 - Self Oscillation". */
+     * the specifications page means by "0 - Self Oscillation". The ladder
+     * sings at a loop gain of four, so the panel value is the loop gain over
+     * four and needs no frequency correction of its own -- that correction
+     * existed only to patch up the polynomial fit. */
     void setResonance(float r)
     {
-        res_ = junoClamp(r, 0.0f, JUNO_RESONANCE_MAX);
-        updateRes();
+        r = junoClamp(r, 0.0f, JUNO_RESONANCE_MAX);
+        if (r != res_) { res_ = r; updateCoeffs(); }
     }
 
     float process(float in)
     {
-        /* Input stage through the saturating pair. gComp feeds part of the
-         * input back into the loop; at 0.85 the low end stays where it is as
-         * the resonance rises, which is the difference between an OTA cascade
-         * and a transistor ladder. */
-        state_[0] = junoTanh(in - 4.0f * gRes_ *
-                                  (state_[4] - JUNO_VCF_GCOMP * in));
+        /*
+         * gComp lifts the input as the feedback rises, so the low end stays
+         * where it is instead of draining away: that is the difference between
+         * an OTA cascade with its own feedback amplifier and a transistor
+         * ladder, and most of why a Juno with the resonance up is never thin.
+         */
+        const float x = in * (1.0f + k_ * JUNO_VCF_GCOMP);
+
+        /* What the four stages will contribute from their current states, so
+         * the loop can be closed on this sample instead of the last one. */
+        const float S = c3_ * s_[0] + c2_ * s_[1] + c1_ * s_[2] + c0_ * s_[3];
+
+        float y = junoTanh((x - k_ * S) * invDen_);
 
         for (int i = 0; i < 4; ++i) {
-            state_[i + 1] += g_ * (0.230769f * state_[i]      /* 0.3/1.3 */
-                                 + 0.769231f * delay_[i]      /* 1.0/1.3 */
-                                 - state_[i + 1]);
-            delay_[i] = state_[i];
+            const float v = (y - s_[i]) * g_;
+            y    = v + s_[i];
+            s_[i] = y + v;
         }
-        return state_[4];
+        return y;
     }
 
 private:
-    void updateRes()
+    void updateCoeffs()
     {
-        const float w2 = wc_ * wc_;
-        const float w3 = w2 * wc_;
-        gRes_ = res_ * (1.0029f + 0.0526f * wc_ - 0.926f * w2 + 0.0218f * w3);
+        k_ = 4.0f * res_;
+        const float om = 1.0f - g_;
+        const float g2 = g_ * g_;
+        c0_ = om;
+        c1_ = g_ * om;
+        c2_ = g2 * om;
+        c3_ = g2 * g_ * om;
+        invDen_ = 1.0f / (1.0f + k_ * g2 * g2);
     }
 
-    float sr_    = (float) SAMPLING_RATE;
-    float wc_    = 0.1f;
-    float g_     = 0.1f;
-    float res_   = 0.0f;
-    float gRes_  = 0.0f;
+    /*
+     * g/(1+g) with g = tan(pi f / sr), tabulated against the cutoff in
+     * octaves. A tangent per voice per sample is the one thing this filter
+     * cannot afford -- setCutoffOct is called six times per sample -- and the
+     * curve is smooth enough that 32 points per octave interpolate to better
+     * than a thousandth. Above Nyquist the entry saturates at 1, which makes
+     * the stage a wire: the right answer for a filter asked to open further
+     * than the sample rate can express.
+     */
+    static constexpr float kOctMin = -3.0f;   /* 2.5 Hz  */
+    static constexpr float kOctMax = 16.0f;   /* 1.3 MHz, clamped to Nyquist */
+    static constexpr int   kPerOct = 32;
+    static constexpr int   kTableN = (int) ((kOctMax - kOctMin) * kPerOct) + 1;
 
-    float state_[5] = {};
-    float delay_[5] = {};
+    static void buildTable(float sr)
+    {
+        if (sr == tableSr_) return;
+        tableSr_ = sr;
+        const float nyq = 0.4995f * sr;
+        for (int i = 0; i < kTableN + 1; ++i) {
+            float hz = JUNO_CUTOFF_MIN_HZ *
+                       exp2f(kOctMin + (float) i / (float) kPerOct);
+            if (hz > nyq) hz = nyq;
+            const float g = tanf((float) M_PI * hz / sr);
+            table_[i] = g / (1.0f + g);
+        }
+    }
+
+    static float table_[kTableN + 1];
+    static float tableSr_;
+
+    float sr_   = (float) SAMPLING_RATE;
+    float g_    = 0.1f;      /* g/(1+g) of one stage */
+    float res_  = -1.0f;
+    float k_    = 0.0f;      /* loop gain, four at self-oscillation */
+    float c0_ = 0.0f, c1_ = 0.0f, c2_ = 0.0f, c3_ = 0.0f;
+    float invDen_ = 1.0f;
+
+    float s_[4] = {};
 };
+
+inline float JunoFilter::table_[JunoFilter::kTableN + 1] = {};
+inline float JunoFilter::tableSr_ = 0.0f;
 
 /* ------------------------------------------------------------------------ */
 /* High-pass                                                                 */

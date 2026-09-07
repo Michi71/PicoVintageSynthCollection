@@ -194,7 +194,19 @@
  * the identical reason.
  */
 #define JUNO_FILTER_WC_MAX_OVER_2PI 0.15915f
-#define JUNO_RESONANCE_MAX      1.06f   /* self-oscillates a little above 1 */
+/*
+ * Where the resonance slider puts the loop gain, as a multiple of the gain at
+ * which the ladder sings -- so 1.0 is the threshold and the panel maximum sits
+ * a quarter above it.
+ *
+ * This was 1.06, which put the threshold at slider 0.94 and left the last
+ * sixteenth of the travel to do all of the singing: bank 7, whose eight
+ * patches the owner's manual describes as having "VCF self-oscillation" for a
+ * sound source, only just started to speak and did so 20 dB too quietly.
+ * Roland's plugin crosses over between 0.7 and 0.8 -- sharply, and at a
+ * settled level from there on -- so the threshold belongs at 0.8.
+ */
+#define JUNO_RESONANCE_MAX      1.35f
 #define JUNO_VCF_GCOMP          0.85f   /* Moog ladder uses 0.5; see above  */
 
 /*
