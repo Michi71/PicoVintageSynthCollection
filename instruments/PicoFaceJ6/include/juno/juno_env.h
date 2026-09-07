@@ -79,8 +79,7 @@ public:
     void setAttack(float v)
     {
         aPanel_ = v;
-        aStep_  = stepFor(junoAttackTime(v));
-        aMul_   = expf(-aStep_);
+        updateAttack();
     }
 
     void setDecay(float v)
@@ -93,11 +92,31 @@ public:
     void setRelease(float v)
     {
         rPanel_ = v;
-        rStep_  = stepFor(junoDecayTime(v));
-        rMul_   = expf(-JUNO_FALL_SHAPE * rStep_);
+        updateRelease();
     }
 
     void setSustain(float v) { sustain_ = junoClamp(v, 0.0f, 1.0f); }
+
+    /*
+     * The gate's own rise and fall, and the contour's, live in the same two
+     * pairs of coefficients, so whichever was written last used to win. The
+     * panel is written in its own order and the VCA switch comes before the
+     * envelope sliders, so selecting a patch always ended by overwriting the
+     * gate with the contour: every gate-mode patch in the bank ran on its
+     * envelope's attack and release, and only the forced sustain still marked
+     * it as a gate. These two put the choice back where it is made.
+     */
+    void updateAttack()
+    {
+        aStep_ = stepFor(gate_ ? JUNO_GATE_ATTACK_S : junoAttackTime(aPanel_));
+        aMul_  = expf(-aStep_);
+    }
+
+    void updateRelease()
+    {
+        rStep_ = stepFor(gate_ ? JUNO_GATE_RELEASE_S : junoDecayTime(rPanel_));
+        rMul_  = expf(-JUNO_FALL_SHAPE * rStep_);
+    }
 
     /*
      * Gate mode. The VCA can be driven by the contour or by a plain gate; the
@@ -107,15 +126,8 @@ public:
     void setGateMode(bool on)
     {
         gate_ = on;
-        if (on) {
-            aStep_ = stepFor(JUNO_GATE_ATTACK_S);
-            aMul_  = expf(-aStep_);
-            rStep_ = stepFor(JUNO_GATE_RELEASE_S);
-            rMul_  = expf(-JUNO_FALL_SHAPE * rStep_);
-        } else {
-            setAttack(aPanel_);
-            setRelease(rPanel_);
-        }
+        updateAttack();
+        updateRelease();
     }
 
     /*
