@@ -184,7 +184,6 @@ void Juno::applyParameter(int id)
         break;
     case JUNO_VCA_MODE: {
         const bool gate = (junoParamStep(v, 2) == 1);
-        vp_.gateMode = gate;
         for (int i = 0; i < JUNO_VOICES; ++i) voice_[i].setGateMode(gate);
         break;
     }

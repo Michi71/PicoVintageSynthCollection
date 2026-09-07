@@ -48,7 +48,6 @@ struct JunoVoiceParams {
     float keyFollow  = 0.0f;
 
     /* ENV / VCA */
-    bool  gateMode   = false;
 
     /* Global pitch: master tune and the bender, in semitones. */
     float pitchSemis = 0.0f;
@@ -65,6 +64,20 @@ public:
         /* Its own seed, so six voices do not hiss in lockstep. */
         hiss_.seed(seed ^ 0x9E3779B9u);
         env_.init(sampleRate);
+        /*
+         * The gate is a second contour rather than a setting on the first.
+         * The instrument has one contour generator, and the VCA switch chooses
+         * between it and a plain gate -- for the amplifier only. Folding the
+         * gate into the contour, as this did, forced the sustain to full for
+         * the filter as well, and a gate-mode patch with the sustain slider
+         * anywhere below the top ran with its filter wide open: three and a
+         * half octaves out on the probe, and four of the six worst patches in
+         * the bank comparison were gate-mode ones. Roland's plugin puts the
+         * filter's corner in the same place whichever way the switch is set.
+         */
+        amp_.init(sampleRate);
+        amp_.setSustain(1.0f);
+        amp_.setGateShape();
         note_   = JUNO_CENTER_NOTE;
         active_ = false;
         invOsSr_ = 1.0f / osSr_;
@@ -74,6 +87,7 @@ public:
     {
         vcf_.reset();
         env_.reset();
+        amp_.reset();
         active_ = false;
         held_   = false;
     }
@@ -86,6 +100,7 @@ public:
         held_   = true;
         updatePitch(p);
         env_.gateOn();
+        if (gateMode_) amp_.gateOn();
     }
 
     /*
@@ -106,6 +121,7 @@ public:
     {
         held_ = false;
         env_.gateOff();
+        if (gateMode_) amp_.gateOff();
     }
 
     bool isHeld() const   { return held_; }
@@ -114,7 +130,7 @@ public:
 
     /* How far through its life the voice is, for the stealing rule: a
      * releasing voice with a quiet contour is the cheapest one to take. */
-    float claim() const   { return env_.value(); }
+    float claim() const   { return gateMode_ ? amp_.value() : env_.value(); }
 
     void setEnvelope(float a, float d, float s, float r)
     {
@@ -124,7 +140,16 @@ public:
         env_.setRelease(r);
     }
 
-    void setGateMode(bool on) { env_.setGateMode(on); }
+    /*
+     * Switching the source under a sounding note has to leave it sounding, so
+     * the gate joins in wherever the key already is.
+     */
+    void setGateMode(bool on)
+    {
+        if (on == gateMode_) return;
+        gateMode_ = on;
+        if (on && active_) { if (held_) amp_.gateOn(); else amp_.gateOff(); }
+    }
 
     /*
      * One output sample. lfo is the shared low-frequency oscillator, already
@@ -135,6 +160,8 @@ public:
     float process(const JunoVoiceParams& p, float lfo)
     {
         const float e = env_.process();
+        /* The filter always gets the contour; only the amplifier is switched. */
+        const float a = gateMode_ ? amp_.process() : e;
 
         if (env_.isIdle()) {
             active_ = false;
@@ -192,19 +219,21 @@ public:
             out = vcf_.process(dco_.process(pitchMul) * 0.4f
                                + hiss_.white() * JUNO_VCF_NOISE_FLOOR);
 
-        return out * e;
+        return out * a;
     }
 
 private:
     JunoDco    dco_;
     JunoFilter vcf_;
     JunoEnv    env_;
+    JunoEnv    amp_;      /* the plain gate, when the VCA switch asks for it */
     JunoNoise  hiss_;          /* the card's own noise, inside the filter */
 
     int   note_    = JUNO_CENTER_NOTE;
     float baseInc_ = 0.0f;
     bool  active_  = false;
     bool  held_    = false;
+    bool       gateMode_ = false;
     float osSr_    = (float) SAMPLING_RATE * JUNO_OVERSAMPLE;
     float invOsSr_ = 1.0f / ((float) SAMPLING_RATE * JUNO_OVERSAMPLE);
 };

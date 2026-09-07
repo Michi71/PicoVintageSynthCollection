@@ -139,24 +139,30 @@ public:
     }
 
     /*
-     * Gate mode. The VCA can be driven by the contour or by a plain gate; the
-     * gate is not a square, it has a 3 ms rise and a 6 ms fall (measured) so
-     * that switching it does not click.
+     * Turns this contour into the plain gate the VCA switch can select
+     * instead. The gate is not a square: it has a 3 ms rise and a 6 ms fall
+     * (measured) so that switching it does not click.
+     *
+     * It is a shape a whole contour is set to, once, and not a mode laid over
+     * a running one -- the instrument has a switch in front of the amplifier,
+     * not a second setting on its contour generator, and the voice keeps a
+     * second JunoEnv for it. Laying it over the contour, as this did, forced
+     * the sustain to full for the filter as well.
      */
-    void setGateMode(bool on)
+    void setGateShape()
     {
-        gate_ = on;
+        gate_ = true;
         updateAttack();
         updateRelease();
     }
 
     /*
-     * A gate holds at full level for as long as the key is down, so the
-     * sustain control has no say in it. Forgetting this made every gate-mode
-     * patch with the sustain slider at zero silent -- the contour rose in 3 ms
-     * and then decayed straight back to nothing.
+     * A gate holds at full level for as long as the key is down; the instance
+     * that carries the gate shape is simply given a sustain of one, so there
+     * is no special case here. There used to be, and it reached the filter's
+     * contour too.
      */
-    float effSustain() const { return gate_ ? 1.0f : sustain_; }
+    float effSustain() const { return sustain_; }
 
     void gateOn()
     {
