@@ -95,7 +95,27 @@ public:
         updateRelease();
     }
 
-    void setSustain(float v) { sustain_ = junoClamp(v, 0.0f, 1.0f); }
+    /*
+     * The sustain slider is not the sustain level. Measured against Roland's
+     * plugin on both routes at once -- as a held amplitude with the filter
+     * open, and as the filter's own corner with the contour driving it -- the
+     * level is 1 - (1-s)^1.6, which is well above the setting everywhere in
+     * between: the slider at a third holds at 0.45, not at 0.33.
+     *
+     * Taking the slider for the level made every patch that sustains below
+     * full about an octave too dark on a positive contour and most of an
+     * octave too bright on a negative one, and it was the largest thing left
+     * in the comparison. The fit is inside 0.02 from a fifth of the travel
+     * upward and 0.035 below it.
+     *
+     * The two routes agreeing is what makes this the envelope's law rather
+     * than the filter's, so it belongs here and not at either consumer.
+     */
+    void setSustain(float v)
+    {
+        v = junoClamp(v, 0.0f, 1.0f);
+        sustain_ = 1.0f - powf(1.0f - v, JUNO_SUSTAIN_CURVE);
+    }
 
     /*
      * The gate's own rise and fall, and the contour's, live in the same two

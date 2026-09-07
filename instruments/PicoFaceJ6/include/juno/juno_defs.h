@@ -318,6 +318,12 @@
 
 /* Gate mode, measured: attack 3 ms, release 6 ms. Present to stop clicks
  * rather than to shape anything. */
+/*
+ * The sustain slider against the level it actually holds, measured off
+ * Roland's plugin: 1 - (1-s)^1.6. See JunoEnv::setSustain.
+ */
+#define JUNO_SUSTAIN_CURVE   1.6f
+
 #define JUNO_GATE_ATTACK_S   0.003f
 #define JUNO_GATE_RELEASE_S  0.006f
 
