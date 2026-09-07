@@ -149,7 +149,7 @@ public:
             float t2 = t - pw_;
             if (t2 < 0.0f) t2 += 1.0f;
             p -= junoPolyBlep(t2, dt);
-            out += p;
+            out += p * JUNO_PULSE_TRIM;
         }
 
         if (sub_ > 0.0f) {
@@ -159,7 +159,7 @@ public:
             float t3 = subPhase_ - 0.5f;
             if (t3 < 0.0f) t3 += 1.0f;
             s -= junoPolyBlep(t3, dts);
-            out += s * sub_;
+            out += s * sub_ * JUNO_SUB_TRIM;
 
             subPhase_ += dts;
             if (subPhase_ >= 1.0f) subPhase_ -= 1.0f;
@@ -174,7 +174,7 @@ public:
             /* Low-passed at 5 kHz -- the note on the AR80017A filter clone
              * says the instrument's noise source is, and without it the noise
              * sits on top of the tone instead of inside it. */
-            out += noiseLp_.process(noise_.white()) * nz_ * 1.6f;
+            out += noiseLp_.process(noise_.white()) * nz_ * (1.6f * JUNO_NOISE_TRIM);
         }
 
         phase_ += dt;

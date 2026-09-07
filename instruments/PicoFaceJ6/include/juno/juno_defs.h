@@ -140,6 +140,19 @@
 /* Sub-oscillator: a square one octave below the DCO.                         */
 #define JUNO_SUB_OCTAVES   (-1.0f)
 
+/*
+ * What the mixer does to each source on its way in, relative to the sawtooth.
+ *
+ * A plain +/-1 square sits 4.77 dB above a plain sawtooth ramp, and that is
+ * what came out of here. Roland's plugin holds them 3.35 dB apart, and its sub
+ * -- also a square -- the same. Measured with the level well down so that
+ * neither side clips, since the plugin runs hot enough at full to do so and a
+ * clipped reference flatters everything measured against it.
+ */
+#define JUNO_PULSE_TRIM     0.861f   /* -1.3 dB */
+#define JUNO_SUB_TRIM       0.861f   /* -1.3 dB */
+#define JUNO_NOISE_TRIM     0.813f   /* -1.8 dB */
+
 /* Noise. A note on the AR80017A filter clone says the noise source is
  * low-passed at 5 kHz, which is what keeps it from sounding like a hiss
  * generator bolted to the side. */

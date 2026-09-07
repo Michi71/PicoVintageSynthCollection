@@ -86,6 +86,35 @@ static inline float junoLimit(float x)
 /* 2^x for the pitch and cutoff maths. Notes are tracked in semitones and
  * octaves throughout, so this sits on the control path, not on the audio
  * path, and the library version is fine. */
+/*
+ * The DCO's level sliders -- sub-oscillator and noise -- against the level
+ * they actually produce, measured off Roland's plugin at 0.05 steps. Both
+ * sliders follow it to a hundredth of a decibel of each other, so it is one
+ * taper and not two.
+ *
+ * It is a fader taper in two straight-ish halves with an exact knee at the
+ * middle: the lower half is linear at 0.406 of the setting, so the slider at
+ * a half reaches only a fifth of full level, and the upper half covers the
+ * remaining 14 dB. Reading it as linear -- which is what this did -- makes the
+ * sub eight decibels too loud through the middle of its travel, and most of
+ * the factory patches that use it sit exactly there.
+ */
+static const float kJunoDcoLevel[21] = {
+    0.0000f, 0.0206f, 0.0412f, 0.0602f, 0.0808f, 0.1014f, 0.1204f,
+    0.1410f, 0.1616f, 0.1822f, 0.2028f, 0.2311f, 0.2861f, 0.3613f,
+    0.4442f, 0.5436f, 0.6479f, 0.7514f, 0.8487f, 0.9285f, 1.0000f
+};
+
+static inline float junoDcoLevel(float v)
+{
+    if (v <= 0.0f) return 0.0f;
+    if (v >= 1.0f) return 1.0f;
+    const float x = v * 20.0f;
+    const int   i = (int) x;
+    const float f = x - (float) i;
+    return kJunoDcoLevel[i] + f * (kJunoDcoLevel[i + 1] - kJunoDcoLevel[i]);
+}
+
 static inline float junoExp2f(float x) { return exp2f(x); }
 
 /*

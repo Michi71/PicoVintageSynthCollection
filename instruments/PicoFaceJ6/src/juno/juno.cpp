@@ -108,8 +108,9 @@ void Juno::applyParameter(int id)
     case JUNO_DCO_SAW:       vp_.saw      = junoParamOn(v); break;
     case JUNO_DCO_PULSE:     vp_.pulse    = junoParamOn(v); break;
     case JUNO_DCO_SUB:       vp_.subOn    = junoParamOn(v); break;
-    case JUNO_DCO_SUB_LEVEL: vp_.subLevel = v; break;
-    case JUNO_DCO_NOISE:     vp_.noise    = v; break;
+    /* Through the measured fader taper, once here rather than per sample. */
+    case JUNO_DCO_SUB_LEVEL: vp_.subLevel = junoDcoLevel(v); break;
+    case JUNO_DCO_NOISE:     vp_.noise    = junoDcoLevel(v); break;
 
     /* --- HPF ------------------------------------------------------------ */
     case JUNO_HPF:
