@@ -44,8 +44,10 @@
         The chart really does put vibrato on both. Neither instrument has any,
         and with the trigger mode on manual the LFO runs free rather than
         waiting for the button, so it is heard on every note. At the corrected
-        modulation depth of three semitones this would be over a hundred cents
-        on a piano. Worth a listen before it is trusted either way.
+        modulation depth -- 3.9 semitones reached as the square of the
+        setting -- it is 79 cents on the piano and 62 on the clavichord,
+        which is still most of a semitone. Worth a listen before it is
+        trusted either way.
 
     Brass         VCA level 0.7 -> 1.0
         Also from that test, and independently supported: the chart's own level
