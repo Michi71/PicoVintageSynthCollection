@@ -517,14 +517,28 @@ What it has settled so far:
 | Resonance sings from 0.75 | It sang only above 0.94, so bank 7 — whose sound source the manual says is the filter oscillating — barely spoke. |
 | The cutoff range sits between 0.16 and 0.74 of the slider | Spread evenly it put the middle of the travel an octave low. |
 | The VCA level is squared | Linear is 6 dB out at the middle of the slider. |
+| The sustain slider is not the sustain level | It holds `1-(1-s)^1.6`, so a third on the slider holds at 0.45. Reading it straight made every patch that sustains below full about an octave too dark on a positive contour and most of an octave too bright on a negative one. |
+| A narrowing pulse loses level | A compensation term used to hold it up by 3.3 dB. The width control really does double as a volume control, which is what PWM sounds like. |
+| The pulse width is a raised cosine | A straight line was five points of duty out in the middle, which is 7 dB on the second harmonic. |
+| The sub and noise sliders are a fader taper | Two halves with a knee at the middle, linear at 0.406 below it. Reading them straight put the sub 8 dB high through the middle of its travel. |
+| The mixer trims what it sums | A ±1 square sits 4.77 dB over a plain ramp; the plugin holds them 3.35 dB apart. |
+| The VCA gate was being overwritten | Its rise and fall shared the contour's coefficients, and the panel writes the mode before the sliders — so every gate patch ran on its contour. |
 
 Where the two still disagree, and the service notes win: the LFO reaches 22 Hz
 at the top of its slider, which is factory adjustment 7 and Fig. 29 of the
 service notes (a 45 ms period); the plugin runs to something above 40 Hz.
 
-Confirmed rather than changed: pitch and the octave switch, the contour's ten
-octaves, the release curve at every setting of its slider, and the attack
-within 10–20 % across the travel.
+Confirmed rather than changed: pitch and the octave switch across the keyboard,
+the contour's ten octaves, the release curve at every setting of its slider,
+the attack within 10–20 % across the travel, and the whole chorus — rate, delay
+range and which channel is inverted, on all three settings, agreeing with the
+Juno60 measurements it was built from.
+
+Two things worth knowing before trusting any measurement against this plugin.
+It runs hot enough to clip at the top of its own level slider, so a reference
+taken there flatters everything compared against it. And its chorus modulates
+its output amplitude at twice the rate of its delay, which reads as a chorus
+running at double speed unless the delay itself is tracked.
 
 ## Deliberate deviations from the original
 
