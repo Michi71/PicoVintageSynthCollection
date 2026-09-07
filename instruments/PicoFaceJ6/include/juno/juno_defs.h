@@ -169,6 +169,19 @@
 #define JUNO_CUTOFF_MAX_HZ  18000.0f
 
 /*
+ * How that range is laid out along the slider, measured off Roland's plugin
+ * by reading the corner as the resonant peak: 17.0 octaves per unit of
+ * travel, so 20 Hz falls at 0.158 and 18 kHz at 0.735, and the ends are flat.
+ *
+ * Spreading the range evenly over the whole travel, which is what this did
+ * before, puts the middle of the slider an octave low and its upper third
+ * two to three octaves low. The specification's range is not in question --
+ * only where on the slider it sits, and the specification does not say.
+ */
+#define JUNO_CUTOFF_OCT_PER_UNIT 17.0f
+#define JUNO_CUTOFF_OCT_ZERO      2.69f
+
+/*
  * Ceiling on the cutoff the filter itself will accept, as a fraction of the
  * rate it runs at: one radian per sample, 1/2pi.
  *
