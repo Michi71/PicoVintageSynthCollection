@@ -99,9 +99,16 @@ public:
         float out = 0.0f;
 
         if (saw_) {
-            /* The Juno sawtooth falls rather than rises, which matters only
-             * for how it sums with the pulse. */
-            out += (2.0f * t - 1.0f) - junoPolyBlep(t, dt);
+            /*
+             * The Juno sawtooth falls rather than rises, and that is not
+             * cosmetic: it decides whether the sawtooth and the pulse add or
+             * subtract. A rising ramp has a fundamental of -sin, the pulse
+             * has +sin, and the eleven factory patches that switch both on
+             * lost 14 dB of every odd harmonic to the cancellation -- their
+             * fundamental first of all. Measured against Roland's plugin,
+             * where the two add.
+             */
+            out += (1.0f - 2.0f * t) + junoPolyBlep(t, dt);
         }
 
         if (pulse_) {
