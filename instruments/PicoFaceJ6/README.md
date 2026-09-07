@@ -46,7 +46,7 @@ the value in `include/juno/juno_defs.h`:
 | File | Original circuit | Contents |
 |---|---|---|
 | `juno_dco.h` | the DCO | sawtooth, pulse, sub and noise from one phase, polyBLEP on every edge |
-| `juno_filter.h` | IR3109 and the switched HPF | four OTA sections in a feedback loop; the high-pass as four fixed positions |
+| `juno_filter.h` | IR3109 and the switched HPF | four OTA sections in a feedback loop, solved for the current sample; the high-pass as four fixed positions |
 | `juno_env.h` | IR3201, and the LFO | fixed-duration segments with measured curves; LFO with delay and fade-in |
 | `juno_arp.h` | the arpeggio clock | pattern, range, gate per step |
 | `juno_fx.{h,cpp}` | the chorus board | two bucket-brigade lines, one triangle LFO, right channel inverted |
@@ -80,6 +80,16 @@ transistor ladder takes its feedback from inside the ladder, so the low end
 drains away as the resonance comes up, and an OTA cascade with a separate
 feedback amplifier does not. That is the `gComp` term, set to 0.85 here against
 0.5 for the Model D. A Juno with the resonance up is never thin.
+
+The four one-poles were Huovilainen's polynomial fit to begin with, and that
+fit is only good to about one radian per sample — past that its resonance term
+crosses zero and the feedback turns positive, so the filter had to carry a
+ceiling at `sr/2π`. At 44.1 kHz that is 7.0 kHz nominal and a resonant peak
+that in practice stopped at 3.8 kHz, well under the instrument's own 18 kHz.
+They are topology-preserving transforms now, with the loop around them solved
+for the current sample: correct at every frequency up to Nyquist, no ceiling,
+and the tangent tabulated against the cutoff in octaves so it costs no more
+than the polynomial did.
 
 ## Polyphony
 
@@ -484,6 +494,38 @@ number — sections and pages by name, the cursor by reading back where it is.
 Four separate test bugs in this project were miscounted encoder steps, and each
 one looked like a firmware fault first.
 
+## Measured against Roland's JUNO-60 plugin
+
+Roland's Roland Cloud JUNO-60 puts its whole panel on its VST3 parameter list,
+so both it and this engine can be given the same front panel and played against
+each other. `tools/j6_vst/` does that automatically over all 56 factory
+patches; its README records what the plugin's parameters turned out to mean,
+none of which is documented and four of which do the opposite of what their
+names say.
+
+The plugin is a model rather than an instrument, so it ranks below the service
+notes and above everything else: where the notes give a number, the number
+stands; where they are silent — how a range is laid out along a slider, what
+curve a taper follows — the plugin decides.
+
+What it has settled so far:
+
+| | |
+|---|---|
+| The sawtooth falls | It rises in a ramp of `-sin` and the pulse is `+sin`, so the eleven patches with both waveforms on lost 14 dB of every odd harmonic. |
+| The filter opens to 18 kHz | The polynomial fit capped the resonant peak at 3.8 kHz. |
+| Resonance sings from 0.75 | It sang only above 0.94, so bank 7 — whose sound source the manual says is the filter oscillating — barely spoke. |
+| The cutoff range sits between 0.16 and 0.74 of the slider | Spread evenly it put the middle of the travel an octave low. |
+| The VCA level is squared | Linear is 6 dB out at the middle of the slider. |
+
+Where the two still disagree, and the service notes win: the LFO reaches 22 Hz
+at the top of its slider, which is factory adjustment 7 and Fig. 29 of the
+service notes (a 45 ms period); the plugin runs to something above 40 Hz.
+
+Confirmed rather than changed: pitch and the octave switch, the contour's ten
+octaves, the release curve at every setting of its slider, and the attack
+within 10–20 % across the travel.
+
 ## Deliberate deviations from the original
 
 1. **The keyboard spans the full MIDI range** rather than the instrument's 61
@@ -499,15 +541,20 @@ one looked like a firmware fault first.
    which is quiet, dull and nothing like brass. The cutoff range itself spans
    log2(18000/20) = 9.8 octaves and on the instrument the contour at full can
    take the filter from shut to open, so it has to cover essentially that whole
-   range.
-5. **The DCO LFO is worth one semitone at full depth.** Seven was a guess and
-   badly wrong: "Piano I" has the slider at 0.4, which at seven semitones is a
-   wobble of nearly three — a ghost, not a piano. junox settles it by
-   construction, applying `2^(freqMod/12)` with `freqMod` running to 1.
-6. **The VCA level is linear, not squared.** A squared taper looked like the
-   more slider-ish choice and cost every patch up to 3 dB; the 48 patches were
-   authored against a linear mapping, so bending the curve underneath them
-   misrepresents all of them at once.
+   range. Measured against Roland's plugin afterwards, its contour is worth
+   about 10.8 octaves at full — the guess was a good one.
+5. **The DCO LFO is worth three semitones at full depth.** Seven was a guess
+   and badly wrong: "Piano 1" has the slider at 0.4, which at seven semitones
+   is a wobble of nearly three — a ghost, not a piano. Roland's plugin puts
+   full deflection at 379 cents, so three is where it belongs.
+6. **The VCA level is squared.** It was linear, because the imported junox
+   patch set was authored against a linear mapping. That argument lapsed with
+   the transcription from the owner's manual, whose level column cannot be
+   read at all — every patch now carries the same 0.700 and none is authored
+   against either curve. Roland's plugin follows the square of the setting to
+   within a decibel over the top two thirds of the travel and eases off below
+   0.3, where it runs up to 3 dB above it; the square is taken and the easing
+   is not.
 7. **No delay-dependent loss in the bucket-brigade lines.** An MN3009 has 256
    stages, so the measured 1.66 … 5.35 ms delay puts its clock between roughly
    24 and 77 kHz and its own Nyquist limit never drops below about 12 kHz — high

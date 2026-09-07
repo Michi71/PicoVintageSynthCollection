@@ -145,17 +145,30 @@ void Juno::applyParameter(int id)
     /* --- VCA ------------------------------------------------------------ */
     case JUNO_VCA_LEVEL:
         /*
-         * Linear, not squared.
+         * Squared.
          *
-         * A squared taper looked like the more slider-ish choice and cost
-         * every patch up to 3 dB: the 48 factory settings were authored
-         * against a linear mapping (junox multiplies the output by patch.vca
-         * directly), so bending the curve underneath them misrepresents all of
-         * them at once. This is also the level that drives the chorus, so it
-         * changes how hard the bucket-brigade lines are pushed -- see
-         * juno_fx.h.
+         * It was linear, on the grounds that the imported junox patch set was
+         * authored against a linear mapping and bending the curve underneath
+         * it would misrepresent every patch at once. That argument has since
+         * lapsed: the 56 patches now come from the owner's manual chart, whose
+         * level column could not be read at all, so every one of them carries
+         * the same 0.700 and no patch is authored against either curve.
+         *
+         * Roland's plugin settles it. Its level slider follows the square of
+         * the setting to within a decibel over the top two thirds of the
+         * travel -- 0.5 gives -12.3 dB where linear would give -6 -- and eases
+         * off below 0.3, where it runs up to 3 dB above the square. The square
+         * is taken here and the easing is not: it is the bottom of a level
+         * control, and no factory patch is anywhere near it.
+         *
+         * The 0.700 that the whole bank sits at loses 3.1 dB to the change, so
+         * the headroom constant on the summed voices makes it back (0.35 ->
+         * 0.50) and the bank comes out exactly where it was. This is also the
+         * level that drives the chorus, so it decides how hard the
+         * bucket-brigade lines are pushed -- and that product, too, is
+         * unchanged for the bank.
          */
-        volume_ = v;
+        volume_ = v * v;
         break;
     case JUNO_VCA_MODE: {
         const bool gate = (junoParamStep(v, 2) == 1);
@@ -519,7 +532,7 @@ void Juno::processFloat(float* out_l, float* out_r, int frames)
 
             /* Six voices at once would otherwise run out of headroom before
              * the filter does. */
-            sum *= 0.35f;
+            sum *= 0.50f;
 
             for (int os = 0; os < JUNO_OVERSAMPLE; ++os)
                 sum = dec_[2].process(dec_[1].process(dec_[0].process(sum)));
