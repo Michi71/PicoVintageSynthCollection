@@ -130,20 +130,15 @@ void Juno::applyParameter(int id)
     /* --- VCF ------------------------------------------------------------ */
     case JUNO_VCF_FREQ:
         /*
-         * Where the 20 Hz .. 18 kHz of the specifications page sits on the
-         * slider. It used to be spread over the whole travel, and it is not:
-         * measured against Roland's plugin the corner climbs 17 octaves per
-         * unit of slider, passing 20 Hz at 0.16 and 18 kHz at 0.74, with the
-         * ends flat. The range is the service notes' and unchanged; only its
-         * placement moves, and that is what the plugin is being asked.
-         *
-         * Below 0.16 the plugin keeps going down to about 13 Hz rather than
-         * stopping, but that is under the specification's own floor and below
-         * anything a note reaches through four poles, so the floor stays where
-         * the service notes put it.
+         * Where the corner sits, from the measured table rather than a line.
+         * The specification's 20 Hz .. 18 kHz is spread over the middle of the
+         * travel, not over all of it; below a sixth of the way up the corner
+         * keeps falling to 12.3 Hz, which is under the specification's own
+         * floor and used to be clamped away. It does not stay quiet down
+         * there: a Juno patch routinely leaves the cutoff near zero and lets
+         * the contour do the work, so the whole contour rides on it.
          */
-        vp_.cutoffOct = junoClamp(v * JUNO_CUTOFF_OCT_PER_UNIT - JUNO_CUTOFF_OCT_ZERO,
-                                  0.0f, log2f(JUNO_CUTOFF_MAX_HZ / JUNO_CUTOFF_MIN_HZ));
+        vp_.cutoffOct = junoCutoffOct(v);
         break;
     case JUNO_VCF_RES:      vp_.resonance = v * JUNO_RESONANCE_MAX; break;
     /*

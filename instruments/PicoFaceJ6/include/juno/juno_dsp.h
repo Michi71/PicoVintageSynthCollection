@@ -132,6 +132,38 @@ static inline float junoVcfDepth(float v)
     return kJunoVcfDepth[i] + f * (kJunoVcfDepth[i + 1] - kJunoVcfDepth[i]);
 }
 
+/*
+ * The cutoff slider against the corner it produces, in octaves above
+ * JUNO_CUTOFF_MIN_HZ, measured off Roland's plugin at 0.05 steps by reading
+ * the self-oscillation.
+ *
+ * It was a straight line in octaves with the ends clamped, which is right from
+ * a third of the travel upward and wrong below it: the plugin's corner keeps
+ * falling to 12.3 Hz at the bottom of the slider where the clamp held it at
+ * 20, and the clamped stretch reached a sixth of the way up. That is half an
+ * octave, and it does not stay quiet -- a Juno patch routinely leaves the
+ * cutoff near zero and lets the contour do the work, so the whole contour
+ * rides on it. UFO, Clavichord 1 and Reed 1 all sit there.
+ *
+ * The top is held at the specification's 18 kHz from 0.75 up, which is where
+ * the plugin's own reading passes it and stops being measurable.
+ */
+static const float kJunoCutoffOct[21] = {
+    -0.697f, -0.515f, -0.179f,  0.263f,  0.861f,  1.561f,  2.288f,
+     3.132f,  4.027f,  4.950f,  5.881f,  6.734f,  7.632f,  8.485f,
+     9.215f,  9.813f,  9.813f,  9.813f,  9.813f,  9.813f,  9.813f
+};
+
+static inline float junoCutoffOct(float v)
+{
+    if (v <= 0.0f) return kJunoCutoffOct[0];
+    if (v >= 1.0f) return kJunoCutoffOct[20];
+    const float x = v * 20.0f;
+    const int   i = (int) x;
+    const float f = x - (float) i;
+    return kJunoCutoffOct[i] + f * (kJunoCutoffOct[i + 1] - kJunoCutoffOct[i]);
+}
+
 static const float kJunoDcoLevel[21] = {
     0.0000f, 0.0206f, 0.0412f, 0.0602f, 0.0808f, 0.1014f, 0.1204f,
     0.1410f, 0.1616f, 0.1822f, 0.2028f, 0.2311f, 0.2861f, 0.3613f,
