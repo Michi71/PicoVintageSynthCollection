@@ -196,14 +196,14 @@ A Juno-60 stores 56 of its own, eight per bank across seven banks, and the
 factory set is not in the service notes. The 48 here come from the patch table
 of junox, which uses the same parameters and supplied the names.
 
-Three values depart from that set, each because the sound and the name
+Two values depart from the chart, each because the sound and the name
 disagreed:
 
 | Patch | | |
 |---|---|---|
 | Piano I | DCO LFO 0.4 → 0 | forty cents of vibrato at five hertz, on a piano |
 | Clavichord I | DCO LFO 0.4 → 0 | the same, and the same reason |
-| Brass | VCA level 0.7 → 1.0 | the timbre was right and the level sat six decibels under everything else |
+| ~~Brass~~ | ~~VCA level 0.7 → 1.0~~ | withdrawn: the chart's level column reads +2, which is 0.7 |
 
 The other fourteen patches that use the DCO LFO keep it: ten to twenty cents on
 a violin, a clarinet or an oboe is what those instruments do.
@@ -493,6 +493,26 @@ The navigation helpers live in `tools/host_tests/j6/j6_ui_harness.h` and address
 number — sections and pages by name, the cursor by reading back where it is.
 Four separate test bugs in this project were miscounted encoder steps, and each
 one looked like a firmware fault first.
+
+## The last column of the chart
+
+The owner's manual chart prints one column that every transcription of it has
+given up on: the VCA level. It is not a slider position but a signed offset
+from the middle of one — `E +2`, `G −1`, `E 0` — with the letter carrying the
+ENV/GATE selector beside it. The slider is `5 + LEVEL`.
+
+junox has had that column all along, and this project's import dropped it:
+every patch here carried the same placeholder 0.700. Against a
+higher-resolution scan, **32 of the 32 rows on the two pages that could be read
+match junox cell for cell**, over a range from −3 to +4 — so junox's column is
+the chart's, and it is taken wholesale. The bank's loudness spread narrows from
+11.1 to 10.5 dB and its span from 51 to 48; the organs lose 3.7 dB and
+Glockenspiel gains 5.3. The headroom constant carries the rest, since the
+column centres on 0.5 where the placeholder sat at 0.7.
+
+The same scan settles the chorus column, which sits at the page edge and had to
+come from the Patch Book's LED graphics: **Celesta is OFF**, not I. That was the
+single cell where this transcription and junox's disagreed, out of 1344.
 
 ## Measured against Roland's JUNO-60 plugin
 

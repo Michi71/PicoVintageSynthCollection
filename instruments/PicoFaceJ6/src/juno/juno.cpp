@@ -175,12 +175,14 @@ void Juno::applyParameter(int id)
          * is taken here and the easing is not: it is the bottom of a level
          * control, and no factory patch is anywhere near it.
          *
-         * The 0.700 that the whole bank sits at loses 3.1 dB to the change, so
-         * the headroom constant on the summed voices makes it back (0.35 ->
-         * 0.50) and the bank comes out exactly where it was. This is also the
+         * The headroom constant on the summed voices carries whatever the
+         * bank's levels do to the overall loudness: 0.35 while every patch sat
+         * at the 0.700 placeholder, 0.50 once the level was squared, and 0.64
+         * now that the levels are the chart's own and centre on 0.5 rather
+         * than 0.7. It is set so the loudest four-note chord in the bank peaks
+         * at about 0.73, which is where it has always been. This is also the
          * level that drives the chorus, so it decides how hard the
-         * bucket-brigade lines are pushed -- and that product, too, is
-         * unchanged for the bank.
+         * bucket-brigade lines are pushed.
          */
         volume_ = v * v;
         break;
@@ -545,7 +547,7 @@ void Juno::processFloat(float* out_l, float* out_r, int frames)
 
             /* Six voices at once would otherwise run out of headroom before
              * the filter does. */
-            sum *= 0.50f;
+            sum *= 0.64f;
 
             for (int os = 0; os < JUNO_OVERSAMPLE; ++os)
                 sum = dec_[2].process(dec_[1].process(dec_[0].process(sum)));

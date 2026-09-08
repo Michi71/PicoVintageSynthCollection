@@ -31,22 +31,22 @@
     oscillation." Their chart rows carry no waveform at all and resonance 10
     throughout, so they sound only if the filter really sings.
 
-  Not transcribed: the VCA level column. It is printed as a signed value in a
-  range no 0..10 slider has, and this reading did not resolve it; the Patch
-  Book draws every level slider at the same height. Each patch therefore keeps
-  the level it shipped with -- 47 of the 56 at 0.700 -- and bank 7 takes the
-  same 0.700 the rest mostly use.
+  The VCA level column is transcribed now, and it was the last one missing.
+  It is printed as a signed value -- E or G for the ENV/GATE selector, then a
+  number from -3 to +5 -- which is why earlier readings gave up on it: it is
+  not a slider position but an offset from the middle of one. The slider is
+  5 + LEVEL, so 0 is 0.5 and +5 is 1.0.
 
-  What this note used to say about junox is wrong and is corrected here:
-  junox does carry a level per patch, nine values across 0.2 .. 1.0, and Hera
-  (jpcima) carries the same column from it. Only 8 of our 56 levels coincide
-  with junox's, so what happened is that the import dropped the column rather
-  than that junox never had it. Whether junox's values are a reading of the
-  chart's signed column or its author's own levelling is not known, and the
-  column is worth revisiting the next time anyone has the page in front of
-  them. Adopting it as it stands narrows the bank's loudness spread by less
-  than a decibel (11.1 -> 10.5 dB) and moves the median down by three, so it
-  was measured and left alone rather than taken on trust.
+  junox has had it all along, and this note used to say the opposite. Against a
+  higher-resolution scan of the chart, 32 of the 32 rows on the two pages that
+  could be read match junox cell for cell under that mapping, over a range from
+  -3 to +4 -- so junox's column is the chart's, and it is taken here wholesale.
+  Hera (jpcima) carries the same column from junox.
+
+  What it does: the bank's loudness spread narrows from 11.1 to 10.5 dB and its
+  span from 51 to 48, the organs lose 3.7 dB and Glockenspiel gains 5.3. The
+  headroom constant in juno.cpp carries the rest, since the column centres on
+  0.5 where the placeholder sat at 0.7.
 
   Two values depart from the chart, both kept from a hardware listening test:
 
@@ -60,23 +60,17 @@
         which is still most of a semitone. Worth a listen before it is
         trusted either way.
 
-    Brass         VCA level 0.7 -> 1.0
-        Also from that test, and independently supported: the chart's own level
-        column ranks Brass above the strings, whatever its scale turns out to
-        be.
+  Two values that used to depart and no longer do. Brass was raised from 0.7
+  to 1.0 by ear and Organ 3 likewise; the chart gives Brass +2 and all three
+  organs 0, which is 0.7 and 0.5. Both are back on the chart's figures. The
+  reasoning behind the Brass one still holds -- its level does rank above the
+  strings, which sit at -2 -- it simply did not need the extra.
 
-    Organ 3       VCA level 0.7 -> 1.0, and back again
-        Reverted. It was raised by ear because the patch held 15 dB under its
-        own sibling -- Organ 3 is Organ 2 an octave up and the cutoff does not
-        follow, so at 4' both the pulse and the sub sit above the corner
-        instead of below it -- and because the level column that would have
-        compensated it is the one column of the chart nobody has read.
-
-        Hera (jpcima, GPL-3) has read it, and it puts all three organs at the
-        same 0.5. So the chart does not compensate the octave, and the patch
-        really is that much quieter than its sibling. Two transcriptions of the
-        same chart agreeing on 1343 of 1344 cells is better evidence than one
-        pair of ears, including mine.
+  One value is corrected rather than deviated from: Celesta's chorus is OFF.
+  The chorus column sits at the page edge and the first scan could not resolve
+  it, so it was taken from the Patch Book's LED graphics and came out as I.
+  The better scan reads it directly, and it agrees with junox: off. That was
+  the single cell where the two transcriptions disagreed, out of 1344.
 
   Each entry is a complete front panel, in the order of the enum in
   juno_params.h and grouped by the sections of the instrument. The macros make
@@ -155,7 +149,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , OFF, OFF, 0.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.700f, 0.000f, 0.000f, POL_POS, 0.000f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.500f, VCA_ENV),
     ENV(0.400f, 0.000f, 1.000f, 0.450f),
     CHOR(CH_I),
     SYS(TRIG_AUTO, OCT0) }},
@@ -166,7 +160,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , ON , OFF, 0.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.700f, 0.000f, 0.000f, POL_POS, 0.000f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.300f, VCA_ENV),
     ENV(0.400f, 0.000f, 1.000f, 0.450f),
     CHOR(CH_II),
     SYS(TRIG_AUTO, OCT0) }},
@@ -177,7 +171,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , ON , ON , 1.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.500f, 0.000f, 0.000f, POL_POS, 0.000f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.300f, VCA_ENV),
     ENV(0.300f, 0.000f, 1.000f, 0.600f),
     CHOR(CH_II),
     SYS(TRIG_MAN , OCT0) }},
@@ -188,7 +182,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , ON , 1.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.400f, 0.600f, 0.450f, POL_POS, 0.000f, 1.000f),
-    VCA(0.700f, VCA_GATE),
+    VCA(0.500f, VCA_GATE),
     ENV(0.000f, 0.000f, 0.000f, 0.000f),
     CHOR(CH_I),
     SYS(TRIG_AUTO, OCT0) }},
@@ -199,7 +193,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , ON , 0.800f, 0.000f),
     HPF_(R4(0)),
     VCF(0.350f, 0.550f, 0.400f, POL_POS, 0.000f, 1.000f),
-    VCA(0.700f, VCA_GATE),
+    VCA(0.500f, VCA_GATE),
     ENV(0.000f, 0.100f, 0.000f, 0.100f),
     CHOR(CH_I),
     SYS(TRIG_AUTO, OCT0) }},
@@ -210,7 +204,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , ON , 0.800f, 0.000f),
     HPF_(R4(0)),
     VCF(0.350f, 0.550f, 0.350f, POL_POS, 0.000f, 1.000f),
-    VCA(0.700f, VCA_GATE),
+    VCA(0.500f, VCA_GATE),
     ENV(0.000f, 0.100f, 0.000f, 0.100f),
     CHOR(CH_II),
     SYS(TRIG_AUTO, OCT0) }},
@@ -221,7 +215,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , OFF, OFF, 0.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.000f, 0.000f, 0.850f, POL_POS, 0.000f, 0.400f),
-    VCA(1.000f, VCA_ENV),
+    VCA(0.700f, VCA_ENV),
     ENV(0.250f, 0.400f, 0.600f, 0.200f),
     CHOR(CH_I),
     SYS(TRIG_AUTO, OCT0) }},
@@ -232,7 +226,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , ON , OFF, 1.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.300f, 0.100f, 0.550f, POL_POS, 0.000f, 1.000f),
-    VCA(0.700f, VCA_GATE),
+    VCA(0.400f, VCA_GATE),
     ENV(0.200f, 0.400f, 0.400f, 0.300f),
     CHOR(CH_I),
     SYS(TRIG_AUTO, OCT0) }},
@@ -254,7 +248,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , ON , 0.450f, 0.000f),
     HPF_(R4(0)),
     VCF(0.350f, 0.000f, 0.250f, POL_POS, 0.200f, 0.800f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.800f, VCA_ENV),
     ENV(0.000f, 0.750f, 0.000f, 0.350f),
     CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
@@ -265,9 +259,9 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , ON , OFF, 1.000f, 0.000f),
     HPF_(R4(1)),
     VCF(0.350f, 0.800f, 0.000f, POL_POS, 0.000f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.600f, VCA_ENV),
     ENV(0.000f, 0.650f, 0.200f, 0.550f),
-    CHOR(CH_I),
+    CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
 
 { "Mellow Piano", {
@@ -287,7 +281,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , ON , 0.700f, 0.000f),
     HPF_(R4(1)),
     VCF(0.300f, 0.000f, 0.500f, POL_POS, 0.000f, 0.700f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.400f, VCA_ENV),
     ENV(0.000f, 0.600f, 0.350f, 0.250f),
     CHOR(CH_I),
     SYS(TRIG_AUTO, OCT0) }},
@@ -298,7 +292,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , ON , 0.850f, 0.000f),
     HPF_(R4(1)),
     VCF(0.500f, 0.250f, 0.300f, POL_POS, 0.000f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.500f, VCA_ENV),
     ENV(0.000f, 0.500f, 0.150f, 0.500f),
     CHOR(CH_II),
     SYS(TRIG_AUTO, OCT0) }},
@@ -309,7 +303,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , OFF, 1.000f, 0.000f),
     HPF_(R4(2)),
     VCF(0.300f, 0.000f, 0.450f, POL_POS, 0.150f, 0.500f),
-    VCA(0.750f, VCA_ENV),
+    VCA(0.900f, VCA_ENV),
     ENV(0.000f, 0.550f, 0.350f, 0.650f),
     CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
@@ -320,7 +314,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , OFF, OFF, 1.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.300f, 0.000f, 0.500f, POL_POS, 0.000f, 0.800f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.600f, VCA_ENV),
     ENV(0.000f, 0.550f, 0.300f, 0.500f),
     CHOR(CH_I),
     SYS(TRIG_MAN , OCT0) }},
@@ -331,7 +325,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , ON , ON , 0.300f, 0.000f),
     HPF_(R4(0)),
     VCF(0.300f, 0.250f, 0.350f, POL_POS, 0.000f, 0.000f),
-    VCA(0.700f, VCA_GATE),
+    VCA(0.500f, VCA_GATE),
     ENV(0.000f, 0.400f, 0.100f, 0.250f),
     CHOR(CH_I),
     SYS(TRIG_AUTO, OCT0) }},
@@ -342,7 +336,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , ON , OFF, 0.300f, 0.000f),
     HPF_(R4(0)),
     VCF(0.300f, 0.500f, 0.450f, POL_POS, 0.000f, 0.500f),
-    VCA(0.700f, VCA_GATE),
+    VCA(0.400f, VCA_GATE),
     ENV(0.000f, 0.300f, 0.350f, 0.250f),
     CHOR(CH_I),
     SYS(TRIG_AUTO, OCT0) }},
@@ -364,7 +358,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , OFF, 1.000f, 0.000f),
     HPF_(R4(1)),
     VCF(0.550f, 0.700f, 0.200f, POL_POS, 0.250f, 0.700f),
-    VCA(0.850f, VCA_ENV),
+    VCA(1.000f, VCA_ENV),
     ENV(0.000f, 0.450f, 0.200f, 0.200f),
     CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
@@ -375,7 +369,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , OFF, 0.300f, 0.000f),
     HPF_(R4(0)),
     VCF(0.450f, 0.300f, 0.300f, POL_POS, 0.300f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.800f, VCA_ENV),
     ENV(0.000f, 0.200f, 0.350f, 0.550f),
     CHOR(CH_I),
     SYS(TRIG_AUTO, OCT0) }},
@@ -386,7 +380,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , ON , 0.300f, 0.000f),
     HPF_(R4(0)),
     VCF(0.500f, 0.300f, 0.300f, POL_POS, 0.000f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.600f, VCA_ENV),
     ENV(0.000f, 0.300f, 0.300f, 0.400f),
     CHOR(CH_II),
     SYS(TRIG_AUTO, OCT0) }},
@@ -397,7 +391,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, OFF, ON , 1.000f, 0.000f),
     HPF_(R4(1)),
     VCF(0.400f, 0.500f, 0.300f, POL_POS, 0.000f, 0.600f),
-    VCA(0.850f, VCA_ENV),
+    VCA(1.000f, VCA_ENV),
     ENV(0.000f, 0.350f, 0.000f, 0.350f),
     CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
@@ -408,7 +402,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , OFF, 0.000f, 0.000f),
     HPF_(R4(1)),
     VCF(0.450f, 0.500f, 0.300f, POL_POS, 0.000f, 0.600f),
-    VCA(0.750f, VCA_ENV),
+    VCA(0.900f, VCA_ENV),
     ENV(0.000f, 0.300f, 0.250f, 0.500f),
     CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
@@ -452,7 +446,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , OFF, OFF, 0.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.150f, 0.000f, 0.600f, POL_POS, 0.000f, 0.400f),
-    VCA(0.850f, VCA_ENV),
+    VCA(1.000f, VCA_ENV),
     ENV(0.300f, 0.400f, 0.400f, 0.300f),
     CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
@@ -463,7 +457,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , OFF, OFF, 0.000f, 0.150f),
     HPF_(R4(1)),
     VCF(0.500f, 0.000f, 0.000f, POL_POS, 0.200f, 0.600f),
-    VCA(0.850f, VCA_ENV),
+    VCA(1.000f, VCA_ENV),
     ENV(0.200f, 0.600f, 0.500f, 0.250f),
     CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
@@ -474,7 +468,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , OFF, 0.000f, 0.000f),
     HPF_(R4(1)),
     VCF(0.500f, 0.300f, 0.250f, POL_POS, 0.000f, 0.600f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.600f, VCA_ENV),
     ENV(0.250f, 0.600f, 0.600f, 0.250f),
     CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
@@ -485,7 +479,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , OFF, 0.000f, 0.000f),
     HPF_(R4(3)),
     VCF(0.450f, 0.500f, 0.250f, POL_POS, 0.000f, 0.500f),
-    VCA(0.850f, VCA_ENV),
+    VCA(1.000f, VCA_ENV),
     ENV(0.200f, 0.600f, 0.600f, 0.250f),
     CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
@@ -496,7 +490,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , OFF, 0.000f, 0.000f),
     HPF_(R4(3)),
     VCF(0.500f, 0.700f, 0.000f, POL_POS, 0.150f, 0.500f),
-    VCA(0.850f, VCA_ENV),
+    VCA(1.000f, VCA_ENV),
     ENV(0.200f, 0.600f, 0.600f, 0.250f),
     CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
@@ -507,7 +501,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , OFF, OFF, 0.000f, 0.000f),
     HPF_(R4(1)),
     VCF(0.150f, 0.750f, 0.500f, POL_POS, 0.200f, 0.500f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.800f, VCA_ENV),
     ENV(0.250f, 0.400f, 1.000f, 0.100f),
     CHOR(CH_OFF),
     SYS(TRIG_MAN , OCT0) }},
@@ -529,7 +523,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , ON , OFF, 0.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.600f, 0.200f, 0.300f, POL_POS, 0.000f, 0.200f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.300f, VCA_ENV),
     ENV(0.000f, 0.700f, 0.200f, 0.200f),
     CHOR(CH_I),
     SYS(TRIG_MAN , OCT0) }},
@@ -540,7 +534,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , OFF, 0.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.100f, 0.600f, 0.700f, POL_POS, 0.000f, 0.500f),
-    VCA(0.700f, VCA_GATE),
+    VCA(0.600f, VCA_GATE),
     ENV(0.000f, 0.850f, 0.500f, 0.100f),
     CHOR(CH_I),
     SYS(TRIG_MAN , OCT0) }},
@@ -551,7 +545,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, OFF, ON , 1.000f, 0.000f),
     HPF_(R4(1)),
     VCF(0.250f, 0.200f, 0.550f, POL_POS, 0.000f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.800f, VCA_ENV),
     ENV(0.000f, 0.300f, 0.200f, 0.000f),
     CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
@@ -562,7 +556,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, OFF, ON , 1.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.200f, 0.000f, 0.600f, POL_POS, 0.000f, 0.800f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.500f, VCA_ENV),
     ENV(0.000f, 0.550f, 0.300f, 0.600f),
     CHOR(CH_I),
     SYS(TRIG_MAN , OCT0) }},
@@ -573,7 +567,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, OFF, ON , 1.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.300f, 0.200f, 0.300f, POL_POS, 0.000f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.600f, VCA_ENV),
     ENV(0.250f, 0.000f, 1.000f, 0.200f),
     CHOR(CH_OFF),
     SYS(TRIG_MAN , OCT0) }},
@@ -584,7 +578,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , ON , 1.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.800f, 0.000f, 0.000f, POL_POS, 0.000f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.200f, VCA_ENV),
     ENV(0.300f, 0.000f, 1.000f, 0.400f),
     CHOR(CH_II),
     SYS(TRIG_MAN , OCT0) }},
@@ -595,7 +589,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , ON , 0.750f, 0.000f),
     HPF_(R4(0)),
     VCF(0.250f, 0.000f, 0.500f, POL_POS, 0.200f, 0.700f),
-    VCA(0.700f, VCA_GATE),
+    VCA(0.500f, VCA_GATE),
     ENV(0.000f, 0.200f, 0.500f, 0.250f),
     CHOR(CH_II),
     SYS(TRIG_AUTO, OCT0) }},
@@ -617,7 +611,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , OFF, ON , 0.650f, 0.000f),
     HPF_(R4(0)),
     VCF(0.650f, 0.300f, 0.400f, POL_NEG, 0.000f, 0.100f),
-    VCA(0.700f, VCA_GATE),
+    VCA(0.400f, VCA_GATE),
     ENV(0.650f, 0.550f, 0.200f, 0.650f),
     CHOR(CH_I),
     SYS(TRIG_AUTO, OCT0) }},
@@ -628,7 +622,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , OFF, OFF, 0.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.650f, 0.500f, 0.550f, POL_POS, 0.000f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.600f, VCA_ENV),
     ENV(0.000f, 0.800f, 0.800f, 0.900f),
     CHOR(CH_I),
     SYS(TRIG_AUTO, OCT0) }},
@@ -639,7 +633,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , ON , ON , 1.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.750f, 0.600f, 0.500f, POL_NEG, 0.000f, 0.450f),
-    VCA(0.700f, VCA_GATE),
+    VCA(0.200f, VCA_GATE),
     ENV(0.600f, 0.500f, 0.000f, 0.000f),
     CHOR(CH_I),
     SYS(TRIG_AUTO, OCT0) }},
@@ -650,7 +644,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , ON , 1.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.650f, 0.700f, 0.550f, POL_NEG, 0.000f, 1.000f),
-    VCA(0.700f, VCA_GATE),
+    VCA(0.300f, VCA_GATE),
     ENV(0.000f, 0.800f, 0.000f, 0.300f),
     CHOR(CH_I),
     SYS(TRIG_AUTO, OCT0) }},
@@ -661,7 +655,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , ON , OFF, 1.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.800f, 0.700f, 0.600f, POL_NEG, 0.250f, 0.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.500f, VCA_ENV),
     ENV(0.000f, 1.000f, 0.000f, 1.000f),
     CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
@@ -672,7 +666,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         ON , ON , OFF, 0.800f, 0.000f),
     HPF_(R4(0)),
     VCF(0.200f, 0.850f, 0.600f, POL_POS, 0.000f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.200f, VCA_ENV),
     ENV(1.000f, 1.000f, 1.000f, 1.000f),
     CHOR(CH_I),
     SYS(TRIG_AUTO, OCT0) }},
@@ -683,7 +677,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, OFF, OFF, 0.000f, 1.000f),
     HPF_(R4(1)),
     VCF(0.400f, 1.000f, 0.150f, POL_POS, 0.000f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(1.000f, VCA_ENV),
     ENV(0.000f, 0.300f, 0.000f, 0.400f),
     CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
@@ -694,7 +688,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, OFF, OFF, 0.000f, 0.000f),
     HPF_(R4(1)),
     VCF(0.500f, 1.000f, 0.350f, POL_NEG, 0.000f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(1.000f, VCA_ENV),
     ENV(0.000f, 0.300f, 0.000f, 0.400f),
     CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
@@ -705,7 +699,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, OFF, OFF, 0.000f, 0.200f),
     HPF_(R4(1)),
     VCF(0.350f, 1.000f, 0.150f, POL_POS, 0.200f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.800f, VCA_ENV),
     ENV(0.300f, 0.000f, 1.000f, 0.100f),
     CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
@@ -716,7 +710,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, OFF, OFF, 0.000f, 0.000f),
     HPF_(R4(1)),
     VCF(0.350f, 1.000f, 0.000f, POL_POS, 0.200f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(1.000f, VCA_ENV),
     ENV(0.000f, 0.400f, 0.550f, 0.700f),
     CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
@@ -727,7 +721,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, OFF, OFF, 0.000f, 0.200f),
     HPF_(R4(0)),
     VCF(0.000f, 1.000f, 0.700f, POL_POS, 0.400f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.400f, VCA_ENV),
     ENV(0.000f, 0.600f, 1.000f, 0.800f),
     CHOR(CH_I),
     SYS(TRIG_AUTO, OCT0) }},
@@ -738,7 +732,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, OFF, OFF, 0.000f, 0.200f),
     HPF_(R4(0)),
     VCF(0.500f, 1.000f, 0.400f, POL_NEG, 0.000f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.500f, VCA_ENV),
     ENV(0.000f, 1.000f, 0.000f, 0.800f),
     CHOR(CH_I),
     SYS(TRIG_AUTO, OCT0) }},
@@ -749,7 +743,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, OFF, OFF, 1.000f, 1.000f),
     HPF_(R4(0)),
     VCF(0.600f, 0.000f, 0.000f, POL_POS, 0.600f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.900f, VCA_ENV),
     ENV(0.000f, 0.400f, 1.000f, 0.800f),
     CHOR(CH_OFF),
     SYS(TRIG_AUTO, OCT0) }},
@@ -760,7 +754,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, OFF, OFF, 0.000f, 0.000f),
     HPF_(R4(0)),
     VCF(0.200f, 1.000f, 0.400f, POL_POS, 0.000f, 1.000f),
-    VCA(0.700f, VCA_ENV),
+    VCA(0.600f, VCA_ENV),
     ENV(0.000f, 0.500f, 0.000f, 0.600f),
     CHOR(CH_OFF),
     SYS(TRIG_MAN , OCT0) }},
