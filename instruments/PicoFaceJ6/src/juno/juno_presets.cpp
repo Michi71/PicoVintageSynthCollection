@@ -32,10 +32,21 @@
     throughout, so they sound only if the filter really sings.
 
   Not transcribed: the VCA level column. It is printed as a signed value in a
-  range no 0..10 slider has, and it defeated junox (which substituted a
-  constant 7) and the Patch Book author (who drew every level slider at the
-  same height) as well as this reading. Each patch therefore keeps the level it
-  shipped with, and bank 7 takes the same 0.700 the rest mostly use.
+  range no 0..10 slider has, and this reading did not resolve it; the Patch
+  Book draws every level slider at the same height. Each patch therefore keeps
+  the level it shipped with -- 47 of the 56 at 0.700 -- and bank 7 takes the
+  same 0.700 the rest mostly use.
+
+  What this note used to say about junox is wrong and is corrected here:
+  junox does carry a level per patch, nine values across 0.2 .. 1.0, and Hera
+  (jpcima) carries the same column from it. Only 8 of our 56 levels coincide
+  with junox's, so what happened is that the import dropped the column rather
+  than that junox never had it. Whether junox's values are a reading of the
+  chart's signed column or its author's own levelling is not known, and the
+  column is worth revisiting the next time anyone has the page in front of
+  them. Adopting it as it stands narrows the bank's loudness spread by less
+  than a decibel (11.1 -> 10.5 dB) and moves the median down by three, so it
+  was measured and left alone rather than taken on trust.
 
   Two values depart from the chart, both kept from a hardware listening test:
 
