@@ -321,14 +321,30 @@ static inline float junoDecayTime(float v)
 }
 
 /*
- * LFO rate. Reproduces the specified 0.3 .. 20 Hz and puts the middle of the
- * slider at 3.5 Hz, which is junox's mapping and matches the panel.
+ * LFO rate against the slider: 0.3, 0.85, 3.39, 11.49 and 22.22 Hz at the
+ * quarters, straight lines between.
+ *
+ * These are Hera's (jpcima, GPL-3), which carries the Juno60 project's
+ * measurements off a real instrument -- the same series our envelope times
+ * already rest on, and its ends are the specifications page's own 0.3 Hz and
+ * the factory adjustment's 22 Hz. junox's mapping stood here, and it is slow
+ * over the upper half of the travel: 5.2 Hz where this gives 6.6 at 0.6, and
+ * 11.0 against 13.6 at 0.8.
+ *
+ * Two independent sources put it where this does. Roland's plugin reads 7.8
+ * and 22.9 Hz at those two settings -- further still, but its LFO spans
+ * 0.049 .. 67 Hz against the specification's 0.3 .. 22, so its curve cannot be
+ * transplanted whole. Hera agrees with the plugin's shape while keeping the
+ * service notes' ends, and that is what is taken.
  */
+static const float kJunoLfoRate[5] = { 0.3f, 0.85f, 3.39f, 11.49f, 22.22f };
+
 static inline float junoLfoRate(float v)
 {
-    v = junoClamp(v, 0.0f, 1.0f);
-    return 0.3f * powf(1.53f, v * 10.0f) *
-           (1.0f + sinf(3.14159265f * v) * 0.39f);
+    v = junoClamp(v, 0.0f, 1.0f) * 4.0f;
+    const int   i = (v >= 4.0f) ? 3 : (int) v;
+    const float f = v - (float) i;
+    return kJunoLfoRate[i] + f * (kJunoLfoRate[i + 1] - kJunoLfoRate[i]);
 }
 
 /* ------------------------------------------------------------------------ */

@@ -54,22 +54,18 @@
         column ranks Brass above the strings, whatever its scale turns out to
         be.
 
-    Organ 3       VCA level 0.7 -> 1.0
-        The same missing column, and this time the arithmetic says which way it
-        must go. Organ 3 is Organ 2 an octave up -- the two rows are identical
-        but for the range switch -- and the cutoff sits at 3.5 either way. At
-        4' that puts both the pulse and the sub above the corner instead of
-        below it, which is 15 dB through four poles: the patch held at
-        -42 dBFS against Organ 2's -27, the ninth quietest sound in the bank.
-        Nobody ships an organ fifteen decibels under its own sibling; whoever
-        set that level column moved it, and it is the one column of the chart
-        that cannot be read. The slider's own maximum gives 6.2 dB back, which
-        is all this lever has -- Organ 3 still sits under Organ 1, and that is
-        honest rather than solved.
+    Organ 3       VCA level 0.7 -> 1.0, and back again
+        Reverted. It was raised by ear because the patch held 15 dB under its
+        own sibling -- Organ 3 is Organ 2 an octave up and the cutoff does not
+        follow, so at 4' both the pulse and the sub sit above the corner
+        instead of below it -- and because the level column that would have
+        compensated it is the one column of the chart nobody has read.
 
-        Roland's plugin is no help here and cannot be: it is fed the same
-        placeholder, so it puts Organ 3 sixth from the bottom of its own bank
-        for exactly the same reason.
+        Hera (jpcima, GPL-3) has read it, and it puts all three organs at the
+        same 0.5. So the chart does not compensate the octave, and the patch
+        really is that much quieter than its sibling. Two transcriptions of the
+        same chart agreeing on 1343 of 1344 cells is better evidence than one
+        pair of ears, including mine.
 
   Each entry is a complete front panel, in the order of the enum in
   juno_params.h and grouped by the sections of the instrument. The macros make
@@ -203,7 +199,7 @@ const JunoProgram junoPrograms[JUNO_NPROGRAMS] = {
         OFF, ON , ON , 0.800f, 0.000f),
     HPF_(R4(0)),
     VCF(0.350f, 0.550f, 0.350f, POL_POS, 0.000f, 1.000f),
-    VCA(1.000f, VCA_GATE),   /* level: see the note at the top */
+    VCA(0.700f, VCA_GATE),
     ENV(0.000f, 0.100f, 0.000f, 0.100f),
     CHOR(CH_II),
     SYS(TRIG_AUTO, OCT0) }},
