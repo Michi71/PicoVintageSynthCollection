@@ -28,6 +28,5 @@ struct J6ListModel {
     char    footer[26];   // footer at y=62 (font 6x10), diagnostics
 };
 
-void j6_display_splash(u8g2_t* u); // boot only: draws logo + BLOCKING SendBuffer
 void j6_display_page(u8g2_t* u, const J6UiModel& m); // draws into buffer, NO send
 void j6_display_list(u8g2_t* u, const J6ListModel& m); // draws into buffer, NO send

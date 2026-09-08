@@ -17,5 +17,4 @@ struct RdUiModel {
     char footer[26];  // footer at y=62 (font 6x10), diagnostics
 };
 
-void rd_display_splash(u8g2_t* u); // boot only: draws logo + BLOCKING SendBuffer
 void rd_display_page(u8g2_t* u, const RdUiModel& m); // draws into buffer, NO send

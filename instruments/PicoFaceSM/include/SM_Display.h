@@ -17,5 +17,4 @@ struct SmUiModel {
     char footer[26];  // footer at y=62 (font 6x10), diagnostics
 };
 
-void sm_display_splash(u8g2_t* u); // boot only: draws logo + BLOCKING SendBuffer
 void sm_display_page(u8g2_t* u, const SmUiModel& m); // draws into buffer, NO send

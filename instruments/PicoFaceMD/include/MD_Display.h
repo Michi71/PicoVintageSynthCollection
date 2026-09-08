@@ -28,6 +28,5 @@ struct MdListModel {
     char    footer[26];   // footer at y=62 (font 6x10), diagnostics
 };
 
-void md_display_splash(u8g2_t* u); // boot only: draws logo + BLOCKING SendBuffer
 void md_display_page(u8g2_t* u, const MdUiModel& m); // draws into buffer, NO send
 void md_display_list(u8g2_t* u, const MdListModel& m); // draws into buffer, NO send
