@@ -260,12 +260,12 @@ void DX_Ui::drawCpuLoad(Display& d) const
     u8g2_t* u = d.raw();
     char buf[32];
 
+    // Header from the kit like everywhere else; the rows below are this
+    // instrument's own numbers and stay where they are.
     d.clear();
-    u8g2_SetFont(u, u8g2_font_8x13B_tf);
+    picoface::ui::kit::header(d, "CPU LOAD");
     u8g2_SetFontPosBaseline(u);
     u8g2_SetDrawColor(u, 1);
-    u8g2_DrawStr(u, 4, 14, "CPU LOAD");
-    u8g2_DrawHLine(u, 0, 18, 128);
 
     u8g2_SetFont(u, u8g2_font_6x10_tf);
     snprintf(buf, sizeof(buf), "Now:  %d %%", (int) bridge_.cpuLoadPercent());
