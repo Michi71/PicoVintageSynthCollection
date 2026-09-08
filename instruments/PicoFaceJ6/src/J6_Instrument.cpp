@@ -13,6 +13,7 @@
 #include "J6_Midi.h"
 #include "J6_Controller.h"
 #include "J6_Display.h"
+#include "picoface/ui_kit.h"
 #include "j6_settings.h"
 #include "j6_patchstore.h"
 #include "j6_ipc.h"
@@ -169,6 +170,8 @@ private:
     }
 
     void draw(picoface::ui::Display& d) {
+        namespace kit = picoface::ui::kit;
+
         char footer[26];
         snprintf(footer, sizeof(footer), "P%d U%lu D%lu N%lu",
                  (int) bridge_.cpuLoadPeakPercent(),
@@ -177,56 +180,47 @@ private:
                  (unsigned long) bridge_.noteOnCount());
         bridge_.resetCpuPeak();
 
-        if (controller_.viewKind() == J6_VIEW_LIST) {
-            static J6ListModel lm;
-            // '*' = the sound no longer matches the patch it came from.
-            snprintf(lm.title, sizeof(lm.title), "%s%s",
-                     controller_.isEdited() ? "*" : "", controller_.title());
-            controller_.counterText(lm.page, sizeof(lm.page));
+        // '*' = the sound no longer matches the patch it came from.
+        char title[20];
+        snprintf(title, sizeof(title), "%s%s",
+                 controller_.isEdited() ? "*" : "", controller_.title());
 
-            const int n = controller_.listCount();
+        d.clear();
+        kit::header(d, title, controller_.pageIndex(), controller_.pageTotal());
+
+        if (controller_.viewKind() == J6_VIEW_LIST) {
+            // The kit shows four rows and keeps the cursor one from the top;
+            // the window is computed here because only the controller knows
+            // how long the list is.
+            static char        rows[4][22];
+            static const char* ptr[4];
+            const int n   = controller_.listCount();
             const int cur = controller_.listCursor();
 
-            // Three rows with the cursor kept in the middle wherever there
-            // is room above and below.
             int top = cur - 1;
-            if (top > n - 3) top = n - 3;
-            if (top < 0) top = 0;
-            for (int i = 0; i < 3; ++i) {
-                if (top + i < n) {
-                    controller_.listEntry(top + i, lm.rows[i], sizeof(lm.rows[i]));
-                } else {
-                    lm.rows[i][0] = 0;
-                }
-            }
-            int c = cur - top;
-            if (c < 0) c = 0;
-            if (c > 2) c = 2;
-            lm.cursor = (uint8_t) c;
+            if (top > n - 4) top = n - 4;
+            if (top < 0)     top = 0;
 
-            snprintf(lm.footer, sizeof(lm.footer), "%s", footer);
-            j6_display_list(d.raw(), lm);
+            int shown = 0;
+            for (int i = 0; i < 4 && top + i < n; ++i) {
+                controller_.listEntry(top + i, rows[i], sizeof(rows[i]));
+                ptr[i] = rows[i];
+                ++shown;
+            }
+            kit::list(d, ptr, shown, cur - top);
         } else {
-            static J6UiModel m;
             char va[20], vb[20];
-            snprintf(m.title, sizeof(m.title), "%s%s",
-                     controller_.isEdited() ? "*" : "", controller_.title());
-            controller_.counterText(m.page, sizeof(m.page));
             controller_.paramAText(va, sizeof(va));
             controller_.paramBText(vb, sizeof(vb));
 
-            const char* na = controller_.paramAName();
-            const char* nb = controller_.paramBName();
-            // Empty label = the value describes itself.
-            if (na[0]) snprintf(m.lineA, sizeof(m.lineA), "%s %s", na, va);
-            else       snprintf(m.lineA, sizeof(m.lineA), "%s", va);
-            if (nb[0]) snprintf(m.lineB, sizeof(m.lineB), "%s %s", nb, vb);
-            else       snprintf(m.lineB, sizeof(m.lineB), "%s", vb);
-
-            snprintf(m.footer, sizeof(m.footer), "%s", footer);
-            j6_display_page(d.raw(), m);
+            // An empty name means the value describes itself (the patch does),
+            // and the kit prints the value alone in that case.
+            kit::panelDuo(d,
+                { controller_.paramAName(), va, controller_.paramANorm() },
+                { controller_.paramBName(), vb, controller_.paramBNorm() });
         }
 
+        kit::footer(d, footer);
         d.flush();  // arms the incremental push
     }
 

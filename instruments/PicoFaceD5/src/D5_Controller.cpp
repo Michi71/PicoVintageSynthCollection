@@ -104,84 +104,122 @@ const char* D5_Controller::pageName() const {
     }
 }
 
-void D5_Controller::lineA(char* out, size_t n) const {
+const char* D5_Controller::patchStructure() const { return bridge_.structureName(); }
+
+// The two encoders, each as one value the kit can lay out. Normalisation is
+// per page because each range is its own: the panel numbers are 0..100 for the
+// balances, 0..15 for the low EQ frequency, +-50 cents for the tune. The kit
+// only needs where the value sits between its own ends.
+D5_Controller::Value D5_Controller::valueA() const {
+    Value v{"", {0}, -1.0f};
     switch (page_) {
         case kPagePatch:
+            // The value names itself, and the patch page gives it the width.
             // With one bank aboard the plain number stays (a D-50 owns 64);
-            // with the D-05's six banks the panel convention bank-patch
-            // tells "2-37 Nightfall" from "5-37".
+            // with the D-05's six banks the panel convention bank-patch tells
+            // "2-37 Nightfall" from "5-37".
             if (bridge_.patchCount() > 64)
-                snprintf(out, n, "%d-%d %s", bridge_.patch() / 64 + 1,
+                snprintf(v.text, sizeof v.text, "%d-%d %s", bridge_.patch() / 64 + 1,
                          bridge_.patch() % 64 + 1, bridge_.patchName());
             else
-                snprintf(out, n, "%d %s", bridge_.patch() + 1,
+                snprintf(v.text, sizeof v.text, "%d %s", bridge_.patch() + 1,
                          bridge_.patchName());
             break;
         case kPageMix:
-            snprintf(out, n, "Volume %d", volume_);
+            v.name = "Volume";
+            snprintf(v.text, sizeof v.text, "%d", volume_);
+            v.norm = volume_ / 100.0f;
             break;
         case kPageReverb:
-            snprintf(out, n, "Rev bal %d", bridge_.reverbBalance());
+            v.name = "Rev bal";
+            snprintf(v.text, sizeof v.text, "%d", bridge_.reverbBalance());
+            v.norm = bridge_.reverbBalance() / 100.0f;
             break;
         case kPageChorus:
-            snprintf(out, n, "Cho bal %d", bridge_.chorusBalance());
+            v.name = "Cho bal";
+            snprintf(v.text, sizeof v.text, "%d", bridge_.chorusBalance());
+            v.norm = bridge_.chorusBalance() / 100.0f;
             break;
         case kPageChorusMod:
-            snprintf(out, n, "Cho rate %d", bridge_.chorusRate());
+            v.name = "Rate";
+            snprintf(v.text, sizeof v.text, "%d", bridge_.chorusRate());
+            v.norm = bridge_.chorusRate() / 100.0f;
             break;
         case kPageEqLow:
-            snprintf(out, n, "Lo %d Hz", (int)bridge_.eqLowHz());
+            v.name = "Lo freq";
+            snprintf(v.text, sizeof v.text, "%dHz", (int)bridge_.eqLowHz());
+            v.norm = bridge_.eqLowFreq() / 15.0f;
             break;
         case kPageEqHigh:
-            snprintf(out, n, "Hi %d Hz", (int)bridge_.eqHighHz());
+            v.name = "Hi freq";
+            snprintf(v.text, sizeof v.text, "%dHz", (int)bridge_.eqHighHz());
+            v.norm = bridge_.eqHighFreq() / 21.0f;
             break;
         case kPageEqQ:
-            snprintf(out, n, "Hi Q %d", bridge_.eqHighQ() + 1);
+            v.name = "Hi Q";
+            snprintf(v.text, sizeof v.text, "%d", bridge_.eqHighQ() + 1);
+            v.norm = bridge_.eqHighQ() / 8.0f;
             break;
         case kPageTune:
-            snprintf(out, n, "Tune %+d ct", tune_);
+            v.name = "Tune";
+            snprintf(v.text, sizeof v.text, "%+dct", tune_);
+            v.norm = (tune_ + 50) / 100.0f;
             break;
         default:
-            snprintf(out, n, " ");
             break;
     }
+    return v;
 }
 
-void D5_Controller::lineB(char* out, size_t n) const {
+D5_Controller::Value D5_Controller::valueB() const {
+    Value v{"", {0}, -1.0f};
     switch (page_) {
         case kPagePatch:
-            snprintf(out, n, "%s  %d vc", bridge_.structureName(), voices_);
+            v.name = "Voices";
+            snprintf(v.text, sizeof v.text, "%d", voices_);
+            v.norm = (float)voices_ / (float)d5::kMaxVoicesPerTone;
             break;
         case kPageMix:
             // Tone Balance: 50 is even, above it the upper tone wins.
-            snprintf(out, n, "Tone bal %d", bridge_.toneBalance());
+            v.name = "Tone bal";
+            snprintf(v.text, sizeof v.text, "%d", bridge_.toneBalance());
+            v.norm = bridge_.toneBalance() / 100.0f;
             break;
         case kPageReverb:
-            snprintf(out, n, "Type %d", bridge_.reverbType() + 1);
+            // A reverb type is a name in a list, not a position - Chapel does
+            // not sit "between" Large Hall and Box.
+            v.name = "Type";
+            snprintf(v.text, sizeof v.text, "%d", bridge_.reverbType() + 1);
             break;
         case kPageChorus:
-            snprintf(out, n, "Type %d", bridge_.chorusType() + 1);
+            v.name = "Type";
+            snprintf(v.text, sizeof v.text, "%d", bridge_.chorusType() + 1);
             break;
         case kPageChorusMod:
-            snprintf(out, n, "Depth %d", bridge_.chorusDepth());
+            v.name = "Depth";
+            snprintf(v.text, sizeof v.text, "%d", bridge_.chorusDepth());
+            v.norm = bridge_.chorusDepth() / 100.0f;
             break;
         case kPageEqLow:
-            snprintf(out, n, "Gain %+d dB", bridge_.eqLowGain() - 12);
+            v.name = "Gain";
+            snprintf(v.text, sizeof v.text, "%+ddB", bridge_.eqLowGain() - 12);
+            v.norm = bridge_.eqLowGain() / 24.0f;
             break;
         case kPageEqHigh:
-            snprintf(out, n, "Gain %+d dB", bridge_.eqHighGain() - 12);
-            break;
-        case kPageEqQ:
-            snprintf(out, n, " ");
+            v.name = "Gain";
+            snprintf(v.text, sizeof v.text, "%+ddB", bridge_.eqHighGain() - 12);
+            v.norm = bridge_.eqHighGain() / 24.0f;
             break;
         case kPageTune:
-            if (midiCh_ >= 16) snprintf(out, n, "MIDI Omni");
-            else snprintf(out, n, "MIDI ch %d", midiCh_ + 1);
+            v.name = "MIDI";
+            if (midiCh_ >= 16) snprintf(v.text, sizeof v.text, "Omni");
+            else               snprintf(v.text, sizeof v.text, "ch %d", midiCh_ + 1);
             break;
+        case kPageEqQ:
         default:
-            snprintf(out, n, " ");
             break;
     }
+    return v;
 }
 
 void D5_Controller::exportSettings(D5SettingsV2& s) const {

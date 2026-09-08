@@ -94,6 +94,20 @@ int SM_Controller::paramIdOf(int slot) const
     return slot == 0 ? kPages[page_].a : kPages[page_].b;
 }
 
+/* Sliders sweep; the switches and the two pseudo parameters step. */
+float SM_Controller::paramNorm(int slot) const
+{
+    const int id = paramIdOf(slot);
+    if (id < 0 || id >= SOLINA_PARAM_COUNT)
+        return -1.0f;              /* SM_UI_PROGRAM / SM_UI_MIDICH */
+    if (isSwitch(id))
+        return -1.0f;
+    return shadow_[id];
+}
+
+float SM_Controller::paramANorm() const { return paramNorm(0); }
+float SM_Controller::paramBNorm() const { return paramNorm(1); }
+
 const char* SM_Controller::paramAName() const { return kNames[paramIdOf(0)]; }
 const char* SM_Controller::paramBName() const { return kNames[paramIdOf(1)]; }
 

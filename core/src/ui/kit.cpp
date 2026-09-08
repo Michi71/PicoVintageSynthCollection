@@ -273,6 +273,59 @@ void panelDuo(Display& d, const Param& a, const Param& b)
 }
 
 // ---------------------------------------------------------------------------
+// Body: a name across the full width, one parameter below
+// ---------------------------------------------------------------------------
+
+void panelName(Display& d, const char* text, const char* sub, const Param& b)
+{
+    u8g2_t* u = d.raw();
+    resetState(u);
+
+    // The name, in the largest face it fits into. A patch name is what the
+    // player is looking for on this page, so it gets the width and the size
+    // before anything else on it does.
+    if (text != nullptr && text[0] != 0) {
+        u8g2_SetFont(u, kFontValue);
+        if (u8g2_GetStrWidth(u, text) > kW - 8) {
+            u8g2_SetFont(u, kFontList);
+            if (u8g2_GetStrWidth(u, text) > kW - 8) {
+                u8g2_SetFont(u, kFontLabel);
+            }
+        }
+        u8g2_DrawStr(u, 4, 27, text);
+    }
+
+    if (sub != nullptr && sub[0] != 0) {
+        u8g2_SetFont(u, kFontLabel);
+        u8g2_DrawStr(u, 4, 37, sub);
+    }
+
+    u8g2_DrawHLine(u, 0, 40, kW);
+
+    // The right-hand encoder's parameter, laid out along the line rather than
+    // stacked: there is one of them and a whole width to put it in.
+    if (b.name != nullptr && b.name[0] != 0) {
+        int16_t nameX = 4;
+        if (b.norm >= 0.0f) {
+            drawKnob(u, 13, 50, 7, b.norm);
+            nameX = 26;
+        }
+        u8g2_SetFont(u, kFontLabel);
+        u8g2_DrawStr(u, static_cast<u8g2_uint_t>(nameX), 53, b.name);
+
+        const char* bt = (b.text != nullptr) ? b.text : "";
+        u8g2_SetFont(u, kFontValue);
+        const int16_t tw = static_cast<int16_t>(u8g2_GetStrWidth(u, bt));
+        u8g2_DrawStr(u, static_cast<u8g2_uint_t>(kW - 10 - tw), 53, bt);
+
+        u8g2_SetFont(u, kFontSmall);
+        u8g2_DrawStr(u, kW - 6, 53, "B");
+    }
+
+    resetState(u);
+}
+
+// ---------------------------------------------------------------------------
 // Body: two-column browser
 // ---------------------------------------------------------------------------
 
@@ -346,6 +399,36 @@ void listTwoCol(Display& d,
     u8g2_DrawVLine(u, kSplit, kHeaderHeight, 64 - kHeaderHeight);
     if (right != nullptr) {
         listColumn(u, kSplit + 2, kW - kSplit - 2, right, rightCount, rightSel, focusRight);
+    }
+    resetState(u);
+}
+
+// ---------------------------------------------------------------------------
+// About
+// ---------------------------------------------------------------------------
+
+void about(Display& d, const char* name, const char* version, const char* hint)
+{
+    u8g2_t* u = d.raw();
+
+    d.clear();
+    header(d, "ABOUT");
+    resetState(u);
+
+    if (name != nullptr) {
+        u8g2_SetFont(u, kFontValue);
+        u8g2_DrawStr(u, 4, 27, name);
+    }
+    if (version != nullptr) {
+        // Smaller than the name above it: the version is a git describe, and
+        // "1.7.0-4-ga39504b" needs seventeen characters. A clipped commit hash
+        // still reads like a whole one, but only if it is not clipped mid-word.
+        u8g2_SetFont(u, kFontList);
+        u8g2_DrawStr(u, 4, 40, version);
+    }
+    if (hint != nullptr) {
+        u8g2_SetFont(u, kFontLabel);
+        u8g2_DrawStr(u, 4, 53, hint);
     }
     resetState(u);
 }

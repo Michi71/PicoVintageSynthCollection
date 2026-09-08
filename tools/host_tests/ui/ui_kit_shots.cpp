@@ -132,6 +132,26 @@ void customBody()
     shot("custom_body");
 }
 
+// --- A page whose value is a name: D5, JV and RD all have one -------------
+void namePage()
+{
+    uishot::begin();
+    Display& d = uishot::display();
+    kit::header(d, "Patch", 0, 9);
+    kit::panelName(d, "2-37 Nightfall", "S+S Ring", {"Voices", "8", 0.5f});
+    kit::footer(d, "P41 B39 U0 A6/16 N142");
+    shot("panel_name");
+}
+
+// --- The About screen, once instead of four times -------------------------
+void about()
+{
+    uishot::begin();
+    kit::about(uishot::display(), "PicoFaceOB", "1.8.0-4-ga39504b",
+               "Press any button");
+    shot("about");
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -147,6 +167,8 @@ int main(int argc, char** argv)
     presets();
     popup();
     customBody();
+    namePage();
+    about();
 
     std::printf("[ok]\n");
     return 0;

@@ -19,6 +19,10 @@ picoface_add_instrument(
         src/juno/juno_presets.cpp
     INCLUDE_DIRS include
 
+    # ---- Optional core modules -------------------------------------------
+    CORE_MODULES
+        ui_kit     # shared panel look: header, knobs, two-value body, lists
+
     DEFINES
         PICO_USE_SW_SPIN_LOCKS=1
         TARGET_RP2350=1

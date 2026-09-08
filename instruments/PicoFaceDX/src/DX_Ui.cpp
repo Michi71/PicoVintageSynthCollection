@@ -9,6 +9,8 @@
 
 #include "u8g2.h"
 
+#include "picoface/ui_kit.h"
+
 #include "DX_Controller.h"
 #include "DX_GUI.h"
 #include "DX_Synth_Bridge.h"
@@ -197,7 +199,7 @@ void DX_Ui::draw(Display& d)
     case Screen::Panel:
         // dxDrawScreen() only paints; clearing and pushing are ours.
         d.clear();
-        dxDrawScreen(d.raw(), controller_);
+        dxDrawScreen(d, controller_);
         break;
     case Screen::Menu:
         list_.draw(d, "MENU");
@@ -250,23 +252,7 @@ void DX_Ui::drawMasterVol(Display& d) const
 
 void DX_Ui::drawAbout(Display& d) const
 {
-    u8g2_t* u = d.raw();
-
-    d.clear();
-    u8g2_SetFont(u, u8g2_font_8x13B_tf);
-    u8g2_SetFontPosBaseline(u);
-    u8g2_SetDrawColor(u, 1);
-    u8g2_DrawStr(u, 4, 14, "ABOUT");
-    u8g2_DrawHLine(u, 0, 18, 128);
-    u8g2_DrawStr(u, 4, 36, kAboutName);
-    // Smaller than the name above it: the version is a git describe now, and
-    // "1.7.0-4-ga39504b" needs seventeen characters. At 8 px this line holds
-    // fifteen, and a clipped commit hash still reads like a whole one.
-    u8g2_SetFont(u, u8g2_font_6x10_tf);
-    u8g2_DrawStr(u, 4, 52, kAboutVersion);
-    u8g2_SetFont(u, u8g2_font_8x13B_tf);
-    u8g2_SetFont(u, u8g2_font_6x10_tf);
-    u8g2_DrawStr(u, 4, 62, "Press any button");
+    picoface::ui::kit::about(d, kAboutName, kAboutVersion, "Press any button");
 }
 
 void DX_Ui::drawCpuLoad(Display& d) const

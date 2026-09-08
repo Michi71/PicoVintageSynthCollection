@@ -23,8 +23,26 @@ public:
 
     const char* title() const;
     const char* pageName() const;
-    void lineA(char* out, size_t n) const;
-    void lineB(char* out, size_t n) const;
+
+    // One value as the shared UI kit wants it: a name, the value already
+    // formatted (the controller owns the units), and where it sits on its
+    // range. Replaces the old lineA/lineB, which glued name and value into one
+    // string - the kit needs them apart to size and place them.
+    struct Value {
+        const char* name;   // "" = the value names itself and gets the row
+        char        text[24];
+        float       norm;   // 0..1, or negative where there is no dial position
+    };
+    Value valueA() const;
+    Value valueB() const;
+
+    // The patch page shows a name, not a number, and needs the whole width for
+    // it; the kit has its own body for that.
+    bool        isPatchPage() const { return page_ == kPagePatch; }
+    const char* patchStructure() const;  // second line under the patch name
+
+    int  pageIndex() const { return page_; }
+    int  pageTotal() const { return kPageCount; }
 
     void exportSettings(D5SettingsV2& s) const;
     void importSettings(const D5SettingsV2& s);

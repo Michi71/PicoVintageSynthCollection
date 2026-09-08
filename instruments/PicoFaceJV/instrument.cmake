@@ -79,7 +79,6 @@ picoface_add_instrument(
         src/JV_Instrument.cpp
         src/JV_Bridge.cpp
         src/JV_Controller.cpp
-        src/JV_Display.cpp
         src/JV_Midi.cpp
         src/jv_engine/jv_engine.cpp
         ${_jv_blob_s}
@@ -89,6 +88,11 @@ picoface_add_instrument(
         # jv_calibration.h and jv_tone_map.h are shared with the host toolchain
         # and live there, so that measurement and firmware cannot drift apart.
         ${CMAKE_SOURCE_DIR}/tools/jv_extract
+
+    # ---- Optional core modules -------------------------------------------
+    CORE_MODULES
+        ui_kit     # shared panel look: header, knobs, two-value body, lists
+
 )
 
 if(PICOFACEJV_4MB)

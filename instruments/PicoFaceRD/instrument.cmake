@@ -185,6 +185,10 @@ picoface_add_instrument(
         # search path as well.
         include/rd_engine
 
+    # ---- Optional core modules -------------------------------------------
+    CORE_MODULES
+        ui_kit     # shared panel look: header, knobs, two-value body, lists
+
     CORE_EXCLUDE
         veeprom.cpp
 

@@ -109,51 +109,79 @@ const char* JV_Controller::pageName() const {
     }
 }
 
-const char* JV_Controller::lineA(char* buf, size_t n) const {
+// The two encoders, each as one value the kit can lay out. Normalisation is
+// per page because each range is its own; the kit only needs where the value
+// sits between its own ends.
+JV_Controller::Value JV_Controller::valueA() const {
+    Value v{"", {0}, -1.0f};
     switch (page_) {
         case JvPage::PATCH: {
+            // The names arrive space-padded to twelve characters.
             char nm[13] = {0};
             memcpy(nm, bridge_.patchName(), 12);
             for (int i = 11; i >= 0 && nm[i] == ' '; --i) nm[i] = 0;
-            snprintf(buf, n, "%s", nm);
+            snprintf(v.text, sizeof v.text, "%s", nm);
             break;
         }
-        case JvPage::VOLUME: snprintf(buf, n, "Volume %u%%", volume_); break;
-        case JvPage::VOICES: snprintf(buf, n, "Max %u", voices_); break;
-        case JvPage::TUNE:   snprintf(buf, n, "Tune %+d ct", tune_); break;
+        case JvPage::VOLUME:
+            v.name = "Volume";
+            snprintf(v.text, sizeof v.text, "%u%%", volume_);
+            v.norm = volume_ / 100.0f;
+            break;
+        case JvPage::VOICES:
+            v.name = "Max";
+            snprintf(v.text, sizeof v.text, "%u", voices_);
+            v.norm = (float)voices_ / (float)jv::kMaxVoices;
+            break;
+        case JvPage::TUNE:
+            v.name = "Tune";
+            snprintf(v.text, sizeof v.text, "%+dct", tune_);
+            v.norm = (tune_ + 50) / 100.0f;
+            break;
         case JvPage::VELO:
-            if (veloScale_ >= 100) snprintf(buf, n, "Velo Orig");
-            else                   snprintf(buf, n, "Velo %u%%", veloScale_);
+            v.name = "Velo";
+            if (veloScale_ >= 100) snprintf(v.text, sizeof v.text, "Orig");
+            else                   snprintf(v.text, sizeof v.text, "%u%%", veloScale_);
+            v.norm = veloScale_ / 100.0f;
             break;
         case JvPage::SYS:
-            if (midiCh_ >= 16) snprintf(buf, n, "MIDI Omni");
-            else               snprintf(buf, n, "MIDI Ch %u", (unsigned)(midiCh_ + 1));
+            v.name = "MIDI";
+            if (midiCh_ >= 16) snprintf(v.text, sizeof v.text, "Omni");
+            else               snprintf(v.text, sizeof v.text, "Ch %u", (unsigned)(midiCh_ + 1));
             break;
-        default: buf[0] = 0; break;
+        default:
+            break;
     }
-    return buf;
+    return v;
 }
 
-const char* JV_Controller::lineB(char* buf, size_t n) const {
+JV_Controller::Value JV_Controller::valueB() const {
+    Value v{"", {0}, -1.0f};
     switch (page_) {
         case JvPage::PATCH:
-            snprintf(buf, n, "%s %02u", kBankName[bank_ <= 2 ? bank_ : 0],
+            v.name = "Bank";
+            snprintf(v.text, sizeof v.text, "%s %02u", kBankName[bank_ <= 2 ? bank_ : 0],
                      (unsigned)(patch_ + 1));
             break;
         case JvPage::VOICES:
-            snprintf(buf, n, "Act %d", bridge_.activeVoices());
+            // Not editable: what the engine is actually playing right now.
+            v.name = "Act";
+            snprintf(v.text, sizeof v.text, "%d", bridge_.activeVoices());
             break;
         case JvPage::TUNE:
-            snprintf(buf, n, "A4 %.1f Hz", 440.0 * pow(2.0, tune_ / 1200.0));
+            v.name = "A4";
+            snprintf(v.text, sizeof v.text, "%.1fHz", 440.0 * pow(2.0, tune_ / 1200.0));
             break;
         case JvPage::VELO:
             // Show where a middle-strength note lands, which is the number that
             // actually tells you what the setting is doing.
-            snprintf(buf, n, "64 -> %u", (unsigned)bridge_.mapVelocity(64));
+            v.name = "64 ->";
+            snprintf(v.text, sizeof v.text, "%u", (unsigned)bridge_.mapVelocity(64));
             break;
-        default: buf[0] = 0; break;
+        default:
+            break;
     }
-    return buf;
+    return v;
 }
 
 void JV_Controller::exportSettings(JvSettingsV1& s) const {

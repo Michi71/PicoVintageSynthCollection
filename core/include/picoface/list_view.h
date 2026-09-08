@@ -39,8 +39,9 @@ public:
     // at the end stays where the user last left it.
     int update(const InputState& in);
 
-    // Draws the title bar and three rows, the cursor row inverted. Clears the
-    // buffer first and does NOT flush - the caller decides when to push.
+    // Draws the title bar and four rows through the shared kit, the cursor row
+    // inverted. Clears the buffer first and does NOT flush - the caller decides
+    // when to push. Requires the core module ui_kit alongside ui_menu.
     void draw(Display& d, const char* title) const;
 
     uint8_t cursor() const { return cursor_; }

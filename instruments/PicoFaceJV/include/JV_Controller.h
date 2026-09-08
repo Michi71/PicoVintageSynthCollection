@@ -34,9 +34,25 @@ public:
 
     JvPage      currentPage() const { return page_; }
     const char* pageName() const;
-    const char* lineA(char* buf, size_t n) const;
-    const char* lineB(char* buf, size_t n) const;
     const char* title() const;
+
+    // One value as the shared UI kit wants it: a name, the value already
+    // formatted (the controller owns the units), and where it sits on its
+    // range. Replaces the old lineA/lineB, which glued name and value into one
+    // string - the kit needs them apart to size and place them.
+    struct Value {
+        const char* name;   // "" = the value names itself and gets the row
+        char        text[24];
+        float       norm;   // 0..1, or negative where there is no dial position
+    };
+    Value valueA() const;
+    Value valueB() const;
+
+    // The patch page shows a name, not a number, and needs the whole width.
+    bool isPatchPage() const { return page_ == JvPage::PATCH; }
+
+    int  pageIndex() const { return (int)page_; }
+    int  pageTotal() const { return (int)JvPage::COUNT; }
 
     uint8_t midiChannel() const { return midiCh_; }   // 0..15, 16 = Omni
 

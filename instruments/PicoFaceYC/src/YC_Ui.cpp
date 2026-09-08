@@ -149,7 +149,7 @@ void YC_Ui::draw(Display& d)
     case Screen::Panel:
         // ycDrawScreen() only paints; clearing and pushing are ours.
         d.clear();
-        ycDrawScreen(d.raw(), controller_);
+        ycDrawScreen(d, controller_);
         break;
     case Screen::Menu:
         list_.draw(d, "MENU");

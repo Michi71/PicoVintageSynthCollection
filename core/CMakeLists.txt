@@ -49,6 +49,8 @@ set(PICOFACE_CORE_SOURCES
 # --- module: ui_menu ----------------------------------------------------------
 # Non-blocking UI widgets for instruments that draw from uiTick().
 #
+# Requires the module ui_kit: ListView keeps the cursor, the kit draws it.
+#
 # Successor of the module ui_panel, which held the blocking widgets that owned
 # the encoders in their own loop (pico_frontpanel.cpp, pico_selection_list.cpp,
 # pico_input_value.cpp) plus the PicoFaceCP settings layer. With PicoFaceCP on

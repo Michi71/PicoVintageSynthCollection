@@ -13,6 +13,7 @@
 #include "SM_Midi.h"
 #include "SM_Controller.h"
 #include "SM_Display.h"
+#include "picoface/ui_kit.h"
 #include "sm_settings.h"
 #include "sm_ipc.h"
 #include "solina/solina.h"
@@ -156,33 +157,30 @@ private:
     // The Solina has only a page view, no list.
     void draw(picoface::ui::Display& d)
     {
-        static SmUiModel m;
+        namespace kit = picoface::ui::kit;
+
         char va[20], vb[20];
-
-        snprintf(m.title, sizeof(m.title), "%s", controller_.pageName());
-        snprintf(m.page,  sizeof(m.page),  "%d/%d",
-                 controller_.currentPage() + 1, controller_.pageCount());
-
         controller_.paramAText(va, sizeof(va));
         controller_.paramBText(vb, sizeof(vb));
-        const char* na = controller_.paramAName();
-        const char* nb = controller_.paramBName();
-
-        // Empty label = the value describes itself.
-        if (na[0]) snprintf(m.lineA, sizeof(m.lineA), "%s %s", na, va);
-        else       snprintf(m.lineA, sizeof(m.lineA), "%s", va);
-        if (nb[0]) snprintf(m.lineB, sizeof(m.lineB), "%s %s", nb, vb);
-        else       snprintf(m.lineB, sizeof(m.lineB), "%s", vb);
 
         // Footer: CPU peak, I2S underruns, dropped IPC packets, note-on count.
-        snprintf(m.footer, sizeof(m.footer), "P%d U%lu D%lu N%lu",
+        char footer[26];
+        snprintf(footer, sizeof(footer), "P%d U%lu D%lu N%lu",
                  (int) bridge_.cpuLoadPeakPercent(),
                  (unsigned long) g_i2s_underrun_count,
                  (unsigned long) sm_ipc_dropped,
                  (unsigned long) bridge_.noteOnCount());
         bridge_.resetCpuPeak();
 
-        sm_display_page(d.raw(), m);
+        d.clear();
+        kit::header(d, controller_.pageName(), controller_.currentPage(),
+                    controller_.pageCount());
+        // An empty name means the value describes itself (the preset does).
+        kit::panelDuo(d,
+            { controller_.paramAName(), va, controller_.paramANorm() },
+            { controller_.paramBName(), vb, controller_.paramBNorm() });
+        kit::footer(d, footer);
+
         d.flush();   // arms the incremental push
     }
 

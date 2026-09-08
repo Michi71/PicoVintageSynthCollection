@@ -11,6 +11,8 @@
 
 #include "u8g2.h"
 
+#include "picoface/ui_kit.h"
+
 #include "OB_Engine.h"
 #include "ob_ipc.h"
 #include "ob_presets.h"
@@ -328,63 +330,43 @@ void OB_Ui::valueText(uint8_t paramId, char* buf, size_t len) const
 
 void OB_Ui::drawPanel(Display& d)
 {
-    u8g2_t* u = d.raw();
-    char line[32], val[12], page[8];
+    namespace kit = picoface::ui::kit;
+    char va[16], vb[16];
 
     d.clear();
-    u8g2_SetFontPosBaseline(u);
-    u8g2_SetFont(u, u8g2_font_8x13B_tf);
-    const int hasc  = u8g2_GetAscent(u);
-    const int hdesc = u8g2_GetDescent(u);
-
-    // inverted header with the page counter, as on MD and CP
-    u8g2_SetDrawColor(u, 1);
-    u8g2_DrawBox(u, 0, 0, Display::kWidth, hasc - hdesc);
-    u8g2_SetDrawColor(u, 0);
-    u8g2_DrawStr(u, 2, hasc, "OB-X");
-    snprintf(page, sizeof(page), "%d/%d", page_ + 1, kPageCount);
-    u8g2_DrawStr(u, (u8g2_uint_t)(126 - u8g2_GetStrWidth(u, page)), hasc, page);
-    u8g2_SetDrawColor(u, 1);
-    u8g2_DrawHLine(u, 0, hasc - hdesc, Display::kWidth);
+    kit::header(d, "OB-X", page_, kPageCount);
 
     const uint8_t idA = (uint8_t)(page_ * 2);
     const uint8_t idB = (uint8_t)(page_ * 2 + 1);
 
-    valueText(idA, val, sizeof(val));
-    snprintf(line, sizeof(line), "%-9s %s", obParams[idA].name, val);
-    u8g2_DrawStr(u, 4, 32, line);
+    valueText(idA, va, sizeof(va));
+    kit::Param a{ obParams[idA].name, va, knobNorm(idA) };
 
-    if (idB < OB_PARAM_COUNT)
-    {
-        valueText(idB, val, sizeof(val));
-        snprintf(line, sizeof(line), "%-9s %s", obParams[idB].name, val);
-        u8g2_DrawStr(u, 4, 48, line);
+    kit::Param b{};
+    if (idB < OB_PARAM_COUNT) {
+        valueText(idB, vb, sizeof(vb));
+        b = { obParams[idB].name, vb, knobNorm(idB) };
     }
 
-    u8g2_SetFont(u, u8g2_font_6x10_tf);
-    u8g2_DrawStr(u, 4, 62, "Sel:Page  A/B:edit");
+    kit::panelDuo(d, a, b);
+    kit::footer(d, "Sel:Page  A/B:edit");
+}
+
+// Where a value sits on its dial, or negative where it has no dial: the OB-X
+// panel is sliders and switches, and obParams says which is which - steps 0 is
+// a slider, anything else a switch or a selector. The bipolar amounts count as
+// sliders and sit at the middle when neutral, which is what the original's
+// centre-detented controls did.
+float OB_Ui::knobNorm(uint8_t paramId) const
+{
+    if (paramId >= OB_PARAM_COUNT) return -1.0f;
+    if (obParams[paramId].steps != 0) return -1.0f;
+    return engine_.getParam(paramId);
 }
 
 void OB_Ui::drawAbout(Display& d) const
 {
-    u8g2_t* u = d.raw();
-
-    d.clear();
-    u8g2_SetFont(u, u8g2_font_8x13B_tf);
-    u8g2_SetFontPosBaseline(u);
-    u8g2_SetDrawColor(u, 1);
-    u8g2_DrawStr(u, 4, 14, "ABOUT");
-    u8g2_DrawHLine(u, 0, 18, Display::kWidth);
-    u8g2_DrawStr(u, 4, 33, kAboutName);
-    // Smaller than the name above it: the version is a git describe now, and
-    // "1.7.0-4-ga39504b" needs seventeen characters. At 8 px this line holds
-    // fifteen, and a clipped commit hash still reads like a whole one.
-    u8g2_SetFont(u, u8g2_font_6x10_tf);
-    u8g2_DrawStr(u, 4, 48, kAboutVersion);
-    u8g2_SetFont(u, u8g2_font_8x13B_tf);
-    u8g2_SetFont(u, u8g2_font_6x10_tf);
-    // The GPL notice belongs on the instrument, not just in the repository.
-    u8g2_DrawStr(u, 4, 62, "OB-Xf engine, GPL3");
+    picoface::ui::kit::about(d, kAboutName, kAboutVersion, "Press any button");
 }
 
 void OB_Ui::drawCpuLoad(Display& d) const

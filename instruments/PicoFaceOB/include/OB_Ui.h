@@ -52,6 +52,7 @@ class OB_Ui
     void drawAbout(picoface::ui::Display& d) const;
     void drawCpuLoad(picoface::ui::Display& d) const;
     void valueText(uint8_t paramId, char* buf, size_t len) const;
+    float knobNorm(uint8_t paramId) const;
 
     OB_Engine&             engine_;
     picoface::ui::ListView list_;

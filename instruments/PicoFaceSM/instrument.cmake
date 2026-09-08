@@ -19,6 +19,10 @@ picoface_add_instrument(
         src/solina/solina_registers.cpp
     INCLUDE_DIRS include
 
+    # ---- Optional core modules -------------------------------------------
+    CORE_MODULES
+        ui_kit     # shared panel look: header, knobs, two-value body, lists
+
     # No double-tap RESET: on the speaker-driven prototype the inrush current
     # browns the chip out on plug-in and the library reads that as a double
     # tap, leaving the device in BOOTSEL. Matches the standalone repository,

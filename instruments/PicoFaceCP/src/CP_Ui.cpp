@@ -10,6 +10,8 @@
 
 #include "u8g2.h"
 
+#include "picoface/ui_kit.h"
+
 #include "ipc.h"
 #include "mdaEPiano.h"
 #include "midi_reface.h"
@@ -430,14 +432,10 @@ void CP_Ui::draw(Display& d)
 
 void CP_Ui::drawPanel(Display& d)
 {
-    u8g2_t* u = d.raw();
-    char title[24], lineA[32], lineB[32], page[8];
+    namespace kit = picoface::ui::kit;
+    char title[24], va[32], vb[32];
 
     d.clear();
-    u8g2_SetFontPosBaseline(u);
-    u8g2_SetFont(u, u8g2_font_8x13B_tf);
-    const int hasc  = u8g2_GetAscent(u);
-    const int hdesc = u8g2_GetDescent(u);
 
     switch (page_) {
     case PG_VOLOCT: strcpy(title, "VOL / OCT"); break;
@@ -457,72 +455,64 @@ void CP_Ui::drawPanel(Display& d)
     default:        title[0] = 0;              break;
     }
 
-    // inverted header bar with the page indicator right-aligned
-    u8g2_SetDrawColor(u, 1);
-    u8g2_DrawBox(u, 0, 0, Display::kWidth, hasc - hdesc);
-    u8g2_SetDrawColor(u, 0);
-    u8g2_DrawStr(u, 2, hasc, title);
-    snprintf(page, sizeof(page), "%d/%d", (int) page_ + 1, (int) PG_COUNT);
-    u8g2_DrawStr(u, (u8g2_uint_t)(126 - u8g2_GetStrWidth(u, page)), hasc, page);
-    u8g2_SetDrawColor(u, 1);
-    u8g2_DrawHLine(u, 0, hasc - hdesc, Display::kWidth);
+    kit::header(d, title, (int) page_, (int) PG_COUNT);
 
+    // The reface CP prints its panel in percent, and so does this: the values
+    // are normalised floats, the knob shows where they sit, the number is what
+    // the original's display would have said.
     switch (page_) {
     case PG_VOLOCT:
-        snprintf(lineA, sizeof(lineA), "Vol  %2d", pct(vol_));
-        snprintf(lineB, sizeof(lineB), "Oct  %+d", oct_);
+        snprintf(va, sizeof(va), "%d", pct(vol_));
+        snprintf(vb, sizeof(vb), "%+d", oct_);
+        // The octave switch has five detents, not a sweep.
+        kit::panelDuo(d, { "Vol", va, vol_ }, { "Oct", vb });
         break;
     case PG_VOICE:
-        snprintf(lineA, sizeof(lineA), "Type %s", ep_.getInstrumentName(instr_));
-        snprintf(lineB, sizeof(lineB), "Drv  %2d", pct(drv_));
+        snprintf(va, sizeof(va), "%s", ep_.getInstrumentName(instr_));
+        snprintf(vb, sizeof(vb), "%d", pct(drv_));
+        kit::panelDuo(d, { "Type", va }, { "Drive", vb, drv_ });
         break;
     case PG_TREM:
-        snprintf(lineA, sizeof(lineA), "Depth %2d", pct(twD_));
-        snprintf(lineB, sizeof(lineB), "Rate  %2d", pct(twR_));
+        snprintf(va, sizeof(va), "%d", pct(twD_));
+        snprintf(vb, sizeof(vb), "%d", pct(twR_));
+        kit::panelDuo(d, { "Depth", va, twD_ }, { "Rate", vb, twR_ });
         break;
     case PG_CHO:
-        snprintf(lineA, sizeof(lineA), "Depth %2d", pct(cpD_));
-        snprintf(lineB, sizeof(lineB), "Speed %2d", pct(cpS_));
+        snprintf(va, sizeof(va), "%d", pct(cpD_));
+        snprintf(vb, sizeof(vb), "%d", pct(cpS_));
+        kit::panelDuo(d, { "Depth", va, cpD_ }, { "Speed", vb, cpS_ });
         break;
     case PG_DLY:
-        snprintf(lineA, sizeof(lineA), "Depth %2d", pct(dlyD_));
-        snprintf(lineB, sizeof(lineB), "Time  %2d", pct(dlyT_));
+        snprintf(va, sizeof(va), "%d", pct(dlyD_));
+        snprintf(vb, sizeof(vb), "%d", pct(dlyT_));
+        kit::panelDuo(d, { "Depth", va, dlyD_ }, { "Time", vb, dlyT_ });
         break;
     case PG_REV:
-        snprintf(lineA, sizeof(lineA), "Reverb %2d", pct(rev_));
-        lineB[0] = 0;
+        snprintf(va, sizeof(va), "%d", pct(rev_));
+        kit::panelDuo(d, { "Reverb", va, rev_ }, {});
         break;
     case PG_VPARAM: {
+        // The name comes out of the engine and can be long ("Envelope Decay"),
+        // so it is the page title rather than a label in half a cell.
         char nm[32];
         ep_.getParameterName(kVpMap[vpIdx_], nm);
-        snprintf(lineA, sizeof(lineA), "%s", nm);
-        snprintf(lineB, sizeof(lineB), "Val  %2d", pct(vpVal_));
+        snprintf(vb, sizeof(vb), "%d", pct(vpVal_));
+        kit::panelDuo(d, { "Param", nm }, { "Value", vb, vpVal_ });
         break;
     }
-    case PG_SYSTEM: {
-        char chStr[4];
-        if (midiCh_ == RefaceMidi::RX_CH_ALL) strcpy(chStr, "All");
-        else snprintf(chStr, sizeof(chStr), "%d", midiCh_ + 1);
-        snprintf(lineA, sizeof(lineA), "MIDI Ch %s", chStr);
-        snprintf(lineB, sizeof(lineB), "PreGain %2d", pct(preGain_));
+    case PG_SYSTEM:
+        if (midiCh_ == RefaceMidi::RX_CH_ALL) strcpy(va, "All");
+        else snprintf(va, sizeof(va), "%d", midiCh_ + 1);
+        snprintf(vb, sizeof(vb), "%d", pct(preGain_));
+        kit::panelDuo(d, { "MIDI Ch", va }, { "PreGain", vb, preGain_ });
         break;
-    }
     default:
-        lineA[0] = lineB[0] = 0;
         break;
     }
 
-    u8g2_SetFont(u, u8g2_font_8x13B_tf);
-    u8g2_DrawStr(u, 4, 32, lineA);
-    if (page_ != PG_REV) {   // REVERB has only one value
-        u8g2_DrawStr(u, 4, 48, lineB);
-    }
-
-    u8g2_SetFont(u, u8g2_font_6x10_tf);
-    u8g2_DrawStr(u, 4, 62,
-                 (page_ == PG_TREM || page_ == PG_CHO || page_ == PG_DLY)
-                     ? "Sel:Mode  A/B:edit"
-                     : "Sel:Page  A/B:edit");
+    kit::footer(d, (page_ == PG_TREM || page_ == PG_CHO || page_ == PG_DLY)
+                       ? "Sel:Mode  A/B:edit"
+                       : "Sel:Page  A/B:edit");
 }
 
 void CP_Ui::drawPreset(Display& d) const
@@ -549,30 +539,13 @@ void CP_Ui::drawPreset(Display& d) const
 
 void CP_Ui::drawAbout(Display& d) const
 {
-    u8g2_t* u = d.raw();
-
-    d.clear();
-    u8g2_SetFont(u, u8g2_font_8x13B_tf);
-    u8g2_SetFontPosBaseline(u);
-    u8g2_SetDrawColor(u, 1);
-    u8g2_DrawStr(u, 4, 14, "ABOUT");
-    u8g2_DrawHLine(u, 0, 18, Display::kWidth);
-    u8g2_DrawStr(u, 4, 36, kAboutName);
-    // Smaller than the name above it: the version is a git describe now, and
-    // "1.7.0-4-ga39504b" needs seventeen characters. At 8 px this line holds
-    // fifteen, and a clipped commit hash still reads like a whole one.
-    u8g2_SetFont(u, u8g2_font_6x10_tf);
-    u8g2_DrawStr(u, 4, 52, kAboutVersion);
-    u8g2_SetFont(u, u8g2_font_8x13B_tf);
-
-    u8g2_SetFont(u, u8g2_font_6x10_tf);
+    // Only ever visible when the ring overflowed between two rendered blocks -
+    // otherwise the hint has the line.
+    char buf[24];
+    const char* hint = "Press any button";
     if (cp_ipc_dropped != 0) {
-        // Only ever visible when the ring overflowed between two rendered
-        // blocks - otherwise the hint has the line.
-        char buf[24];
         snprintf(buf, sizeof(buf), "IPC dropped %lu", (unsigned long) cp_ipc_dropped);
-        u8g2_DrawStr(u, 4, 62, buf);
-    } else {
-        u8g2_DrawStr(u, 4, 62, "Press any button");
+        hint = buf;
     }
+    picoface::ui::kit::about(d, kAboutName, kAboutVersion, hint);
 }

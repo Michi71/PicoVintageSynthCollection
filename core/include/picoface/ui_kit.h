@@ -90,6 +90,13 @@ void footer(Display& d, const char* text);
 // on the left, 'b' to Encoder::ParamB on the right.
 void panelDuo(Display& d, const Param& a, const Param& b);
 
+// A page whose main value is a name rather than a number: a patch, a preset,
+// an instrument. The name gets the full width - "1-12 Nightfall" does not fit
+// in half of it at any legible size - with an optional second line under it
+// for what the name belongs to (a bank, a structure), and one parameter for
+// the right-hand encoder below that.
+void panelName(Display& d, const char* text, const char* sub, const Param& b);
+
 // Single column, full width: a section menu or a preset list. Four rows fit
 // between the header and the footer, one more than the old three-row list, and
 // the cursor sits one row from the top so the list shows where it is going.
@@ -102,6 +109,11 @@ void listTwoCol(Display& d,
                 const char* const* left, int leftCount, int leftSel,
                 const char* const* right, int rightCount, int rightSel,
                 bool focusRight);
+
+// The About screen every instrument has: what this is and which build. The
+// hint line is what the instrument wants to say underneath - "Press any
+// button", or a diagnostic when something is worth reporting.
+void about(Display& d, const char* name, const char* version, const char* hint);
 
 // Transient overlay over whatever is already drawn: a patch change, a stored
 // slot, a warning. The caller decides how long it stays up.
