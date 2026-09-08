@@ -182,17 +182,12 @@
 #define JUNO_CUTOFF_MAX_HZ  18000.0f
 
 /*
- * How that range is laid out along the slider, measured off Roland's plugin
- * by reading the corner as the resonant peak: 17.0 octaves per unit of
- * travel, so 20 Hz falls at 0.158 and 18 kHz at 0.735, and the ends are flat.
- *
- * Spreading the range evenly over the whole travel, which is what this did
- * before, puts the middle of the slider an octave low and its upper third
- * two to three octaves low. The specification's range is not in question --
- * only where on the slider it sits, and the specification does not say.
+ * How that range is laid out along the slider is a measured table, not a
+ * formula: kJunoCutoffOct in juno_dsp.h. Spreading the range evenly over the
+ * whole travel puts the middle of the slider an octave low, and clamping the
+ * bottom at 20 Hz holds back the first sixth of it by half an octave -- which
+ * is exactly where the patches that let the contour do the work start from.
  */
-#define JUNO_CUTOFF_OCT_PER_UNIT 17.0f
-#define JUNO_CUTOFF_OCT_ZERO      2.69f
 
 /*
  * Ceiling on the cutoff the filter itself will accept, as a fraction of the
@@ -233,7 +228,14 @@
  * settled level from there on -- so the threshold belongs at 0.8.
  */
 #define JUNO_RESONANCE_MAX      1.35f
-#define JUNO_VCF_GCOMP          0.85f   /* Moog ladder uses 0.5; see above  */
+/*
+ * The resonance compensation is a measured curve now, kJunoVcfGComp in
+ * juno_dsp.h -- near the Moog ladder's 0.5 at the bottom of the resonance
+ * travel and a third at the top. A flat 0.85 stood here on the reasoning that
+ * an OTA cascade with its own feedback amplifier does not lose its low end.
+ * Roland's plugin says it loses 7.2 dB of it, where that reasoning kept all
+ * but 1.9.
+ */
 
 /*
  * How far the contour can open the filter, at Env fully up.
@@ -252,16 +254,15 @@
  * sloppily.
  */
 #ifndef JUNO_CONTOUR_OCTAVES
-#define JUNO_CONTOUR_OCTAVES   10.0f
+#define JUNO_CONTOUR_OCTAVES   10.96f
 #endif
 
 /*
- * How far the LFO moves the cutoff is no longer a single number: measured
- * against Roland's plugin the slider follows a strong S-curve, from a
- * fortieth of an octave at 0.1 to 3.6 either side at full. kJunoVcfLfoOct in
- * juno_dsp.h carries the measured points. Three octaves, taken as a straight
- * line, stood here.
+ * Full scale of the LFO route into the cutoff, either side. The slider reaches
+ * it along kJunoVcfDepth in juno_dsp.h, which the contour route shares. Three
+ * octaves, taken as a straight line, stood here.
  */
+#define JUNO_LFO_VCF_OCTAVES    3.597f
 
 /* ------------------------------------------------------------------------   */
 /* HPF                                                                        */
@@ -319,9 +320,13 @@
 /*   attack at slider 10 reaches 0.224 after half a second of a 3.25 s rise,  */
 /*   where a straight line would be at 0.154. Juno60 fits (1-e^-x)/0.632.     */
 /* ------------------------------------------------------------------------   */
+/*
+ * The specifications page's own figures, kept for the record. The slider is a
+ * measured table now -- kJunoAttackTime in juno_dsp.h -- and it comes out at
+ * 1.25 ms and 3.6 s at the two ends.
+ */
 #define JUNO_ATTACK_MIN_S    0.001f
 #define JUNO_ATTACK_MAX_S    3.000f   /* adjustment 10: ENV TIME VR6 */
-#define JUNO_ATTACK_CURVE    0.5f     /* exponent of the slider mapping      */
 #define JUNO_ATTACK_SHAPE    0.632f   /* 1 - 1/e; normalises (1-e^-x)        */
 
 #define JUNO_DECAY_MIN_S     0.002f

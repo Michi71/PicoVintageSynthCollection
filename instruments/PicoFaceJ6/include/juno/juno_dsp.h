@@ -100,31 +100,105 @@ static inline float junoLimit(float x)
  * the factory patches that use it sit exactly there.
  */
 /*
- * The VCF LFO slider against how far it actually moves the corner, in octaves
- * either side of it, measured off Roland's plugin at 0.05 steps by tracking a
- * resonant peak under a very slow LFO.
+ * What a VCF modulation-depth slider is worth, as a fraction of its full
+ * scale. Measured off Roland's plugin at 0.05 steps by tracking a resonant
+ * peak -- once with a very slow LFO driving the corner and once with the
+ * contour holding it -- and the two came out the same curve to within a
+ * hundredth at every point. One taper, one slider design, two destinations.
  *
- * It is nothing like the straight line this used to be. The bottom third of
- * the travel barely moves the filter at all -- a fortieth of an octave at 0.1,
- * an eighth at 0.2 -- and the top reaches 3.6 octaves rather than 3. Thirteen
- * of the fifteen factory patches that use it sit between 0.10 and 0.30, where
- * the straight line was three to ten times too deep: a wobble where the
- * instrument has a hint of one.
+ * It is nothing like the straight line these used to be. The bottom third of
+ * the travel barely moves the filter at all: a hundredth of full scale at 0.1,
+ * a twentieth at 0.2. Thirteen of the fifteen factory patches that use the LFO
+ * route sit between 0.10 and 0.30, and the contour route is on nearly every
+ * patch in the bank -- so the straight line was wrong where it mattered most,
+ * by three to ten times.
+ *
+ * The two full scales differ: 3.6 octaves either side for the LFO,
+ * JUNO_CONTOUR_OCTAVES for the contour.
  */
-static const float kJunoVcfLfoOct[21] = {
-    0.000f, 0.008f, 0.023f, 0.061f, 0.137f, 0.280f, 0.441f,
-    0.651f, 0.920f, 1.175f, 1.481f, 1.755f, 1.992f, 2.260f,
-    2.481f, 2.662f, 2.859f, 2.991f, 3.131f, 3.385f, 3.597f
+static const float kJunoVcfDepth[21] = {
+    0.0000f, 0.0022f, 0.0064f, 0.0170f, 0.0381f, 0.0778f, 0.1226f,
+    0.1810f, 0.2558f, 0.3267f, 0.4117f, 0.4879f, 0.5538f, 0.6283f,
+    0.6897f, 0.7401f, 0.7948f, 0.8315f, 0.8704f, 0.9411f, 1.0000f
 };
 
-static inline float junoVcfLfoOctaves(float v)
+static inline float junoVcfDepth(float v)
 {
     if (v <= 0.0f) return 0.0f;
-    if (v >= 1.0f) return kJunoVcfLfoOct[20];
+    if (v >= 1.0f) return 1.0f;
     const float x = v * 20.0f;
     const int   i = (int) x;
     const float f = x - (float) i;
-    return kJunoVcfLfoOct[i] + f * (kJunoVcfLfoOct[i + 1] - kJunoVcfLfoOct[i]);
+    return kJunoVcfDepth[i] + f * (kJunoVcfDepth[i + 1] - kJunoVcfDepth[i]);
+}
+
+/*
+ * The cutoff slider against the corner it produces, in octaves above
+ * JUNO_CUTOFF_MIN_HZ, measured off Roland's plugin at 0.05 steps by reading
+ * the self-oscillation.
+ *
+ * It was a straight line in octaves with the ends clamped, which is right from
+ * a third of the travel upward and wrong below it: the plugin's corner keeps
+ * falling to 12.3 Hz at the bottom of the slider where the clamp held it at
+ * 20, and the clamped stretch reached a sixth of the way up. That is half an
+ * octave, and it does not stay quiet -- a Juno patch routinely leaves the
+ * cutoff near zero and lets the contour do the work, so the whole contour
+ * rides on it. UFO, Clavichord 1 and Reed 1 all sit there.
+ *
+ * The top is held at the specification's 18 kHz from 0.75 up, which is where
+ * the plugin's own reading passes it and stops being measurable.
+ */
+static const float kJunoCutoffOct[21] = {
+    -0.697f, -0.515f, -0.179f,  0.263f,  0.861f,  1.561f,  2.288f,
+     3.132f,  4.027f,  4.950f,  5.881f,  6.734f,  7.632f,  8.485f,
+     9.215f,  9.813f,  9.813f,  9.813f,  9.813f,  9.813f,  9.813f
+};
+
+static inline float junoCutoffOct(float v)
+{
+    if (v <= 0.0f) return kJunoCutoffOct[0];
+    if (v >= 1.0f) return kJunoCutoffOct[20];
+    const float x = v * 20.0f;
+    const int   i = (int) x;
+    const float f = x - (float) i;
+    return kJunoCutoffOct[i] + f * (kJunoCutoffOct[i + 1] - kJunoCutoffOct[i]);
+}
+
+/*
+ * The resonance compensation, against the panel's resonance setting.
+ *
+ * A transistor ladder takes its feedback from inside the ladder, so the low
+ * end drains away as the resonance comes up; an OTA cascade with a separate
+ * feedback amplifier does not, and this term is how much of the input is fed
+ * forward to hold it. It stood at a flat 0.85 on that reasoning -- "a Juno
+ * with the resonance up is never thin" -- and the reasoning was never
+ * measured.
+ *
+ * Roland's plugin says a Juno does get thinner: its passband loses 7.2 dB
+ * between no resonance and full, where ours lost 1.9. Measured at 0.05 steps
+ * on a fundamental well inside the passband, and turned into the term this
+ * topology needs by (1 + k*g)/(1 + k). It comes out near the Model D's 0.5 at
+ * the bottom of the travel and falls to a third at the top.
+ *
+ * Left as it was, a resonant patch carried about 4.4 dB too much gain across
+ * the whole band and a bass bump the plugin does not have -- which is most of
+ * what was left on the organs once the VCA switch stopped opening their
+ * filter.
+ */
+static const float kJunoVcfGComp[21] = {
+    0.4899f, 0.4899f, 0.4805f, 0.4814f, 0.4728f, 0.4661f, 0.4635f,
+    0.4577f, 0.4525f, 0.4476f, 0.4429f, 0.4396f, 0.4349f, 0.4301f,
+    0.4259f, 0.4175f, 0.3995f, 0.3810f, 0.3632f, 0.3488f, 0.3347f
+};
+
+static inline float junoVcfGComp(float res01)
+{
+    if (res01 <= 0.0f) return kJunoVcfGComp[0];
+    if (res01 >= 1.0f) return kJunoVcfGComp[20];
+    const float x = res01 * 20.0f;
+    const int   i = (int) x;
+    const float f = x - (float) i;
+    return kJunoVcfGComp[i] + f * (kJunoVcfGComp[i + 1] - kJunoVcfGComp[i]);
 }
 
 static const float kJunoDcoLevel[21] = {
@@ -201,12 +275,36 @@ static inline float junoNoteToHz(float note)
  * Attack: measured 0.001 / 0.03 / 0.24 / 0.65 / 3.25 s at slider positions
  * 0 / 2.5 / 5 / 7.5 / 10.
  */
+/*
+ * The attack slider against the time it takes, measured off Roland's plugin at
+ * 0.05 steps as the time to half amplitude (with a Hilbert envelope on a
+ * filtered tone, because a boxcar over a raw sawtooth quantises the reading
+ * badly at the short end) and divided by the 0.400 of a segment that our own
+ * attack curve needs to get there.
+ *
+ * The shape it replaces was junox's, and only the range under it came from the
+ * specifications page. It ran nearly three times slow over the first third of
+ * the travel and a sixth fast at the top.
+ *
+ * Both ends against the specification page's 1 ms .. 3 s: the bottom comes out
+ * at 1.25 ms, and the top at 3.6 s -- 20 % over. That is well inside how
+ * approximate these figures are; the same page puts the decay at 12 s where a
+ * measured instrument gave 19.8.
+ */
+static const float kJunoAttackTime[21] = {
+    0.00125f, 0.0030f, 0.0050f, 0.0095f, 0.0168f, 0.0283f, 0.0455f,
+    0.0720f,  0.1098f, 0.1610f, 0.2275f, 0.3063f, 0.4125f, 0.5470f,
+    0.7008f,  0.9125f, 1.1838f, 1.5440f, 2.0285f, 2.6445f, 3.5985f
+};
+
 static inline float junoAttackTime(float v)
 {
     v = junoClamp(v, 0.0f, 1.0f);
-    const float k = JUNO_ATTACK_CURVE * 10.0f;
-    return JUNO_ATTACK_MIN_S +
-           (expf(v * k) - 1.0f) / (expf(k) - 1.0f) * JUNO_ATTACK_MAX_S;
+    const float x = v * 20.0f;
+    const int   i = (int) x;
+    if (i >= 20) return kJunoAttackTime[20];
+    const float f = x - (float) i;
+    return kJunoAttackTime[i] + f * (kJunoAttackTime[i + 1] - kJunoAttackTime[i]);
 }
 
 /*
@@ -223,14 +321,30 @@ static inline float junoDecayTime(float v)
 }
 
 /*
- * LFO rate. Reproduces the specified 0.3 .. 20 Hz and puts the middle of the
- * slider at 3.5 Hz, which is junox's mapping and matches the panel.
+ * LFO rate against the slider: 0.3, 0.85, 3.39, 11.49 and 22.22 Hz at the
+ * quarters, straight lines between.
+ *
+ * These are Hera's (jpcima, GPL-3), which carries the Juno60 project's
+ * measurements off a real instrument -- the same series our envelope times
+ * already rest on, and its ends are the specifications page's own 0.3 Hz and
+ * the factory adjustment's 22 Hz. junox's mapping stood here, and it is slow
+ * over the upper half of the travel: 5.2 Hz where this gives 6.6 at 0.6, and
+ * 11.0 against 13.6 at 0.8.
+ *
+ * Two independent sources put it where this does. Roland's plugin reads 7.8
+ * and 22.9 Hz at those two settings -- further still, but its LFO spans
+ * 0.049 .. 67 Hz against the specification's 0.3 .. 22, so its curve cannot be
+ * transplanted whole. Hera agrees with the plugin's shape while keeping the
+ * service notes' ends, and that is what is taken.
  */
+static const float kJunoLfoRate[5] = { 0.3f, 0.85f, 3.39f, 11.49f, 22.22f };
+
 static inline float junoLfoRate(float v)
 {
-    v = junoClamp(v, 0.0f, 1.0f);
-    return 0.3f * powf(1.53f, v * 10.0f) *
-           (1.0f + sinf(3.14159265f * v) * 0.39f);
+    v = junoClamp(v, 0.0f, 1.0f) * 4.0f;
+    const int   i = (v >= 4.0f) ? 3 : (int) v;
+    const float f = v - (float) i;
+    return kJunoLfoRate[i] + f * (kJunoLfoRate[i + 1] - kJunoLfoRate[i]);
 }
 
 /* ------------------------------------------------------------------------ */

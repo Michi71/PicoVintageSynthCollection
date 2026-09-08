@@ -130,28 +130,30 @@ void Juno::applyParameter(int id)
     /* --- VCF ------------------------------------------------------------ */
     case JUNO_VCF_FREQ:
         /*
-         * Where the 20 Hz .. 18 kHz of the specifications page sits on the
-         * slider. It used to be spread over the whole travel, and it is not:
-         * measured against Roland's plugin the corner climbs 17 octaves per
-         * unit of slider, passing 20 Hz at 0.16 and 18 kHz at 0.74, with the
-         * ends flat. The range is the service notes' and unchanged; only its
-         * placement moves, and that is what the plugin is being asked.
-         *
-         * Below 0.16 the plugin keeps going down to about 13 Hz rather than
-         * stopping, but that is under the specification's own floor and below
-         * anything a note reaches through four poles, so the floor stays where
-         * the service notes put it.
+         * Where the corner sits, from the measured table rather than a line.
+         * The specification's 20 Hz .. 18 kHz is spread over the middle of the
+         * travel, not over all of it; below a sixth of the way up the corner
+         * keeps falling to 12.3 Hz, which is under the specification's own
+         * floor and used to be clamped away. It does not stay quiet down
+         * there: a Juno patch routinely leaves the cutoff near zero and lets
+         * the contour do the work, so the whole contour rides on it.
          */
-        vp_.cutoffOct = junoClamp(v * JUNO_CUTOFF_OCT_PER_UNIT - JUNO_CUTOFF_OCT_ZERO,
-                                  0.0f, log2f(JUNO_CUTOFF_MAX_HZ / JUNO_CUTOFF_MIN_HZ));
+        vp_.cutoffOct = junoCutoffOct(v);
         break;
     case JUNO_VCF_RES:      vp_.resonance = v * JUNO_RESONANCE_MAX; break;
-    case JUNO_VCF_ENV:      vp_.envAmount = v; break;
+    /*
+     * Through the same taper the LFO route uses -- one slider design, and the
+     * plugin gives the two the same curve to a hundredth. Taken straight it
+     * was wrong wherever a patch uses less than half of it, which is most of
+     * them: Whistle sang a fifth of an octave above its base corner in the
+     * plugin and an octave and a half above it here.
+     */
+    case JUNO_VCF_ENV:      vp_.envAmount = junoVcfDepth(v); break;
     case JUNO_VCF_POLARITY:
         vp_.envPolarity = (junoParamStep(v, 2) == 1) ? 1.0f : -1.0f;
         break;
     /* Held in octaves, through the measured curve. */
-    case JUNO_VCF_LFO:      vp_.lfoOct = junoVcfLfoOctaves(v); break;
+    case JUNO_VCF_LFO:      vp_.lfoOct = junoVcfDepth(v) * JUNO_LFO_VCF_OCTAVES; break;
     case JUNO_VCF_KYBD:     vp_.keyFollow = v; break;
 
     /* --- VCA ------------------------------------------------------------ */
@@ -173,18 +175,19 @@ void Juno::applyParameter(int id)
          * is taken here and the easing is not: it is the bottom of a level
          * control, and no factory patch is anywhere near it.
          *
-         * The 0.700 that the whole bank sits at loses 3.1 dB to the change, so
-         * the headroom constant on the summed voices makes it back (0.35 ->
-         * 0.50) and the bank comes out exactly where it was. This is also the
+         * The headroom constant on the summed voices carries whatever the
+         * bank's levels do to the overall loudness: 0.35 while every patch sat
+         * at the 0.700 placeholder, 0.50 once the level was squared, and 0.64
+         * now that the levels are the chart's own and centre on 0.5 rather
+         * than 0.7. It is set so the loudest four-note chord in the bank peaks
+         * at about 0.73, which is where it has always been. This is also the
          * level that drives the chorus, so it decides how hard the
-         * bucket-brigade lines are pushed -- and that product, too, is
-         * unchanged for the bank.
+         * bucket-brigade lines are pushed.
          */
         volume_ = v * v;
         break;
     case JUNO_VCA_MODE: {
         const bool gate = (junoParamStep(v, 2) == 1);
-        vp_.gateMode = gate;
         for (int i = 0; i < JUNO_VOICES; ++i) voice_[i].setGateMode(gate);
         break;
     }
@@ -544,7 +547,7 @@ void Juno::processFloat(float* out_l, float* out_r, int frames)
 
             /* Six voices at once would otherwise run out of headroom before
              * the filter does. */
-            sum *= 0.50f;
+            sum *= 0.64f;
 
             for (int os = 0; os < JUNO_OVERSAMPLE; ++os)
                 sum = dec_[2].process(dec_[1].process(dec_[0].process(sum)));

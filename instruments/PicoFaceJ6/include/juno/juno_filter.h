@@ -109,7 +109,7 @@ public:
          * an OTA cascade with its own feedback amplifier and a transistor
          * ladder, and most of why a Juno with the resonance up is never thin.
          */
-        const float x = in * (1.0f + k_ * JUNO_VCF_GCOMP);
+        const float x = in * (1.0f + k_ * gComp_);
 
         /* What the four stages will contribute from their current states, so
          * the loop can be closed on this sample instead of the last one. */
@@ -129,6 +129,10 @@ private:
     void updateCoeffs()
     {
         k_ = 4.0f * res_;
+        /* How much of the input is fed forward to hold the low end up as the
+         * feedback rises. Measured against Roland's plugin -- see
+         * kJunoVcfGComp -- and not the flat 0.85 that used to stand here. */
+        gComp_ = junoVcfGComp(res_ * (1.0f / JUNO_RESONANCE_MAX));
         const float om = 1.0f - g_;
         const float g2 = g_ * g_;
         c0_ = om;
@@ -174,6 +178,7 @@ private:
     float res_  = -1.0f;
     float k_    = 0.0f;      /* loop gain, four at self-oscillation */
     float c0_ = 0.0f, c1_ = 0.0f, c2_ = 0.0f, c3_ = 0.0f;
+    float gComp_  = 0.49f;
     float invDen_ = 1.0f;
 
     float s_[4] = {};

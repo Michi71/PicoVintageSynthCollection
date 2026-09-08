@@ -196,14 +196,14 @@ A Juno-60 stores 56 of its own, eight per bank across seven banks, and the
 factory set is not in the service notes. The 48 here come from the patch table
 of junox, which uses the same parameters and supplied the names.
 
-Three values depart from that set, each because the sound and the name
+Two values depart from the chart, each because the sound and the name
 disagreed:
 
 | Patch | | |
 |---|---|---|
 | Piano I | DCO LFO 0.4 → 0 | forty cents of vibrato at five hertz, on a piano |
 | Clavichord I | DCO LFO 0.4 → 0 | the same, and the same reason |
-| Brass | VCA level 0.7 → 1.0 | the timbre was right and the level sat six decibels under everything else |
+| ~~Brass~~ | ~~VCA level 0.7 → 1.0~~ | withdrawn: the chart's level column reads +2, which is 0.7 |
 
 The other fourteen patches that use the DCO LFO keep it: ten to twenty cents on
 a violin, a clarinet or an oboe is what those instruments do.
@@ -494,6 +494,26 @@ number — sections and pages by name, the cursor by reading back where it is.
 Four separate test bugs in this project were miscounted encoder steps, and each
 one looked like a firmware fault first.
 
+## The last column of the chart
+
+The owner's manual chart prints one column that every transcription of it has
+given up on: the VCA level. It is not a slider position but a signed offset
+from the middle of one — `E +2`, `G −1`, `E 0` — with the letter carrying the
+ENV/GATE selector beside it. The slider is `5 + LEVEL`.
+
+junox has had that column all along, and this project's import dropped it:
+every patch here carried the same placeholder 0.700. Against a
+higher-resolution scan, **32 of the 32 rows on the two pages that could be read
+match junox cell for cell**, over a range from −3 to +4 — so junox's column is
+the chart's, and it is taken wholesale. The bank's loudness spread narrows from
+11.1 to 10.5 dB and its span from 51 to 48; the organs lose 3.7 dB and
+Glockenspiel gains 5.3. The headroom constant carries the rest, since the
+column centres on 0.5 where the placeholder sat at 0.7.
+
+The same scan settles the chorus column, which sits at the page edge and had to
+come from the Patch Book's LED graphics: **Celesta is OFF**, not I. That was the
+single cell where this transcription and junox's disagreed, out of 1344.
+
 ## Measured against Roland's JUNO-60 plugin
 
 Roland's Roland Cloud JUNO-60 puts its whole panel on its VST3 parameter list,
@@ -525,6 +545,10 @@ What it has settled so far:
 | The VCA gate was being overwritten | Its rise and fall shared the contour's coefficients, and the panel writes the mode before the sliders — so every gate patch ran on its contour. |
 | A contour heading for silence carries on | Decay and release ran their segment to −40 dB and snapped. The plugin holds the same rate past −110. Synth Drum, whose only sound source is the filter singing at a sustain of zero, went silent under a held key. |
 | Both LFO depths are curves, not lines | The pitch depth is the square of the setting reaching 3.9 semitones; the filter depth is an S-curve reaching 3.6 octaves. Taken straight, the bottom third of either slider is three to ten times too deep — and that is where nearly every patch that uses them sits. |
+| The VCA switch sits in front of the amplifier | Gate mode was folded into the single contour and forced its sustain to full, so it opened the filter as well. Four of the six worst patches in the comparison were gate-mode ones. |
+| The contour depth shares the LFO's taper | One slider design, two destinations, the same curve to a hundredth — only the full scale differs, 3.6 octaves against 11.0. |
+| The cutoff slider is a table, and its bottom is not clamped | The corner keeps falling to 12.3 Hz where the clamp held it at 20, and the first sixth of the travel is exactly where the patches that let the contour do the work start from. |
+| The attack slider is a table | Nearly three times slow over the first third of the travel, a sixth fast at the top. |
 
 Where the two still disagree, and the service notes win: the LFO reaches 22 Hz
 at the top of its slider, which is factory adjustment 7 and Fig. 29 of the
@@ -549,6 +573,13 @@ between a third and half of the slider and 10–15 % slow between two thirds and
 four fifths, and the chorus rates differ by 10 % on II and 5 % on I+II. The
 specification sheet and the instrument that was measured for it are 12 s and
 19.8 s apart on the same decay, so a fifth either way settles nothing.
+
+Recorded and left alone because the service notes are more specific than the
+plugin: **the LFO runs 0.3 … 22 Hz here and 0.049 … 67 Hz in the plugin.** The
+top is factory adjustment 7 and Fig. 29, a 45 ms period; the bottom is the
+specifications page. It is the one visible difference left in the bank
+comparison — Surf sets the LFO rate to zero and the filter depth to 0.6, so in
+the plugin its filter takes twenty seconds to sweep and here it takes three.
 
 ## Deliberate deviations from the original
 
