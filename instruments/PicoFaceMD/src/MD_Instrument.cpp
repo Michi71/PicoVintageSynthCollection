@@ -15,7 +15,6 @@
 #include "MD_Synth_Bridge.h"
 #include "MD_Midi.h"
 #include "MD_Controller.h"
-#include "MD_Display.h"
 #include "picoface/ui_kit.h"
 #include "md_settings.h"
 #include "md_ipc.h"

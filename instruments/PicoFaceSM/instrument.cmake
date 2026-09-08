@@ -9,7 +9,6 @@ picoface_add_instrument(
         # Adapter implementing picoface::Instrument
         src/SM_Instrument.cpp
         src/SM_Controller.cpp
-        src/SM_Display.cpp
         src/SM_Midi.cpp
         src/SM_Synth_Bridge.cpp
         src/solina/solina.cpp

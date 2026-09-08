@@ -21,7 +21,6 @@ picoface_add_instrument(
     SOURCES
         src/MD_Instrument.cpp    # adapter implementing picoface::Instrument
         src/MD_Controller.cpp
-        src/MD_Display.cpp
         src/MD_Midi.cpp
         src/MD_Synth_Bridge.cpp
         src/moog/moog.cpp

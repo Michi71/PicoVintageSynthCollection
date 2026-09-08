@@ -12,7 +12,6 @@
 #include "SM_Synth_Bridge.h"
 #include "SM_Midi.h"
 #include "SM_Controller.h"
-#include "SM_Display.h"
 #include "picoface/ui_kit.h"
 #include "sm_settings.h"
 #include "sm_ipc.h"

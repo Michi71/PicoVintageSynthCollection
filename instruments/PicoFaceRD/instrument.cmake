@@ -157,7 +157,6 @@ picoface_add_instrument(
 
         # instrument logic
         src/RD_Controller.cpp
-        src/RD_Display.cpp
         src/RD_Midi.cpp
         src/RD_Synth_Bridge_v2.cpp
         src/rd_effects.cpp

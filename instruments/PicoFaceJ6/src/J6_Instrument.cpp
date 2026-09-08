@@ -12,7 +12,6 @@
 #include "J6_Synth_Bridge.h"
 #include "J6_Midi.h"
 #include "J6_Controller.h"
-#include "J6_Display.h"
 #include "picoface/ui_kit.h"
 #include "j6_settings.h"
 #include "j6_patchstore.h"

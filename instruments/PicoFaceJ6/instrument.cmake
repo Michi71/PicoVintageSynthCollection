@@ -9,7 +9,6 @@ picoface_add_instrument(
         # Adapter implementing picoface::Instrument
         src/J6_Instrument.cpp
         src/J6_Controller.cpp
-        src/J6_Display.cpp
         src/J6_Midi.cpp
         src/J6_Synth_Bridge.cpp
         src/j6_patchstore.cpp
