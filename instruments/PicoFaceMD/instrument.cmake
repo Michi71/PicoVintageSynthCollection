@@ -21,7 +21,6 @@ picoface_add_instrument(
     SOURCES
         src/MD_Instrument.cpp    # adapter implementing picoface::Instrument
         src/MD_Controller.cpp
-        src/MD_Display.cpp
         src/MD_Midi.cpp
         src/MD_Synth_Bridge.cpp
         src/moog/moog.cpp
@@ -35,7 +34,8 @@ picoface_add_instrument(
 
     # ---- Optional core modules -------------------------------------------
     # Names of optional core modules to additionally compile in.
-    CORE_MODULES   # MD uses no optional core modules
+    CORE_MODULES
+        ui_kit     # shared panel look: header, knobs, two-value body, lists
 
     # ---- Excluded core sources -------------------------------------------
     # Here an instrument enters the filename of a core source that it

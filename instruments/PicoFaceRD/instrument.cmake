@@ -157,7 +157,6 @@ picoface_add_instrument(
 
         # instrument logic
         src/RD_Controller.cpp
-        src/RD_Display.cpp
         src/RD_Midi.cpp
         src/RD_Synth_Bridge_v2.cpp
         src/rd_effects.cpp
@@ -184,6 +183,10 @@ picoface_add_instrument(
         # not "rd_engine/rom_tables.h"), so this directory has to be on the
         # search path as well.
         include/rd_engine
+
+    # ---- Optional core modules -------------------------------------------
+    CORE_MODULES
+        ui_kit     # shared panel look: header, knobs, two-value body, lists
 
     CORE_EXCLUDE
         veeprom.cpp

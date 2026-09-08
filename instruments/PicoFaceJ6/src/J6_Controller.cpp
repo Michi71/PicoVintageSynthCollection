@@ -488,6 +488,37 @@ void J6_Controller::counterText(char* dst, size_t n) const
         snprintf(dst, n, "%d/%d", page_ + 1, pageCount());
 }
 
+int J6_Controller::pageIndex() const
+{
+    return inSection_ ? page_ : 0;
+}
+
+int J6_Controller::pageTotal() const
+{
+    /* Lists carry their own position; only a parameter page gets dots. */
+    if (!inSection_ || isPresetList())
+        return 0;
+    return pageCount();
+}
+
+/* Anything the Juno had as a slider sweeps; switches, the range selector and
+ * the pseudo parameters step. */
+float J6_Controller::paramNorm(int slot) const
+{
+    const int id = paramIdOf(slot);
+    if (id < 0 || id >= JUNO_TOTAL_COUNT)
+        return -1.0f;              /* the J6_UI_* pseudo parameters */
+
+    const JunoParamDesc& d = kJunoParams[id];
+    if (d.type == JUNO_T_SWITCH || d.type == JUNO_T_ENUM)
+        return -1.0f;
+
+    return shadow_[id];
+}
+
+float J6_Controller::paramANorm() const { return paramNorm(0); }
+float J6_Controller::paramBNorm() const { return paramNorm(1); }
+
 void J6_Controller::formatValue(int id, char* dst, size_t n) const
 {
     if (id == J6_UI_NONE) {

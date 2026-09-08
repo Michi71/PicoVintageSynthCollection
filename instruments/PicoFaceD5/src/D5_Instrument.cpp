@@ -13,7 +13,7 @@
 
 #include "D5_Bridge.h"
 #include "D5_Controller.h"
-#include "D5_Display.h"
+#include "picoface/ui_kit.h"
 #include "D5_Midi.h"
 #include "d5_settings.h"
 #include "audio_i2s.h"   // g_i2s_underrun_count, for the diagnostics footer
@@ -131,24 +131,39 @@ public:
 
 private:
     void draw(picoface::ui::Display& d) {
-        D5UiModel m{};
-        snprintf(m.title, sizeof m.title, "%s", controller_.title());
-        snprintf(m.page, sizeof m.page, "%s", controller_.pageName());
-        controller_.lineA(m.lineA, sizeof m.lineA);
-        controller_.lineB(m.lineB, sizeof m.lineB);
+        namespace kit = picoface::ui::kit;
+
         // The last field is the note counter while the render has room, and
         // the governor's rate -- tails retired per second -- whenever it is
         // working. A rate rather than a running total: the total only ever
         // climbs and cannot say whether the machine is coping now.
         const unsigned long shed = (unsigned long)bridge_.shedRate();
-        snprintf(m.footer, sizeof m.footer, "P%d B%d U%lu A%d/%d %c%lu",
+        char footer[28];
+        snprintf(footer, sizeof footer, "P%d B%d U%lu A%d/%d %c%lu",
                  bridge_.cpuLoadPeakPercent(), benchPct_,
                  (unsigned long)(g_i2s_underrun_count > 999 ? 999 : g_i2s_underrun_count),
                  bridge_.activeVoices(), bridge_.noteLimit(),
                  shed ? 'S' : 'N',
                  shed ? (shed % 1000u)
                       : (unsigned long)(bridge_.noteOnTotal() % 1000u));
-        d5_display_page(d, m);
+
+        const D5_Controller::Value a = controller_.valueA();
+        const D5_Controller::Value b = controller_.valueB();
+
+        d.clear();
+        kit::header(d, controller_.pageName(), controller_.pageIndex(),
+                    controller_.pageTotal());
+        if (controller_.isPatchPage()) {
+            // A patch name does not fit in half the width at a size worth
+            // reading, so it gets all of it, with the structure under it.
+            kit::panelName(d, a.text, controller_.patchStructure(),
+                           { b.name, b.text, b.norm });
+        } else {
+            kit::panelDuo(d, { a.name, a.text, a.norm },
+                             { b.name, b.text, b.norm });
+        }
+        kit::footer(d, footer);
+
         // Arms the incremental push: the main loop only streams the buffer
         // while picoface_ui_flush_row < 16, and flush() resets that counter.
         d.flush();

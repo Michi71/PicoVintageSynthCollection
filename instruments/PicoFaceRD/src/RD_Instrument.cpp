@@ -18,7 +18,7 @@
 #include "RD_Synth_Bridge_v2.h"
 #include "RD_Midi.h"
 #include "RD_Controller.h"
-#include "RD_Display.h"
+#include "picoface/ui_kit.h"
 #include "rd_settings.h"
 #include "rd_params.h"
 #include "rd_ipc_local.h"
@@ -175,14 +175,14 @@ private:
 
     void draw(picoface::ui::Display& d)
     {
-        static char nm[24];
-        static RdUiModel m;
+        namespace kit = picoface::ui::kit;
+        using Param = kit::Param;
 
-        // Choose header title: BANK on the PATCH page, page name elsewhere.
-        // Patch names arrive as "MKS-20: Piano 1" -- the bank prefix replaces the
-        // page name in the header, the body shows number + bare name (fits 128px).
-        const char* titleName = controller_.pageName();
-        const char* bareName  = nm;   // meaningful only on the PATCH page
+        static char nm[24];
+
+        // Patch names arrive as "MKS-20: Piano 1" -- the bank prefix goes in
+        // the header where the page name would be, the bare name into the body.
+        //
         // Everything the header and the patch line show comes from the panel's
         // own selection, not from the engine. The engine picks a change up on
         // the next audio block, which is one pass of the main loop LATER than
@@ -190,6 +190,9 @@ private:
         // instrument and cleared the dirty flag, and the screen then sat there
         // until the 500 ms keep-alive. That was the "sehr lange" on hardware.
         const uint8_t shown = controller_.instrument();
+        const char* titleName = controller_.pageName();
+        const char* bareName  = nm;
+        const char* bankName  = "";
         if (controller_.currentPage() == RdPage::PATCH) {
             RD_Synth_Bridge::patchNameOf(shown, nm, sizeof(nm));
             bareName = nm;
@@ -198,58 +201,19 @@ private:
                 *colon = '\0';            // bank = prefix
                 bareName = colon + 1;      // bare name past the colon
                 if (bareName[0] == ' ') ++bareName;   // skip one leading space
+                bankName = nm;
                 titleName = nm;
-            } else {
-                titleName = controller_.pageName();
-                bareName  = nm;
             }
         }
 
-        // Header: "<PAGENAME|BANK> <sr>k" plus "<n>/<COUNT>" page indicator.
-        snprintf(m.title, sizeof(m.title), "%s %luk", titleName, (unsigned long)(RD_Synth_Bridge::sampleRateOf(shown) / 1000));
-        snprintf(m.page, sizeof(m.page), "%d/%d", (int) controller_.currentPage() + 1, (int) RdPage::COUNT);
+        char title[24];
+        snprintf(title, sizeof(title), "%s %luk", titleName,
+                 (unsigned long)(RD_Synth_Bridge::sampleRateOf(shown) / 1000));
 
-        // Body lines depend on the active page.
-        if (controller_.currentPage() == RdPage::PATCH) {
-            snprintf(m.lineA, sizeof(m.lineA), "%02d %s", (int) shown + 1, bareName);
-            snprintf(m.lineB, sizeof(m.lineB), "Volume %d%%", (int) controller_.param3Value());
-        } else if (controller_.currentPage() == RdPage::VOICES) {
-            static const char* const kVoiceModeNames[5] = {"8", "16", "24", "32", "Auto"};
-            uint8_t vm = controller_.param2Value();
-            if (vm > 4) vm = 4;   // clamp
-            snprintf(m.lineA, sizeof(m.lineA), "Voices %s", kVoiceModeNames[vm]);
-            snprintf(m.lineB, sizeof(m.lineB), "Act %d/%d", bridge_.activeVoices(), (int) bridge_.voiceLimit());
-        } else if (controller_.currentPage() == RdPage::TUNE) {
-            int cents = (int) controller_.param2Value() - 50;
-            snprintf(m.lineA, sizeof(m.lineA), "Tune %+dc", cents);
-            snprintf(m.lineB, sizeof(m.lineB), "A4 %.1fHz", 440.0f * exp2f(cents / 1200.0f));
-        } else if (controller_.currentPage() == RdPage::SYS) {
-            snprintf(m.lineA, sizeof(m.lineA), "DAC Flt %s", (controller_.param2Value() != 0 ? "ON" : "OFF"));
-            if (controller_.param3Value() == 16) {
-                snprintf(m.lineB, sizeof(m.lineB), "MIDI Ch Omni");
-            } else {
-                snprintf(m.lineB, sizeof(m.lineB), "MIDI Ch %d", (int) controller_.param3Value() + 1);
-            }
-        } else if (controller_.currentPage() == RdPage::CHORUS ||
-                   controller_.currentPage() == RdPage::TREMOLO ||
-                   controller_.currentPage() == RdPage::PHASER) {
-            // Rates in Hz rather than percent. Two of the three are measured
-            // figures out of the service notes rather than a scale of our own
-            // (see rd_params.h), so the number means something -- and the TUNE
-            // page already sets the precedent of showing the physical value.
-            // The stored value IS the 0.05 Hz grid index, so this is exact --
-            // no scale conversion to disagree with the engine about.
-            const float hz = rd_rate_hz_from_idx(controller_.param3Value());
-            snprintf(m.lineA, sizeof(m.lineA), "%s %d%%", controller_.param2Name(), (int) controller_.param2Value());
-            snprintf(m.lineB, sizeof(m.lineB), "%s %.2fHz", controller_.param3Name(), (double) hz);
-        } else {
-            // Continuous params are stored as percent (0..100).
-            snprintf(m.lineA, sizeof(m.lineA), "%s %d%%", controller_.param2Name(), (int) controller_.param2Value());
-            snprintf(m.lineB, sizeof(m.lineB), "%s %d%%", controller_.param3Name(), (int) controller_.param3Value());
-        }
-
-        // Footer: instrument, CPU peak, underruns, dropped IPC packets, active voices, note-ons.
-        snprintf(m.footer, sizeof(m.footer), "%d P%d U%lu D%lu A%d N%lu",
+        // Footer: instrument, CPU peak, underruns, dropped IPC packets,
+        // active voices, note-ons.
+        char footer[28];
+        snprintf(footer, sizeof(footer), "%d P%d U%lu D%lu A%d N%lu",
                  (int) bridge_.instrument(),
                  (int) bridge_.cpuLoadPeakPercent(),
                  (unsigned long) g_i2s_underrun_count,
@@ -257,8 +221,95 @@ private:
                  (int) bridge_.activeVoices(),
                  (unsigned long) bridge_.noteOnCount());
 
-        rd_display_page(d.raw(), m);
+        d.clear();
+        kit::header(d, title, (int) controller_.currentPage(), (int) RdPage::COUNT);
+
+        char va[24], vb[24];
+        Param a{}, b{};
+
+        switch (controller_.currentPage()) {
+        case RdPage::PATCH:
+            // The instrument name gets the full width, with its bank under it.
+            snprintf(va, sizeof(va), "%02d %s", (int) shown + 1, bareName);
+            snprintf(vb, sizeof(vb), "%d%%", (int) controller_.param3Value());
+            kit::panelName(d, va, bankName,
+                           { "Volume", vb, controller_.param3Value() / 100.0f });
+            break;
+
+        case RdPage::VOICES: {
+            static const char* const kVoiceModeNames[5] = {"8", "16", "24", "32", "Auto"};
+            uint8_t vm = controller_.param2Value();
+            if (vm > 4) vm = 4;   // clamp
+            snprintf(va, sizeof(va), "%s", kVoiceModeNames[vm]);
+            snprintf(vb, sizeof(vb), "%d/%d", bridge_.activeVoices(),
+                     (int) bridge_.voiceLimit());
+            // Neither has a dial position: one steps through five settings,
+            // the other is a reading rather than a control.
+            kit::panelDuo(d, { "Voices", va }, { "Active", vb });
+            break;
+        }
+
+        case RdPage::TUNE: {
+            const int cents = (int) controller_.param2Value() - 50;
+            snprintf(va, sizeof(va), "%+dc", cents);
+            snprintf(vb, sizeof(vb), "%.1fHz", (double)(440.0f * exp2f(cents / 1200.0f)));
+            kit::panelDuo(d, { "Tune", va, controller_.param2Value() / 100.0f },
+                             { "A4", vb });
+            break;
+        }
+
+        case RdPage::SYS:
+            snprintf(va, sizeof(va), "%s", controller_.param2Value() != 0 ? "ON" : "OFF");
+            if (controller_.param3Value() == 16) snprintf(vb, sizeof(vb), "Omni");
+            else snprintf(vb, sizeof(vb), "%d", (int) controller_.param3Value() + 1);
+            kit::panelDuo(d, { "DAC Flt", va }, { "MIDI Ch", vb });
+            break;
+
+        case RdPage::CHORUS:
+        case RdPage::TREMOLO:
+        case RdPage::PHASER: {
+            // Rates in Hz rather than percent. Two of the three are measured
+            // figures out of the service notes rather than a scale of our own
+            // (see rd_params.h), so the number means something -- and the TUNE
+            // page already sets the precedent of showing the physical value.
+            // The stored value IS the 0.05 Hz grid index, so this is exact --
+            // no scale conversion to disagree with the engine about.
+            const uint8_t rateId = rateParamId(controller_.currentPage());
+            const uint8_t lo = rd_rate_idx_min(rateId), hi = rd_rate_idx_max(rateId);
+            const float hz = rd_rate_hz_from_idx(controller_.param3Value());
+            snprintf(va, sizeof(va), "%d%%", (int) controller_.param2Value());
+            snprintf(vb, sizeof(vb), "%.2fHz", (double) hz);
+            kit::panelDuo(d,
+                { controller_.param2Name(), va, controller_.param2Value() / 100.0f },
+                { controller_.param3Name(), vb,
+                  (hi > lo) ? (float)(controller_.param3Value() - lo) / (float)(hi - lo) : -1.0f });
+            break;
+        }
+
+        default:
+            // Continuous params are stored as percent (0..100).
+            snprintf(va, sizeof(va), "%d%%", (int) controller_.param2Value());
+            snprintf(vb, sizeof(vb), "%d%%", (int) controller_.param3Value());
+            kit::panelDuo(d,
+                { controller_.param2Name(), va, controller_.param2Value() / 100.0f },
+                { controller_.param3Name(), vb, controller_.param3Value() / 100.0f });
+            break;
+        }
+
+        kit::footer(d, footer);
         d.flush();   // arms the incremental push
+    }
+
+    // Which stored parameter carries the rate of the effect a page edits. Only
+    // used to scale the knob: the three effects have different rate ranges.
+    static uint8_t rateParamId(RdPage p)
+    {
+        switch (p) {
+        case RdPage::CHORUS:  return RD_PARAM_CHORUS_RATE;
+        case RdPage::TREMOLO: return RD_PARAM_TREM_RATE;
+        case RdPage::PHASER:  return RD_PARAM_PHASER_RATE;
+        default:              return RD_PARAM_CHORUS_RATE;
+        }
     }
 
     RD_Synth_Bridge bridge_;

@@ -120,11 +120,15 @@ picoface_add_instrument(
         src/D5_Instrument.cpp
         src/D5_Bridge.cpp
         src/D5_Controller.cpp
-        src/D5_Display.cpp
         src/D5_Midi.cpp
         ${_d5_blob_s}
 
     INCLUDE_DIRS
         include
         ${_d5_gen}          # d5_pcm_table.h, generated beside the blob
+
+    # ---- Optional core modules -------------------------------------------
+    CORE_MODULES
+        ui_kit     # shared panel look: header, knobs, two-value body, lists
+
 )

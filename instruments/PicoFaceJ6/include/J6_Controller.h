@@ -112,9 +112,23 @@ public:
     bool isEdited() const;
     void        counterText(char* dst, size_t n) const; /* header, right */
 
+    /* The same position as counterText, but as numbers, for the kit's page
+     * dots. Zero pages means "do not show any": on a list the cursor already
+     * says where you are. */
+    int         pageIndex() const;   /* 0-based */
+    int         pageTotal() const;
+
     /* J6_VIEW_PAGE */
     const char* paramAName() const;
     const char* paramBName() const;
+    /* 0..1 for a value that has a position on a dial, negative for one that
+     * does not -- a switch, a waveform, the patch, the MIDI channel. The
+     * shared UI kit turns the first into a pointer knob and the second into a
+     * list marker; the controller decides which because only it knows what
+     * kind of control the original had. */
+    float       paramANorm() const;
+    float       paramBNorm() const;
+
     void        paramAText(char* dst, size_t n) const;
     void        paramBText(char* dst, size_t n) const;
 
@@ -176,6 +190,7 @@ private:
     void  patchLabel(int index, char* dst, size_t n) const;
     const char* nameOf(int id) const;
     int   pageCount() const;
+    float paramNorm(int slot) const;
     bool  isPresetList() const;
 
     J6_Midi& midi_;

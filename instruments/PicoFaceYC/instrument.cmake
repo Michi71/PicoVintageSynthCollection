@@ -38,6 +38,7 @@ picoface_add_instrument(
     # Non-blocking selection list for the menu tree in YC_Ui.cpp.
     CORE_MODULES
         ui_menu
+        ui_kit     # shared panel look; ui_menu draws through it
 
     CORE_EXCLUDE
         midi_input_usb.cpp

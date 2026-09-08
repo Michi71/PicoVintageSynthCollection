@@ -2,7 +2,11 @@
 // SPDX-FileCopyrightText: 2026 Michi71
 
 #pragma once
-#include "u8g2.h"
+
+#include "picoface/ui.h"
 #include "YC_Controller.h"
 
-void ycDrawScreen(u8g2_t* u8g2, YC_Controller& controller);
+// Draws the current front panel page through the shared kit: header, then the
+// page's one or two values. Paints only - clearing and pushing belong to the
+// caller (YC_Ui).
+void ycDrawScreen(picoface::ui::Display& d, YC_Controller& controller);

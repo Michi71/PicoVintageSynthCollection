@@ -64,6 +64,7 @@ picoface_add_instrument(
     # Non-blocking selection list for the menu tree in DX_Ui.cpp.
     CORE_MODULES
         ui_menu
+        ui_kit     # shared panel look; ui_menu draws through it
 
     DEFINES
         # Both stacks into the otherwise unused halves of the 4 KB scratch

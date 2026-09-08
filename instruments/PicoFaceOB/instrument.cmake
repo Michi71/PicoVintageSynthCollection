@@ -28,6 +28,7 @@ picoface_add_instrument(
     # Non-blocking selection list for the menu tree in OB_Ui.cpp.
     CORE_MODULES
         ui_menu
+        ui_kit     # shared panel look; ui_menu draws through it
 
     DEFINES
         PICO_USE_SW_SPIN_LOCKS=1

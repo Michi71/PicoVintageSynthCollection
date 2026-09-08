@@ -9,7 +9,6 @@ picoface_add_instrument(
         # Adapter implementing picoface::Instrument
         src/SM_Instrument.cpp
         src/SM_Controller.cpp
-        src/SM_Display.cpp
         src/SM_Midi.cpp
         src/SM_Synth_Bridge.cpp
         src/solina/solina.cpp
@@ -18,6 +17,10 @@ picoface_add_instrument(
         src/solina/solina_phaser.cpp
         src/solina/solina_registers.cpp
     INCLUDE_DIRS include
+
+    # ---- Optional core modules -------------------------------------------
+    CORE_MODULES
+        ui_kit     # shared panel look: header, knobs, two-value body, lists
 
     # No double-tap RESET: on the speaker-driven prototype the inrush current
     # browns the chip out on plug-in and the library reads that as a double

@@ -49,6 +49,12 @@ public:
 
     const char* paramAName() const;
     const char* paramBName() const;
+    /* 0..1 for a value that has a position on a dial, negative for one that
+     * does not -- a switch, the preset, the MIDI channel. The shared UI kit
+     * turns the first into a pointer knob and the second into a list marker. */
+    float       paramANorm() const;
+    float       paramBNorm() const;
+
     void        paramAText(char* dst, size_t n) const;
     void        paramBText(char* dst, size_t n) const;
 
@@ -64,6 +70,7 @@ public:
 private:
     void  adjust(int slot, int delta);       /* slot 0 = A, 1 = B */
     int   paramIdOf(int slot) const;
+    float paramNorm(int slot) const;
     void  sendParam(int id, float v);
     void  formatValue(int id, char* dst, size_t n) const;
 

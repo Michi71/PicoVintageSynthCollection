@@ -15,7 +15,7 @@
 
 #include "JV_Bridge.h"
 #include "JV_Controller.h"
-#include "JV_Display.h"
+#include "picoface/ui_kit.h"
 #include "JV_Midi.h"
 #include "jv_settings.h"
 #include "audio_i2s.h"   // g_i2s_underrun_count, for the diagnostics footer
@@ -125,18 +125,32 @@ public:
 
 private:
     void draw(picoface::ui::Display& d) {
-        JvUiModel m{};
-        snprintf(m.title, sizeof m.title, "%s", controller_.title());
-        snprintf(m.page, sizeof m.page, "%s", controller_.pageName());
-        controller_.lineA(m.lineA, sizeof m.lineA);
-        controller_.lineB(m.lineB, sizeof m.lineB);
+        namespace kit = picoface::ui::kit;
+
         // Peak load first: it is the number that says how much headroom is
         // left, and it is the one that moves before an underrun happens.
-        snprintf(m.footer, sizeof m.footer, "P%d%% U%lu A%d/%d",
+        char footer[28];
+        snprintf(footer, sizeof footer, "P%d%% U%lu A%d/%d",
                  (int)bridge_.cpuLoadPeakPercent(),
                  (unsigned long)g_i2s_underrun_count,
                  bridge_.activeVoices(), bridge_.voiceLimit());
-        jv_display_page(d, m);
+
+        const JV_Controller::Value a = controller_.valueA();
+        const JV_Controller::Value b = controller_.valueB();
+
+        d.clear();
+        kit::header(d, controller_.pageName(), controller_.pageIndex(),
+                    controller_.pageTotal());
+        if (controller_.isPatchPage()) {
+            // A patch name does not fit in half the width at a size worth
+            // reading, so it gets all of it, with the bank under it.
+            kit::panelName(d, a.text, b.text, {});
+        } else {
+            kit::panelDuo(d, { a.name, a.text, a.norm },
+                             { b.name, b.text, b.norm });
+        }
+        kit::footer(d, footer);
+
         // Arms the incremental push. Painting the buffer is not enough: the main
         // loop only streams it out while picoface_ui_flush_row < 16, and flush()
         // is what resets that counter. Without this the display keeps showing

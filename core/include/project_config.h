@@ -48,19 +48,37 @@
 //#define PIN_POT_0     28
 #define PIN_POT_1     29
 
+// Encoder pins.
+//
+// CLK and DT are swapped against the GPIO order, and deliberately so: on the
+// board under hardware/ the A and B contacts of all three EC11s reach the RP2350
+// the other way round, so turning an encoder clockwise counted DOWN. Measured on
+// the assembled board, not deduced from the schematic.
+//
+// The swap belongs here rather than in the driver. Encoder takes a Direction
+// (NORMAL_DIR / REVERSED_DIR) which would produce the same counts, but that
+// would describe the wiring as correct and the counting as backwards. It is the
+// other way round: these two names say which GPIO carries which contact, and on
+// this board that is 7 and 6, not 6 and 7. The PIO watches the two pins
+// independently (jmp_pin for A, in_pins for B - see lib/encoder/piosrc/
+// encoder.pio, "do not need to be consecutive"), so any pairing works.
+//
+// If a board ever wires them the plain way round, swap the numbers back here;
+// nothing else reads them.
+
 // Selector encoder
-#define PIN_SEL_CLK   6
-#define PIN_SEL_DT    7
+#define PIN_SEL_CLK   7
+#define PIN_SEL_DT    6
 #define PIN_SEL_SW    8
 
 // Param A encoder
-#define PIN_PA_CLK    10
-#define PIN_PA_DT     11
+#define PIN_PA_CLK    11
+#define PIN_PA_DT     10
 #define PIN_PA_SW     14   // optional switch
 
 // Param B encoder
-#define PIN_PB_CLK    12
-#define PIN_PB_DT     13
+#define PIN_PB_CLK    13
+#define PIN_PB_DT     12
 #define PIN_PB_SW     15   // optional switch
 
 // QMI M0_TIMING values. Bit layout (see hardware/regs/qmi.h):

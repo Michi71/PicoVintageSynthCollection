@@ -26,6 +26,7 @@ picoface_add_instrument(
     # Non-blocking selection list for the menu tree in CP_Ui.cpp.
     CORE_MODULES
         ui_menu
+        ui_kit     # shared panel look; ui_menu draws through it
 
     DEFINES
         PICO_STACK_SIZE=0x1000

@@ -9,7 +9,6 @@ picoface_add_instrument(
         # Adapter implementing picoface::Instrument
         src/J6_Instrument.cpp
         src/J6_Controller.cpp
-        src/J6_Display.cpp
         src/J6_Midi.cpp
         src/J6_Synth_Bridge.cpp
         src/j6_patchstore.cpp
@@ -18,6 +17,10 @@ picoface_add_instrument(
         src/juno/juno_params.cpp
         src/juno/juno_presets.cpp
     INCLUDE_DIRS include
+
+    # ---- Optional core modules -------------------------------------------
+    CORE_MODULES
+        ui_kit     # shared panel look: header, knobs, two-value body, lists
 
     DEFINES
         PICO_USE_SW_SPIN_LOCKS=1
