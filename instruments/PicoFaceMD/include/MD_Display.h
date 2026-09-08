@@ -1,33 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Michi71
 
-// MD_Display.h — Pure-visual display module for PicoFaceMD (RP2350 + SH1106 128x64 via u8g2 C-API).
-// Mirrors the PicoFaceCP look: inverted header bar + separator, page indicator,
-// body lines and footer. Content strings are preformatted by the caller (md_main.cpp).
+// MD_Display.h -- what is left of the instrument's own display code.
 //
-// Two body layouts, both sharing the same header and footer:
-//   md_display_page  two labelled values, one per encoder — the parameter pages
-//   md_display_list  three rows with a cursor — the section menu and the preset list
+// The page and list renderers that used to live here (MdUiModel, MdListModel
+// and about a hundred lines of u8g2 calls, copied from PicoFaceCP as every
+// other instrument copied them) are gone: the shared kit in
+// core/include/picoface/ui_kit.h draws those now, and MD_Instrument calls it
+// directly. What cannot be shared stays -- the splash screen, because the logo
+// is the one part of the boot screen that is this instrument's own.
+
 #pragma once
-#include <stdint.h>
 #include "u8g2.h"
 
-struct MdUiModel {
-    char title[16];   // header left, e.g. "MOD FILTER"
-    char page[8];     // header right, e.g. "1/5"
-    char lineA[26];   // body line at y=32 (font 8x13B)
-    char lineB[26];   // body line at y=48 (font 8x13B)
-    char footer[26];  // footer at y=62 (font 6x10), diagnostics
-};
-
-struct MdListModel {
-    char    title[16];    // header left, e.g. "MENU"
-    char    page[8];      // header right, e.g. "3/8"
-    char    rows[3][22];  // three visible entries, top to bottom
-    uint8_t cursor;       // which of the three is selected, 0..2
-    char    footer[26];   // footer at y=62 (font 6x10), diagnostics
-};
-
-void md_display_splash(u8g2_t* u); // boot only: draws logo + BLOCKING SendBuffer
-void md_display_page(u8g2_t* u, const MdUiModel& m); // draws into buffer, NO send
-void md_display_list(u8g2_t* u, const MdListModel& m); // draws into buffer, NO send
+// Boot only: draws the logo and BLOCKS on SendBuffer. Safe there and only
+// there, because the audio engine has not started yet.
+void md_display_splash(u8g2_t* u);

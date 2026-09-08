@@ -310,6 +310,19 @@ void MD_Controller::counterText(char* dst, size_t n) const
         snprintf(dst, n, "%d/%d", page_ + 1, pageCount());
 }
 
+int MD_Controller::pageIndex() const
+{
+    return inSection_ ? page_ : 0;
+}
+
+int MD_Controller::pageTotal() const
+{
+    /* Lists carry their own position; only a parameter page gets dots. */
+    if (!inSection_ || isPresetList())
+        return 0;
+    return pageCount();
+}
+
 void MD_Controller::formatValue(int id, char* dst, size_t n) const
 {
     if (id == MD_UI_NONE) {
@@ -328,6 +341,24 @@ void MD_Controller::formatValue(int id, char* dst, size_t n) const
     }
     moogFormatValue(id, shadow_[id], dst, n);
 }
+
+/* Anything the Model D had as a rotary or a slider sweeps; switches, the
+ * three-position waveform selectors, the preset and the channel step. */
+float MD_Controller::paramNorm(int slot) const
+{
+    const int id = paramIdOf(slot);
+    if (id < 0 || id >= MOOG_PARAM_COUNT)
+        return -1.0f;              /* MD_UI_NONE / PROGRAM / MIDICH */
+
+    const MoogParamDesc& d = kMoogParams[id];
+    if (d.type == MOOG_T_SWITCH || d.type == MOOG_T_ENUM)
+        return -1.0f;
+
+    return shadow_[id];
+}
+
+float MD_Controller::paramANorm() const { return paramNorm(0); }
+float MD_Controller::paramBNorm() const { return paramNorm(1); }
 
 const char* MD_Controller::paramAName() const { return nameOf(paramIdOf(0)); }
 const char* MD_Controller::paramBName() const { return nameOf(paramIdOf(1)); }

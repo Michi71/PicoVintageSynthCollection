@@ -20,6 +20,7 @@
 #   PICOFACE_CORE_INCLUDE_DIR                - core include directory
 #   PICOFACE_CORE_SOURCES                    - base core sources (absolute)
 #   PICOFACE_CORE_MODULE_UI_MENU_SOURCES     - module "ui_menu" sources
+#   PICOFACE_CORE_MODULE_UI_KIT_SOURCES      - module "ui_kit" sources
 #   PICOFACE_CORE_MODULES                    - list of available module names
 # ============================================================================
 
@@ -57,13 +58,26 @@ set(PICOFACE_CORE_MODULE_UI_MENU_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/list_view.cpp"
 )
 
+# --- module: ui_kit -----------------------------------------------------------
+# The shared front panel look: header bar, knobs, the two-value body, the
+# two-column browser. Instruments state what is on the page; the kit decides
+# how it looks, so the house style is one edit instead of ten.
+#
+# Separate from ui_menu because the two answer different questions - ui_menu is
+# a cursor over a list, ui_kit is how a panel is painted - and an instrument may
+# well want one without the other.
+set(PICOFACE_CORE_MODULE_UI_KIT_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/kit.cpp"
+)
+
 # --- available modules --------------------------------------------------------
-set(PICOFACE_CORE_MODULES "ui_menu")
+set(PICOFACE_CORE_MODULES "ui_menu" "ui_kit")
 
 # --- sanity check: every listed source file must exist ------------------------
 foreach(_picoface_src IN LISTS
         PICOFACE_CORE_SOURCES
-        PICOFACE_CORE_MODULE_UI_MENU_SOURCES)
+        PICOFACE_CORE_MODULE_UI_MENU_SOURCES
+        PICOFACE_CORE_MODULE_UI_KIT_SOURCES)
     if(NOT EXISTS "${_picoface_src}")
         message(FATAL_ERROR "PicoFace core source missing: ${_picoface_src}")
     endif()
@@ -73,6 +87,7 @@ endforeach()
 set(PICOFACE_CORE_INCLUDE_DIR                "${PICOFACE_CORE_INCLUDE_DIR}"                PARENT_SCOPE)
 set(PICOFACE_CORE_SOURCES                    "${PICOFACE_CORE_SOURCES}"                    PARENT_SCOPE)
 set(PICOFACE_CORE_MODULE_UI_MENU_SOURCES     "${PICOFACE_CORE_MODULE_UI_MENU_SOURCES}"     PARENT_SCOPE)
+set(PICOFACE_CORE_MODULE_UI_KIT_SOURCES      "${PICOFACE_CORE_MODULE_UI_KIT_SOURCES}"      PARENT_SCOPE)
 set(PICOFACE_CORE_MODULES                    "${PICOFACE_CORE_MODULES}"                    PARENT_SCOPE)
 
 # --- summary ------------------------------------------------------------------

@@ -75,11 +75,26 @@ public:
     const char* title() const;                       /* header, left  */
     void        counterText(char* dst, size_t n) const; /* header, right */
 
+    /* The same position as counterText, but as numbers, for the kit's page
+     * dots. Zero pages means "do not show any": on a list the cursor already
+     * says where you are, and a second indicator for the same thing is just
+     * something else to keep in step. */
+    int         pageIndex() const;   /* 0-based */
+    int         pageTotal() const;
+
     /* MD_VIEW_PAGE */
     const char* paramAName() const;
     const char* paramBName() const;
     void        paramAText(char* dst, size_t n) const;
     void        paramBText(char* dst, size_t n) const;
+
+    /* 0..1 for a value that has a position on a dial, negative for one that
+     * does not -- a switch, a waveform, the preset, the MIDI channel. The
+     * shared UI kit turns the first into a pointer knob and the second into a
+     * list marker; the controller decides which because only it knows what
+     * kind of control the original had. */
+    float       paramANorm() const;
+    float       paramBNorm() const;
 
     /* MD_VIEW_LIST */
     int  listCount() const;
@@ -102,6 +117,7 @@ public:
 
 private:
     void  adjust(int slot, int delta);       /* slot 0 = A, 1 = B */
+    float paramNorm(int slot) const;
     int   paramIdOf(int slot) const;
     void  sendParam(int id, float v);
     void  formatValue(int id, char* dst, size_t n) const;

@@ -1,0 +1,4 @@
+# Build products of build_ui_kit.sh and the shot runs.
+.u8g2_host/
+ui_kit_shots
+out/
