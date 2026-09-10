@@ -94,9 +94,11 @@ Pico-format board the honest pair is
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=pico2 -DPICO_FLASH_SIZE_BYTES=16777216
 ```
 
-Without that second flag, `pico2` caps the image at 4 MB and PicoFaceCP
-overflows it by 5.5 %. Nothing else in the SparkFun definition reaches the
-firmware: the flash timing and the system clock are set by the project itself in
+Without that second flag, `pico2` caps the image at 4 MB. The CP's sample
+sets were cut for exactly that size, so every instrument but the JV fits
+within it (the CP at 3.99 MB, with 190 KB to spare); the flag is for the JV,
+and for a board that really has 16 MB. Nothing else in the SparkFun definition
+reaches the firmware: the flash timing and the system clock are set by the project itself in
 [core/src/pico_hw.cpp](core/src/pico_hw.cpp), and `PICO_FLASH_SPI_CLKDIV` is
 identical in both. The one thing it declares that the prototype does not have is
 an 8 MB PSRAM region on GPIO 19 — nothing is placed there, so it costs nothing,
@@ -119,14 +121,15 @@ its own user interface, BOOTSEL plus a power cycle is the way back.
 
 ### How much flash an instrument needs
 
-The reference board carries 16 MB. That is not a requirement of the design, but
-three instruments ship sample data and will not fit the 4 MB that a base
-Raspberry Pi Pico 2 and many other RP2350 boards provide:
+The reference board carries 16 MB. That is not a requirement of the design:
+three instruments ship sample data, and only one of them needs a build option
+to fit the 4 MB that a base Raspberry Pi Pico 2 and many other RP2350 boards
+provide:
 
 | Instrument | Image | On a 4 MB board |
 |---|---|---|
 | YC, DX, J6, MD, SM, OB | 90-190 KB | fits anywhere |
-| PicoFaceCP | 4.22 MB | does not fit |
+| PicoFaceCP | 3.99 MB | fits, 190 KB to spare |
 | PicoFaceJV | 4.34 MB | only with `-DPICOFACEJV_4MB=ON` (3.76 MB, banks A+B) |
 | PicoFaceD5 | 0.86 MB | fits |
 | PicoFaceRD | 2.56 MB | fits |
@@ -143,10 +146,16 @@ velocities and a fifth the size. The whole instrument went from 5.15 MB to
 own -- eight patches, and half a ROM set is enough for it -- but nobody needs
 it to fit a board any more.
 
-**CP has no reduced variant**: it carries the Rhodes, Clavinet and E-piano
-sample sets as one indivisible whole, with no subset to drop. Anything from
-8 MB up holds all ten instruments. The D-50 is the one sample-based instrument
-that fits everywhere -- its whole sample ROM is 512 KB.
+**The CP has no reduced variant either, and needs none.** It used to be
+4.22 MB and carried its five built sample sets as one indivisible whole, with
+no subset to drop; the sets were then cut for a 4 MB flash without dropping
+anything: every sample keeps its attack byte for byte and loops 40-100 ms
+earlier, at a loop cycle chosen to stay within 1 dB and 10 % spectral centroid
+of the cycle it looped before. The rule and the numbers are in
+[tools/cp_sampleprep](tools/cp_sampleprep/README.md#fitting-a-4-mb-flash).
+Anything from 8 MB up holds any of the ten instruments. The D-50 is the one
+sample-based instrument that never needed cutting -- its whole sample ROM is
+512 KB.
 
 An oversized `.uf2` fails to copy in a way that names no reason: the file
 transfer stops or the drive rejects it, with nothing on screen about flash size.
