@@ -398,7 +398,13 @@ bool panelName(Display& d, const char* number, const char* name, const char* sub
         u8g2_DrawStr(u, 4, 41, sub);
     }
 
+    // Which encoder owns the top half: the patch is encoder A's, always, on
+    // this page. Same corner as the B tag on the row below - the right edge,
+    // last line of its half - so the two read as a pair.
     u8g2_SetDrawColor(u, 1);
+    u8g2_SetFont(u, kFontSmall);
+    u8g2_DrawStr(u, kW - 6, 41, "A");
+
     u8g2_DrawHLine(u, 0, 44, kW);
 
     // The right-hand encoder's parameter, laid out along the line rather than
