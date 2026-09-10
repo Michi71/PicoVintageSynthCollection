@@ -52,19 +52,24 @@
 //
 // CLK and DT are swapped against the GPIO order, and deliberately so: on the
 // board under hardware/ the A and B contacts of all three EC11s reach the RP2350
-// the other way round, so turning an encoder clockwise counted DOWN. Measured on
-// the assembled board, not deduced from the schematic.
+// this way round, and that board is the reference hardware - it is in
+// production, and the firmware is built to match it (v1.19.0 on).
 //
-// The swap belongs here rather than in the driver. Encoder takes a Direction
-// (NORMAL_DIR / REVERSED_DIR) which would produce the same counts, but that
-// would describe the wiring as correct and the counting as backwards. It is the
-// other way round: these two names say which GPIO carries which contact, and on
-// this board that is 7 and 6, not 6 and 7. The PIO watches the two pins
-// independently (jmp_pin for A, in_pins for B - see lib/encoder/piosrc/
-// encoder.pio, "do not need to be consecutive"), so any pairing works.
+// Builds from before that board - the prototypes and protoboards wired the
+// other way round - count down when turned clockwise from v1.19.0 on (#161).
+// That is by decision, not by accident: one firmware, one wiring, and an older
+// build swaps its two encoder wires rather than the firmware carrying a
+// variant for it. Do not add REVERSED_DIR, a build option or a second default
+// for this.
 //
-// If a board ever wires them the plain way round, swap the numbers back here;
-// nothing else reads them.
+// The swap is in the pin numbers rather than in the driver. Encoder takes a
+// Direction (NORMAL_DIR / REVERSED_DIR) which would produce the same counts,
+// but that would describe the wiring as correct and the counting as backwards.
+// It is the other way round: these two names say which GPIO carries which
+// contact, and on this board that is 7 and 6, not 6 and 7. The PIO watches the
+// two pins independently (jmp_pin for A, in_pins for B - see
+// lib/encoder/piosrc/encoder.pio, "do not need to be consecutive"), so any
+// pairing works.
 
 // Selector encoder
 #define PIN_SEL_CLK   7

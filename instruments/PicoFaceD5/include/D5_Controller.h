@@ -39,6 +39,7 @@ public:
     // The patch page shows a name, not a number, and needs the whole width for
     // it; the kit has its own body for that.
     bool        isPatchPage() const { return page_ == kPagePatch; }
+    bool        isDiagPage()  const { return page_ == kPageDiag; }
     const char* patchStructure() const;  // second line under the patch name
 
     int  pageIndex() const { return page_; }
@@ -63,6 +64,7 @@ private:
         kPageEqHigh,      // high freq      | high gain      (c39/c41)
         kPageEqQ,         // high Q         | -              (c40)
         kPageTune,        // master tune    | MIDI channel
+        kPageDiag,        // CPU, underruns, voices - drawn through kit::diagnostics
         kPageCount
     };
 

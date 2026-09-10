@@ -99,6 +99,7 @@ const char* D5_Controller::pageName() const {
         case kPageEqHigh:    return "EQ High";
         case kPageEqQ:       return "EQ Q";
         case kPageTune: return "Tune";
+        case kPageDiag: return "Diag";
         case kPagePatch:
         default:        return "Patch";
     }

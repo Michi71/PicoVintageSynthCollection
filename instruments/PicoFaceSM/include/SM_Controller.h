@@ -27,6 +27,7 @@
 enum {
     SM_UI_PROGRAM = SOLINA_PARAM_COUNT,   /* factory program 0..7 */
     SM_UI_MIDICH,                          /* receive channel 0..15, 16 = omni */
+    SM_UI_DIAG,                            /* the diagnostics page, no value   */
     SM_UI_COUNT
 };
 
@@ -46,6 +47,10 @@ public:
     int         currentPage() const { return page_; }
     int         pageCount() const;
     const char* pageName() const;
+
+    /* The developer's page: CPU, underruns, dropped packets. Drawn through
+     * kit::diagnostics; neither encoder acts there. */
+    bool        isDiagPage() const;
 
     const char* paramAName() const;
     const char* paramBName() const;

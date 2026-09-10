@@ -104,6 +104,7 @@ static const J6Page kSystemPages[] = {
     { "SYS MIDI",    J6_UI_MIDICH,       JUNO_TRANSPOSE      },
     { "SYS TUNE",    JUNO_TUNE,          JUNO_BEND_RANGE     },
     { "SYS LFO",     JUNO_LFO_TRIG,      J6_UI_NONE          },
+    { "SYS DIAG",    J6_UI_DIAG,         J6_UI_NONE          },
 };
 
 #define SECTION(n, p) { n, p, (uint8_t) (sizeof(p) / sizeof(p[0])) }
@@ -360,6 +361,9 @@ void J6_Controller::adjust(int slot, int delta)
 
     const int id = paramIdOf(slot);
 
+    if (id == J6_UI_DIAG)
+        return;                    /* nothing to turn on that page */
+
     if (id == J6_UI_NONE)
         return;
 
@@ -525,6 +529,10 @@ void J6_Controller::formatValue(int id, char* dst, size_t n) const
         snprintf(dst, n, "--");
         return;
     }
+    if (id == J6_UI_DIAG) {
+        dst[0] = 0;
+        return;
+    }
     if (id == J6_UI_PROGRAM) {
         patchLabel((int) program_, dst, n);
         return;
@@ -614,6 +622,11 @@ void J6_Controller::paramBText(char* dst, size_t n) const
 bool J6_Controller::isPresetList() const
 {
     return inSection_ && paramIdOf(0) == J6_UI_PROGRAM;
+}
+
+bool J6_Controller::isDiagPage() const
+{
+    return inSection_ && paramIdOf(0) == J6_UI_DIAG;
 }
 
 int J6_Controller::listCount() const

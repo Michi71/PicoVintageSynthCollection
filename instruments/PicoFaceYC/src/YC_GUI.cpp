@@ -40,8 +40,14 @@ void ycDrawScreen(Display& d, YC_Controller& controller)
     const yc_engine_state_t& s = controller.state();
     char va[16], vb[16];
 
-    kit::header(d, controller.pageName(), (int) controller.currentPage(),
-                (int) YcPage::COUNT);
+    // Whether percussion is on at all decides what the two values on that
+    // page do, and there is no third value slot for it: it goes into the
+    // title, where the eye lands first.
+    const char* title = controller.pageName();
+    if (controller.currentPage() == YcPage::PERCUSSION) {
+        title = (s.perc_on != 0) ? "PERC ON" : "PERC OFF";
+    }
+    kit::header(d, title, (int) controller.currentPage(), (int) YcPage::COUNT);
 
     switch (controller.currentPage()) {
     case YcPage::VOLUME:
@@ -85,10 +91,7 @@ void ycDrawScreen(Display& d, YC_Controller& controller)
         std::snprintf(vb, sizeof vb, "%d", s.perc_length);
         kit::panelDuo(d, { "Type", va },
                          { "Length", vb, s.perc_length / 4.0f });
-        // Whether percussion is on at all decides what the two above do, so it
-        // goes where the eye lands last rather than into a third value slot.
-        kit::footer(d, s.perc_on != 0 ? "PERC ON" : "PERC OFF");
-        return;
+        break;
 
     case YcPage::VIBCHO:
         std::snprintf(va, sizeof va, "%s", s.vibcho_select == 0 ? "Vibrato" : "Chorus");

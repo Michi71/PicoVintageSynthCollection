@@ -510,31 +510,20 @@ void CP_Ui::drawPanel(Display& d)
         break;
     }
 
-    kit::footer(d, (page_ == PG_TREM || page_ == PG_CHO || page_ == PG_DLY)
-                       ? "Sel:Mode  A/B:edit"
-                       : "Sel:Page  A/B:edit");
 }
 
 void CP_Ui::drawPreset(Display& d) const
 {
-    u8g2_t* u = d.raw();
+    namespace kit = picoface::ui::kit;
     char buf[24];
 
     d.clear();
-    u8g2_SetFontDirection(u, 0);
-    u8g2_SetFontPosBaseline(u);
-    u8g2_SetDrawColor(u, 1);
-
-    u8g2_SetFont(u, u8g2_font_8x13B_tf);
-    u8g2_DrawStr(u, (u8g2_uint_t)((Display::kWidth - u8g2_GetStrWidth(u, "PRESET")) / 2), 10, "PRESET");
-    u8g2_DrawHLine(u, 0, 12, Display::kWidth);
-
-    snprintf(buf, sizeof(buf), "%s", cpPresets[presetIdx_].name);
-    u8g2_DrawStr(u, (u8g2_uint_t)((Display::kWidth - u8g2_GetStrWidth(u, buf)) / 2), 60, buf);
-
+    kit::header(d, "PRESET");
     snprintf(buf, sizeof(buf), "P%03u", (unsigned) presetIdx_);
-    u8g2_SetFont(u, u8g2_font_fub25_tf);
-    u8g2_DrawStr(u, 0, 44, buf);
+    kit::bigValue(d, 36, buf);
+    snprintf(buf, sizeof(buf), "%s", cpPresets[presetIdx_].name);
+    d.setFont(u8g2_font_7x13B_tf);
+    d.drawTextCentered(58, buf);
 }
 
 void CP_Ui::drawAbout(Display& d) const

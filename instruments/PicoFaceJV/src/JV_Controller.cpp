@@ -105,6 +105,7 @@ const char* JV_Controller::pageName() const {
         case JvPage::TUNE:   return "TUNE";
         case JvPage::VELO:   return "VELO";
         case JvPage::SYS:    return "SYS";
+        case JvPage::DIAG:   return "DIAG";
         default:             return "";
     }
 }

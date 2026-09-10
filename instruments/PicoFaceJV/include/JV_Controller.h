@@ -21,6 +21,7 @@ enum class JvPage : uint8_t {
     TUNE,
     VELO,
     SYS,
+    DIAG,      // CPU, underruns, voices - drawn through kit::diagnostics
     COUNT
 };
 
@@ -50,6 +51,7 @@ public:
 
     // The patch page shows a name, not a number, and needs the whole width.
     bool isPatchPage() const { return page_ == JvPage::PATCH; }
+    bool isDiagPage()  const { return page_ == JvPage::DIAG; }
 
     int  pageIndex() const { return (int)page_; }
     int  pageTotal() const { return (int)JvPage::COUNT; }

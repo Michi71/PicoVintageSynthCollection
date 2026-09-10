@@ -133,19 +133,32 @@ private:
     void draw(picoface::ui::Display& d) {
         namespace kit = picoface::ui::kit;
 
-        // The last field is the note counter while the render has room, and
-        // the governor's rate -- tails retired per second -- whenever it is
-        // working. A rate rather than a running total: the total only ever
-        // climbs and cannot say whether the machine is coping now.
-        const unsigned long shed = (unsigned long)bridge_.shedRate();
-        char footer[28];
-        snprintf(footer, sizeof footer, "P%d B%d U%lu A%d/%d %c%lu",
-                 bridge_.cpuLoadPeakPercent(), benchPct_,
-                 (unsigned long)(g_i2s_underrun_count > 999 ? 999 : g_i2s_underrun_count),
-                 bridge_.activeVoices(), bridge_.noteLimit(),
-                 shed ? 'S' : 'N',
-                 shed ? (shed % 1000u)
-                      : (unsigned long)(bridge_.noteOnTotal() % 1000u));
+        // The developer's numbers went from a strip at the bottom of every page
+        // to a page of their own (#161: that strip cost the body nine rows on
+        // a screen with none to spare). Formatted here because only this
+        // instrument knows what its numbers are; 6x12 holds 21 characters.
+        if (controller_.isDiagPage()) {
+            // The last number is the note counter while the render has room,
+            // and the governor's rate -- tails retired per second -- whenever
+            // it is working. A rate rather than a running total: the total
+            // only ever climbs and cannot say whether the machine is coping.
+            const unsigned long shed = (unsigned long)bridge_.shedRate();
+            char r0[22], r1[22], r2[22], r3[22];
+            snprintf(r0, sizeof r0, "CPU %d%%  bench %d",
+                     bridge_.cpuLoadPeakPercent(), benchPct_);
+            snprintf(r1, sizeof r1, "Underruns %lu",
+                     (unsigned long)(g_i2s_underrun_count > 999 ? 999 : g_i2s_underrun_count));
+            snprintf(r2, sizeof r2, "Voices %d/%d", bridge_.activeVoices(), bridge_.noteLimit());
+            if (shed) snprintf(r3, sizeof r3, "Notes %lu  shed %lu",
+                               (unsigned long)(bridge_.noteOnTotal() % 1000u), shed % 1000u);
+            else      snprintf(r3, sizeof r3, "Notes %lu",
+                               (unsigned long)(bridge_.noteOnTotal() % 1000u));
+            const char* rows[4] = { r0, r1, r2, r3 };
+            kit::diagnostics(d, controller_.pageName(), rows, 4);
+            d.flush();
+            return;
+        }
+
 
         const D5_Controller::Value a = controller_.valueA();
         const D5_Controller::Value b = controller_.valueB();
@@ -162,7 +175,6 @@ private:
             kit::panelDuo(d, { a.name, a.text, a.norm },
                              { b.name, b.text, b.norm });
         }
-        kit::footer(d, footer);
 
         // Arms the incremental push: the main loop only streams the buffer
         // while picoface_ui_flush_row < 16, and flush() resets that counter.
