@@ -46,6 +46,7 @@
 enum {
     MD_UI_PROGRAM = MOOG_PARAM_COUNT,  /* preset 0..MOOG_NPROGRAMS-1        */
     MD_UI_MIDICH,                       /* receive channel 0..15, 16 = omni  */
+    MD_UI_DIAG,                         /* the diagnostics page, no value    */
     MD_UI_NONE,                         /* empty slot on a page              */
     MD_UI_COUNT
 };
@@ -95,6 +96,11 @@ public:
      * kind of control the original had. */
     float       paramANorm() const;
     float       paramBNorm() const;
+
+    /* The developer's page in the SYSTEM section: CPU, underruns, dropped
+     * packets. The instrument draws it through kit::diagnostics instead of
+     * the two-value body; neither encoder does anything there. */
+    bool isDiagPage() const;
 
     /* MD_VIEW_LIST */
     int  listCount() const;

@@ -94,7 +94,8 @@ static void sendParam(uint8_t id, uint8_t uiVal) {
 
 // Page name table.
 static const char *const kPageNames[(int)RdPage::COUNT] = {
-    "PATCH", "CHORUS", "TREMOLO", "PHASER", "EQ", "VOICES", "TUNE", "SYS"
+    "PATCH", "CHORUS", "TREMOLO", "PHASER", "EQ", "VOICES", "TUNE", "SYS",
+    "DIAG",
 };
 
 RD_Controller::RD_Controller(RD_Midi &midi)

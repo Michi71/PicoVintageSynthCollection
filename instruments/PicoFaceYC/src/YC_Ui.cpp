@@ -12,6 +12,8 @@
 
 #include "picoface/ui_kit.h"
 
+#include "audio_i2s.h"   // g_i2s_underrun_count, for the diagnostics page
+
 #include "YC_Controller.h"
 #include "YC_GUI.h"
 #include "YC_Synth_Bridge.h"
@@ -174,46 +176,17 @@ void YC_Ui::draw(Display& d)
 
 void YC_Ui::drawAbout(Display& d) const
 {
-    u8g2_t* u = d.raw();
-
-    d.clear();
-    u8g2_SetFont(u, u8g2_font_8x13B_tf);
-    u8g2_SetFontPosBaseline(u);
-    u8g2_SetDrawColor(u, 1);
-    u8g2_DrawStr(u, 4, 14, "ABOUT");
-    u8g2_DrawHLine(u, 0, 18, 128);
-    u8g2_DrawStr(u, 4, 36, kAboutName);
-    // Smaller than the name above it: the version is a git describe now, and
-    // "1.7.0-4-ga39504b" needs seventeen characters. At 8 px this line holds
-    // fifteen, and a clipped commit hash still reads like a whole one.
-    u8g2_SetFont(u, u8g2_font_6x10_tf);
-    u8g2_DrawStr(u, 4, 52, kAboutVersion);
-    u8g2_SetFont(u, u8g2_font_8x13B_tf);
-    u8g2_SetFont(u, u8g2_font_6x10_tf);
-    u8g2_DrawStr(u, 4, 62, "Press any button");
+    picoface::ui::kit::about(d, kAboutName, kAboutVersion, "Press any button");
 }
 
 void YC_Ui::drawCpuLoad(Display& d) const
 {
-    u8g2_t* u = d.raw();
-    char buf[32];
-
-    // Header from the kit like everywhere else; the rows below are this
-    // instrument's own numbers and stay where they are.
-    d.clear();
-    picoface::ui::kit::header(d, "CPU LOAD");
-    u8g2_SetFontPosBaseline(u);
-    u8g2_SetDrawColor(u, 1);
-
-    u8g2_SetFont(u, u8g2_font_6x10_tf);
-    snprintf(buf, sizeof(buf), "Now:  %d %%", (int) bridge_.cpuLoadPercent());
-    u8g2_DrawStr(u, 4, 30, buf);
-    snprintf(buf, sizeof(buf), "Peak: %d %%", (int) bridge_.cpuLoadPeakPercent());
-    u8g2_DrawStr(u, 4, 41, buf);
-    snprintf(buf, sizeof(buf), "WDR:  %lu", (unsigned long) watchdog_hw->scratch[0]);
-    u8g2_DrawStr(u, 4, 52, buf);
-    // Dropped IPC packets: a non-zero value means the ring overflowed between
-    // two rendered blocks.
-    snprintf(buf, sizeof(buf), "DRP:  %lu", (unsigned long) yc_ipc_dropped);
-    u8g2_DrawStr(u, 4, 63, buf);
+    char r0[22], r1[22], r2[22], r3[22];
+    snprintf(r0, sizeof r0, "CPU %d%%  peak %d%%",
+             (int) bridge_.cpuLoadPercent(), (int) bridge_.cpuLoadPeakPercent());
+    snprintf(r1, sizeof r1, "Underruns %lu", (unsigned long) g_i2s_underrun_count);
+    snprintf(r2, sizeof r2, "IPC dropped %lu", (unsigned long) yc_ipc_dropped);
+    snprintf(r3, sizeof r3, "Watchdog %lu", (unsigned long) watchdog_hw->scratch[0]);
+    const char* rows[4] = { r0, r1, r2, r3 };
+    picoface::ui::kit::diagnostics(d, "DIAG", rows, 4);
 }

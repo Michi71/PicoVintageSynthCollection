@@ -66,6 +66,7 @@ enum {
     J6_UI_WRITE_ACTION,                 /* the name to write, or free it      */
     J6_UI_NAME_POS,                     /* which character is being edited    */
     J6_UI_NAME_CHAR,                    /* and what it is set to              */
+    J6_UI_DIAG,                         /* the diagnostics page, no value     */
     J6_UI_NONE,                         /* empty slot on a page              */
     J6_UI_COUNT
 };
@@ -131,6 +132,10 @@ public:
 
     void        paramAText(char* dst, size_t n) const;
     void        paramBText(char* dst, size_t n) const;
+
+    /* The developer's page in the SYSTEM section: CPU, underruns, dropped
+     * packets. Drawn through kit::diagnostics; neither encoder acts there. */
+    bool isDiagPage() const;
 
     /* J6_VIEW_LIST */
     int  listCount() const;

@@ -40,9 +40,9 @@ namespace kit {
 // Published so that an instrument drawing its own body (the reface DX
 // algorithm diagram, a scope, a level meter) knows the box it may use without
 // guessing: everything from kBodyTop to kBodyBottom belongs to it.
-constexpr int16_t kHeaderHeight = 9;
-constexpr int16_t kBodyTop      = kHeaderHeight + 1;   // 10
-constexpr int16_t kBodyBottom   = 55;                  // last row above the footer
+constexpr int16_t kHeaderHeight = 12;
+constexpr int16_t kBodyTop      = kHeaderHeight + 1;   // 13
+constexpr int16_t kBodyBottom   = 63;                  // the screen's last row
 constexpr int16_t kBodyHeight   = kBodyBottom - kBodyTop + 1;
 
 // ---------------------------------------------------------------------------
@@ -77,9 +77,11 @@ struct Param {
 // ones reads as position, while two digits have to be parsed.
 void header(Display& d, const char* title, int page = 0, int pageCount = 0);
 
-// Bottom strip, small type: whatever the instrument wants to keep an eye on
-// (patch, MIDI channel, CPU, voice count). Drawn last, never clipped by a body.
-void footer(Display& d, const char* text);
+// There is no footer. There was one - CPU load, underruns, dropped packets -
+// and it cost the body nine rows on a screen that had none to spare (#161: the
+// panel was hard to read from where a synth actually sits). Those numbers are
+// for whoever is developing the engine, not for whoever is playing it, so they
+// went onto a screen of their own: see diagnostics() below.
 
 // ---------------------------------------------------------------------------
 // Body layouts
@@ -109,6 +111,12 @@ void listTwoCol(Display& d,
                 const char* const* left, int leftCount, int leftSel,
                 const char* const* right, int rightCount, int rightSel,
                 bool focusRight);
+
+// The developer's screen: up to four rows of whatever the engine wants to
+// report - CPU peak, underruns, dropped packets, voices. Each instrument
+// formats its own rows because only it knows what its numbers are; the kit
+// only puts them where every instrument puts them.
+void diagnostics(Display& d, const char* title, const char* const* rows, int count);
 
 // The About screen every instrument has: what this is and which build. The
 // hint line is what the instrument wants to say underneath - "Press any

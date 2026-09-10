@@ -176,6 +176,24 @@ private:
     void draw(picoface::ui::Display& d)
     {
         namespace kit = picoface::ui::kit;
+
+        // The developer's numbers went from a strip at the bottom of every page
+        // to a page of their own (#161: that strip cost the body nine rows on
+        // a screen with none to spare). Formatted here because only this
+        // instrument knows what its numbers are; 6x12 holds 21 characters.
+        if (controller_.isDiagPage()) {
+            char r0[22], r1[22], r2[22], r3[22];
+            snprintf(r0, sizeof r0, "Instr %d  CPU %d%%",
+                     (int) bridge_.instrument(), (int) bridge_.cpuLoadPeakPercent());
+            snprintf(r1, sizeof r1, "Underruns %lu", (unsigned long) g_i2s_underrun_count);
+            snprintf(r2, sizeof r2, "IPC dropped %lu", (unsigned long) rd_ipc_dropped);
+            snprintf(r3, sizeof r3, "Voices %d  notes %lu",
+                     (int) bridge_.activeVoices(), (unsigned long) bridge_.noteOnCount());
+            const char* rows[4] = { r0, r1, r2, r3 };
+            kit::diagnostics(d, "DIAG", rows, 4);
+            d.flush();
+            return;
+        }
         using Param = kit::Param;
 
         static char nm[24];
@@ -210,16 +228,6 @@ private:
         snprintf(title, sizeof(title), "%s %luk", titleName,
                  (unsigned long)(RD_Synth_Bridge::sampleRateOf(shown) / 1000));
 
-        // Footer: instrument, CPU peak, underruns, dropped IPC packets,
-        // active voices, note-ons.
-        char footer[28];
-        snprintf(footer, sizeof(footer), "%d P%d U%lu D%lu A%d N%lu",
-                 (int) bridge_.instrument(),
-                 (int) bridge_.cpuLoadPeakPercent(),
-                 (unsigned long) g_i2s_underrun_count,
-                 (unsigned long) rd_ipc_dropped,
-                 (int) bridge_.activeVoices(),
-                 (unsigned long) bridge_.noteOnCount());
 
         d.clear();
         kit::header(d, title, (int) controller_.currentPage(), (int) RdPage::COUNT);
@@ -296,7 +304,6 @@ private:
             break;
         }
 
-        kit::footer(d, footer);
         d.flush();   // arms the incremental push
     }
 

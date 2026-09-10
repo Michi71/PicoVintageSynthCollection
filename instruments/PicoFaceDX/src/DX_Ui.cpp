@@ -228,26 +228,18 @@ void DX_Ui::draw(Display& d)
 
 void DX_Ui::drawMasterVol(Display& d) const
 {
-    u8g2_t* u = d.raw();
     char buf[16];
     const int vol = ui_get_master_volume();
 
+    namespace kit = picoface::ui::kit;
     d.clear();
-    u8g2_SetFont(u, u8g2_font_8x13B_tf);
-    u8g2_SetFontPosBaseline(u);
-    u8g2_SetDrawColor(u, 1);
-    u8g2_DrawStr(u, 4, 14, "MASTER VOL");
-    u8g2_DrawHLine(u, 0, 18, 128);
-
+    kit::header(d, "MASTER VOL");
     snprintf(buf, sizeof(buf), "%d %%", vol);
-    u8g2_DrawStr(u, 4, 38, buf);
-
+    kit::bigValue(d, 36, buf);
     // Level bar: 100 units mapped onto the 100 px between the frame edges.
-    u8g2_DrawFrame(u, 12, 44, 104, 10);
-    if (vol > 0) u8g2_DrawBox(u, 14, 46, (u8g2_uint_t) vol, 6);
-
-    u8g2_SetFont(u, u8g2_font_6x10_tf);
-    u8g2_DrawStr(u, 4, 62, "Turn=set  Press=OK");
+    kit::bar(d, 12, 44, 104, 10, vol / 100.0f);
+    d.setFont(u8g2_font_6x12_tf);
+    d.drawText(4, 62, "Turn=set  Press=OK");
 }
 
 void DX_Ui::drawAbout(Display& d) const
@@ -257,28 +249,16 @@ void DX_Ui::drawAbout(Display& d) const
 
 void DX_Ui::drawCpuLoad(Display& d) const
 {
-    u8g2_t* u = d.raw();
-    char buf[32];
-
-    // Header from the kit like everywhere else; the rows below are this
-    // instrument's own numbers and stay where they are.
-    d.clear();
-    picoface::ui::kit::header(d, "CPU LOAD");
-    u8g2_SetFontPosBaseline(u);
-    u8g2_SetDrawColor(u, 1);
-
-    u8g2_SetFont(u, u8g2_font_6x10_tf);
-    snprintf(buf, sizeof(buf), "Now:  %d %%", (int) bridge_.cpuLoadPercent());
-    u8g2_DrawStr(u, 4, 30, buf);
-    snprintf(buf, sizeof(buf), "Peak: %d %%", (int) bridge_.cpuLoadPeakPercent());
-    u8g2_DrawStr(u, 4, 41, buf);
     // Every underrun is one block of silence substituted for missing audio,
-    // i.e. an audible click. Non-zero after normal playing means the producer
-    // is not keeping up.
-    snprintf(buf, sizeof(buf), "URN:  %lu", (unsigned long) g_i2s_underrun_count);
-    u8g2_DrawStr(u, 4, 52, buf);
-    // Dropped IPC packets: a non-zero value means the ring overflowed between
-    // two rendered blocks.
-    snprintf(buf, sizeof(buf), "DRP:  %lu", (unsigned long) dx_ipc_dropped);
-    u8g2_DrawStr(u, 4, 63, buf);
+    // i.e. an audible click; a dropped IPC packet means the ring overflowed
+    // between two rendered blocks. Both should read 0 after normal playing.
+    char r0[22], r1[22], r2[22], r3[22];
+    snprintf(r0, sizeof r0, "CPU %d%%  peak %d%%",
+             (int) bridge_.cpuLoadPercent(), (int) bridge_.cpuLoadPeakPercent());
+    snprintf(r1, sizeof r1, "Underruns %lu", (unsigned long) g_i2s_underrun_count);
+    snprintf(r2, sizeof r2, "IPC dropped %lu", (unsigned long) dx_ipc_dropped);
+    r3[0] = 0;
+    const char* rows[3] = { r0, r1, r2 };
+    (void) r3;
+    picoface::ui::kit::diagnostics(d, "DIAG", rows, 3);
 }

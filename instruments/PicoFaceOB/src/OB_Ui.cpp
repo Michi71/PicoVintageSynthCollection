@@ -13,6 +13,8 @@
 
 #include "picoface/ui_kit.h"
 
+#include "audio_i2s.h"   // g_i2s_underrun_count, for the diagnostics page
+
 #include "OB_Engine.h"
 #include "ob_ipc.h"
 #include "ob_presets.h"
@@ -353,7 +355,6 @@ void OB_Ui::drawPanel(Display& d)
     }
 
     kit::panelDuo(d, a, b);
-    kit::footer(d, "Sel:Page  A/B:edit");
 }
 
 // Where a value sits on its dial, or negative where it has no dial: the OB-X
@@ -375,23 +376,11 @@ void OB_Ui::drawAbout(Display& d) const
 
 void OB_Ui::drawCpuLoad(Display& d) const
 {
-    u8g2_t* u = d.raw();
-    char buf[32];
-
-    // Header from the kit like everywhere else; the rows below are this
-    // instrument's own numbers and stay where they are.
-    d.clear();
-    picoface::ui::kit::header(d, "CPU LOAD");
-    u8g2_SetFontPosBaseline(u);
-    u8g2_SetDrawColor(u, 1);
-
-    u8g2_SetFont(u, u8g2_font_6x10_tf);
-    snprintf(buf, sizeof(buf), "Now:  %d %%", (int)load_);
-    u8g2_DrawStr(u, 4, 30, buf);
-    snprintf(buf, sizeof(buf), "Peak: %d %%", (int)loadPeak_);
-    u8g2_DrawStr(u, 4, 41, buf);
-    snprintf(buf, sizeof(buf), "Voices: %d/%d", engine_.soundingVoices(), MAX_VOICES);
-    u8g2_DrawStr(u, 4, 52, buf);
-    snprintf(buf, sizeof(buf), "DRP:  %lu", (unsigned long)ob_ipc_dropped);
-    u8g2_DrawStr(u, 4, 63, buf);
+    char r0[22], r1[22], r2[22], r3[22];
+    snprintf(r0, sizeof r0, "CPU %d%%  peak %d%%", (int)load_, (int)loadPeak_);
+    snprintf(r1, sizeof r1, "Voices %d/%d", engine_.soundingVoices(), MAX_VOICES);
+    snprintf(r2, sizeof r2, "IPC dropped %lu", (unsigned long)ob_ipc_dropped);
+    snprintf(r3, sizeof r3, "Underruns %lu", (unsigned long)g_i2s_underrun_count);
+    const char* rows[4] = { r0, r1, r2, r3 };
+    picoface::ui::kit::diagnostics(d, "DIAG", rows, 4);
 }

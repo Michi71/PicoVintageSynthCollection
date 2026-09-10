@@ -158,18 +158,27 @@ private:
     {
         namespace kit = picoface::ui::kit;
 
+        // The developer's numbers went from a strip at the bottom of every page
+        // to a page of their own (#161: that strip cost the body nine rows on
+        // a screen with none to spare). Formatted here because only this
+        // instrument knows what its numbers are; 6x12 holds 21 characters.
+        if (controller_.isDiagPage()) {
+            char r0[22], r1[22], r2[22], r3[22];
+            snprintf(r0, sizeof r0, "CPU peak %d%%", (int) bridge_.cpuLoadPeakPercent());
+            snprintf(r1, sizeof r1, "Underruns %lu", (unsigned long) g_i2s_underrun_count);
+            snprintf(r2, sizeof r2, "IPC dropped %lu", (unsigned long) sm_ipc_dropped);
+            snprintf(r3, sizeof r3, "Notes %lu", (unsigned long) bridge_.noteOnCount());
+            bridge_.resetCpuPeak();
+            const char* rows[4] = { r0, r1, r2, r3 };
+            kit::diagnostics(d, controller_.pageName(), rows, 4);
+            d.flush();
+            return;
+        }
+
         char va[20], vb[20];
         controller_.paramAText(va, sizeof(va));
         controller_.paramBText(vb, sizeof(vb));
 
-        // Footer: CPU peak, I2S underruns, dropped IPC packets, note-on count.
-        char footer[26];
-        snprintf(footer, sizeof(footer), "P%d U%lu D%lu N%lu",
-                 (int) bridge_.cpuLoadPeakPercent(),
-                 (unsigned long) g_i2s_underrun_count,
-                 (unsigned long) sm_ipc_dropped,
-                 (unsigned long) bridge_.noteOnCount());
-        bridge_.resetCpuPeak();
 
         d.clear();
         kit::header(d, controller_.pageName(), controller_.currentPage(),
@@ -178,7 +187,6 @@ private:
         kit::panelDuo(d,
             { controller_.paramAName(), va, controller_.paramANorm() },
             { controller_.paramBName(), vb, controller_.paramBNorm() });
-        kit::footer(d, footer);
 
         d.flush();   // arms the incremental push
     }

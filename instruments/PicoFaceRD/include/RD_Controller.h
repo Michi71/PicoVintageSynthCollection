@@ -25,6 +25,7 @@ enum class RdPage : uint8_t {
     VOICES,
     TUNE,
     SYS,
+    DIAG,      // CPU, underruns, voices - drawn through kit::diagnostics
     COUNT
 };
 
@@ -38,6 +39,10 @@ public:
 
     RdPage currentPage() const;
     const char* pageName() const;
+
+    // CPU, underruns, voices - drawn through kit::diagnostics; neither
+    // encoder acts on that page.
+    bool isDiagPage() const { return page_ == RdPage::DIAG; }
 
     // Display Accessors
     const char* param2Name() const;

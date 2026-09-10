@@ -163,13 +163,23 @@ private:
     void draw(picoface::ui::Display& d) {
         namespace kit = picoface::ui::kit;
 
-        char footer[26];
-        snprintf(footer, sizeof(footer), "P%d U%lu D%lu N%lu",
-                 (int) bridge_.cpuLoadPeakPercent(),
-                 (unsigned long) g_i2s_underrun_count,
-                 (unsigned long) md_ipc_dropped,
-                 (unsigned long) bridge_.noteOnCount());
-        bridge_.resetCpuPeak();
+        // The developer's numbers went from a strip at the bottom of every page
+        // to a page of their own (#161: that strip cost the body nine rows on
+        // a screen with none to spare). Formatted here because only this
+        // instrument knows what its numbers are; 6x12 holds 21 characters.
+        if (controller_.isDiagPage()) {
+            char r0[22], r1[22], r2[22], r3[22];
+            snprintf(r0, sizeof r0, "CPU peak %d%%", (int) bridge_.cpuLoadPeakPercent());
+            snprintf(r1, sizeof r1, "Underruns %lu", (unsigned long) g_i2s_underrun_count);
+            snprintf(r2, sizeof r2, "IPC dropped %lu", (unsigned long) md_ipc_dropped);
+            snprintf(r3, sizeof r3, "Notes %lu", (unsigned long) bridge_.noteOnCount());
+            bridge_.resetCpuPeak();
+            const char* rows[4] = { r0, r1, r2, r3 };
+            kit::diagnostics(d, controller_.title(), rows, 4);
+            d.flush();
+            return;
+        }
+
 
         d.clear();
         kit::header(d, controller_.title(), controller_.pageIndex(),
@@ -207,7 +217,6 @@ private:
                 { controller_.paramBName(), vb, controller_.paramBNorm() });
         }
 
-        kit::footer(d, footer);
 
         // arms the incremental push; the core loop sends the buffer out in half tile rows
         d.flush();

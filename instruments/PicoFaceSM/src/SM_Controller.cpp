@@ -40,6 +40,7 @@ static const SmPage kPages[] = {
     { "TONE",     SOLINA_TONE_LOWPASS,  SOLINA_TONE_HIGHPASS },
     { "COLOUR",   SOLINA_TONE_SHELF,    SOLINA_FORMANT       },
     { "SYS",      SM_UI_MIDICH,         SOLINA_ENSEMBLE_WIDTH },
+    { "SYS DIAG", SM_UI_DIAG,           SM_UI_DIAG            },
 };
 
 static const int kPageCount = (int) (sizeof(kPages) / sizeof(kPages[0]));
@@ -58,7 +59,8 @@ static const char* kNames[SM_UI_COUNT] = {
     "Trem Rate",  "Trem Depth", "Chor Rate",  "Chor Depth",
     "Ens Tone",   "Ens Width",  "Phaser",     "Phas Rate",
     "Phas Color", "Tone LP",    "Tone HP",    "Tone Shelf",
-    "Formant",    "Shaper",     "",           "MIDI Ch"
+    "Formant",    "Shaper",     "",           "MIDI Ch",
+    ""            /* SM_UI_DIAG: the page has no values to label */
 };
 
 /* Switch parameters toggle between 0 and 1, everything else moves in steps
@@ -88,6 +90,7 @@ void SM_Controller::syncFromProgram(int32_t program)
 int SM_Controller::pageCount() const { return kPageCount; }
 
 const char* SM_Controller::pageName() const { return kPages[page_].name; }
+bool        SM_Controller::isDiagPage() const { return kPages[page_].a == SM_UI_DIAG; }
 
 int SM_Controller::paramIdOf(int slot) const
 {
@@ -156,6 +159,9 @@ void SM_Controller::adjust(int slot, int delta)
 
     const int id = paramIdOf(slot);
 
+    if (id == SM_UI_DIAG)
+        return;                    /* nothing to turn on that page */
+
     if (id == SM_UI_PROGRAM)
     {
         int32_t p = (program_ + delta) % SOLINA_NPROGRAMS;
@@ -202,6 +208,11 @@ void SM_Controller::adjust(int slot, int delta)
 /* ------------------------------------------------------------------------ */
 void SM_Controller::formatValue(int id, char* dst, size_t n) const
 {
+    if (id == SM_UI_DIAG)
+    {
+        dst[0] = 0;
+        return;
+    }
     if (id == SM_UI_PROGRAM)
     {
         snprintf(dst, n, "%d %s", (int) program_ + 1,

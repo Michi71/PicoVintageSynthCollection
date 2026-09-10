@@ -127,13 +127,23 @@ private:
     void draw(picoface::ui::Display& d) {
         namespace kit = picoface::ui::kit;
 
-        // Peak load first: it is the number that says how much headroom is
-        // left, and it is the one that moves before an underrun happens.
-        char footer[28];
-        snprintf(footer, sizeof footer, "P%d%% U%lu A%d/%d",
-                 (int)bridge_.cpuLoadPeakPercent(),
-                 (unsigned long)g_i2s_underrun_count,
-                 bridge_.activeVoices(), bridge_.voiceLimit());
+        // The developer's numbers went from a strip at the bottom of every page
+        // to a page of their own (#161: that strip cost the body nine rows on
+        // a screen with none to spare). Formatted here because only this
+        // instrument knows what its numbers are; 6x12 holds 21 characters.
+        if (controller_.isDiagPage()) {
+            // Peak load first: it is the number that says how much headroom
+            // is left, and the one that moves before an underrun happens.
+            char r0[22], r1[22], r2[22];
+            snprintf(r0, sizeof r0, "CPU peak %d%%", (int)bridge_.cpuLoadPeakPercent());
+            snprintf(r1, sizeof r1, "Underruns %lu", (unsigned long)g_i2s_underrun_count);
+            snprintf(r2, sizeof r2, "Voices %d/%d", bridge_.activeVoices(), bridge_.voiceLimit());
+            const char* rows[3] = { r0, r1, r2 };
+            kit::diagnostics(d, controller_.pageName(), rows, 3);
+            d.flush();
+            return;
+        }
+
 
         const JV_Controller::Value a = controller_.valueA();
         const JV_Controller::Value b = controller_.valueB();
@@ -149,7 +159,6 @@ private:
             kit::panelDuo(d, { a.name, a.text, a.norm },
                              { b.name, b.text, b.norm });
         }
-        kit::footer(d, footer);
 
         // Arms the incremental push. Painting the buffer is not enough: the main
         // loop only streams it out while picoface_ui_flush_row < 16, and flush()

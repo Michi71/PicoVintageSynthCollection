@@ -20,15 +20,21 @@ namespace {
 // ---------------------------------------------------------------------------
 // The type scale, in one place
 // ---------------------------------------------------------------------------
-// Before the kit these were named at 66 call sites across the instruments,
-// which is how PicoFaceD5 ended up on 5x7 while everyone else was on 6x10.
-// A value is set in the largest face that leaves room for its name, because
-// the value is what is read while playing; the name only has to be
-// recognisable.
-const uint8_t* const kFontTitle = u8g2_font_5x8_tf;
-const uint8_t* const kFontLabel = u8g2_font_5x8_tf;
-const uint8_t* const kFontValue = u8g2_font_profont15_tf;
-const uint8_t* const kFontList  = u8g2_font_6x10_tf;
+// Bold throughout, and larger than the first version of this kit. That one
+// used 5x8 for names and a light 15 px face for values, and the first report
+// from a user (#161) was that it read worse than the panels it replaced: a
+// synth sits off to the side or behind a keyboard, and thin strokes vanish at
+// that distance. The previous panels were 8x13 bold; this is the same weight,
+// with the values a size up.
+//
+// A value is set in the largest bold face that still leaves room for the knob
+// beside it. helvB14 is that size: at 18 px "-1.6" no longer fits next to the
+// knob and would fall back to the label face, which is worse than 14 px
+// everywhere.
+const uint8_t* const kFontTitle = u8g2_font_7x13B_tf;
+const uint8_t* const kFontLabel = u8g2_font_6x12_tf;
+const uint8_t* const kFontValue = u8g2_font_helvB14_tf;
+const uint8_t* const kFontList  = u8g2_font_7x13B_tf;
 const uint8_t* const kFontSmall = u8g2_font_4x6_tf;
 
 constexpr int16_t kW = Display::kWidth;   // 128
@@ -40,7 +46,7 @@ constexpr int16_t kW = Display::kWidth;   // 128
 // handful of cycles saved: it pulls libm out of the UI path entirely, and it
 // makes the firmware and the host renderer produce bit-identical pixels, which
 // is what lets tools/host_tests/ui compare screens against stored images.
-// 65 steps is finer than the ~42 distinguishable pixel positions on the rim of
+// 65 steps is finer than the ~50 distinguishable pixel positions on the rim of
 // the largest knob the panel uses.
 static const int8_t kPointerX[65] = {
      -90,  -96, -102, -107, -112, -116, -120, -122, -125, -126, -127, -127, -126,
@@ -73,6 +79,44 @@ inline void resetState(u8g2_t* u)
     u8g2_SetFontPosBaseline(u);
 }
 
+void drawKnob(u8g2_t* u, int16_t cx, int16_t cy, int16_t r, float norm)
+{
+    const int i = pointerIndex(norm);
+
+    u8g2_SetDrawColor(u, 1);
+    u8g2_DrawCircle(u, static_cast<u8g2_uint_t>(cx), static_cast<u8g2_uint_t>(cy),
+                    static_cast<u8g2_uint_t>(r), U8G2_DRAW_ALL);
+
+    // The pointer starts short of the centre: a line through the middle reads
+    // as a diameter, not as a direction.
+    //
+    // End ticks outside the rim were tried and dropped: they sit close enough
+    // to the circle to read as noise, and the two ends are already told apart
+    // by the value printed next to the knob. The knob is the glance, the
+    // number is the detail.
+    const int inner = 2;
+    const int outer = r - 1;
+    u8g2_DrawLine(u,
+        static_cast<u8g2_uint_t>(cx + (kPointerX[i] * inner) / 127),
+        static_cast<u8g2_uint_t>(cy + (kPointerY[i] * inner) / 127),
+        static_cast<u8g2_uint_t>(cx + (kPointerX[i] * outer) / 127),
+        static_cast<u8g2_uint_t>(cy + (kPointerY[i] * outer) / 127));
+}
+
+// Draws 'text' in the value face where it fits into 'width' pixels, and in
+// the label face where it does not, rather than running into the next cell.
+// Long values are the exception ("Vibrato", "Pink noise"), so the panel does
+// not look mixed in normal use.
+void drawValue(u8g2_t* u, int16_t x, int16_t baseline, int16_t width, const char* text)
+{
+    if (text == nullptr) text = "";
+    u8g2_SetFont(u, kFontValue);
+    if (static_cast<int16_t>(u8g2_GetStrWidth(u, text)) > width) {
+        u8g2_SetFont(u, kFontLabel);
+    }
+    u8g2_DrawStr(u, static_cast<u8g2_uint_t>(x), static_cast<u8g2_uint_t>(baseline), text);
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -90,7 +134,7 @@ void header(Display& d, const char* title, int page, int pageCount)
     u8g2_SetDrawColor(u, 0);
     u8g2_SetFont(u, kFontTitle);
     if (title != nullptr && title[0] != 0) {
-        u8g2_DrawStr(u, 2, 7, title);
+        u8g2_DrawStr(u, 2, 10, title);
     }
 
     // Dots, right aligned. Above eight pages the dots stop being countable, so
@@ -99,12 +143,13 @@ void header(Display& d, const char* title, int page, int pageCount)
     if (pageCount > 1) {
         const int n   = (pageCount > 8) ? 8 : pageCount;
         const int cur = (pageCount > 8) ? (page * 8) / pageCount : page;
+        const int16_t cy = kHeaderHeight / 2;
         int16_t x = static_cast<int16_t>(kW - 3 - n * 5);
         for (int i = 0; i < n; ++i, x = static_cast<int16_t>(x + 5)) {
             if (i == cur) {
-                u8g2_DrawDisc(u, static_cast<u8g2_uint_t>(x + 1), 4, 2, U8G2_DRAW_ALL);
+                u8g2_DrawDisc(u, static_cast<u8g2_uint_t>(x + 1), static_cast<u8g2_uint_t>(cy), 2, U8G2_DRAW_ALL);
             } else {
-                u8g2_DrawCircle(u, static_cast<u8g2_uint_t>(x + 1), 4, 2, U8G2_DRAW_ALL);
+                u8g2_DrawCircle(u, static_cast<u8g2_uint_t>(x + 1), static_cast<u8g2_uint_t>(cy), 2, U8G2_DRAW_ALL);
             }
         }
     }
@@ -112,47 +157,9 @@ void header(Display& d, const char* title, int page, int pageCount)
     resetState(u);
 }
 
-void footer(Display& d, const char* text)
-{
-    if (text == nullptr || text[0] == 0) return;
-
-    u8g2_t* u = d.raw();
-    resetState(u);
-    u8g2_SetFont(u, kFontSmall);
-    u8g2_DrawStr(u, 2, 63, text);
-}
-
 // ---------------------------------------------------------------------------
 // Primitives
 // ---------------------------------------------------------------------------
-
-namespace {
-
-void drawKnob(u8g2_t* u, int16_t cx, int16_t cy, int16_t r, float norm)
-{
-    const int i = pointerIndex(norm);
-
-    u8g2_SetDrawColor(u, 1);
-    u8g2_DrawCircle(u, static_cast<u8g2_uint_t>(cx), static_cast<u8g2_uint_t>(cy),
-                    static_cast<u8g2_uint_t>(r), U8G2_DRAW_ALL);
-
-    // The pointer starts short of the centre: a line through the middle reads
-    // as a diameter, not as a direction.
-    //
-    // End ticks outside the rim were tried and dropped: at r=9 they sit close
-    // enough to the circle to read as noise, and the two ends are already told
-    // apart by the value printed next to the knob. The knob is the glance, the
-    // number is the detail.
-    const int inner = 2;
-    const int outer = r - 1;
-    u8g2_DrawLine(u,
-        static_cast<u8g2_uint_t>(cx + (kPointerX[i] * inner) / 127),
-        static_cast<u8g2_uint_t>(cy + (kPointerY[i] * inner) / 127),
-        static_cast<u8g2_uint_t>(cx + (kPointerX[i] * outer) / 127),
-        static_cast<u8g2_uint_t>(cy + (kPointerY[i] * outer) / 127));
-}
-
-} // namespace
 
 void knob(Display& d, int16_t cx, int16_t cy, int16_t r, float norm)
 {
@@ -202,10 +209,16 @@ namespace {
 // it.
 void duoCell(u8g2_t* u, int16_t x, const Param& p, char encoder)
 {
-    constexpr int16_t kNameBase  = 20;   // baseline of the name row
-    constexpr int16_t kKnobCy    = 37;   // centre of the knob
-    constexpr int16_t kKnobR     = 9;
-    constexpr int16_t kValueBase = 43;   // baseline of the value
+    // The value budget beside the knob is 36 px, measured against what the
+    // instruments actually print in helvB14: "+0.4" is 36 (a plus is wider
+    // than a minus), "0.35" 34, "-1.6" and "100" 30. One pixel less on the
+    // knob bought the three that "+0.4" needed.
+    constexpr int16_t kNameBase  = 25;   // baseline of the name row
+    constexpr int16_t kKnobCx    = 14;   // centre of the knob, from the cell's left edge
+    constexpr int16_t kKnobCy    = 45;
+    constexpr int16_t kKnobR     = 10;
+    constexpr int16_t kValueBase = 51;   // baseline of the value
+    constexpr int16_t kValueX    = 27;   // left edge of the value beside a knob
 
     u8g2_SetDrawColor(u, 1);
 
@@ -215,12 +228,11 @@ void duoCell(u8g2_t* u, int16_t x, const Param& p, char encoder)
             // half says "this encoder does nothing here", a missing one does
             // not.
             u8g2_SetFont(u, kFontValue);
-            u8g2_DrawStr(u, static_cast<u8g2_uint_t>(x + 26), kValueBase, "--");
+            u8g2_DrawStr(u, static_cast<u8g2_uint_t>(x + kValueX), kValueBase, "--");
             return;
         }
         // A value that names itself (a preset) gets the whole cell.
-        u8g2_SetFont(u, kFontValue);
-        u8g2_DrawStr(u, static_cast<u8g2_uint_t>(x + 4), kValueBase, p.text);
+        drawValue(u, static_cast<int16_t>(x + 4), kValueBase, 58, p.text);
     } else {
         u8g2_SetFont(u, kFontLabel);
         u8g2_DrawStr(u, static_cast<u8g2_uint_t>(x + 4), kNameBase, p.name);
@@ -232,22 +244,14 @@ void duoCell(u8g2_t* u, int16_t x, const Param& p, char encoder)
             u8g2_DrawTriangle(u, static_cast<u8g2_uint_t>(x + 5),  static_cast<u8g2_uint_t>(kKnobCy - 5),
                                  static_cast<u8g2_uint_t>(x + 10), static_cast<u8g2_uint_t>(kKnobCy),
                                  static_cast<u8g2_uint_t>(x + 5),  static_cast<u8g2_uint_t>(kKnobCy + 5));
-            valueX = static_cast<int16_t>(x + 14);
+            valueX = static_cast<int16_t>(x + 13);   // 50 px: "White" and "Norm" stay bold
         } else {
-            drawKnob(u, static_cast<int16_t>(x + 13), kKnobCy, kKnobR, p.norm);
-            valueX = static_cast<int16_t>(x + 26);
+            drawKnob(u, static_cast<int16_t>(x + kKnobCx), kKnobCy, kKnobR, p.norm);
+            valueX = static_cast<int16_t>(x + kValueX);
         }
-
-        // The value takes the large face where it fits and the label face
-        // where it does not, rather than running into the next cell. Long
-        // values are the exception ("Pink noise", "Filt Env"), so the panel
-        // does not look mixed in normal use.
-        const char* text = (p.text != nullptr) ? p.text : "";
-        u8g2_SetFont(u, kFontValue);
-        if (u8g2_GetStrWidth(u, text) > (x + 62 - valueX)) {
-            u8g2_SetFont(u, kFontLabel);
-        }
-        u8g2_DrawStr(u, static_cast<u8g2_uint_t>(valueX), kValueBase, text);
+        // A string of width W drawn at valueX ends at valueX + W - 1, and the
+        // cell's last usable column is x + 62.
+        drawValue(u, valueX, kValueBase, static_cast<int16_t>(x + 63 - valueX), p.text);
     }
 
     // Which encoder owns this half. Small on purpose: it is a reminder for the
@@ -255,7 +259,7 @@ void duoCell(u8g2_t* u, int16_t x, const Param& p, char encoder)
     u8g2_SetDrawColor(u, 1);
     u8g2_SetFont(u, kFontSmall);
     const char label[2] = { encoder, 0 };
-    u8g2_DrawStr(u, static_cast<u8g2_uint_t>(x + 2), 53, label);
+    u8g2_DrawStr(u, static_cast<u8g2_uint_t>(x + 2), 62, label);
 }
 
 } // namespace
@@ -269,7 +273,7 @@ void panelDuo(Display& d, const Param& a, const Param& b)
     duoCell(u, 64, b, 'B');
 
     u8g2_SetDrawColor(u, 1);
-    u8g2_DrawVLine(u, 63, kBodyTop + 2, 42);
+    u8g2_DrawVLine(u, 63, kBodyTop + 2, static_cast<u8g2_uint_t>(kBodyHeight - 3));
 }
 
 // ---------------------------------------------------------------------------
@@ -292,68 +296,71 @@ void panelName(Display& d, const char* text, const char* sub, const Param& b)
                 u8g2_SetFont(u, kFontLabel);
             }
         }
-        u8g2_DrawStr(u, 4, 27, text);
+        u8g2_DrawStr(u, 4, 29, text);
     }
 
     if (sub != nullptr && sub[0] != 0) {
         u8g2_SetFont(u, kFontLabel);
-        u8g2_DrawStr(u, 4, 37, sub);
+        u8g2_DrawStr(u, 4, 41, sub);
     }
 
-    u8g2_DrawHLine(u, 0, 40, kW);
+    u8g2_DrawHLine(u, 0, 44, kW);
 
     // The right-hand encoder's parameter, laid out along the line rather than
     // stacked: there is one of them and a whole width to put it in.
     if (b.name != nullptr && b.name[0] != 0) {
         int16_t nameX = 4;
         if (b.norm >= 0.0f) {
-            drawKnob(u, 13, 50, 7, b.norm);
+            drawKnob(u, 13, 55, 7, b.norm);
             nameX = 26;
         }
         u8g2_SetFont(u, kFontLabel);
-        u8g2_DrawStr(u, static_cast<u8g2_uint_t>(nameX), 53, b.name);
+        u8g2_DrawStr(u, static_cast<u8g2_uint_t>(nameX), 59, b.name);
 
         const char* bt = (b.text != nullptr) ? b.text : "";
         u8g2_SetFont(u, kFontValue);
         const int16_t tw = static_cast<int16_t>(u8g2_GetStrWidth(u, bt));
-        u8g2_DrawStr(u, static_cast<u8g2_uint_t>(kW - 10 - tw), 53, bt);
+        u8g2_DrawStr(u, static_cast<u8g2_uint_t>(kW - 10 - tw), 59, bt);
 
         u8g2_SetFont(u, kFontSmall);
-        u8g2_DrawStr(u, kW - 6, 53, "B");
+        u8g2_DrawStr(u, kW - 6, 62, "B");
     }
 
     resetState(u);
 }
 
 // ---------------------------------------------------------------------------
-// Body: two-column browser
+// Body: lists
 // ---------------------------------------------------------------------------
 
 namespace {
 
+// Four rows of 12 px below the header. The cursor row is inverted rather than
+// marked with a caret: across a room an inverted bar is legible, a caret is
+// not - the observation the pre-kit panels were built on.
+constexpr int   kListRows  = 4;
+constexpr int16_t kListPitch = 12;
+
 void listColumn(u8g2_t* u, int16_t x, int16_t w, const char* const* entries,
                 int count, int sel, bool focused)
 {
-    constexpr int kRows   = 4;
-    constexpr int kPitch  = 11;
-
     u8g2_SetFont(u, kFontList);
 
     // Keep the cursor one row from the top where there is room below, so the
     // list shows where it is going rather than only where it has been.
     int top = sel - 1;
-    if (top > count - kRows) top = count - kRows;
-    if (top < 0)             top = 0;
+    if (top > count - kListRows) top = count - kListRows;
+    if (top < 0)                 top = 0;
 
-    for (int i = 0; i < kRows && top + i < count; ++i) {
+    for (int i = 0; i < kListRows && top + i < count; ++i) {
         const int idx = top + i;
-        const int16_t y = static_cast<int16_t>(kBodyTop + i * kPitch);
+        const int16_t y = static_cast<int16_t>(kBodyTop + i * kListPitch);
 
         if (idx == sel) {
             if (focused) {
                 u8g2_SetDrawColor(u, 1);
                 u8g2_DrawBox(u, static_cast<u8g2_uint_t>(x), static_cast<u8g2_uint_t>(y),
-                             static_cast<u8g2_uint_t>(w), kPitch);
+                             static_cast<u8g2_uint_t>(w), kListPitch);
                 u8g2_SetDrawColor(u, 0);
             } else {
                 // The unfocused column still marks its position, but as an
@@ -361,11 +368,11 @@ void listColumn(u8g2_t* u, int16_t x, int16_t w, const char* const* entries,
                 // one the encoder is actually moving.
                 u8g2_SetDrawColor(u, 1);
                 u8g2_DrawFrame(u, static_cast<u8g2_uint_t>(x), static_cast<u8g2_uint_t>(y),
-                               static_cast<u8g2_uint_t>(w), kPitch);
+                               static_cast<u8g2_uint_t>(w), kListPitch);
             }
         }
 
-        u8g2_DrawStr(u, static_cast<u8g2_uint_t>(x + 3), static_cast<u8g2_uint_t>(y + 9),
+        u8g2_DrawStr(u, static_cast<u8g2_uint_t>(x + 3), static_cast<u8g2_uint_t>(y + 10),
                      entries[idx] ? entries[idx] : "");
         u8g2_SetDrawColor(u, 1);
     }
@@ -396,7 +403,7 @@ void listTwoCol(Display& d,
         listColumn(u, 0, kSplit - 1, left, leftCount, leftSel, !focusRight);
     }
     u8g2_SetDrawColor(u, 1);
-    u8g2_DrawVLine(u, kSplit, kHeaderHeight, 64 - kHeaderHeight);
+    u8g2_DrawVLine(u, kSplit, kHeaderHeight, static_cast<u8g2_uint_t>(64 - kHeaderHeight));
     if (right != nullptr) {
         listColumn(u, kSplit + 2, kW - kSplit - 2, right, rightCount, rightSel, focusRight);
     }
@@ -404,8 +411,25 @@ void listTwoCol(Display& d,
 }
 
 // ---------------------------------------------------------------------------
-// About
+// Diagnostics, About
 // ---------------------------------------------------------------------------
+
+void diagnostics(Display& d, const char* title, const char* const* rows, int count)
+{
+    u8g2_t* u = d.raw();
+
+    d.clear();
+    header(d, title);
+    resetState(u);
+
+    u8g2_SetFont(u, kFontLabel);
+    if (count > kListRows) count = kListRows;
+    for (int i = 0; i < count; ++i) {
+        if (rows[i] == nullptr) continue;
+        u8g2_DrawStr(u, 4, static_cast<u8g2_uint_t>(kBodyTop + i * kListPitch + 10), rows[i]);
+    }
+    resetState(u);
+}
 
 void about(Display& d, const char* name, const char* version, const char* hint)
 {
@@ -417,18 +441,17 @@ void about(Display& d, const char* name, const char* version, const char* hint)
 
     if (name != nullptr) {
         u8g2_SetFont(u, kFontValue);
-        u8g2_DrawStr(u, 4, 27, name);
+        u8g2_DrawStr(u, 4, 30, name);
     }
     if (version != nullptr) {
         // Smaller than the name above it: the version is a git describe, and
-        // "1.7.0-4-ga39504b" needs seventeen characters. A clipped commit hash
-        // still reads like a whole one, but only if it is not clipped mid-word.
-        u8g2_SetFont(u, kFontList);
-        u8g2_DrawStr(u, 4, 40, version);
+        // "1.7.0-4-ga39504b" needs seventeen characters.
+        u8g2_SetFont(u, kFontLabel);
+        u8g2_DrawStr(u, 4, 45, version);
     }
     if (hint != nullptr) {
         u8g2_SetFont(u, kFontLabel);
-        u8g2_DrawStr(u, 4, 53, hint);
+        u8g2_DrawStr(u, 4, 60, hint);
     }
     resetState(u);
 }
@@ -440,7 +463,7 @@ void about(Display& d, const char* name, const char* version, const char* hint)
 void popup(Display& d, const char* title, const char* text)
 {
     u8g2_t* u = d.raw();
-    constexpr int16_t x = 8, y = 18, w = 112, h = 30;
+    constexpr int16_t x = 8, y = 16, w = 112, h = 34;
 
     // Cleared first: a popup over a panel has to be opaque or neither is
     // readable.
@@ -449,18 +472,18 @@ void popup(Display& d, const char* title, const char* text)
 
     u8g2_SetDrawColor(u, 1);
     u8g2_DrawFrame(u, x, y, w, h);
-    u8g2_DrawBox(u, x, y, w, 9);
+    u8g2_DrawBox(u, x, y, w, kHeaderHeight);
 
     u8g2_SetDrawColor(u, 0);
     u8g2_SetFont(u, kFontTitle);
-    if (title != nullptr) u8g2_DrawStr(u, x + 3, y + 7, title);
+    if (title != nullptr) u8g2_DrawStr(u, x + 3, y + 10, title);
 
     u8g2_SetDrawColor(u, 1);
     u8g2_SetFont(u, kFontValue);
     if (text != nullptr) {
         const int16_t tw = static_cast<int16_t>(u8g2_GetStrWidth(u, text));
         u8g2_DrawStr(u, static_cast<u8g2_uint_t>(x + (w - tw) / 2),
-                     static_cast<u8g2_uint_t>(y + 25), text);
+                     static_cast<u8g2_uint_t>(y + 29), text);
     }
     resetState(u);
 }

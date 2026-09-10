@@ -29,13 +29,20 @@ namespace {
 
 const char* g_dir = ".";
 
-// Exactly the draw() of MD_Instrument, minus the diagnostics the host has no
-// numbers for. Kept side by side with it on purpose: if the two drift, the
+// Exactly the draw() of MD_Instrument. Kept side by side with it on purpose: if the two drift, the
 // screens stop being evidence.
-void draw(MD_Controller& c, const char* footer)
+void draw(MD_Controller& c)
 {
     Display& d = uishot::display();
     uishot::begin();
+
+    // Same branch as MD_Instrument::draw(), with the numbers a host has.
+    if (c.isDiagPage()) {
+        static const char* const kRows[] = {
+            "CPU peak 31%", "Underruns 0", "IPC dropped 0", "Notes 142" };
+        kit::diagnostics(d, c.title(), kRows, 4);
+        return;
+    }
 
     kit::header(d, c.title(), c.pageIndex(), c.pageTotal());
 
@@ -61,7 +68,6 @@ void draw(MD_Controller& c, const char* footer)
                          { c.paramBName(), vb, c.paramBNorm() });
     }
 
-    kit::footer(d, footer);
 }
 
 // Walks the panel from a freshly constructed controller: section list, cursor
@@ -83,33 +89,36 @@ int main(int argc, char** argv)
     std::printf("[md_ui_shots] writing to %s\n", g_dir);
 
     MD_Midi midi;
-    const char* const foot = "MD  Fat Bass  ch1  P31%";
 
     // The section list, where the panel starts.
-    { MD_Controller c(midi); draw(c, foot); uishot::save(g_dir, "md_sections"); }
+    { MD_Controller c(midi); draw(c); uishot::save(g_dir, "md_sections"); }
 
     // PRESET (section 0) is a list of its own.
-    { MD_Controller c(midi); goTo(c, 0, 0); draw(c, foot);
+    { MD_Controller c(midi); goTo(c, 0, 0); draw(c);
       uishot::save(g_dir, "md_presets"); }
 
     // OSCILLATOR / OSC 1: a range and a waveform, both stepped - two list
     // markers, no knobs.
-    { MD_Controller c(midi); goTo(c, 2, 0); draw(c, foot);
+    { MD_Controller c(midi); goTo(c, 2, 0); draw(c);
       uishot::save(g_dir, "md_osc1"); }
 
     // MODIFIERS / MOD FILTER: cutoff and emphasis, both swept - the page the
     // knobs were added for.
-    { MD_Controller c(midi); goTo(c, 4, 0); draw(c, foot);
+    { MD_Controller c(midi); goTo(c, 4, 0); draw(c);
       uishot::save(g_dir, "md_filter"); }
 
     // The same page after turning both encoders, so the pointers have moved
     // off the preset values.
     { MD_Controller c(midi); goTo(c, 4, 0);
-      c.onEncoder2(25); c.onEncoder3(-40); draw(c, foot);
+      c.onEncoder2(25); c.onEncoder3(-40); draw(c);
       uishot::save(g_dir, "md_filter_turned"); }
 
+    // SYSTEM / SYS DIAG: the developer's page, section 8, second page.
+    { MD_Controller c(midi); goTo(c, 8, 1); draw(c);
+      uishot::save(g_dir, "md_diag"); }
+
     // MIXER / MIX COLOUR: one value and an empty half.
-    { MD_Controller c(midi); goTo(c, 3, 4); draw(c, foot);
+    { MD_Controller c(midi); goTo(c, 3, 4); draw(c);
       uishot::save(g_dir, "md_half_empty"); }
 
     std::printf("[ok]\n");

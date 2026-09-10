@@ -34,7 +34,6 @@ void j6Filter()
     Display& d = uishot::display();
     kit::header(d, "VCF", 0, 3);
     kit::panelDuo(d, {"Freq", "62", 0.62f}, {"Reso", "18", 0.18f});
-    kit::footer(d, "J6  1-12 Brass  ch1  P42%");
     shot("j6_vcf");
 }
 
@@ -45,7 +44,6 @@ void mdOsc()
     Display& d = uishot::display();
     kit::header(d, "OSC 1", 1, 4);
     kit::panelDuo(d, {"Range", "16'", 0.33f}, {"Wave", "Saw"});
-    kit::footer(d, "MD  Fat Bass  ch1  N3");
     shot("md_osc1");
 }
 
@@ -56,7 +54,6 @@ void knobEnds()
     Display& d = uishot::display();
     kit::header(d, "OUTPUT", 0, 1);
     kit::panelDuo(d, {"Volume", "0", 0.0f}, {"Tune", "100", 1.0f});
-    kit::footer(d, "both ends of the sweep");
     shot("knob_ends");
 }
 
@@ -67,7 +64,6 @@ void halfEmpty()
     Display& d = uishot::display();
     kit::header(d, "HPF", 3, 5);
     kit::panelDuo(d, {"Freq", "3", 0.75f}, {});
-    kit::footer(d, "J6  1-12 Brass  ch1");
     shot("half_empty");
 }
 
@@ -106,7 +102,6 @@ void popup()
     Display& d = uishot::display();
     kit::header(d, "VCF", 0, 3);
     kit::panelDuo(d, {"Freq", "62", 0.62f}, {"Reso", "18", 0.18f});
-    kit::footer(d, "J6  1-12 Brass  ch1  P42%");
     kit::popup(d, "PATCH", "12  Brass");
     shot("popup_patch");
 }
@@ -128,7 +123,6 @@ void customBody()
                   kit::kBodyBottom, kit::kBodyHeight);
     d.drawTextCentered(40, box);
 
-    kit::footer(d, "DX  E.Piano 1  ch1  4op");
     shot("custom_body");
 }
 
@@ -139,8 +133,21 @@ void namePage()
     Display& d = uishot::display();
     kit::header(d, "Patch", 0, 9);
     kit::panelName(d, "2-37 Nightfall", "S+S Ring", {"Voices", "8", 0.5f});
-    kit::footer(d, "P41 B39 U0 A6/16 N142");
     shot("panel_name");
+}
+
+// --- The developer's numbers, on a screen of their own -------------------
+void diag()
+{
+    // 6x12 holds 21 characters a row; these are the shapes the instruments use.
+    static const char* const kRows[] = {
+        "CPU 41%  bench 39",
+        "Underruns 0",
+        "Voices 6/16",
+        "Notes 142  shed 0" };
+    uishot::begin();
+    kit::diagnostics(uishot::display(), "SYS DIAG", kRows, 4);
+    shot("diagnostics");
 }
 
 // --- The About screen, once instead of four times -------------------------
@@ -168,6 +175,7 @@ int main(int argc, char** argv)
     popup();
     customBody();
     namePage();
+    diag();
     about();
 
     std::printf("[ok]\n");

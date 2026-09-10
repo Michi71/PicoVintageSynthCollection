@@ -98,6 +98,7 @@ static const MdPage kVintagePages[] = {
 
 static const MdPage kSystemPages[] = {
     { "SYS MIDI",    MD_UI_MIDICH,       MOOG_TRANSPOSE      },
+    { "SYS DIAG",    MD_UI_DIAG,         MD_UI_NONE          },
 };
 
 #define SECTION(n, p) { n, p, (uint8_t) (sizeof(p) / sizeof(p[0])) }
@@ -339,6 +340,10 @@ void MD_Controller::formatValue(int id, char* dst, size_t n) const
         else                         snprintf(dst, n, "%d", (int) midiCh_ + 1);
         return;
     }
+    if (id < 0 || id >= MOOG_PARAM_COUNT) {   /* MD_UI_DIAG has no value */
+        dst[0] = 0;
+        return;
+    }
     moogFormatValue(id, shadow_[id], dst, n);
 }
 
@@ -381,6 +386,11 @@ void MD_Controller::paramBText(char* dst, size_t n) const
 bool MD_Controller::isPresetList() const
 {
     return inSection_ && paramIdOf(0) == MD_UI_PROGRAM;
+}
+
+bool MD_Controller::isDiagPage() const
+{
+    return inSection_ && paramIdOf(0) == MD_UI_DIAG;
 }
 
 int MD_Controller::listCount() const
