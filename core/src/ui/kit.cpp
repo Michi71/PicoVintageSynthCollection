@@ -36,6 +36,13 @@ namespace {
 const uint8_t* const kFontTitle = u8g2_font_7x13B_tf;
 const uint8_t* const kFontLabel = u8g2_font_6x12_tf;
 const uint8_t* const kFontValue = u8g2_font_helvB14_tf;
+// One size under the value face, for the patch name on the name page. Not a
+// concession: the name's band is two tile rows, 16..31, and helvB14 with its
+// ascenders and descenders is 18 rows tall - at any baseline two of them fall
+// outside the band and the marquee clips them off ("Nighttall"). helvB12 is
+// 16 rows exactly, measured on the host by scanning the buffer, and a name
+// in it fits the width beside the number more often, so it scrolls less.
+const uint8_t* const kFontName  = u8g2_font_helvB12_tf;
 const uint8_t* const kFontList  = u8g2_font_7x13B_tf;
 const uint8_t* const kFontSmall = u8g2_font_4x6_tf;
 
@@ -330,7 +337,7 @@ void drawMarqueeBand(u8g2_t* u, int16_t off)
                        static_cast<u8g2_uint_t>(g_marquee.x + g_marquee.width),
                        static_cast<u8g2_uint_t>(kNameBandBottom + 1));
     u8g2_SetDrawColor(u, 1);
-    u8g2_SetFont(u, kFontValue);
+    u8g2_SetFont(u, kFontName);
     const int16_t x0 = static_cast<int16_t>(g_marquee.x - off);
     u8g2_DrawStr(u, static_cast<u8g2_uint_t>(x0), static_cast<u8g2_uint_t>(kNameBase), g_marquee.text);
     u8g2_DrawStr(u, static_cast<u8g2_uint_t>(static_cast<int16_t>(x0 + period)),
@@ -348,16 +355,20 @@ bool panelName(Display& d, const char* number, const char* name, const char* sub
     resetState(u);
     u8g2_SetFont(u, kFontValue);
 
-    // The number first, and the name starts a little to its right. Nothing
-    // here ever changes face: the number is short by construction, the name
-    // scrolls when it has to.
+    // The number first, in the value face, and the name a little to its
+    // right in the name face, both on one baseline. Nothing here ever changes
+    // size: the number is short by construction, the name scrolls when it has
+    // to. The name region runs to the screen's edge - a marquee is clipped
+    // there anyway, and a static name gains four pixels before it has to
+    // scroll.
     int16_t nameX = 4;
     if (number != nullptr && number[0] != 0) {
         u8g2_DrawStr(u, 4, static_cast<u8g2_uint_t>(kNameBase), number);
         nameX = static_cast<int16_t>(4 + u8g2_GetStrWidth(u, number) + 6);
     }
-    const int16_t width = static_cast<int16_t>(kW - 4 - nameX);
+    const int16_t width = static_cast<int16_t>(kW - nameX);
     if (name == nullptr) name = "";
+    u8g2_SetFont(u, kFontName);
 
     bool scrolling = false;
     if (static_cast<int16_t>(u8g2_GetStrWidth(u, name)) <= width) {
