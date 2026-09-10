@@ -4,7 +4,12 @@ Ten vintage synthesizer emulations for the RP2350, built from one shared
 codebase. Same board, same core, one firmware image per instrument.
 
 <p align="center">
-  <img src="img/picofacedx.png" alt="PicoFace prototype hardware running PicoFaceDX" width="800">
+  <img src="img/ui_md.png" alt="PicoFaceMD front panel: diagnostics page, filter page, preset list, section menu" width="800">
+  <br>
+  <img src="img/ui_kit.png" alt="The shared front panel: about, diagnostics, two-value pages, menus, patch page, popup" width="800">
+  <br>
+  <sub>Rendered on a host from the firmware's own drawing code
+  (<a href="tools/host_tests/ui/README.md">tools/host_tests/ui</a>) &mdash; what the OLED shows, pixel for pixel.</sub>
 </p>
 
 ## Demo
@@ -275,7 +280,8 @@ instruments/     one folder per instrument: instrument.cmake, src/, include/, do
 tools/           host-side tools; not part of any firmware image
 docs/            documentation shared by all instruments
 hardware/        the module as a board: dimensions, parts, drill list. Not built yet
-img/             photos of the prototype hardware
+img/             photos of the prototype hardware, and the panel sheets above,
+                 rendered from the firmware by tools/host_tests/ui
 ```
 
 ## Documentation
