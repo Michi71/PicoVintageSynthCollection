@@ -98,9 +98,14 @@ public:
         // Redraw soon after input, and at least twice a second as a keep-alive
         // so the footer's live counters stay current.
         if ((dirty_ && (in.nowMs - lastDrawMs_) > 50u) || (in.nowMs - lastDrawMs_) > 500u) {
-            draw(d);
+            draw(d, in.nowMs);
             dirty_ = false;
             lastDrawMs_ = in.nowMs;
+        } else if (marquee_ && (in.nowMs - lastMarqueeMs_) >= 40u) {
+            // The scrolling patch name: one band redrawn, one band flushed,
+            // nothing else on the screen moves.
+            marquee_ = picoface::ui::kit::marqueeTick(d, in.nowMs);
+            lastMarqueeMs_ = in.nowMs;
         }
     }
 
@@ -124,8 +129,9 @@ public:
     }
 
 private:
-    void draw(picoface::ui::Display& d) {
+    void draw(picoface::ui::Display& d, uint32_t nowMs = 0) {
         namespace kit = picoface::ui::kit;
+        marquee_ = false;
 
         // The developer's numbers went from a strip at the bottom of every page
         // to a page of their own (#161: that strip cost the body nine rows on
@@ -152,17 +158,17 @@ private:
         kit::header(d, controller_.pageName(), controller_.pageIndex(),
                     controller_.pageTotal());
         if (controller_.isPatchPage()) {
-            // A patch name does not fit in half the width at a size worth
-            // reading, so it gets all of it, with the bank under it.
-            kit::panelName(d, a.text, b.text, {});
+            // The name gets the whole width and scrolls if it is longer than
+            // that; the bank sits under it.
+            marquee_ = kit::panelName(d, "", a.text, b.text, {}, nowMs);
         } else {
             kit::panelDuo(d, { a.name, a.text, a.norm },
                              { b.name, b.text, b.norm });
         }
 
         // Arms the incremental push. Painting the buffer is not enough: the main
-        // loop only streams it out while picoface_ui_flush_row < 16, and flush()
-        // is what resets that counter. Without this the display keeps showing
+        // loop only streams out rows whose bit in the flush mask is set, and
+        // flush() is what sets them. Without this the display keeps showing
         // whatever was pushed last -- the boot splash -- while everything else
         // runs normally.
         d.flush();
@@ -175,6 +181,8 @@ private:
     JV_Midi midi_;
     bool dirty_ = true;
     uint32_t lastDrawMs_ = 0;
+    bool marquee_ = false;           // the patch name is scrolling; keep ticking it
+    uint32_t lastMarqueeMs_ = 0;
     uint32_t lastUnderrun_ = 0;
     uint32_t lastUnderrunMs_ = 0;
 };

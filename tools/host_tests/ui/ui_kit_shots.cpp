@@ -126,14 +126,29 @@ void customBody()
     shot("custom_body");
 }
 
-// --- A page whose value is a name: D5, JV and RD all have one -------------
+// --- A page whose value is a name: D5, JV, RD and SM all have one ----------
+// Three frames: a name that fits, a long one the moment it appears (held),
+// and the same one 2.6 s later, scrolled. The face is the same in all three.
 void namePage()
 {
-    uishot::begin();
     Display& d = uishot::display();
+    uishot::begin();
     kit::header(d, "Patch", 0, 9);
-    kit::panelName(d, "2-37 Nightfall", "S+S Ring", {"Voices", "8", 0.5f});
+    kit::panelName(d, "2-37", "Nightfall", "S+S Ring", {"Voices", "8", 0.5f}, 0);
     shot("panel_name");
+
+    uishot::begin();
+    kit::header(d, "Patch", 0, 9);
+    kit::panelName(d, "2-37", "Nightfall Dreams II", "S+S Ring", {"Voices", "8", 0.5f}, 1000);
+    shot("panel_name_hold");
+
+    // The device ticks the marquee every 40 ms between full redraws; the
+    // scrolled frame is reached the same way here, through marqueeTick(), so
+    // this exercises the band redraw and not just the full-page path.
+    for (uint32_t t = 1040; t <= 3600; t += 40) {
+        if (!kit::marqueeTick(d, t)) { std::printf("marquee stopped early at %u ms\n", (unsigned) t); break; }
+    }
+    shot("panel_name_scroll");
 }
 
 // --- The developer's numbers, on a screen of their own -------------------

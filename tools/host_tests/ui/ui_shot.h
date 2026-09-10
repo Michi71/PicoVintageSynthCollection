@@ -21,7 +21,7 @@
 
 // Owned by core/src/picoface_main.cpp on the target; the facade writes it to
 // arm the staged flush, so the host build has to provide it.
-uint8_t picoface_ui_flush_row = 16;
+uint16_t picoface_ui_flush_mask = 0;
 
 namespace uishot {
 

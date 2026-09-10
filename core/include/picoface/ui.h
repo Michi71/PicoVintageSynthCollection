@@ -96,7 +96,13 @@ public:
     DisplayHandle raw() const;  // escape hatch for special cases
 
     void clear();                        // clear the back buffer
-    void flush();                        // send the back buffer to the display
+    void flush();                        // send the whole back buffer to the display
+    // Send only the rows y0..y1 (inclusive, in pixels). The transport works in
+    // half tile rows of 8 px, so the range is widened to the tiles it touches.
+    // For the one thing on the panel that moves on its own - the scrolling
+    // patch name - this is the difference between 6 ms and 24 ms of I2C per
+    // frame, on the core that also renders the audio.
+    void flush(int16_t y0, int16_t y1);
     void setFont(const uint8_t* font);   // u8g2 font, e.g. u8g2_font_6x10_tf
 
     void drawText(int16_t x, int16_t y, const char* text);

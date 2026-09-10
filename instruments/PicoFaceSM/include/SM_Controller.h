@@ -52,6 +52,11 @@ public:
      * kit::diagnostics; neither encoder acts there. */
     bool        isDiagPage() const;
 
+    /* The preset page draws number and name apart through the kit's name
+     * page, so the name can scroll instead of shrinking. */
+    bool        isPresetPage() const;
+    int         program() const { return (int) program_; }
+
     const char* paramAName() const;
     const char* paramBName() const;
     /* 0..1 for a value that has a position on a dial, negative for one that

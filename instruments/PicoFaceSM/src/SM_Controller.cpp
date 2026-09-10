@@ -91,6 +91,7 @@ int SM_Controller::pageCount() const { return kPageCount; }
 
 const char* SM_Controller::pageName() const { return kPages[page_].name; }
 bool        SM_Controller::isDiagPage() const { return kPages[page_].a == SM_UI_DIAG; }
+bool        SM_Controller::isPresetPage() const { return kPages[page_].a == SM_UI_PROGRAM; }
 
 int SM_Controller::paramIdOf(int slot) const
 {

@@ -36,9 +36,12 @@ public:
     Value valueA() const;
     Value valueB() const;
 
-    // The patch page shows a name, not a number, and needs the whole width for
-    // it; the kit has its own body for that.
+    // The patch page shows a name, not a number, and the kit has its own body
+    // for that: the number stays put on the left, the name takes the rest of
+    // the width and scrolls when it is longer than that.
     bool        isPatchPage() const { return page_ == kPagePatch; }
+    void        patchNumber(char* out, size_t n) const;   // "2-37", or "12" with one bank
+    const char* patchName() const;
     bool        isDiagPage()  const { return page_ == kPageDiag; }
     const char* patchStructure() const;  // second line under the patch name
 
