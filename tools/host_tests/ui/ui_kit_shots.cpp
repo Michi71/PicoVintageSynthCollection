@@ -169,8 +169,10 @@ void diag()
 void about()
 {
     uishot::begin();
-    kit::about(uishot::display(), "PicoFaceOB", "1.8.0-4-ga39504b",
-               "Press any button");
+#ifndef PICOFACE_VERSION
+#define PICOFACE_VERSION "unknown"
+#endif
+    kit::about(uishot::display(), "PicoFaceMD", PICOFACE_VERSION, "Press any button");
     shot("about");
 }
 

@@ -6,7 +6,9 @@
 # sheet at 3x, in the pale blue of the actual OLED, so a layout can be judged
 # at the size it will be read. NOLABEL=1 leaves out the file name under each
 # screen - the README uses those sheets, and a reader there does not need to
-# know which test wrote which frame.
+# know which test wrote which frame. ONLY="name name ..." picks frames by
+# basename and lays them out in that order: the README shows only screens a
+# player meets, not the kit's own checks.
 set -e
 DIR="${1:-out}"
 COLS="${2:-3}"
@@ -29,6 +31,12 @@ def load(path):
     return im
 
 files = sorted(glob.glob(os.path.join(d, '*.pbm')))
+only = os.environ.get('ONLY', '').split()
+if only:
+    files = [os.path.join(d, n + '.pbm') for n in only]
+    missing = [f for f in files if not os.path.exists(f)]
+    if missing:
+        raise SystemExit('ONLY names frames that do not exist: ' + ' '.join(missing))
 if not files:
     raise SystemExit('no .pbm in ' + d)
 

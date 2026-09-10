@@ -32,8 +32,15 @@ if [ ! -f "$LIB/u8g2.a" ]; then
     ( cd "$LIB" && "$CC" -O2 -w -I"$U8G2" -c "$U8G2"/*.c && ar rcs u8g2.a ./*.o && rm -f ./*.o )
 fi
 
+# The About frame shows the release the tree is based on - the nearest tag,
+# as a release image's splash would show it - rather than a made-up number.
+# (Not the full git describe: a README sheet with "-2-gbcf0414" after the
+# version would read as a stray development build.)
+VERSION="$(cd "$REPO" && git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')"
+
 echo "[build] ui_kit_shots"
 "$CXX" -std=c++17 -O2 -Wall -Wextra \
+    -DPICOFACE_VERSION="\"${VERSION:-unknown}\"" \
     -I"$REPO/core/include" -I"$U8G2" -I"$HERE" \
     "$HERE/ui_kit_shots.cpp" \
     "$REPO/core/src/ui/kit.cpp" \
