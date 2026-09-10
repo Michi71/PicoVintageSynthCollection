@@ -104,9 +104,14 @@ public:
         if (da) { controller_.onEncoderA(da); dirty_ = true; }
         if (db) { controller_.onEncoderB(db); dirty_ = true; }
         if ((dirty_ && (in.nowMs - lastDrawMs_) > 50u) || (in.nowMs - lastDrawMs_) > 500u) {
-            draw(d);
+            draw(d, in.nowMs);
             dirty_ = false;
             lastDrawMs_ = in.nowMs;
+        } else if (marquee_ && (in.nowMs - lastMarqueeMs_) >= 40u) {
+            // The scrolling patch name: one band redrawn, one band flushed,
+            // nothing else on the screen moves.
+            marquee_ = picoface::ui::kit::marqueeTick(d, in.nowMs);
+            lastMarqueeMs_ = in.nowMs;
         }
     }
 
@@ -130,8 +135,9 @@ public:
     }
 
 private:
-    void draw(picoface::ui::Display& d) {
+    void draw(picoface::ui::Display& d, uint32_t nowMs = 0) {
         namespace kit = picoface::ui::kit;
+        marquee_ = false;
 
         // The developer's numbers went from a strip at the bottom of every page
         // to a page of their own (#161: that strip cost the body nine rows on
@@ -167,17 +173,20 @@ private:
         kit::header(d, controller_.pageName(), controller_.pageIndex(),
                     controller_.pageTotal());
         if (controller_.isPatchPage()) {
-            // A patch name does not fit in half the width at a size worth
-            // reading, so it gets all of it, with the structure under it.
-            kit::panelName(d, a.text, controller_.patchStructure(),
-                           { b.name, b.text, b.norm });
+            // Number and name apart: the number stays put, the name takes the
+            // rest of the width and scrolls when it is longer than that. The
+            // structure sits under it.
+            char num[12];
+            controller_.patchNumber(num, sizeof num);
+            marquee_ = kit::panelName(d, num, controller_.patchName(), controller_.patchStructure(),
+                                      { b.name, b.text, b.norm }, nowMs);
         } else {
             kit::panelDuo(d, { a.name, a.text, a.norm },
                              { b.name, b.text, b.norm });
         }
 
-        // Arms the incremental push: the main loop only streams the buffer
-        // while picoface_ui_flush_row < 16, and flush() resets that counter.
+        // Arms the incremental push: the main loop streams out the rows whose
+        // bit in the flush mask is set, and flush() sets all sixteen.
         d.flush();
     }
 
@@ -190,6 +199,8 @@ private:
     D5_Midi midi_;
     bool dirty_ = true;
     uint32_t lastDrawMs_ = 0;
+    bool marquee_ = false;           // the patch name is scrolling; keep ticking it
+    uint32_t lastMarqueeMs_ = 0;
     uint32_t lastUnderrun_ = 0;
     uint32_t lastUnderrunMs_ = 0;
 };

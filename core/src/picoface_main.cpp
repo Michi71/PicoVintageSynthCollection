@@ -54,10 +54,11 @@ static MIDIInputUSB g_usbmidi;
 static volatile uint32_t g_pio_stall_count = 0;
 picoface::ui::Display g_display(&g_u8g2);   // facade, holds only the u8g2 pointer
 
-// 16 = idle, 0..15 = next half tile row. Display::flush() sets this to 0 and
-// the main loop pushes the buffer out row by row instead of calling a blocking
-// SendBuffer. Deliberately not static: core/src/ui/display.cpp refers to it.
-uint8_t picoface_ui_flush_row = 16;
+// One bit per half tile row, 16 in all; a set bit is a row still to be
+// pushed out, 0 means idle. Display::flush() sets all of them, its ranged
+// overload only the rows that changed, and the main loop pushes one row per
+// pass instead of calling a blocking SendBuffer. Deliberately not static: core/src/ui/display.cpp refers to it.
+uint16_t picoface_ui_flush_mask = 0;
 
 extern "C" void __not_in_flash_func(i2s_callback_func)()
 {
@@ -436,9 +437,10 @@ int main(void)
         // voice takes about six of those, some 9 ms, where USB itself would be
         // done in four 1 ms frames. An editor reading a voice sees the gaps; the
         // display catches up a few milliseconds later and nobody sees that.
-        if (picoface_ui_flush_row < 16 && usbMidiOut().empty()) {
-            u8g2_UpdateDisplayArea(&g_u8g2, (picoface_ui_flush_row & 1) ? 8 : 0, (uint8_t)(picoface_ui_flush_row >> 1), 8, 1);
-            picoface_ui_flush_row++;
+        if (picoface_ui_flush_mask != 0 && usbMidiOut().empty()) {
+            const unsigned row = (unsigned) __builtin_ctz(picoface_ui_flush_mask);   // lowest pending
+            u8g2_UpdateDisplayArea(&g_u8g2, (row & 1) ? 8 : 0, (uint8_t)(row >> 1), 8, 1);
+            picoface_ui_flush_mask &= (uint16_t) ~(1u << row);
         }
 
         // 3. USB and DIN MIDI
@@ -463,7 +465,7 @@ int main(void)
 
         // 4. UI tick, at most every 20 ms and only while the display is not being pushed out
         // uiTick draws into the u8g2 buffer only; Display::flush() just arms the incremental push.
-        if (picoface_ui_flush_row >= 16 && (now - last_ui_ms) >= 20) {
+        if (picoface_ui_flush_mask == 0 && (now - last_ui_ms) >= 20) {
             pf_build_input(input, now);
             const bool edited = input.encoderDelta[0] || input.encoderDelta[1] || input.encoderDelta[2] || input.buttonPressed[0] || input.buttonPressed[1] || input.buttonPressed[2];
             // The three-button gesture owns the screen while it is held, so the

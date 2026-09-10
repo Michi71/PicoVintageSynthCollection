@@ -110,9 +110,14 @@ public:
         if (d3) { controller_.onEncoder3(d3); dirty_ = true; }
         // Refresh quickly after user input, but at least every 500 ms as a keep-alive.
         if ((dirty_ && (in.nowMs - lastDrawMs_) > 50u) || (in.nowMs - lastDrawMs_) > 500u) {
-            draw(d);
+            draw(d, in.nowMs);
             dirty_ = false;
             lastDrawMs_ = in.nowMs;
+        } else if (marquee_ && (in.nowMs - lastMarqueeMs_) >= 40u) {
+            // The scrolling patch name: one band redrawn, one band flushed,
+            // nothing else on the screen moves.
+            marquee_ = picoface::ui::kit::marqueeTick(d, in.nowMs);
+            lastMarqueeMs_ = in.nowMs;
         }
     }
 
@@ -173,9 +178,10 @@ private:
         }
     }
 
-    void draw(picoface::ui::Display& d)
+    void draw(picoface::ui::Display& d, uint32_t nowMs = 0)
     {
         namespace kit = picoface::ui::kit;
+        marquee_ = false;
 
         // The developer's numbers went from a strip at the bottom of every page
         // to a page of their own (#161: that strip cost the body nine rows on
@@ -237,11 +243,12 @@ private:
 
         switch (controller_.currentPage()) {
         case RdPage::PATCH:
-            // The instrument name gets the full width, with its bank under it.
-            snprintf(va, sizeof(va), "%02d %s", (int) shown + 1, bareName);
+            // Number and name apart: the number stays put, the name takes the
+            // rest of the width and scrolls when it is longer; bank under it.
+            snprintf(va, sizeof(va), "%02d", (int) shown + 1);
             snprintf(vb, sizeof(vb), "%d%%", (int) controller_.param3Value());
-            kit::panelName(d, va, bankName,
-                           { "Volume", vb, controller_.param3Value() / 100.0f });
+            marquee_ = kit::panelName(d, va, bareName, bankName,
+                                      { "Volume", vb, controller_.param3Value() / 100.0f }, nowMs);
             break;
 
         case RdPage::VOICES: {
@@ -324,6 +331,8 @@ private:
     RD_Controller   controller_;   // declared after midi_: taken by reference in the constructor
     bool            dirty_ = false;
     uint32_t        lastDrawMs_ = 0;
+    bool            marquee_ = false;      // the patch name is scrolling; keep ticking it
+    uint32_t        lastMarqueeMs_ = 0;
 };
 
 } // namespace

@@ -78,9 +78,15 @@ public:
         // footer statistics stay alive even without user input.
         if ((dirty_ && (in.nowMs - lastDrawMs_) > 50u) || (in.nowMs - lastDrawMs_) > 500u)
         {
-            draw(d);
+            draw(d, in.nowMs);
             dirty_     = false;
             lastDrawMs_ = in.nowMs;
+        }
+        else if (marquee_ && (in.nowMs - lastMarqueeMs_) >= 40u)
+        {
+            // The scrolling preset name: one band redrawn, one band flushed.
+            marquee_ = picoface::ui::kit::marqueeTick(d, in.nowMs);
+            lastMarqueeMs_ = in.nowMs;
         }
     }
 
@@ -154,9 +160,10 @@ private:
     }
 
     // The Solina has only a page view, no list.
-    void draw(picoface::ui::Display& d)
+    void draw(picoface::ui::Display& d, uint32_t nowMs = 0)
     {
         namespace kit = picoface::ui::kit;
+        marquee_ = false;
 
         // The developer's numbers went from a strip at the bottom of every page
         // to a page of their own (#161: that strip cost the body nine rows on
@@ -183,10 +190,18 @@ private:
         d.clear();
         kit::header(d, controller_.pageName(), controller_.currentPage(),
                     controller_.pageCount());
-        // An empty name means the value describes itself (the preset does).
-        kit::panelDuo(d,
-            { controller_.paramAName(), va, controller_.paramANorm() },
-            { controller_.paramBName(), vb, controller_.paramBNorm() });
+        if (controller_.isPresetPage()) {
+            // Number and name apart: the number stays put, the name takes the
+            // rest of the width and scrolls when it is longer than that.
+            char num[8];
+            snprintf(num, sizeof num, "%d", controller_.program() + 1);
+            marquee_ = kit::panelName(d, num, solinaPrograms[controller_.program()].name, "",
+                                      { controller_.paramBName(), vb, controller_.paramBNorm() }, nowMs);
+        } else {
+            kit::panelDuo(d,
+                { controller_.paramAName(), va, controller_.paramANorm() },
+                { controller_.paramBName(), vb, controller_.paramBNorm() });
+        }
 
         d.flush();   // arms the incremental push
     }
@@ -196,6 +211,8 @@ private:
     SM_Controller   controller_;   // declared after midi_: taken by reference in the constructor
     bool            dirty_      = false;
     uint32_t        lastDrawMs_ = 0;
+    bool            marquee_    = false;   // the preset name is scrolling; keep ticking it
+    uint32_t        lastMarqueeMs_ = 0;
 };
 
 } // namespace

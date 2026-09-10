@@ -9,6 +9,8 @@
 
 #include "picoface/ui_kit.h"
 
+#include <cstring>
+
 #include "u8g2.h"
 
 namespace picoface {
@@ -280,23 +282,104 @@ void panelDuo(Display& d, const Param& a, const Param& b)
 // Body: a name across the full width, one parameter below
 // ---------------------------------------------------------------------------
 
-void panelName(Display& d, const char* text, const char* sub, const Param& b)
+namespace {
+
+// The one marquee the panel can show. Its state lives here rather than in the
+// instruments because the animation is the kit's: an instrument only has to
+// keep calling marqueeTick() while panelName() said the name scrolls.
+struct Marquee {
+    char     text[48];
+    int16_t  x;         // left edge of the name region
+    int16_t  width;     // region width, up to the right margin
+    int16_t  textW;     // the name's width in the value face
+    int16_t  lastOff;   // offset last drawn, so a frame that changes nothing is not pushed
+    uint32_t startMs;   // when this name first appeared
+    uint32_t seenMs;    // when panelName() last drew it
+    bool     active;
+};
+Marquee g_marquee = {};
+
+constexpr int16_t  kNameBase = 28;     // baseline of number and name, inside the band
+constexpr uint32_t kHoldMs   = 1200;   // a new name stays put this long before it moves
+constexpr int16_t  kSpeedPxS = 48;     // then it moves at this rate
+constexpr int16_t  kGapPx    = 24;     // between the end of the name and its next copy
+
+// A page that was away and comes back gets its hold again: panelName() is
+// called at least every 500 ms while its page is up, so a longer gap means
+// the page was somewhere else in between.
+constexpr uint32_t kAwayMs = 800;
+
+int16_t marqueeOffset(uint32_t nowMs)
+{
+    const uint32_t elapsed = nowMs - g_marquee.startMs;
+    if (elapsed < kHoldMs) return 0;
+    const uint32_t period = static_cast<uint32_t>(g_marquee.textW + kGapPx);
+    // 64-bit: a patch page left up for a day would otherwise wrap the product.
+    const uint64_t px = static_cast<uint64_t>(elapsed - kHoldMs) * static_cast<uint64_t>(kSpeedPxS) / 1000u;
+    return static_cast<int16_t>(px % period);
+}
+
+// The name and its next copy one period to the right, both clipped to the
+// region. u8g2 carries 16-bit signed intermediate coordinates in every 32-bit
+// build (U8G2_16BIT), so a copy that starts left of the region is clipped
+// rather than wrapped - checked on the host renderer before relying on it.
+void drawMarqueeBand(u8g2_t* u, int16_t off)
+{
+    const int16_t period = static_cast<int16_t>(g_marquee.textW + kGapPx);
+    u8g2_SetClipWindow(u, static_cast<u8g2_uint_t>(g_marquee.x), static_cast<u8g2_uint_t>(kNameBandTop),
+                       static_cast<u8g2_uint_t>(g_marquee.x + g_marquee.width),
+                       static_cast<u8g2_uint_t>(kNameBandBottom + 1));
+    u8g2_SetDrawColor(u, 1);
+    u8g2_SetFont(u, kFontValue);
+    const int16_t x0 = static_cast<int16_t>(g_marquee.x - off);
+    u8g2_DrawStr(u, static_cast<u8g2_uint_t>(x0), static_cast<u8g2_uint_t>(kNameBase), g_marquee.text);
+    u8g2_DrawStr(u, static_cast<u8g2_uint_t>(static_cast<int16_t>(x0 + period)),
+                 static_cast<u8g2_uint_t>(kNameBase), g_marquee.text);
+    u8g2_SetMaxClipWindow(u);
+    g_marquee.lastOff = off;
+}
+
+} // namespace
+
+bool panelName(Display& d, const char* number, const char* name, const char* sub,
+               const Param& b, uint32_t nowMs)
 {
     u8g2_t* u = d.raw();
     resetState(u);
+    u8g2_SetFont(u, kFontValue);
 
-    // The name, in the largest face it fits into. A patch name is what the
-    // player is looking for on this page, so it gets the width and the size
-    // before anything else on it does.
-    if (text != nullptr && text[0] != 0) {
-        u8g2_SetFont(u, kFontValue);
-        if (u8g2_GetStrWidth(u, text) > kW - 8) {
-            u8g2_SetFont(u, kFontList);
-            if (u8g2_GetStrWidth(u, text) > kW - 8) {
-                u8g2_SetFont(u, kFontLabel);
-            }
+    // The number first, and the name starts a little to its right. Nothing
+    // here ever changes face: the number is short by construction, the name
+    // scrolls when it has to.
+    int16_t nameX = 4;
+    if (number != nullptr && number[0] != 0) {
+        u8g2_DrawStr(u, 4, static_cast<u8g2_uint_t>(kNameBase), number);
+        nameX = static_cast<int16_t>(4 + u8g2_GetStrWidth(u, number) + 6);
+    }
+    const int16_t width = static_cast<int16_t>(kW - 4 - nameX);
+    if (name == nullptr) name = "";
+
+    bool scrolling = false;
+    if (static_cast<int16_t>(u8g2_GetStrWidth(u, name)) <= width) {
+        u8g2_DrawStr(u, static_cast<u8g2_uint_t>(nameX), static_cast<u8g2_uint_t>(kNameBase), name);
+        g_marquee.active = false;
+    } else {
+        const bool fresh = !g_marquee.active
+                        || std::strcmp(name, g_marquee.text) != 0
+                        || nameX != g_marquee.x
+                        || (nowMs - g_marquee.seenMs) > kAwayMs;
+        if (fresh) {
+            std::strncpy(g_marquee.text, name, sizeof(g_marquee.text) - 1);
+            g_marquee.text[sizeof(g_marquee.text) - 1] = 0;
+            g_marquee.x       = nameX;
+            g_marquee.width   = width;
+            g_marquee.textW   = static_cast<int16_t>(u8g2_GetStrWidth(u, g_marquee.text));
+            g_marquee.startMs = nowMs;
+            g_marquee.active  = true;
         }
-        u8g2_DrawStr(u, 4, 29, text);
+        g_marquee.seenMs = nowMs;
+        drawMarqueeBand(u, marqueeOffset(nowMs));
+        scrolling = true;
     }
 
     if (sub != nullptr && sub[0] != 0) {
@@ -304,18 +387,19 @@ void panelName(Display& d, const char* text, const char* sub, const Param& b)
         u8g2_DrawStr(u, 4, 41, sub);
     }
 
+    u8g2_SetDrawColor(u, 1);
     u8g2_DrawHLine(u, 0, 44, kW);
 
     // The right-hand encoder's parameter, laid out along the line rather than
     // stacked: there is one of them and a whole width to put it in.
     if (b.name != nullptr && b.name[0] != 0) {
-        int16_t nameX = 4;
+        int16_t bx = 4;
         if (b.norm >= 0.0f) {
             drawKnob(u, 13, 55, 7, b.norm);
-            nameX = 26;
+            bx = 26;
         }
         u8g2_SetFont(u, kFontLabel);
-        u8g2_DrawStr(u, static_cast<u8g2_uint_t>(nameX), 59, b.name);
+        u8g2_DrawStr(u, static_cast<u8g2_uint_t>(bx), 59, b.name);
 
         const char* bt = (b.text != nullptr) ? b.text : "";
         u8g2_SetFont(u, kFontValue);
@@ -327,6 +411,28 @@ void panelName(Display& d, const char* text, const char* sub, const Param& b)
     }
 
     resetState(u);
+    return scrolling;
+}
+
+bool marqueeTick(Display& d, uint32_t nowMs)
+{
+    if (!g_marquee.active) return false;
+
+    const int16_t off = marqueeOffset(nowMs);
+    if (off == g_marquee.lastOff) return true;   // still holding, or between pixels: nothing to push
+
+    u8g2_t* u = d.raw();
+    // Clear the band from the name's left edge - the number to its left stays
+    // in the buffer untouched - and redraw the name where it is now.
+    u8g2_SetDrawColor(u, 0);
+    u8g2_DrawBox(u, static_cast<u8g2_uint_t>(g_marquee.x), static_cast<u8g2_uint_t>(kNameBandTop),
+                 static_cast<u8g2_uint_t>(kW - g_marquee.x),
+                 static_cast<u8g2_uint_t>(kNameBandBottom - kNameBandTop + 1));
+    drawMarqueeBand(u, off);
+    resetState(u);
+    g_marquee.seenMs = nowMs;
+    d.flush(kNameBandTop, kNameBandBottom);
+    return true;
 }
 
 // ---------------------------------------------------------------------------

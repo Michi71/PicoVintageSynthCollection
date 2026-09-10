@@ -106,6 +106,16 @@ const char* D5_Controller::pageName() const {
 }
 
 const char* D5_Controller::patchStructure() const { return bridge_.structureName(); }
+const char* D5_Controller::patchName() const      { return bridge_.patchName(); }
+
+// With one bank aboard the plain number stays (a D-50 owns 64); with the
+// D-05's six banks the panel convention bank-patch tells "2-37" from "5-37".
+void D5_Controller::patchNumber(char* out, size_t n) const {
+    if (bridge_.patchCount() > 64)
+        snprintf(out, n, "%d-%d", bridge_.patch() / 64 + 1, bridge_.patch() % 64 + 1);
+    else
+        snprintf(out, n, "%d", bridge_.patch() + 1);
+}
 
 // The two encoders, each as one value the kit can lay out. Normalisation is
 // per page because each range is its own: the panel numbers are 0..100 for the
@@ -114,18 +124,14 @@ const char* D5_Controller::patchStructure() const { return bridge_.structureName
 D5_Controller::Value D5_Controller::valueA() const {
     Value v{"", {0}, -1.0f};
     switch (page_) {
-        case kPagePatch:
-            // The value names itself, and the patch page gives it the width.
-            // With one bank aboard the plain number stays (a D-50 owns 64);
-            // with the D-05's six banks the panel convention bank-patch tells
-            // "2-37 Nightfall" from "5-37".
-            if (bridge_.patchCount() > 64)
-                snprintf(v.text, sizeof v.text, "%d-%d %s", bridge_.patch() / 64 + 1,
-                         bridge_.patch() % 64 + 1, bridge_.patchName());
-            else
-                snprintf(v.text, sizeof v.text, "%d %s", bridge_.patch() + 1,
-                         bridge_.patchName());
+        case kPagePatch: {
+            // The value names itself. The page itself draws number and name
+            // apart (patchNumber/patchName); this is the one-line form.
+            char num[12];
+            patchNumber(num, sizeof num);
+            snprintf(v.text, sizeof v.text, "%s %s", num, bridge_.patchName());
             break;
+        }
         case kPageMix:
             v.name = "Volume";
             snprintf(v.text, sizeof v.text, "%d", volume_);

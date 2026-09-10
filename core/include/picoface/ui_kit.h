@@ -93,11 +93,30 @@ void header(Display& d, const char* title, int page = 0, int pageCount = 0);
 void panelDuo(Display& d, const Param& a, const Param& b);
 
 // A page whose main value is a name rather than a number: a patch, a preset,
-// an instrument. The name gets the full width - "1-12 Nightfall" does not fit
-// in half of it at any legible size - with an optional second line under it
-// for what the name belongs to (a bank, a structure), and one parameter for
-// the right-hand encoder below that.
-void panelName(Display& d, const char* text, const char* sub, const Param& b);
+// an instrument. The number stays put on the left, the name gets the rest of
+// the width - and where it does not fit, it scrolls, the way an LVGL label in
+// LV_LABEL_LONG_SCROLL_CIRCULAR does: it holds still for a moment when a new
+// name appears, then runs to the left and comes round again. The face never
+// changes size. The first version of this page picked the largest face the
+// name happened to fit into, so the type jumped between three sizes as one
+// stepped through a bank - that was the complaint.
+//
+// 'nowMs' drives the scroll. Returns true while the name is scrolling; the
+// instrument then keeps calling marqueeTick() every 40 ms or so until it
+// returns false or the page changes.
+bool panelName(Display& d, const char* number, const char* name, const char* sub,
+               const Param& b, uint32_t nowMs);
+
+// Advances the scrolling name by one frame: redraws only the band the name
+// lives in and flushes only that band - two tile rows, about 6 ms of I2C
+// instead of the 24 a whole screen costs. Returns false once there is nothing
+// to scroll. Safe to call when panelName() last returned false; it does
+// nothing then.
+bool marqueeTick(Display& d, uint32_t nowMs);
+
+// The rows the marquee redraws, published for the host test.
+constexpr int16_t kNameBandTop    = 16;
+constexpr int16_t kNameBandBottom = 31;
 
 // Single column, full width: a section menu or a preset list. Four rows fit
 // between the header and the footer, one more than the old three-row list, and

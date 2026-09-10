@@ -5,8 +5,11 @@
 
 #include "u8g2.h"
 
-// Owned by core/src/picoface_main.cpp; 16 = idle, 0 arms the incremental push.
-extern uint8_t picoface_ui_flush_row;
+// Owned by core/src/picoface_main.cpp. One bit per half tile row (16 of them:
+// 8 tile rows, left and right half); a set bit is a row still to be pushed,
+// 0 means idle. Display::flush() sets bits, the main loop clears them one push
+// at a time.
+extern uint16_t picoface_ui_flush_mask;
 
 namespace picoface {
 namespace ui {
@@ -25,7 +28,17 @@ void Display::flush() {
   // Does NOT call u8g2_SendBuffer. A blocking full-buffer transfer takes far
   // too long and would starve the audio producer; the main loop pushes the
   // buffer out in half tile rows instead.
-  picoface_ui_flush_row = 0;
+  picoface_ui_flush_mask = 0xFFFFu;
+}
+
+void Display::flush(int16_t y0, int16_t y1) {
+  if (y0 < 0) y0 = 0;
+  if (y1 > kHeight - 1) y1 = kHeight - 1;
+  if (y1 < y0) return;
+  // Both halves of every tile row the range touches.
+  for (int ty = y0 / 8; ty <= y1 / 8; ++ty) {
+    picoface_ui_flush_mask |= static_cast<uint16_t>(3u << (ty * 2));
+  }
 }
 
 void Display::setFont(const uint8_t* font) {
