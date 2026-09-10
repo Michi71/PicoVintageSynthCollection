@@ -12,16 +12,18 @@ committed as C headers:
 | Voice | Header | Flash |
 |---|---|---|
 | Rd I | `mdaEPianoData.h` | 825 kB — mda-EPiano's original set, not built here |
-| Rd II | `Rd_IIData.h` | 967 kB |
-| Wr | `WrData.h` | 773 kB |
-| Clv | `ClvData.h` | 779 kB |
-| CP | `CPData.h` | 580 kB |
-| Piano | `PnoData.h` | 293 kB |
+| Rd II | `Rd_IIData.h` | 864 kB |
+| Wr | `WrData.h` | 631 kB |
+| Clv | `ClvData.h` | 676 kB |
+| CP | `CPData.h` | 511 kB |
+| Piano | `PnoData.h` | 280 kB |
 
 Those headers ship in the firmware and account for most of PicoFaceCP's
-4.22 MB image. The tools that produce them lived outside this repository until
+3.99 MB image. The tools that produce them lived outside this repository until
 now, which meant the five generated voices could not be rebuilt from a
-checkout. That is what this directory fixes.
+checkout. That is what this directory fixes. The sizes above are the sets cut
+for a 4 MB flash; how that was done, and how to get the earlier, longer sets
+back, is under [Fitting a 4 MB flash](#fitting-a-4-mb-flash).
 
 ## What is not here: the source recordings
 
@@ -37,6 +39,26 @@ ships, and this pipeline is what turned one into the other.
 Anyone rebuilding a voice therefore brings their own recordings. The pipeline
 does not care where they came from; it cares about file naming, which is
 described below.
+
+For the record, and because the working copy of this extract has been lost
+once already: the committed headers were built from these files of the full
+recording sets, one WAV per root note and velocity, and nothing else. Every
+committed sample matched its source to within one LSB when the extract was
+rebuilt, and the pipeline then reproduced all ten headers byte for byte.
+
+| Voice | Root notes | Velocities |
+|---|---|---|
+| CP (`yamaha_cp80`) | 42 46 50 53 57 63 65 68 72 80 82 88 91 97 | 065, 115 |
+| Clv (`clavinet`) | 42 47 52 57 62 69 74 79 84 89 95 100 | 025, 069, 127 |
+| Pno (`piano`) | 30 36 43 48 55 60 67 72 79 84 91 96 104 108 | 127 |
+| Rd II (`rhodes_suitcase`) | 28 32 36 … 84 (every fourth) 90 91 94 98 | 030, 094 (90 has only 094, 91 only 030) |
+| Wr (`wurlitzer_200a`) | 36 43 48 55 60 67 72 79 84 91 96 | ≈030, ≈074, 125 — the file nearest each, e.g. 028/032, 073/075/076, 124 |
+
+The CP recordings carry a `smpl` chunk that says MIDI note 60 in every file,
+so their level normalisation used note 60 throughout; the Rd II files for 64,
+68 and 72 (soft layer) say one note lower than their names. Both quirks are
+part of what the committed headers sound like, and the pipeline reproduces
+them because it reads the chunk first.
 
 ## The chain
 
@@ -127,6 +149,14 @@ python3 prepare_samples.py configs/rhodes_suitcase.json
 python3 build_instrument.py build_host/cp_samples/converted/rhodes_suitcase/_instrument.json
 ```
 
+Run from the repository root, or pass `--repo`. The configs used to point the
+loop finder at `tools/FindLoopPoints`, a path that does not exist in this
+repository; `prepare_samples.py` reports a missing binary as a warning and
+quietly falls back to `transient` mode, which cuts every sample to its bloom
+and loops nothing. The configs now name `tools/cp_sampleprep/FindLoopPoints`.
+If a rebuilt set comes out with `loop_pending: true` everywhere, that warning
+is the first thing to look for.
+
 Paths in the configs are relative to the repository root, and point into
 `build_host/`, which is git-ignored. Put your recordings in
 `build_host/cp_samples/source/<instrument>/` and the generated headers appear
@@ -164,6 +194,71 @@ whose velocity is closest to that layer's centre (24 / 64 / 104).
 Note the engine constraint the generator prints: `KGRP kgrp[34]` in
 `mdaEPiano.h` sizes mda's own table. A 19-region set needs 57 keygroups, so
 the array has to grow.
+
+## Fitting a 4 MB flash
+
+PicoFaceCP was 4.22 MB, and a base Pico 2 has 4 MB of flash. The five built
+sets were cut by 441 kB so the image fits with room to spare, and the cut was
+made where it changes the least.
+
+**What a sample is, to the engine.** It plays the data once from the start,
+and when it reaches the end it jumps back by `loop` samples -- a cycle of a
+few periods -- and repeats that cycle for as long as the key is held, under
+its own decay envelope. So a sample is an attack that plays once, followed by
+one frozen waveform cycle. Everything between the bloom and the loop end is
+heard exactly once; the sustain is the cycle. The classic rule cut every
+sample at bloom + 350 ms. Cutting at bloom + 225 ms instead saves 60 ms of
+sustain that was heard once, and leaves the attack byte for byte as it was.
+
+**What must not change is the cycle.** Its level and spectrum are the
+sustain of that note, and they depend on exactly where the loop lands -- a
+different window can freeze a different phase of the beating between a
+tine's partials, and the first attempt at shorter windows moved single notes
+by up to 9 dB. Hence the two-part rule, `loop_shortest_ms` plus a
+*reference*:
+
+1. `loop_reference.py` stores a fingerprint of every sample's loop cycle in
+   the set being replaced -- level, spectral centroid, six band levels -- as
+   [reference/*.json](reference/). The five files in there describe the
+   headers that shipped before the cut.
+2. `prepare_samples.py` then tries windows from bloom + `loop_shortest_ms`
+   upwards in 5 ms steps and takes the **shortest one whose loop is excellent
+   (score ≤ 0.02) and whose cycle stays within `reference_tolerance` of the
+   fingerprint**: 1 dB in level, 10 % in centroid, 3 dB in any band that
+   carries energy. A sample with no such window keeps the window the classic
+   rule picks, i.e. exactly what it was; a sample that had no loop before is
+   free to take any excellent one.
+
+With `loop_shortest_ms: 225`:
+
+| Voice | Samples | Shorter | Kept | Window, median | Bytes |
+|---|---|---|---|---|---|
+| Rd II | 36 | 29 | 6 | 382 → 335 ms | 990,208 → 884,794 |
+| Wr | 33 | 31 | 2 | 371 → 310 ms | 791,332 → 646,068 |
+| Clv | 36 | 26 | 8 | 370 → 307 ms | 797,626 → 691,668 |
+| CP | 28 | 20 | 6 | 349 → 274 ms | 593,950 → 522,850 |
+| Pno | 14 | 6 | 8 | 339 → 299 ms | 299,746 → 286,234 |
+
+(The counts that do not add up are the samples that came out slightly longer:
+five that had no excellent loop before and have one now, three of which had
+no loop at all -- CP `097-115`, Clv `042-025`, Pno `108-127` replayed their
+whole attack every 370 ms while a key was held.) Loop scores got better, not
+worse: no sample scores below its old score, and no voice has a loop failure
+any more.
+
+Measured on the engine itself (`tools/host_tests/cp/build_render.sh`, six
+notes at two velocities per voice, old headers against new): the output is
+**identical to the sample until the new loop point** (211-747 ms into the
+note), the sustain level from there on is within ±1 dB on every note, the
+spectral centroid within ±10 % (mostly ±2 %), the loop ripple unchanged, and
+the release identical. The image went from 4,432,096 to 3,990,856 bytes.
+
+To rebuild the longer sets the headers were cut from, set
+`"loop_shortest_ms": null` in the five configs and drop their `reference`
+line; that is the classic rule, and it reproduces the pre-cut headers byte
+for byte from the extract above. Any future set that has to be cut goes the
+same way: build it long, fingerprint it with `loop_reference.py`, then build
+it short against that fingerprint.
 
 ## What changed on the way in
 

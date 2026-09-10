@@ -11,6 +11,15 @@ There are two builds here:
 |---|---|---|
 | `build.sh` | `mdaepiano_test` | the bare engine |
 | `build_cp.sh` | `cp_test` | the engine **plus** the reface CP insert-effect chain from `instruments/PicoFaceCP/effects/` |
+| `build_render.sh` | `render` | the bare engine, offline: one note to a `.raw` file, no sound card, no MIDI |
+
+The third one exists for comparing two builds of the sample sets. Render the
+standard note grid with the committed headers (`./build_render.sh out/old`),
+swap the headers, render again (`./build_render.sh out/new`), then
+`python3 ab_compare.py out/old out/new` reports per note how long the two
+stay bit-identical, the sustain level and centroid difference, the loop
+ripple and the release. That is how the 4 MB cut of the sets was checked; see
+[tools/cp_sampleprep](../../../tools/cp_sampleprep/README.md#fitting-a-4-mb-flash).
 
 ## Build and run
 

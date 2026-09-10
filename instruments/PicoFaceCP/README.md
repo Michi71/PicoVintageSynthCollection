@@ -44,7 +44,7 @@ the desktop before flashing.
 - **macOS host demo** running the exact same effect code, see
   [`tools/host_tests/cp/`](../../tools/host_tests/cp/README.md).
 
-Footprint in the collection build: 4,431,496 bytes of flash (the sample sets
+Footprint in the collection build: 3,990,856 bytes of flash (the sample sets
 dominate), 178,104 bytes of RAM.
 
 Only `Rd I` plays mda-EPiano's own samples. The other five voices are sample
@@ -87,9 +87,12 @@ reface owner's manual, "reface CP" section - not shipped with this repository.
 The board is the same for every instrument in the collection; the pin map lives
 in [core/include/project_config.h](../../core/include/project_config.h).
 
-The image is **4.22 MB** — the six sample sets are most of it — so this one does
-not fit a 4 MB board such as a base Pico 2, and there is no reduced variant. An
-oversized `.uf2` stops copying without saying why. See
+The image is **3.99 MB** — the six sample sets are most of it — and it fits a
+4 MB board such as a base Pico 2 with 190 KB to spare: the five built sample
+sets were cut for that size, attack untouched and the loop cycle held within
+1 dB of what it was (see [tools/cp_sampleprep](../../tools/cp_sampleprep/README.md#fitting-a-4-mb-flash)).
+There is no reduced variant because none is needed. Build it for such a board
+with `-DPICO_BOARD=pico2`; see
 [How much flash an instrument needs](../../README.md#how-much-flash-an-instrument-needs).
 
 ---

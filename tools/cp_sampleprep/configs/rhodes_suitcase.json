@@ -15,11 +15,13 @@
     "loop_min_window_ms": 250,
     "loop_max_window_ms": 500,
     "num_periods": 10,
-    "min_loop_samples": 30
+    "min_loop_samples": 30,
+    "loop_shortest_ms": 225
   },
   "loop_finder": {
-    "binary": "tools/FindLoopPoints",
-    "min_score": 0.15
+    "binary": "tools/cp_sampleprep/FindLoopPoints",
+    "min_score": 0.15,
+    "reference": "tools/cp_sampleprep/reference/rhodes_suitcase.json"
   },
   "bit_depth": 16,
   "engine": {

@@ -23,6 +23,7 @@ __pycache__/
 # directory named *_test would be dropped silently; the negation keeps them.
 tools/host_tests/**/*_test
 !tools/host_tests/**/*_test/
+tools/host_tests/cp/render
 tools/host_tests/**/*.wav
 
 # build_xip_probe.sh drops its host build of the RD engine here.

@@ -66,10 +66,34 @@ DEFAULTS = {
         "min_loop_periods": 1,       # Loop muss >= N volle Perioden lang sein
                                       # (1 = eine Periode; Faktor 0.8 toleriert
                                       #  Inharmonizitaet, sortiert aber Halbperioden aus)
+        # Shorter samples for a smaller flash image. When set, windows from
+        # bloom + loop_shortest_ms up to the longest of the classic candidates
+        # are tried as well, in 10 ms steps, and the SHORTEST window with an
+        # excellent loop (score <= loop_finder.good_score) wins. Without an
+        # excellent candidate the choice falls back to the best score over all
+        # windows, classic ones included, so no sample ever ends up with a
+        # worse loop than it would have had under the default rule. None keeps
+        # the default rule: longest classic candidate first, first excellent
+        # one taken. The committed 16 MB-era sets were built with None; the
+        # sets that fit a 4 MB flash use 225.
+        "loop_shortest_ms": None,
     },
     "loop_finder": {
         "binary": "tools/cp_sampleprep/FindLoopPoints",  # relative to the repo root
         "min_score": 0.15,                   # > galt als "akzeptabel" im C-Tool
+        "good_score": 0.02,                  # <= exzellent: Suche darf hier aufhoeren
+        # Sustain fingerprint of an earlier build of the same set, written by
+        # loop_reference.py: level, spectral centroid and band levels of every
+        # sample's loop cycle, keyed by sample name. With loop_shortest_ms, a
+        # shorter window is only taken when its loop cycle stays within
+        # 'reference_tolerance' of that fingerprint; otherwise the sample keeps
+        # the window the default rule picks. The engine repeats the loop cycle
+        # for as long as a key is held, so this is what keeps the sustain of a
+        # shortened set sounding like the set it was cut from. Samples that
+        # had no loop in the reference are free to take any excellent one.
+        "reference": None,                   # repo-relative path, or None
+        "reference_tolerance": {"rms_db": 1.0, "centroid": 0.10,
+                                "band_db": 3.0, "band_floor_db": -30.0},
     },
     "bit_depth": 16,
 }
@@ -175,6 +199,45 @@ def apply_fade_out(x, sr, ms):
 
 
 # ===========================================================================
+# Loop-Zyklus-Fingerabdruck (was die Engine beim Halten wiederholt)
+# ===========================================================================
+LOOP_BANDS = [(0, 500), (500, 1000), (1000, 2000), (2000, 4000), (4000, 8000), (8000, 16000)]
+
+def loop_features(x, loop_start, sr):
+    """Level (dBFS), spectral centroid (Hz) and band levels (dB re total) of
+    the loop cycle x[loop_start:], tiled to a 16384-point Hann window - i.e.
+    of the waveform the engine repeats once the sample reaches its end."""
+    lp = np.asarray(x[loop_start:], dtype=np.float64)
+    if len(lp) < 4:
+        return None
+    n = 16384
+    t = np.tile(lp, int(np.ceil(n / len(lp))))[:n] * np.hanning(n)
+    S = np.abs(np.fft.rfft(t)) ** 2
+    f = np.fft.rfftfreq(n, 1.0 / sr)
+    tot = float(S.sum()) + 1e-30
+    return {
+        "rms_db":   round(float(20 * np.log10(np.sqrt(np.mean(lp ** 2)) + 1e-12)), 3),
+        "centroid": round(float((S * f).sum() / tot), 1),
+        "bands":    [round(float(10 * np.log10(S[(f >= lo) & (f < hi)].sum() / tot + 1e-12)), 2)
+                     for lo, hi in LOOP_BANDS],
+    }
+
+def loop_matches(feat, ref, tol):
+    """True when feat stays within tol of the reference fingerprint. Bands
+    below band_floor_db in the reference carry no energy worth comparing."""
+    if feat is None or ref is None:
+        return False
+    if abs(feat["rms_db"] - ref["rms_db"]) > tol["rms_db"]:
+        return False
+    if ref["centroid"] > 0 and abs(feat["centroid"] / ref["centroid"] - 1.0) > tol["centroid"]:
+        return False
+    for b, r in zip(feat["bands"], ref["bands"]):
+        if r >= tol["band_floor_db"] and abs(b - r) > tol["band_db"]:
+            return False
+    return True
+
+
+# ===========================================================================
 # FindLoopPoints-Binary aufrufen
 # ===========================================================================
 def run_loop_finder(samples, sr, binary, num_periods, work):
@@ -235,6 +298,15 @@ def process_instrument(cfg, repo_root):
         print(f"[{cfg.get('name','?')}] WARN FindLoopPoints-Binary nicht gefunden ({binary}) -> auf 'transient' zurueckgefallen")
         p["mode"] = "transient"
 
+    reference = None
+    if c["loop_finder"].get("reference"):
+        rpath = c["loop_finder"]["reference"]
+        if not os.path.isabs(rpath):
+            rpath = os.path.join(repo_root, rpath)
+        reference = json.load(open(rpath)).get("samples", {})
+        print(f"[{cfg.get('name','?')}] Loop-Referenz: {rpath} ({len(reference)} Samples)")
+    ref_tol = c["loop_finder"]["reference_tolerance"]
+
     mapping = {}
     files = sorted(glob.glob(os.path.join(src_dir, "*.wav")))
     if not files:
@@ -279,7 +351,14 @@ def process_instrument(cfg, repo_root):
                     w = float(np.clip(base + d, p["loop_min_window_ms"], hi))
                     cand.append(w)
                 cand = sorted(set(round(x) for x in cand), reverse=True)[:8]
-                good = 0.02            # exzellent -> Fruehabbruch
+                shortest = p.get("loop_shortest_ms")
+                classic_windows = set(cand)
+                if shortest is not None:
+                    # Fine grid below the classic candidates; see DEFAULTS.
+                    grid = np.arange(t_peak + shortest, max(cand), 5.0)
+                    grid = [round(float(np.clip(g, p["loop_min_window_ms"], hi))) for g in grid]
+                    cand = sorted(set(cand) | set(grid), reverse=True)
+                good = c["loop_finder"]["good_score"]    # exzellent -> Fruehabbruch
                 accept = c["loop_finder"]["min_score"]   # akzeptabel (Default 0.15)
                 hard = 0.30            # darueber: kein verwertbarer Loop
                 # Periodenlaenge aus Midi-Note (um degenerierte Kurz-Loops auszusortieren)
@@ -288,6 +367,8 @@ def process_instrument(cfg, repo_root):
                 min_len = max(p["min_loop_samples"],
                               int(0.8 * p["min_loop_periods"] * period)) if period > 0 else p["min_loop_samples"]
                 best = None  # (trimmed, loop_start, score, win_ms)
+                found = []   # every usable candidate, longest first
+                ref_note = ""
                 for wms in cand:
                     pre = mono[:int(round(wms*1e-3*sr_out))].astype(np.float32)
                     trimmed, loop_start, score = run_loop_finder(
@@ -295,17 +376,52 @@ def process_instrument(cfg, repo_root):
                     ok = (trimmed is not None and loop_start is not None
                           and 0 <= loop_start < len(trimmed)
                           and (len(trimmed)-1 - loop_start) >= min_len)
-                    if ok and (best is None or (score is not None and score < best[2])):
-                        best = (trimmed, int(loop_start), score if score is not None else 9e9, wms)
+                    if not ok:
+                        continue
+                    found.append((trimmed, int(loop_start), score if score is not None else 9e9, wms))
+                    if shortest is None:
+                        if best is None or found[-1][2] < best[2]:
+                            best = found[-1]
                         if best[2] <= good:      # exzellent -> sofort uebernehmen
                             break
+                if shortest is not None and found:
+                    # What the default rule would have taken: over the classic
+                    # windows, longest first, the first excellent one, else the
+                    # best score. The result must never be longer than that
+                    # when it was excellent, and never worse than any of it.
+                    classic = [r for r in found if r[3] in classic_windows]
+                    default = next((r for r in classic if r[2] <= good), None) \
+                              or (min(classic, key=lambda r: r[2]) if classic else None)
+                    bound = round(t_peak + shortest)
+                    excellent = [r for r in found if r[2] <= good and r[3] >= bound]
+                    ref = reference.get(name) if reference else None
+                    ref = ref.get("loop") if ref else None
+                    if ref is not None:
+                        # Only windows whose loop cycle still sounds like the
+                        # reference build's; see DEFAULTS["loop_finder"].
+                        excellent = [r for r in excellent
+                                     if loop_matches(loop_features(r[0], r[1], sr_out), ref, ref_tol)]
+                    if excellent:
+                        best = min(excellent, key=lambda r: r[3])
+                        if default is not None and default[2] <= good and default[3] < best[3]:
+                            best = default
+                    elif ref is not None and default is not None:
+                        best = default          # nothing shorter sounds the same: keep it
+                    else:
+                        best = min(found, key=lambda r: r[2])
+                    if ref is not None and best is not None:
+                        fb = loop_features(best[0], best[1], sr_out)
+                        ref_note = (f"  ref dRMS={fb['rms_db']-ref['rms_db']:+.2f}dB "
+                                    f"dCent={100*(fb['centroid']/ref['centroid']-1):+.0f}%"
+                                    if fb else "  ref ?")
+                        ref_note += "" if excellent else " (kept)"
                 if best is not None and best[2] <= hard:
                     final = best[0].astype(np.float64)
                     loop_start = best[1]; loop_end = int(len(final)-1)
                     score = best[2] if best[2] < 9e9 else None
                     loop_pending = False
                     flag = "  *POOR*" if (score is not None and score > accept) else ""
-                    extra = f"loop[{loop_start}..{loop_end}] ({loop_end-loop_start+1}sm, >={min_len}) score={score} win={best[3]}ms{flag}"
+                    extra = f"loop[{loop_start}..{loop_end}] ({loop_end-loop_start+1}sm, >={min_len}) score={score} win={best[3]}ms{flag}{ref_note}"
                 else:
                     final = mono[:int(round(cand[0]*1e-3*sr_out))].astype(np.float64)
                     final = apply_fade_out(final, sr_out, p["fade_out_ms"])
@@ -352,6 +468,7 @@ def process_instrument(cfg, repo_root):
                 "peak_dbfs": round(20*np.log10(new_peak+1e-12), 2),
                 "bloom_peak_ms": round(t_peak, 1),
                 "orig_loop_target": [ls_o, le_o],
+                "loop": loop_features(final, loop_start, sr_out) if loop_start is not None else None,
             }
             print(f"  {name:<10} note={note:>3}  {n0/sr:6.2f}s -> "
                   f"{len(final)/sr_out*1000:5.0f}ms  peak {20*np.log10(cur_peak):+5.1f}"
