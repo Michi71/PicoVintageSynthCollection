@@ -10,6 +10,11 @@ Like PicoFaceJV, this instrument **needs a local ROM set** and is therefore not
 in the release binaries. Without one the configure step skips it with a note
 and everybody else's build stays green.
 
+The engineering log of this port - what was read out of the D-50's firmware,
+what was calibrated against Roland's plug-in, what was tried and withdrawn - is
+[doc/PROJEKTSTAND.md](doc/PROJEKTSTAND.md) (German). Anyone touching the
+sound should read its sections 1, 5 and 6 first.
+
 ## What it needs
 
 Put the D-50's ROM images in `roms/` (gitignored). Files are identified by

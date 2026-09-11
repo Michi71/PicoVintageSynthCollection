@@ -1,9 +1,12 @@
 # Hardware
 
 The module this firmware has been running on, turned into something
-reproducible. Nothing here has been fabricated yet: these are the dimensions and
-decisions the first board should be drawn to, worked out against the parts
-actually in hand and written down before the layout rather than after.
+reproducible: the dimensions and decisions the board was drawn to, worked out
+against the parts actually in hand and written down before the layout rather
+than after. The first pair of boards has been fabricated, assembled and is
+running the firmware since September 2026 - it is the reference hardware now,
+see [The first built pair](#the-first-built-pair) for what powering it up
+taught.
 
 The schematic is drawn: the KiCad 10 project in
 [PicoVintageSynthCollection/](PicoVintageSynthCollection/) (root sheet plus
@@ -12,7 +15,7 @@ The schematic is drawn: the KiCad 10 project in
 
 **Both boards are laid out**: [MainBoard/](MainBoard/) and
 [FrontBoard/](FrontBoard/), routed, DRC clean; and the panel is a board in its
-own right in [Panel/](Panel/). Nothing is fabricated.
+own right in [Panel/](Panel/). Both boards have been made from these files.
 
 The interface *between* several modules — power, MIDI, audio — is a separate
 document: [The module bus](../docs/MODULE_BUS.md).
@@ -462,8 +465,8 @@ display occupies (4.75, 1.0) to (40.25, 34.5). What was left to decide:
 ## Fabrication output
 
 Gerbers and drill files are not in the repository -- they are regenerated from
-the board files, and nothing has been ordered yet. Two commands per board, from
-`hardware/`:
+the board files, which is how the first pair was ordered. Two commands per
+board, from `hardware/`:
 
 ```
 kicad-cli pcb export gerbers --output MainBoard/fab/ \
@@ -635,7 +638,8 @@ What the view settled:
 - The board-to-board standoffs moved from the corners to y 63 on both boards:
   at y 77.5 the hole falls inside the PARAM encoders' courtyards. The front
   board is anchored to the panel by three encoder nuts anyway.
-- Not fabricated, not built.
+- ~~Not fabricated, not built.~~ Fabricated, built and running since
+  September 2026; see the next section.
 - Panel-mounted parts (the four jacks, the optional USB lead) are in the
   schematic with "exclude from board" set, so they appear in the BOM but on
   neither layout.
@@ -648,3 +652,33 @@ What the view settled:
 - The panel is the expensive part to have made — 128.5 mm exceeds the 100 x 100
   mm that sponsored and cheap-tier PCB runs are usually capped at. Both boards
   stay well under it.
+
+## The first built pair
+
+Both boards came back from fabrication in the first week of September 2026 and
+were assembled and powered up on the 8th. Two findings, both resolved, both
+worth knowing before building another:
+
+- **The encoders count the other way round.** On this board the A and B
+  contacts of all three EC11 reach the RP2350 swapped relative to what the
+  firmware's pin definition had assumed - measured on the assembled board, not
+  read off the schematic. The fix is in the firmware, deliberately in the pin
+  definition rather than in a direction flag: `core/include/project_config.h`
+  names `PIN_*_CLK` / `PIN_*_DT` the way this board wires them (SEL 7/6,
+  PARAM A 11/10, PARAM B 13/12). This board is the reference from here on, so
+  that is the one default; an earlier prototype or protoboard that was wired
+  the other way swaps its two A/B leads (issue #161). There is no build
+  variant for it, and there will not be one.
+- **The DAC module is silent until R15-R20 are fitted.** The GY-PCM5102's four
+  configuration pins are driven by the board (R17-R20, 100k; R19 pulls XSMT to
+  A3V3, R17/R18/R20 pull FLT/DEMP/FMT to GND), and the module's own solder
+  bridges stay open - that is the intended case, not a fault. Without R19,
+  XSMT floats and the DAC sits in soft mute, which looks exactly like a dead
+  module, on the module's own 3.5 mm jack as much as on the board's. R15/R16
+  (1k) are only the path to the board's jacks; FMT (R20) left floating would
+  not be silent but wrong (left-justified instead of I2S). For a quick test
+  before the resistors are fitted, the module's bridges do the same job:
+  `H3L` to **H**, `H1L`/`H2L`/`H4L` to **L**; a bridge wins against 100k, so
+  nothing collides once the resistors are there.
+
+With those two, the board runs every one of the ten instruments.

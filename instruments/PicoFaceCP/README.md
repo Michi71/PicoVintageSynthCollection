@@ -44,8 +44,8 @@ the desktop before flashing.
 - **macOS host demo** running the exact same effect code, see
   [`tools/host_tests/cp/`](../../tools/host_tests/cp/README.md).
 
-Footprint in the collection build: 3,990,856 bytes of flash (the sample sets
-dominate), 178,104 bytes of RAM.
+Footprint in the collection build: 3,997,728 bytes of flash (the sample sets
+dominate), 180,492 bytes of RAM (`arm-none-eabi-size`, text / bss, 09/2026).
 
 Only `Rd I` plays mda-EPiano's own samples. The other five voices are sample
 sets built for this instrument and committed as headers

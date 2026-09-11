@@ -135,7 +135,8 @@ cmake -S . -B build -DPICOFACE_DX_REFACE_USB_IDENTITY=OFF
 The PID `0x1624` is not verified - it is the value the ESP32 reference uses,
 derived there from the reface identity range `0x51..0x54`.
 
-Footprint in the collection build: 170,052 bytes of flash, 218,508 bytes of RAM.
+Footprint in the collection build: 184,896 bytes of flash, 220,900 bytes of RAM
+(`arm-none-eabi-size`, text / bss, 09/2026).
 The RAM figure is dominated by the effect chain's fixed scratch buffers (2 slots
 x 96 KB, sized for the largest single effect, `FxReverb`) - budgeted
 deliberately, with comfortable headroom left for stacks and other buffers.

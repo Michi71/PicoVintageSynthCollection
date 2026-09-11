@@ -46,7 +46,8 @@ needs on a small board.
 
 ## Hardware
 
-- RP2350 with 16 MB of flash
+- RP2350; the reference board carries 16 MB of flash, 4 MB is enough for every
+  instrument but the JV-880 (see [How much flash an instrument needs](#how-much-flash-an-instrument-needs))
 - I2S audio (PCM5102 DAC)
 - 128x64 OLED over I2C (SH1106)
 - Three rotary encoders with push buttons
@@ -288,9 +289,10 @@ lib/             third-party static libraries (audio, encoder, u8g2) and the SDK
 instruments/     one folder per instrument: instrument.cmake, src/, include/, doc/, README.md
 tools/           host-side tools; not part of any firmware image
 docs/            documentation shared by all instruments
-hardware/        the module as a board: dimensions, parts, drill list. Not built yet
-img/             photos of the prototype hardware, and the panel sheets above,
-                 rendered from the firmware by tools/host_tests/ui
+hardware/        the module as a board: schematic, two layouts, panel, parts, and
+                 what the first built pair taught
+img/             the instruments' screens and the panel sheets above, rendered
+                 from the firmware by tools/host_tests/ui
 ```
 
 ## Documentation
@@ -301,8 +303,8 @@ Shared:
 - [Adding an instrument](docs/ADDING_AN_INSTRUMENT.md) - the three steps needed
 - [The module bus](docs/MODULE_BUS.md) - the hardware interface several modules in one
   case would share: power, MIDI and audio. Planned, not built
-- [Hardware](hardware/README.md) - the module as a 10 HP Eurorack board: dimensions,
-  drill list, parts. Also planned, not built
+- [Hardware](hardware/README.md) - the module as a 10 HP Eurorack board: schematic,
+  the two layouts and the panel, parts, and the first built pair
 - [Host tools](tools/README.md)
 
 Per instrument, under `instruments/<name>/doc/`: MIDI implementation charts,
@@ -316,8 +318,9 @@ instrument's README names the document so it can be obtained separately.
 ## Status
 
 **All ten instruments build from a single configure run, each with its own USB
-PID, and all ten run on the hardware.** Eight are in the release binaries; the
-JV-880 and the D-50 need a local ROM set and are therefore built locally only.
+PID, and all ten run on the hardware.** Seven are in the release binaries; the
+RD, the JV-880 and the D-50 need a local ROM set and are therefore built locally
+only.
 Open points are listed in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 section 8.
 

@@ -81,7 +81,8 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICOFACE_INSTRUMENTS_F
 cmake --build build
 ```
 
-Footprint in the collection build: 135,224 bytes of flash, 47,824 bytes of RAM
+Footprint in the collection build: 150,892 bytes of flash, 50,240 bytes of RAM
+(`arm-none-eabi-size`, text / bss, 09/2026)
 (`arm-none-eabi-size`, text/bss). The LUT set lives in XIP flash (`.rodata`);
 the active wave table is mirrored into an 8 KB RAM buffer (§33) so the
 voice-render hot path never touches flash.
