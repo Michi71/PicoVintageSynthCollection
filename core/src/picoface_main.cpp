@@ -437,7 +437,13 @@ int main(void)
         // voice takes about six of those, some 9 ms, where USB itself would be
         // done in four 1 ms frames. An editor reading a voice sees the gaps; the
         // display catches up a few milliseconds later and nobody sees that.
-        if (picoface_ui_flush_mask != 0 && usbMidiOut().empty()) {
+        //
+        // Not while the queue is stalled, though: a host that has enumerated
+        // the device but reads nothing (a PC with no MIDI program open) never
+        // empties it, and waiting for that froze display and encoders of the
+        // reface ports three seconds after boot - the UI tick below only runs
+        // once the flush is done (#161).
+        if (picoface_ui_flush_mask != 0 && (usbMidiOut().empty() || usbMidiOut().stalled())) {
             const unsigned row = (unsigned) __builtin_ctz(picoface_ui_flush_mask);   // lowest pending
             u8g2_UpdateDisplayArea(&g_u8g2, (row & 1) ? 8 : 0, (uint8_t)(row >> 1), 8, 1);
             picoface_ui_flush_mask &= (uint16_t) ~(1u << row);

@@ -44,7 +44,22 @@ public:
     uint16_t pending() const { return _count; }
     uint32_t dropped() const { return _dropped; }   // messages, not bytes
 
+    // True while the host is not taking what is queued: the device is mounted,
+    // bytes are pending, and TinyUSB has accepted nothing for kStallMs. That is
+    // what a PC looks like when it has enumerated the device but no program
+    // holds the MIDI port open (Windows and Linux do not poll the IN endpoint
+    // then; macOS always does). Whoever waits for this queue to empty - the
+    // display flush does - must stop waiting in that state, because it never
+    // will: the reface ports send active sensing every 200 ms, and 16 of those
+    // fill the 64-byte FIFO, so such a host froze the display and the encoders
+    // of DX, YC and CP about three seconds after boot (#161). Clears as soon
+    // as the host takes bytes again.
+    bool     stalled() const { return _stalled; }
+
 private:
+    // A host that is reading drains a full FIFO within a USB frame or two.
+    static constexpr uint32_t kStallMs = 50;
+
     // Room for a full reface DX voice dump (241 bytes) several times over, so a
     // burst of dump requests queues rather than drops. 1 KB of RAM against a
     // silently lost patch transfer is a trade worth making.
@@ -54,6 +69,8 @@ private:
     uint16_t _head    = 0;   // read position
     uint16_t _count   = 0;   // bytes queued
     uint32_t _dropped = 0;
+    uint32_t _stallSinceMs = 0;   // 0 = making progress
+    bool     _stalled = false;
 };
 
 MIDIOutputUSB& usbMidiOut();
