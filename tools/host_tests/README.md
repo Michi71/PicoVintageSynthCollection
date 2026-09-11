@@ -8,14 +8,32 @@ scripts build the **unmodified** instrument sources - the only difference is a
 Run them from anywhere; each script locates the repository itself. The binaries
 land next to their script and are gitignored.
 
+**`run_all.sh` runs every test that needs neither a sound card, a MIDI port nor
+a ROM set** - the "nothing" rows of the table plus the three renders below it -
+and exits with the number of failures. CI runs exactly that
+(`.github/workflows/build.yml`, job *Host tests*) on every push and pull
+request, and a release is only published when it is green alongside the seven
+firmware builds. Before opening a PR:
+
+```bash
+tools/host_tests/run_all.sh            # all nine, about 15 s on a Mac
+tools/host_tests/run_all.sh d5 ui_kit  # just these
+```
+
+Logs go to `_out/<name>.log`; the CI job uploads them together with the rendered
+panel frames, so a GUI change can be looked at from the PR without a board.
+
 | Directory | Needs | What it does |
 |---|---|---|
 | [`veeprom/`](veeprom/) | nothing | unit test of the core's virtual EEPROM: wear levelling, CRC, oversize rejection, 1000 saves. Prints PASS/FAIL per case. This one covers `core/`, not an instrument. |
-| [`yc/`](yc/) | nothing | renders the YC organ engine to a WAV file. No audio device involved. |
+| [`yc/`](yc/) | nothing | renders three notes through the YC organ engine to a WAV file next to the binary and fails on NaN/Inf or silence. No audio device involved. |
 | [`d5/`](d5/) | nothing | pins two D-50 laws read from the firmware: the PCM pitch (every sample advances at f/250 words per output sample) with synthetic cycles, and the TVF base cutoff (2 × panel + 54 chip units, capped by the pitch) through the harmonic profile of a sawtooth. Prints pass/FAIL per case. |
 | [`ob/`](ob/) | nothing | regression checks on the OB-X engine - pitch bend ranges, LFO->cutoff without LFO->pitch, mod lever vibrato, all presets finite - plus a WAV render. Prints pass/FAIL per case. |
 | [`dx_sysex/`](dx_sysex/) | nothing | round trip through PicoFaceDX's SysEx layer, both directions: a voice dump requested by an editor is parsed back and compared byte for byte, and a voice sent by an editor is compared against what reaches the engine. Prints pass/FAIL per direction. |
 | [`j6/build_ui.sh`](j6/) | nothing | drives `J6_Controller` and the patch store through a scripted panel session - menu navigation, patch save/load, the free-slot rule. |
+| [`ui/`](ui/README.md) | nothing | renders the shared UI kit's panels to PBM frames through the real u8g2 - the README sheets come from here. `run_all.sh` checks that every frame is written. |
+| [`md/build_md_ui.sh`](md/) | nothing | the same for the real `MD_Controller`: seven of its pages as frames. |
+| [`cp/build_render.sh`](cp/README.md) | nothing | offline render of one note through the mdaEPiano engine; `run_all.sh` plays each of the six voices and fails on a silent one. `ab_compare.py` compares two such renders, which is how a sample-set change is checked. |
 | [`cp/`](cp/README.md) | portmidi | plays the mdaEPiano engine, with or without the reface CP effect chain, over CoreAudio. |
 | [`j6/build_juno.sh`](j6/) | portmidi | plays the Juno engine over CoreAudio. |
 | [`md/`](md/) | portmidi | plays the Minimoog engine over CoreAudio. |

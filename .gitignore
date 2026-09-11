@@ -67,3 +67,5 @@ tools/cp_sampleprep/FindLoopPoints
 
 # d5_extract WAV renders
 tools/d5_extract/out/
+tools/host_tests/_out/
+tools/host_tests/cp/out/

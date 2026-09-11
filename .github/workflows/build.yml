@@ -85,9 +85,52 @@ jobs:
           path: artifacts/*
           if-no-files-found: error
 
+  # Everything under tools/host_tests that needs neither a sound card, a MIDI
+  # port nor a ROM set: the core's veeprom, the D-50 laws, the OB-X engine
+  # checks, the DX SysEx round trip, the J6 panel and patch store, the YC
+  # engine render, the shared UI kit and the MD panel rendered to frames, and
+  # one note through each CP voice. A release needs this green as much as the
+  # seven firmware builds - a regression in the core shows up here, on a
+  # Linux box, before it shows up on somebody's board.
+  host-tests:
+    name: Host tests
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          # Tags, because the UI kit's About frame names the nearest release.
+          fetch-depth: 0
+
+      # Only u8g2 is needed here, not the whole SDK tree the firmware pulls.
+      - name: Fetch u8g2
+        run: git submodule update --init --depth 1 lib/u8g2/u8g2
+
+      - name: Install host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential python3
+
+      - name: Run host tests
+        run: tools/host_tests/run_all.sh
+
+      # The logs, and the rendered panels: a GUI change can be looked at from
+      # the PR without flashing a board.
+      - name: Upload logs and renders
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: host-tests
+          path: |
+            tools/host_tests/_out/*.log
+            tools/host_tests/ui/out/*.pbm
+            tools/host_tests/md/out/*.pbm
+          if-no-files-found: ignore
+
   release:
     name: Publish GitHub Release
-    needs: build
+    needs: [build, host-tests]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-22.04
     permissions:
