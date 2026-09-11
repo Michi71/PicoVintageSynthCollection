@@ -1,54 +1,58 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Michi71
 
+// include/midi_reface.h
+//
+// PicoFaceYC — Yamaha reface YC compatible MIDI layer. The reface dialect
+// itself - SYSTEM block, active sensing, channel filter, exclusive framing,
+// transmit - is picoface::RefaceMidiBase in the core; this is the YC on top
+// of it: the TG block (base 30 00 00) with the panel's drawbars, percussion,
+// vibrato/chorus, rotary, effects, and the CC map. Engine mutations go
+// through the same-core ring (ipc.h).
+//
+// The model byte and the identity bytes are not verified against a real
+// reface YC (see midi_reface.cpp); until they are, exclusive messages are
+// accepted whatever model byte they carry.
+
 #ifndef MIDI_REFACE_H
 #define MIDI_REFACE_H
 #include <stdint.h>
 
+#include "picoface/reface_midi.h"
+
 class YC_Synth_Bridge;
 
-class RefaceMidi {
+class RefaceMidi final : public picoface::RefaceMidiBase {
 public:
-    static constexpr uint8_t RX_CH_ALL = 0x10;
+    RefaceMidi();
 
     void init(YC_Synth_Bridge* bridge);
-    void tick();
-    void onNoteOn(uint8_t note, uint8_t vel, uint8_t ch);
-    void onNoteOff(uint8_t note, uint8_t vel, uint8_t ch);
-    void onControlChange(uint8_t cc, uint8_t val, uint8_t ch);
-    void onPitchBend(uint16_t bend14, uint8_t ch);
-    void onRealtime(uint8_t status);
-    void onSysEx(const uint8_t* data, uint16_t len);
-    void notifyActivity();
-    bool midiControlEnabled() const { return _midiControlEnabled; }
-    void setMidiControlEnabled(bool enabled) { _midiControlEnabled = enabled; }
-    uint8_t getRxChannel() const { return _rxChannel; }
-    void setRxChannel(uint8_t ch) { _rxChannel = (ch > RX_CH_ALL) ? RX_CH_ALL : ch; }
-    void txCC(uint8_t cc, uint8_t val);
+
+    // Front panel -> MIDI OUT (CC), gated by the MIDI Control setting.
     void txPanelMirror(uint8_t param_id, uint8_t internalValue);
     void txRotaryMirror(uint8_t speed);
-    void txParamChange(uint8_t addrLow, uint8_t value);
-    void txParamRequestReply(uint8_t addrLow);
 
 private:
-    YC_Synth_Bridge* _bridge = nullptr;
-    bool _midiControlEnabled = true;
-    uint8_t _rxChannel = RX_CH_ALL;
-    bool _senseActive = false;
-    uint32_t _lastRxMs = 0;
-    uint32_t _lastTxSenseMs = 0;
+    // RefaceMidiBase hooks
+    void engineNoteOn(uint8_t note, uint8_t vel) override;
+    void engineNoteOff(uint8_t note) override;
+    void enginePitchBend(uint16_t bend14) override;
+    void engineControlChange(uint8_t cc, uint8_t val) override;
+    void engineAllSoundOff() override;
+    void engineAllNotesOff() override;
+    int  uiOctave() const override;
+    void applyParam(uint8_t ah, uint8_t am, uint8_t al, const uint8_t* data, uint16_t len) override;
+    uint8_t readParam(uint8_t ah, uint8_t am, uint8_t al, uint8_t* out) override;
 
     static uint8_t quantize2(uint8_t val);
     static uint8_t quantize5(uint8_t val);
     static uint8_t quantize7(uint8_t val);
     static uint8_t quantizeRotary(uint8_t val);
     static uint8_t quantizeWave(uint8_t val);
-    bool channelOk(uint8_t ch) const;
     void applyTgParam(uint8_t addrLow, uint8_t value);
     uint8_t readTgParam(uint8_t addrLow) const;
 
-    void txIdentityReply();
-    void txBytes(const uint8_t* b, uint16_t n);
+    YC_Synth_Bridge* _bridge = nullptr;
 };
 
 #endif // MIDI_REFACE_H

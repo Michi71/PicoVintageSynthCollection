@@ -80,7 +80,7 @@ instruments/PicoFaceDX/
 │   ├── DX_Ui.h              front panel and menu as a state machine
 │   ├── dx_patch_stage.h     staging area for whole-patch transfers
 │   ├── ipc.h                same-core ring between control side and producer
-│   ├── midi_reface.h        reface DX MIDI layer (channel filter, CC, SysEx)
+│   ├── midi_reface.h        the DX on top of the core's reface layer (CC map, voice blocks)
 │   ├── presets.h            the 32 factory voices
 │   └── settings.h           persisted snapshot
 ├── src/                     the matching .cpp files plus DX_Instrument.cpp,

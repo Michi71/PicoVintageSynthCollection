@@ -1,94 +1,91 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Michi71
 
+// src/midi_reface.cpp
+//
+// PicoFaceYC — the reface YC on top of the shared reface MIDI layer.
+
 #include "midi_reface.h"
-#include "midi_serial.h"
-#include "midi_output_usb.h"
 #include "YC_Synth_Bridge.h"
 #include "ipc.h"
-#include "tusb.h"
-#include "pico/time.h"
+
+namespace {
 
 // TODO: aus echtem Geraete-Dump verifizieren, NICHT ungeprueft verwenden
 constexpr uint8_t YC_MODEL_ID = 0x00;
 
+// Identity Request: F0 7E 7F 06 01 F7 (vereinfachte Erkennung fuer M6)
+const uint8_t kIdentityReply[14] = {
+    0xF0, 0x7E, 0x7F, 0x06, 0x02, 0x43, 0x00, 0x06, YC_MODEL_ID, 0x00, 0x00, 0x00, 0x00, 0xF7
+};
+
+// checkModelId false: the model byte is unverified, so a message carrying any
+// model byte is taken - as this port always did.
+const picoface::RefaceMidiBase::Model kModel = { YC_MODEL_ID, false, kIdentityReply, sizeof kIdentityReply };
+
+} // namespace
+
+RefaceMidi::RefaceMidi() : picoface::RefaceMidiBase(kModel) {}
+
 void RefaceMidi::init(YC_Synth_Bridge* bridge) {
     _bridge = bridge;
+    resetSystem();
 }
 
-void RefaceMidi::tick() {
-    uint32_t now = to_ms_since_boot(get_absolute_time());
+// The YC's octave switch lives in the engine state, not in a UI global.
+int RefaceMidi::uiOctave() const { return _bridge ? _bridge->state().octave : 0; }
 
-    // Active Sensing TX alle 200ms
-    if (now - _lastTxSenseMs >= 200) {
-        uint8_t fe = 0xFE;
-        txBytes(&fe, 1);
-        _lastTxSenseMs = now;
-    }
+void RefaceMidi::engineNoteOn(uint8_t note, uint8_t vel) { ipc_send_yc_note_on(note, vel); }
+void RefaceMidi::engineNoteOff(uint8_t note)             { ipc_send_yc_note_off(note); }
 
-    // RX-Timeout 350ms
-    if (_senseActive && (now - _lastRxMs >= 350)) {
-        _senseActive = false;
-        // Panik-Aktion bei Timeout
-        ipc_send_yc_all_notes_off();
-    }
+void RefaceMidi::enginePitchBend(uint16_t bend14) {
+    (void) bend14;
+    // TODO: Engine nutzt Pitch Bend noch nicht
 }
 
-bool RefaceMidi::channelOk(uint8_t ch) const {
-    return _rxChannel == RX_CH_ALL || _rxChannel == ch;
-}
+// One panic action for both: the engine has all-notes-off and nothing finer.
+void RefaceMidi::engineAllSoundOff() {}
+void RefaceMidi::engineAllNotesOff() { ipc_send_yc_all_notes_off(); }
 
-void RefaceMidi::onNoteOn(uint8_t note, uint8_t vel, uint8_t ch) {
-    if (!channelOk(ch)) return;
-    int transposed = note + (_bridge->state().octave * 12);
-    if (transposed < 0) transposed = 0;
-    if (transposed > 127) transposed = 127;
-    ipc_send_yc_note_on((uint8_t)transposed, vel);
-}
-
-void RefaceMidi::onNoteOff(uint8_t note, uint8_t vel, uint8_t ch) {
-    if (!channelOk(ch)) return;
-    int transposed = note + (_bridge->state().octave * 12);
-    if (transposed < 0) transposed = 0;
-    if (transposed > 127) transposed = 127;
-    ipc_send_yc_note_off((uint8_t)transposed);
-}
-
-void RefaceMidi::onControlChange(uint8_t cc, uint8_t val, uint8_t ch) {
-    if (!channelOk(ch)) return;
+// Omni on/off (124/125) never get here, the base handles them.
+void RefaceMidi::engineControlChange(uint8_t cc, uint8_t val) {
+    const bool ctl = midiControlEnabled();
     switch(cc) {
         case 64: // SUSTAIN - IMMER verarbeiten, unabhaengig vom Flag
             ipc_send_yc_sustain(val >= 64 ? 1 : 0);
             break;
         case 18: // EFFECT DIST
-            if (_midiControlEnabled) ipc_send_yc_panel_update(16, val);
+            if (ctl) ipc_send_yc_panel_update(16, val);
             break;
         case 19: // ROTARY SPEED
-            if (_midiControlEnabled) ipc_send_yc_rotary_target(quantizeRotary(val));
+            if (ctl) ipc_send_yc_rotary_target(quantizeRotary(val));
             break;
         case 77: // VIBRATO/CHORUS DEPTH
-            if (_midiControlEnabled) ipc_send_yc_panel_update(15, quantize5(val));
+            if (ctl) ipc_send_yc_panel_update(15, quantize5(val));
             break;
         case 79: // VIBRATO/CHORUS SWITCH
-            if (_midiControlEnabled) ipc_send_yc_panel_update(14, quantize2(val));
+            if (ctl) ipc_send_yc_panel_update(14, quantize2(val));
             break;
         case 80: // WAVE
-            if (_midiControlEnabled) ipc_send_yc_panel_update(0, quantizeWave(val));
+            if (ctl) ipc_send_yc_panel_update(0, quantizeWave(val));
             break;
         case 91: // EFFECT REVERB
-            if (_midiControlEnabled) ipc_send_yc_panel_update(17, val);
+            if (ctl) ipc_send_yc_panel_update(17, val);
             break;
         case 102: case 103: case 104: case 105: case 106: case 107: case 108: case 109: case 110: // FOOTAGE
-            if (_midiControlEnabled) ipc_send_yc_panel_update(cc - 100, quantize7(val));
+            if (ctl) ipc_send_yc_panel_update(cc - 100, quantize7(val));
             break;
         case 111: // PERCUSSION ON/OFF
-            if (_midiControlEnabled) ipc_send_yc_panel_update(11, quantize2(val));
+            if (ctl) ipc_send_yc_panel_update(11, quantize2(val));
             break;
         case 112: // PERCUSSION TYPE
-            if (_midiControlEnabled) ipc_send_yc_panel_update(12, quantize2(val));
+            if (ctl) ipc_send_yc_panel_update(12, quantize2(val));
             break;
         case 113: // PERCUSSION LENGTH
-            if (_midiControlEnabled) ipc_send_yc_panel_update(13, quantize5(val));
+            if (ctl) ipc_send_yc_panel_update(13, quantize5(val));
+            break;
+        case 123: // ALL NOTES OFF
+            engineAllNotesOff();
             break;
         // TODO: CC1(Mod)/7(Volume)/11(Expression) werden empfangen, aber nicht auf ein Panel-Feld abgebildet
         default:
@@ -97,72 +94,24 @@ void RefaceMidi::onControlChange(uint8_t cc, uint8_t val, uint8_t ch) {
     }
 }
 
-void RefaceMidi::onPitchBend(uint16_t bend14, uint8_t ch) {
-    if (!channelOk(ch)) return;
-    // TODO: Engine nutzt Pitch Bend noch nicht
+// TG block (base 30 00 00); a Parameter Change carries one value, a Request
+// is answered by the base through readParam().
+void RefaceMidi::applyParam(uint8_t ah, uint8_t am, uint8_t al, const uint8_t* data, uint16_t len) {
+    if (ah == 0x30 && am == 0x00 && len >= 1) applyTgParam(al, data[0]);
 }
 
-void RefaceMidi::onRealtime(uint8_t status) {
-    if (status == 0xFE) {
-        // Nur echtes Active Sensing (0xFE) darf die Ueberwachung scharfschalten.
-        _senseActive = true;
-        _lastRxMs = to_ms_since_boot(get_absolute_time());
-    }
+uint8_t RefaceMidi::readParam(uint8_t ah, uint8_t am, uint8_t al, uint8_t* out) {
+    if (ah != 0x30 || am != 0x00) return 0;
+    out[0] = readTgParam(al);
+    return 1;
 }
-
-void RefaceMidi::onSysEx(const uint8_t* data, uint16_t len) {
-    // Identity Request: F0 7E 7F 06 01 F7 (vereinfachte Erkennung fuer M6)
-    if (len >= 6 && data[0] == 0xF0 && data[1] == 0x7E && data[2] == 0x7F && data[3] == 0x06 && data[4] == 0x01 && data[len-1] == 0xF7) {
-        txIdentityReply();
-        return;
-    }
-    // Parameter Change (Set), TG-Block: F0 43 1n 7F 1C <ModelID> 30 00 <addrLow> <value> F7 (11 Bytes)
-    if (len == 11 && data[0] == 0xF0 && data[1] == 0x43 && (data[2] & 0xF0) == 0x10 && data[3] == 0x7F && data[4] == 0x1C && data[6] == 0x30 && data[7] == 0x00 && data[10] == 0xF7) {
-        applyTgParam(data[8], data[9]);
-        return;
-    }
-    // Parameter Request, TG-Block: F0 43 3n 7F 1C <ModelID> 30 00 <addrLow> F7 (10 Bytes) -> Antwort per Parameter Change
-    if (len == 10 && data[0] == 0xF0 && data[1] == 0x43 && (data[2] & 0xF0) == 0x30 && data[3] == 0x7F && data[4] == 0x1C && data[6] == 0x30 && data[7] == 0x00 && data[9] == 0xF7) {
-        txParamRequestReply(data[8]);
-        return;
-    }
-    // TODO: Dump Request (F0 43 2n 7F 1C ... F7) und vollstaendiger Bulk Dump (Checksum-Block)
-    // sind bewusst noch nicht implementiert (hoeheres Risiko fuer Off-by-one-Fehler in der
-    // Blockrahmung, geringerer Zusatznutzen ggue. Parameter Change, das bereits jede TG-Adresse
-    // einzeln lesbar/schreibbar macht).
-}
-
-void RefaceMidi::notifyActivity() {
-    // Normale MIDI-Aktivitaet aktualisiert nur den Zeitstempel, wenn bereits scharf.
-    if (_senseActive) {
-        _lastRxMs = to_ms_since_boot(get_absolute_time());
-    }
-}
-
-void RefaceMidi::txBytes(const uint8_t* b, uint16_t n) {
-    // Queued rather than written straight to TinyUSB, which takes only what
-    // fits one TX FIFO (48 SysEx bytes) and silently drops the rest.
-    // See core/include/midi_output_usb.h.
-    usbMidiOut().write(b, n);
-    // Everything the reface layer sends - panel CCs, SysEx replies - goes out
-    // the DIN socket as well. Unconditional: unlike USB there is nothing to
-    // enumerate, and a receiver that is not plugged in simply does not listen.
-    midiSerial().write(b, n);
-}
-
-void RefaceMidi::txIdentityReply() {
-    uint8_t reply[] = {0xF0, 0x7E, 0x7F, 0x06, 0x02, 0x43, 0x00, 0x06, YC_MODEL_ID, 0x00, 0x00, 0x00, 0x00, 0xF7};
-    txBytes(reply, sizeof(reply));
-}
-
-void RefaceMidi::txCC(uint8_t cc, uint8_t val) {
-    // TODO: aus SYSTEM-Transmit-Channel lesen sobald verfuegbar
-    uint8_t msg[3] = {(uint8_t)(0xB0 | 0), cc, val};
-    txBytes(msg, 3);
-}
+// TODO: Dump Request (F0 43 2n 7F 1C ... F7) und vollstaendiger Bulk Dump sind
+// fuer die TG-Bloecke bewusst noch nicht implementiert (der Parameter Change
+// macht bereits jede TG-Adresse einzeln lesbar/schreibbar); der SYSTEM-Block
+// kommt seit der gemeinsamen Schicht mit.
 
 void RefaceMidi::txPanelMirror(uint8_t param_id, uint8_t internalValue) {
-    if (!_midiControlEnabled) return;
+    if (!midiControlEnabled()) return;
 
     static const uint8_t depth5[5] = {0, 32, 64, 95, 127};
     static const uint8_t foot7[7] = {0, 21, 42, 64, 85, 106, 127};
@@ -203,7 +152,7 @@ void RefaceMidi::txPanelMirror(uint8_t param_id, uint8_t internalValue) {
 }
 
 void RefaceMidi::txRotaryMirror(uint8_t speed) {
-    if (!_midiControlEnabled) return;
+    if (!midiControlEnabled()) return;
     static const uint8_t rot4[4] = {0, 42, 85, 127};
     txCC(19, rot4[speed]);
 }
@@ -257,15 +206,6 @@ uint8_t RefaceMidi::readTgParam(uint8_t addrLow) const {
         case 0x13: return st.reverb;
         default: return 0;
     }
-}
-
-void RefaceMidi::txParamChange(uint8_t addrLow, uint8_t value) {
-    uint8_t msg[11] = {0xF0, 0x43, 0x10, 0x7F, 0x1C, YC_MODEL_ID, 0x30, 0x00, addrLow, value, 0xF7};
-    txBytes(msg, 11);
-}
-
-void RefaceMidi::txParamRequestReply(uint8_t addrLow) {
-    txParamChange(addrLow, readTgParam(addrLow));
 }
 
 uint8_t RefaceMidi::quantize2(uint8_t val) {

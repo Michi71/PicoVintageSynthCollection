@@ -63,7 +63,7 @@ instruments/PicoFaceYC/
 │   ├── YC_Synth_Bridge.h   engine wrapper for the audio path
 │   ├── YC_Ui.h             front panel and menu as a state machine
 │   ├── ipc.h               same-core ring between control side and producer
-│   ├── midi_reface.h       reface MIDI layer (channel filter, CC, SysEx)
+│   ├── midi_reface.h       the YC on top of the core's reface layer (CC map, TG block)
 │   └── settings.h          persisted panel snapshot
 ├── src/                    the matching .cpp files plus YC_Instrument.cpp,
 │                           the adapter implementing picoface::Instrument

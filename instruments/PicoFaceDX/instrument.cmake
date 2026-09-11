@@ -65,6 +65,7 @@ picoface_add_instrument(
     CORE_MODULES
         ui_menu
         ui_kit     # shared panel look; ui_menu draws through it
+        reface     # the reface MIDI dialect; src/midi_reface.cpp is the DX on top of it
 
     DEFINES
         # Both stacks into the otherwise unused halves of the 4 KB scratch

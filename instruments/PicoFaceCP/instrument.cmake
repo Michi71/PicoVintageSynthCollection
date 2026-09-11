@@ -27,6 +27,7 @@ picoface_add_instrument(
     CORE_MODULES
         ui_menu
         ui_kit     # shared panel look; ui_menu draws through it
+        reface     # the reface MIDI dialect; src/midi_reface.cpp is the CP on top of it
 
     DEFINES
         PICO_STACK_SIZE=0x1000

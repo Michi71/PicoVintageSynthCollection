@@ -21,6 +21,7 @@ CXXFLAGS=(-std=c++17 -O1 -Wall -Wextra
 
 SRC=("$HERE/dx_sysex_test.cpp"
      "$ROOT/src/midi_reface.cpp"
+     "$REPO/core/src/reface/reface_midi.cpp"
      "$HERE/../shim/host_midi_serial.cpp")
 
 "$CXX" "${CXXFLAGS[@]}" "${SRC[@]}" -o "$OUT"

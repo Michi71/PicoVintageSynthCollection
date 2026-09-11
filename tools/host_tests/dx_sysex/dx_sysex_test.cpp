@@ -8,7 +8,8 @@
 // editor's display was at fault. This test is what settles that class of
 // question in a second instead of over several rounds of guessing.
 //
-// Round trip through the real src/midi_reface.cpp, both directions:
+// Round trip through the real src/midi_reface.cpp and the shared layer it
+// sits on (core/src/reface/reface_midi.cpp), both directions:
 //
 //   TX: put a known patch in the engine, ask for a voice dump, parse what came
 //       out and compare byte for byte.
@@ -187,6 +188,85 @@ int main()
     printf("  patch apply reached the engine: %s\n", applied ? "yes" : "NO");
     if (!applied) failures++;
     compare("engine patch equals what was sent", dx.patch(), sent);
+
+    // ---------- the shared reface layer (core/src/reface/reface_midi.cpp) ----------
+    // The DX is the one port with a host test, so the SYSTEM block, the
+    // framing and the channel handling that CP and YC share with it are
+    // pinned here.
+    printf("\nSYSTEM block and channel handling (shared layer)\n");
+    {
+        auto check = [&](bool ok, const char* what) {
+            printf("  %s  %s\n", ok ? "pass" : "FAIL", what);
+            if (!ok) failures++;
+        };
+        auto drain = [&]() { uint32_t p; while (dx_ipc_pop(&p)) {} };
+
+        // Identity Request is answered with the DX's identity, byte for byte.
+        g_out.clear();
+        const uint8_t idreq[] = {0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7};
+        rm.onSysEx(idreq, sizeof(idreq));
+        const uint8_t idreply[15] = {0xF0, 0x7E, 0x7F, 0x06, 0x02, 0x43, 0x00, 0x41, 0x53, 0x06,
+                                     0x03, 0x00, 0x00, 0x7F, 0xF7};
+        check(g_out.size() == 15 && memcmp(g_out.data(), idreply, 15) == 0, "identity reply");
+
+        // Master tune as the data list sends it: one Parameter Change, four
+        // nibbles, 0x0410 = +1.6 cents. It reaches the producer as the raw value.
+        drain();
+        const uint8_t tune[] = {0xF0, 0x43, 0x10, 0x7F, 0x1C, 0x05, 0x00, 0x00, 0x02, 0x00, 0x04, 0x01, 0x00, 0xF7};
+        rm.onSysEx(tune, sizeof(tune));
+        bool tuneSeen = false; uint16_t raw = 0; uint32_t pkt2;
+        while (dx_ipc_pop(&pkt2)) if (ipc_type(pkt2) == IPC_CMD_DX_MASTER_TUNE) { tuneSeen = true; raw = ipc_d2(pkt2); }
+        check(tuneSeen && raw == 0x0410, "four-nibble tune write reaches the engine as 0x0410");
+
+        // A SYSTEM dump request returns the 32-byte block with that tune in it.
+        g_out.clear();
+        const uint8_t sysreq[] = {0xF0, 0x43, 0x20, 0x7F, 0x1C, 0x05, 0x00, 0x00, 0x00, 0xF7};
+        rm.onSysEx(sysreq, sizeof(sysreq));
+        // F0 43 00 7F 1C bh bl 05 00 00 00 <32 bytes> sum F7 = 45 bytes
+        bool sysOk = g_out.size() == 45 && g_out[5] == 0 && g_out[6] == 36 && g_out[7] == 0x05
+                     && g_out[11 + 2] == 0x00 && g_out[11 + 3] == 0x04 && g_out[11 + 4] == 0x01 && g_out[11 + 5] == 0x00
+                     && g_out[11 + 1] == 0x10 /* receive omni */ && g_out[44] == 0xF7;
+        uint32_t sum = 0;
+        for (size_t k = 7; sysOk && k + 1 < g_out.size(); ++k) sum += g_out[k];
+        check(sysOk && (sum & 0x7F) == 0, "SYSTEM dump: 36-byte count, tune nibbles, checksum");
+
+        // A bulk block with a bad checksum is dropped: the tune stays.
+        std::vector<uint8_t> bad(g_out);
+        bad[11 + 2] = 0x07;                      // change a tune nibble, leave the checksum
+        drain();
+        rm.onSysEx(bad.data(), (uint16_t) bad.size());
+        tuneSeen = false;
+        while (dx_ipc_pop(&pkt2)) if (ipc_type(pkt2) == IPC_CMD_DX_MASTER_TUNE) tuneSeen = true;
+        check(!tuneSeen, "bulk block with a bad checksum is ignored");
+
+        // Omni off (CC 124) narrows the receive channel to 1, omni on (125) opens it.
+        rm.onControlChange(124, 0, 0);
+        check(rm.getRxChannel() == 0, "CC 124 sets receive channel 1");
+        rm.onNoteOn(60, 100, 3);                 // channel 4: filtered
+        drain();
+        rm.onControlChange(125, 0, 0);
+        check(rm.getRxChannel() == RefaceMidi::RX_CH_ALL, "CC 125 restores omni");
+
+        // A note-on with velocity 0 is a note-off (YC used to keep its own
+        // USB parser for exactly this).
+        drain();
+        rm.onNoteOn(60, 0, 0);
+        bool offSeen = false, onSeen = false;
+        while (dx_ipc_pop(&pkt2)) {
+            if (ipc_type(pkt2) == IPC_CMD_DX_NOTE_OFF) offSeen = true;
+            if (ipc_type(pkt2) == IPC_CMD_DX_NOTE_ON) onSeen = true;
+        }
+        check(offSeen && !onSeen, "note-on with velocity 0 is a note-off");
+
+        // A record from a build that seeded the tune with zeros is read as centred.
+        uint8_t blk[32] = {0};
+        blk[1] = 0x10;                           // omni, as a real record would have it
+        drain();
+        rm.loadSystemBlock(blk);
+        raw = 0;
+        while (dx_ipc_pop(&pkt2)) if (ipc_type(pkt2) == IPC_CMD_DX_MASTER_TUNE) raw = ipc_d2(pkt2);
+        check(raw == 0x0400, "zero tune in an old settings record loads as the centre 0x0400");
+    }
 
     printf("\n%s\n", failures ? "FAILURES" : "all checks passed");
     return failures ? 1 : 0;

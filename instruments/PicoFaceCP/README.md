@@ -114,7 +114,7 @@ instruments/PicoFaceCP/
 │   ├── mdaEPiano*.h           engine plus the six sample sets
 │   ├── CP_Ui.h                front panel and menu as a state machine
 │   ├── ipc.h                  same-core ring between control side and producer
-│   ├── midi_reface.h          reface CP MIDI protocol layer
+│   ├── midi_reface.h          the CP on top of the core's reface layer (CC map, TG block)
 │   └── settings.h             persisted snapshot
 ├── src/                     CP_Instrument.cpp (the adapter), CP_Ui.cpp,
 │                            mdaEPiano.cpp, midi_reface.cpp, presets.cpp,
