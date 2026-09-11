@@ -1,27 +1,49 @@
-# Cross-Core IPC Protocol (include/ipc.h)
+# Control -> engine ring (include/ipc.h)
 
 ## Overview
-The protocol uses a lock-free 32-bit word FIFO (SIO FIFO). Core 1 (Controller/MIDI) sends to Core 0 (Synth Bridge). Core 0 processes the messages in `ipc_apply()` (in `main.cpp`) inside the Audio-DMA-IRQ.
 
-## Word Format
-- Packing: `ipc_pack(type:8bit, d1:8bit, d2:16bit)` -> 32-bit word `[type<<24 | d1<<16 | d2]`
-- Decoding functions: `ipc_type()`, `ipc_d1()`, `ipc_d2()`
+A same-core single-producer/single-consumer ring of 32-bit words. The control
+side (the reface MIDI layer and the front panel, both driven from the core's
+`uiTick()` on core0) pushes; the audio producer drains the ring at the top of
+every rendered block (`yc_ipc_drain()` in `include/yc_ipc_apply.h`, called from
+`YC_Instrument::render()`), so an edit lands at the next block boundary.
 
-## IpcCommand Table (Hex values)
+Until PicoFaceYC moved to the collection's standard runtime model this was a
+cross-core channel over the SIO FIFO; the packet format survived the move, the
+FIFO and the flash-park handshake did not. 256 entries; a full ring counts
+drops in `yc_ipc_dropped` (shown on the CPU Load screen) instead of blocking.
 
-| Hex  | Command                    | d1                     | d2                                                                      |
-|------|----------------------------|------------------------|-------------------------------------------------------------------------|
-| 0x0A | IPC_CMD_FLASH_LOCK         | unused                 | unused (Parks Core 0 during Core 1 flash write operation / persistence) |
-| 0x0B | IPC_CMD_YC_NOTE_ON         | note                   | velocity                                                                 |
-| 0x0C | IPC_CMD_YC_NOTE_OFF        | note                   | unused                                                                   |
-| 0x0D | IPC_CMD_YC_PANEL_UPDATE    | param_id (see table)   | value (16-bit; mostly lower byte relevant; Octave uses signed pattern)   |
-| 0x0E | IPC_CMD_YC_SUSTAIN         | on (0/1)               | unused                                                                   |
-| 0x0F | IPC_CMD_YC_ALL_NOTES_OFF   | unused                 | unused                                                                   |
-| 0x10 | IPC_CMD_YC_ROTARY_TARGET   | target_speed (0-3)     | unused (Separate command as rotary speed has no own YcParamId)          |
-| 0x11 | IPC_CMD_YC_MIDI_CTRL_MODE  | reserved/unused        | unused (MIDI Control mode is Core 1 local state in RefaceMidi)          |
-| 0x12 | IPC_CMD_YC_PITCH_BEND      | reserved/unused        | unused (Engine does not implement pitch bend yet)                      |
+The same `yc_ipc_apply()` switch is what the host test
+[tools/host_tests/yc_sysex](../../../tools/host_tests/yc_sysex/) drains through,
+so a MIDI path the test sees arrive in the engine is the path the firmware runs.
 
-## YcParamId Table (0-based, for IPC_CMD_YC_PANEL_UPDATE d1)
+## Word format
+
+- Packing: `ipc_pack(type:8bit, d1:8bit, d2:16bit)` -> `[type<<24 | d1<<16 | d2]`
+- Decoding: `ipc_type()`, `ipc_d1()`, `ipc_d2()`
+
+## IpcCommand table
+
+| Hex  | Command                  | d1                   | d2                                                              |
+|------|--------------------------|----------------------|-----------------------------------------------------------------|
+| 0x0B | IPC_CMD_YC_NOTE_ON       | note                 | velocity                                                        |
+| 0x0C | IPC_CMD_YC_NOTE_OFF      | note                 | unused                                                          |
+| 0x0D | IPC_CMD_YC_PANEL_UPDATE  | param_id (see table) | value (16-bit; mostly lower byte; octave uses the signed byte) |
+| 0x0E | IPC_CMD_YC_SUSTAIN       | on (0/1)             | unused                                                          |
+| 0x0F | IPC_CMD_YC_ALL_NOTES_OFF | unused               | unused                                                          |
+| 0x10 | IPC_CMD_YC_ROTARY_TARGET | target speed (0-3)   | unused (own command: rotary speed has no YcParamId)             |
+| 0x11 | IPC_CMD_YC_MIDI_VOLUME   | CC7 value (0-127)    | unused                                                          |
+| 0x12 | IPC_CMD_YC_PITCH_BEND    | unused               | 0-16383, centre 8192 (±2 semitones)                             |
+| 0x13 | IPC_CMD_YC_EXPRESSION    | CC11 value (0-127)   | unused                                                          |
+
+0x11 used to be `IPC_CMD_YC_MIDI_CTRL_MODE`, reserved for a MIDI Control flag
+that never travelled this way (it lives in `RefaceMidi` and in the settings
+record); the number was reused.
+
+## YcParamId table (0-based, for IPC_CMD_YC_PANEL_UPDATE d1)
+
+The enum is `YcParamId` in `include/yc_engine/yc_core.h`, the single source
+for both the ring and `yc_engine_set_param()`.
 
 | ID | Parameter       |
 |----|-----------------|
@@ -46,4 +68,7 @@ The protocol uses a lock-free 32-bit word FIFO (SIO FIFO). Core 1 (Controller/MI
 | 18 | VOLUME          |
 
 ## Note
-This is a different addressing scheme than the SysEx Tone Generator addresses (30 00 00h basis) in `doc/MIDI_IMPLEMENTATION.md`. The two tables are NOT identically numbered and must not be confused.
+
+This is a different addressing scheme from the SysEx tone generator addresses
+(base 30 00 00) in `doc/MIDI_IMPLEMENTATION.md`. The two tables are not
+numbered alike and must not be confused; `midi_reface.cpp` maps between them.

@@ -14,6 +14,7 @@
 #include "yc_fx.h"
 #include "yc_reverb.h"
 #include "ram_hot.h"
+#include <cmath>   // exp2f for the bend factor
 
 static inline void yc_engine_init(yc_engine_state_t& state) {
     state.wave = 0;
@@ -38,7 +39,10 @@ static inline void yc_engine_init(yc_engine_state_t& state) {
     state.distortion = 0;
     state.reverb = 0;
     state.volume = 127;
+    state.midi_volume = 127;
+    state.expression = 127;
     state.vol_gain = (float)state.volume / 127.0f;
+    state.bend_ratio = 1.0f;
     state.sustain_held = false;
     state.active_count = 0;
 
@@ -75,6 +79,33 @@ static inline void yc_engine_all_notes_off(yc_engine_state_t& state) {
         v.sustained = false;
         v.amp = 0.0f;
     }
+}
+
+// The one gain the audio path reads: panel volume, MIDI channel volume (CC7)
+// and expression (CC11), each 0..127. At 127 the two MIDI factors are exactly
+// 1.0f, so an untouched controller leaves the panel volume's gain bit-identical.
+static inline void yc_engine_update_gain(yc_engine_state_t& state) {
+    state.vol_gain = ((float)state.volume / 127.0f)
+                   * ((float)state.midi_volume / 127.0f)
+                   * ((float)state.expression / 127.0f);
+}
+
+static inline void yc_engine_set_midi_volume(yc_engine_state_t& state, uint8_t v) {
+    state.midi_volume = v > 127 ? 127 : v;
+    yc_engine_update_gain(state);
+}
+
+static inline void yc_engine_set_expression(yc_engine_state_t& state, uint8_t v) {
+    state.expression = v > 127 ? 127 : v;
+    yc_engine_update_gain(state);
+}
+
+// bend14: 0..16383, centre 8192, +-YC_BEND_RANGE_SEMITONES at the ends. One
+// exp2f per bend message, nothing per sample.
+static inline void yc_engine_set_pitch_bend(yc_engine_state_t& state, uint16_t bend14) {
+    if (bend14 > 16383) bend14 = 16383;
+    const float semis = ((float)bend14 - 8192.0f) * (YC_BEND_RANGE_SEMITONES / 8192.0f);
+    yc_tonegen_set_bend(state, exp2f(semis / 12.0f));
 }
 
 static inline void yc_engine_set_param(yc_engine_state_t& state, uint8_t param_id, uint16_t value) {
@@ -116,7 +147,7 @@ static inline void yc_engine_set_param(yc_engine_state_t& state, uint8_t param_i
             break;
         case YC_PARAM_VOLUME:
             state.volume = (uint8_t)(value & 0xFF);
-            state.vol_gain = (float)state.volume / 127.0f;
+            yc_engine_update_gain(state);
             break;
         default:
             (void)0; // unbekannte param_id ignorieren
@@ -140,11 +171,12 @@ inline void RAM_HOT(yc_engine_render_block)(yc_engine_state_t& state, yc_rotary_
         sample += yc_percussion_render(pstate, state);
         sample = yc_vibrato_process(vibrato_state, state, sample);
         sample = yc_overdrive_process(state, sample);
-        sample = yc_rotary_process(rotary_state, state, sample);
-        sample = yc_reverb_process(reverb_state, state, sample);
-        sample = yc_soft_clip(sample);
-        out_l[i] = sample;
-        out_r[i] = sample;
+        // Mono up to here; the rotary is where the two channels part.
+        float l, r;
+        yc_rotary_process(rotary_state, state, sample, l, r);
+        yc_reverb_process(reverb_state, state, l, r);
+        out_l[i] = yc_soft_clip(l);
+        out_r[i] = yc_soft_clip(r);
     }
-} // TODO M1-M4: Stereo (Rotary erzeugt eigentlich L/R-Differenz durch Panning), hier vorerst Mono auf beide Kanaele
+}
 

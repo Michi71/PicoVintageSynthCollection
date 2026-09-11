@@ -42,6 +42,17 @@ public:
     inline void setRotaryTarget(uint8_t speed) {
         state_.rotary_speed = speed;
     }
+    // 0..16383, centre 8192; +-YC_BEND_RANGE_SEMITONES.
+    inline void setPitchBend(uint16_t bend14) {
+        yc_engine_set_pitch_bend(state_, bend14);
+    }
+    // CC7 and CC11, folded into the master gain with the panel volume.
+    inline void setMidiVolume(uint8_t v) {
+        yc_engine_set_midi_volume(state_, v);
+    }
+    inline void setExpression(uint8_t v) {
+        yc_engine_set_expression(state_, v);
+    }
     inline yc_engine_state_t& state() { return state_; }
 
     // CPU load of the most recently rendered audio block, and the peak value

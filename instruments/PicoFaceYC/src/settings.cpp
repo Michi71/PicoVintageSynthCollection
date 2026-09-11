@@ -48,7 +48,7 @@ void settings_boot_restore(YC_Synth_Bridge* yc, RefaceMidi* rm) {
     st.distortion = s.panel.distortion;
     st.reverb = s.panel.reverb;
     st.volume = s.panel.volume;
-    st.vol_gain = (float)st.volume / 127.0f;
+    yc_engine_update_gain(st);   // CC7/CC11 are 127 at boot, so this is volume/127
     yc_wavetable_select(st.wave);
     rm->setMidiControlEnabled(s.panel.midi_ctrl_mode != 0);
 }
