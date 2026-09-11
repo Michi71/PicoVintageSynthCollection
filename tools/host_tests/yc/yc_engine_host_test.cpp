@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <string>
 #include <algorithm>
 
 static void write_wav_mono_16bit(const char* filename,
@@ -64,8 +65,9 @@ static void write_wav_mono_16bit(const char* filename,
                 filename, (uint32_t)samples.size(), sample_rate);
 }
 
-int main()
+int main(int argc, char** argv)
 {
+    (void)argc;
     // 1. Engine initialisieren
     yc_engine_state_t state{};
     yc_rotary_state_t rstate{};
@@ -165,10 +167,17 @@ int main()
     else
         std::printf("[WARNUNG] Sehr niedrige Amplitude\n");
 
-    // 6. WAV-Datei schreiben
-    write_wav_mono_16bit("test/yc_engine_host_test_output.wav",
-                         audio, 44100);
+    // 6. WAV-Datei schreiben - neben das Binary, wie beim OB-Test, egal
+    //    aus welchem Verzeichnis der Aufruf kommt.
+    std::string wavPath = "yc_engine_host_test.wav";
+    if (const char* slash = std::strrchr(argv[0], '/')) {
+        wavPath = std::string(argv[0], (size_t)(slash + 1 - argv[0])) + "yc_engine_host_test.wav";
+    }
+    write_wav_mono_16bit(wavPath.c_str(), audio, 44100);
 
-    std::printf("\nTest abgeschlossen.\n");
-    return 0;
+    // Ein Test, der immer 0 liefert, ist keiner: NaN/Inf oder Stille sind ein
+    // Fehler, und run_all.sh (und damit die CI) liest den Exit-Code.
+    const bool failed = nan_inf_count != 0 || nonzero_after_100 == 0 || peak <= 0.001f;
+    std::printf("\n%s\n", failed ? "FAILED" : "Test abgeschlossen.");
+    return failed ? 1 : 0;
 }
