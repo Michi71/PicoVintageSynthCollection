@@ -21,6 +21,7 @@
 #   PICOFACE_CORE_SOURCES                    - base core sources (absolute)
 #   PICOFACE_CORE_MODULE_UI_MENU_SOURCES     - module "ui_menu" sources
 #   PICOFACE_CORE_MODULE_UI_KIT_SOURCES      - module "ui_kit" sources
+#   PICOFACE_CORE_MODULE_REFACE_SOURCES      - module "reface" sources
 #   PICOFACE_CORE_MODULES                    - list of available module names
 # ============================================================================
 
@@ -72,14 +73,25 @@ set(PICOFACE_CORE_MODULE_UI_KIT_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/kit.cpp"
 )
 
+# --- module: reface ------------------------------------------------------------
+# What the three Yamaha reface ports share of their MIDI layer: the SYSTEM
+# block, active sensing, the channel filter, the exclusive framing and the
+# transmit side. picoface::RefaceMidiBase; each port derives its RefaceMidi
+# from it and keeps only its own CC map and tone-generator blocks. CP, DX and
+# YC each carried a full copy until 09/2026, and the copies had drifted.
+set(PICOFACE_CORE_MODULE_REFACE_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/reface/reface_midi.cpp"
+)
+
 # --- available modules --------------------------------------------------------
-set(PICOFACE_CORE_MODULES "ui_menu" "ui_kit")
+set(PICOFACE_CORE_MODULES "ui_menu" "ui_kit" "reface")
 
 # --- sanity check: every listed source file must exist ------------------------
 foreach(_picoface_src IN LISTS
         PICOFACE_CORE_SOURCES
         PICOFACE_CORE_MODULE_UI_MENU_SOURCES
-        PICOFACE_CORE_MODULE_UI_KIT_SOURCES)
+        PICOFACE_CORE_MODULE_UI_KIT_SOURCES
+        PICOFACE_CORE_MODULE_REFACE_SOURCES)
     if(NOT EXISTS "${_picoface_src}")
         message(FATAL_ERROR "PicoFace core source missing: ${_picoface_src}")
     endif()
@@ -90,6 +102,7 @@ set(PICOFACE_CORE_INCLUDE_DIR                "${PICOFACE_CORE_INCLUDE_DIR}"     
 set(PICOFACE_CORE_SOURCES                    "${PICOFACE_CORE_SOURCES}"                    PARENT_SCOPE)
 set(PICOFACE_CORE_MODULE_UI_MENU_SOURCES     "${PICOFACE_CORE_MODULE_UI_MENU_SOURCES}"     PARENT_SCOPE)
 set(PICOFACE_CORE_MODULE_UI_KIT_SOURCES      "${PICOFACE_CORE_MODULE_UI_KIT_SOURCES}"      PARENT_SCOPE)
+set(PICOFACE_CORE_MODULE_REFACE_SOURCES      "${PICOFACE_CORE_MODULE_REFACE_SOURCES}"      PARENT_SCOPE)
 set(PICOFACE_CORE_MODULES                    "${PICOFACE_CORE_MODULES}"                    PARENT_SCOPE)
 
 # --- summary ------------------------------------------------------------------

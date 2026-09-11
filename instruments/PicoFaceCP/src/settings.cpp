@@ -17,18 +17,14 @@
 #include "mdaEPiano.h"
 #include "reface_cp_chain.h"
 #include "midi_reface.h"
+#include "picoface/settings_autosave.h"
 #include <string.h>
 #include "pico/time.h"
 
 extern "C" void ui_set_octave(int oct);
 extern "C" int  ui_get_octave(void);
 
-static SettingsV1 g_lastSaved;
-static bool g_baselineInit = false;
-static SettingsV1 g_pending;
-static bool g_pendingActive = false;
-static uint32_t g_pendingSinceMs = 0;
-static uint32_t g_lastPollMs = 0;
+static picoface::SettingsAutosave<SettingsV1> g_autosave;
 
 static void settings_gather(SettingsV1* s, mdaEPiano* ep, RefaceCpChain* fx, RefaceMidi* rm) {
     memset(s, 0, sizeof(*s));
@@ -87,35 +83,6 @@ void settings_boot_restore(mdaEPiano* ep, RefaceCpChain* fx, RefaceMidi* rm) {
 }
 
 void settings_task(mdaEPiano* ep, RefaceCpChain* fx, RefaceMidi* rm) {
-    uint32_t now = to_ms_since_boot(get_absolute_time());
-    if (now - g_lastPollMs < 250) return;
-    g_lastPollMs = now;
-
-    SettingsV1 cur;
-    settings_gather(&cur, ep, fx, rm);
-
-    if (!g_baselineInit) {
-        g_lastSaved = cur;
-        g_baselineInit = true;
-        return;
-    }
-
-    if (memcmp(&cur, &g_lastSaved, sizeof(cur)) == 0) {
-        g_pendingActive = false;
-        return;
-    }
-
-    if (!g_pendingActive || memcmp(&cur, &g_pending, sizeof(cur)) != 0) {
-        g_pending = cur;
-        g_pendingSinceMs = now;
-        g_pendingActive = true;
-        return;
-    }
-
-    if (now - g_pendingSinceMs >= 2000) {
-        if (veeprom_save(&g_pending, sizeof(g_pending), SETTINGS_VERSION)) {
-            g_lastSaved = g_pending;
-        }
-        g_pendingActive = false;
-    }
+    g_autosave.task(to_ms_since_boot(get_absolute_time()), SETTINGS_VERSION,
+                    [&](SettingsV1& s) { settings_gather(&s, ep, fx, rm); });
 }
