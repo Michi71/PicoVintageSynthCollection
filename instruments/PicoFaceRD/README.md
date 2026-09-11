@@ -263,8 +263,9 @@ optionally `PICO_EXTRAS_PATH`) instead of initialising the `lib/pico-sdk` and
 The `lib/u8g2/u8g2` submodule is always required.
 
 Flash `build/PicoFaceRD.uf2` via BOOTSEL. Footprint in the collection build:
-5,305,676 bytes of flash (the sample banks dominate), 48,024 bytes of static RAM
-plus about 44 KB of heap for the pack descriptors.
+2,708,672 bytes of flash (the sample banks dominate; 5.3 MB before the
+computed velocity layers), 68,016 bytes of static RAM plus about 44 KB
+of heap for the pack descriptors (`arm-none-eabi-size`, text / bss, 09/2026).
 
 ## Architecture
 

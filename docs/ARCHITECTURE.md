@@ -17,13 +17,19 @@ core/
 │   └── picoface/
 │       ├── instrument.h
 │       ├── ui.h
-│       ├── list_view.h
+│       ├── ui_kit.h           (module ui_kit)
+│       ├── list_view.h        (module ui_menu)
+│       ├── reface_midi.h      (module reface)
+│       ├── settings_autosave.h
 │       └── midi.h
 └── src/
     ├── (base sources)
-    └── ui/
-        ├── display.cpp
-        └── (module ui_menu)
+    ├── ui/
+    │   ├── display.cpp
+    │   ├── kit.cpp            (module ui_kit)
+    │   └── list_view.cpp      (module ui_menu)
+    └── reface/
+        └── reface_midi.cpp    (module reface)
 lib/
 ├── audio
 ├── encoder
@@ -368,18 +374,21 @@ These defines are deliberately not unified in the helper but set per instrument 
 
 | Instrument | Flash | RAM | PID | Original (flash/RAM) |
 |---|---|---|---|---|
-| PicoFaceYC | 135,224 | 47,824 | 0x1050 | 130,408 / 44,780 |
-| PicoFaceCP | 4,431,496 | 178,104 | 0x1051 | 4,431,112 / 175,612 |
-| PicoFaceRD | 5,318,096 | 35,420 | 0x1052 | 5,312,968 / 33,928 |
-| PicoFaceJ6 | 104,056 | 19,188 | 0x1053 | 101,644 / 17,688 |
-| PicoFaceMD | 99,168 | 268,624 | 0x1054 | 96,828 / 267,124 |
-| PicoFaceSM | 96,232 | 21,784 | 0x1055 | 91,868 / 20,288 |
-| PicoFaceOB | 131,724 | 42,248 | 0x1056 | - (new) |
-| PicoFaceDX | 170,052 | 218,508 | 0x1057 | 164,964 / 216,012 |
-| PicoFaceJV | 4,549,088 | 146,808 | 0x1058 | - (new) |
-| PicoFaceD5 | 909,852 | 245,620 | 0x1059 | - (new) |
+| PicoFaceYC | 150,892 | 50,240 | 0x1050 | 130,408 / 44,780 |
+| PicoFaceCP | 3,997,728 | 180,492 | 0x1051 | 4,431,112 / 175,612 |
+| PicoFaceRD | 2,708,672 | 68,016 | 0x1052 | 5,312,968 / 33,928 |
+| PicoFaceJ6 | 122,532 | 24,364 | 0x1053 | 101,644 / 17,688 |
+| PicoFaceMD | 113,400 | 270,948 | 0x1054 | 96,828 / 267,124 |
+| PicoFaceSM | 115,380 | 24,132 | 0x1055 | 91,868 / 20,288 |
+| PicoFaceOB | 219,764 | 44,972 | 0x1056 | - (new) |
+| PicoFaceDX | 184,896 | 220,900 | 0x1057 | 164,964 / 216,012 |
+| PicoFaceJV | 4,568,120 | 151,300 | 0x1058 | - (new) |
+| PicoFaceD5 | 924,136 | 248,152 | 0x1059 | - (new) |
 
-Measured with `arm-none-eabi-size` (text / bss). 32 KB of PicoFaceOB's RAM are
+Measured with `arm-none-eabi-size` (text / bss) on the build of 11.09.2026
+(after the shared UI kit, the 4 MB CP sets and the reface module; RD after the
+computed velocity layers). The CP, JV and RD figures are the sample data; the
+others are code, tables and the u8g2 frame buffer. 32 KB of PicoFaceOB's RAM are
 the six voices of the OB-Xf voice object, a good 5.3 KB each; on top of that come
 47.6 KB of `.data`, because that is where the RAM-resident render path and the
 BLEP tables live (section 6b).
