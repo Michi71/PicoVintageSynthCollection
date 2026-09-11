@@ -123,10 +123,12 @@ Like YC and CP, DX writes its own veeprom record and reports `settingsSize() == 
 | LINK_LIBRARIES | additional libraries |
 | PIO_SOURCES | optional .pio files |
 | CORE_EXCLUDE | base names of core sources that the instrument replaces with its own variant |
-| CORE_MODULES | optional core modules; currently only ui_menu |
+| CORE_MODULES | optional core modules: ui_menu, ui_kit, reface |
 | NO_DOUBLE_RESET | flag: do not link `pico_bootsel_via_double_reset`; set by PicoFaceMD and PicoFaceSM |
 
 ui_menu contains the non-blocking list widget `picoface::ui::ListView` for instruments that draw from `uiTick()`. Its predecessor ui_panel held the blocking widgets that polled their encoders themselves, plus the reface CP MIDI layer and its persistence; with PicoFaceCP converted it had no users left. The CP-specific parts now live under `instruments/PicoFaceCP`, the rest has been deleted. Since then the core contains no instrument-specific code at all.
+
+ui_kit is the shared panel look (section 9). reface is `picoface::RefaceMidiBase`, the part of the Yamaha reface MIDI dialect that CP, DX and YC share - SYSTEM block, active sensing, channel filter, exclusive framing with byte count and checksum, the transmit side - with the model's CC map and tone-generator blocks left to the instrument's own `RefaceMidi` derived from it. The header-only `picoface/settings_autosave.h` next to it is the "virtual potentiometer memory" the three use instead of the core's edit-triggered save: a snapshot every 250 ms, written once it has held still for two seconds, so a voice that arrived over MIDI survives the power cycle too. Until 09/2026 each of the three carried a full copy of both, and the copies had drifted - the DX's seeded its master tune with 0 instead of the data list's centre, which a restored settings record applied as -102.4 cents.
 
 Instruments are found by auto-discovery over `instruments/*/instrument.cmake`. The CMake option `PICOFACE_INSTRUMENTS_FILTER` builds only the named instruments; empty means all. The aggregate target `all_instruments` builds everything. `pico_add_extra_outputs` already creates the files under the instrument name, so no renaming is needed.
 
@@ -283,14 +285,13 @@ After merging project_config.h, pico_hw.h and pico_hw.cpp into the core, the fol
 
 | File | Instruments |
 |---|---|
-| midi_input_usb.cpp | PicoFaceYC |
 | veeprom.cpp | PicoFaceRD |
 
-RD's `veeprom.cpp` differs in exactly one point too: `RD_CLOCK_504` selects a second QMI timing value after the flash write. Everything else is a copy, and every fix to the core file has to be made twice until the timing constant becomes a define. The instrument tag added for issue #18 is in both.
+RD's `veeprom.cpp` differs in exactly one point: `RD_CLOCK_504` selects a second QMI timing value after the flash write. Everything else is a copy, and every fix to the core file has to be made twice until the timing constant becomes a define. The instrument tag added for issue #18 is in both.
 
-YC's `midi_input_usb.cpp` differs in exactly one point: it turns a note-on with velocity 0 into a note-off. The core's DIN parser does that anyway, YC's `RefaceMidi::onNoteOn()` does not - that is where the handling belongs, and then the file can go.
+YC's `midi_input_usb.cpp` was the other one until 09/2026. It differed in exactly one point - a note-on with velocity 0 turned into a note-off - and that is now what the shared reface layer does for every port, so the file is gone.
 
-`settings.cpp`, `midi_reface.cpp` and `pico_frontpanel.cpp` were listed here until YC was converted. The first two still live under `instruments/PicoFaceYC/src/`, but no longer replace anything, because the core has no sources by those names any more. `pico_frontpanel.cpp` is gone without replacement.
+`settings.cpp` and `midi_reface.cpp` under `instruments/PicoFace{CP,DX,YC}/src/` carry the names of former core sources but replace nothing: they are the instrument's part on top of the core's reface module and settings autosave (section 3). `pico_frontpanel.cpp` is gone without replacement.
 
 **Shadowed headers**
 
@@ -400,7 +401,7 @@ DX falls outside that range with 5,088 bytes of flash and 2,496 bytes of RAM, bu
 **Open:**
 
 1. Hardware test of DIN MIDI (section 6a).
-2. YC's `midi_input_usb.cpp`, the last replaced core source next to RD's `veeprom.cpp` (section 7).
+2. ~~YC's `midi_input_usb.cpp`~~ - gone with the shared reface layer (09/2026); RD's `veeprom.cpp` is the last replaced core source (section 7).
 3. PicoFaceD5: patches received over SysEx are held in RAM and do not survive a
    power cycle, and the handshake variant of Roland's protocol (WSD/RQD/DAT)
    is not spoken -- only the one-way DT1/RQ1 that editors use.

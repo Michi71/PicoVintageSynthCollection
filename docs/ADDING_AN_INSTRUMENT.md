@@ -70,6 +70,8 @@ The instrument is found automatically on the next configure run, included in the
 | Need | How |
 |---|---|
 | menu list for `uiTick()` (`picoface::ui::ListView`) | add `CORE_MODULES ui_menu` |
+| a Yamaha reface MIDI layer (SYSTEM block, active sensing, exclusive framing) | add `CORE_MODULES reface`, derive your `RefaceMidi` from `picoface::RefaceMidiBase` (`core/include/picoface/reface_midi.h`); PicoFaceDX is the template |
+| snapshot autosave of the panel state, MIDI changes included | `picoface/settings_autosave.h`, see `instruments/PicoFaceYC/src/settings.cpp` |
 | own hardware access | add your own `src/pico_hw.cpp` and set `CORE_EXCLUDE pico_hw.cpp` |
 | own .pio files | list them under `PIO_SOURCES` |
 | no double-tap RESET into BOOTSEL | add the flag `NO_DOUBLE_RESET` (see `docs/ARCHITECTURE.md`, section 7) |
