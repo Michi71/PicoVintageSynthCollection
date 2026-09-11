@@ -110,12 +110,14 @@ the selector opens the system menu (About / CPU Load).
 
 ## MIDI
 
-- **Note handling**: note on/off with octave transpose. Sustain (CC64) is always active. The RX channel filter defaults to omni.
+- **Note handling**: note on/off with octave and master transpose. Sustain (CC64) is always active. The RX channel filter defaults to omni.
+- **Pitch bend**: ±2 semitones (the YC recognises bend but has no range setting), re-derived on the cached phase increments per message, nothing per sample.
+- **Controllers**: CC1 (mod wheel) switches the rotary between SLOW and FAST as on the original, CC7 and CC11 scale the output, CC120/121/123/126/127 do what the data list says.
 - **Panel CCs**: the gated panel CCs (wave / footage x9 / percussion x3 / vibrato-chorus x2 / rotary / distortion / reverb) are only processed while MIDI control is active.
 - **Panel mirroring**: encoder edits on the panel are transmitted as outgoing MIDI CC, on USB and DIN alike.
-- **SysEx**: parameter change (set) and parameter request (reply) for all tone generator addresses, plus identity reply.
+- **SysEx**: identity reply, parameter change and request for every tone generator address, and the TG bulk dump both ways (header, 22-byte block, footer, with byte count and checksum) - what Yamaha's Soundmondo editor asks for on connect.
 - **Program change**: NOT supported (the YC does not support it per the official MIDI implementation chart).
-- **Limitations**: the model ID byte for SysEx is an unverified placeholder (see [doc/MIDI_IMPLEMENTATION.md](doc/MIDI_IMPLEMENTATION.md)). The full bulk dump block (with checksum) is not implemented yet.
+- **Verification**: model byte 06H, identity bytes and block layout are taken from the Yamaha reface Data List and cross-checked against Soundmondo's source; no real reface YC was on the bench. [tools/host_tests/yc_sysex](../../tools/host_tests/yc_sysex/) pins the wire format.
 
 Full spec: [doc/MIDI_IMPLEMENTATION.md](doc/MIDI_IMPLEMENTATION.md).
 
@@ -142,8 +144,8 @@ A fixed chain (no slot system like PicoFaceDX):
 1. **Percussion**: monophonic, single-trigger, 2nd/3rd harmonic. Attack/decay controlled by Length.
 2. **Vibrato/chorus**: modulated delay line.
 3. **Overdrive**: 1024-point LUT with a tanh curve.
-4. **Rotary speaker**: algorithmic horn/drum model with crossover filter and physical speed ramps between OFF/STOP/SLOW/FAST.
-5. **Reverb**: Schroeder type (4 comb + 2 allpass).
+4. **Rotary speaker**: algorithmic horn/drum model with crossover filter and physical speed ramps between OFF/STOP/SLOW/FAST. Stereo: the right channel hears the horn half a turn and the drum a quarter turn behind the left, like a mic pair around the cabinet; OFF is mono.
+5. **Reverb**: Schroeder type (4 comb + 2 allpass), mono, fed with the mid of both channels behind the rotary and mixed into each.
 6. **Soft-clip limiter**: final safety stage.
 
 ## Design notes

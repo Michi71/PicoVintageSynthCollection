@@ -374,7 +374,7 @@ These defines are deliberately not unified in the helper but set per instrument 
 
 | Instrument | Flash | RAM | PID | Original (flash/RAM) |
 |---|---|---|---|---|
-| PicoFaceYC | 150,892 | 50,240 | 0x1050 | 130,408 / 44,780 |
+| PicoFaceYC | 153,188 | 50,240 | 0x1050 | 130,408 / 44,780 |
 | PicoFaceCP | 3,997,728 | 180,492 | 0x1051 | 4,431,112 / 175,612 |
 | PicoFaceRD | 2,708,672 | 68,016 | 0x1052 | 5,312,968 / 33,928 |
 | PicoFaceJ6 | 122,532 | 24,364 | 0x1053 | 101,644 / 17,688 |

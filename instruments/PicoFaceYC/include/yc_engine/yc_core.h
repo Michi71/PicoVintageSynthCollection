@@ -15,6 +15,9 @@ constexpr float YC_SAMPLE_RATE = 44100.0f;
 constexpr int YC_ATTACK_SAMPLES = 88;
 constexpr int YC_RELEASE_SAMPLES = 128;
 constexpr float YC_2PI = 2.0f * 3.14159265358979323846f;
+// The reface YC recognises pitch bend (data list, implementation chart) but
+// has no range setting like the CS; +-2 semitones is the MIDI default.
+constexpr float YC_BEND_RANGE_SEMITONES = 2.0f;
 
 // Parameter-IDs fuer yc_engine_set_param() und IPC-Panel-Updates.
 // Lebt hier (statt in ipc.h), damit die host-kompilierbare Engine sie nutzen
@@ -57,7 +60,15 @@ struct yc_engine_state_t {
     uint8_t distortion;
     uint8_t reverb;
     uint8_t volume;
-    float vol_gain = 1.0f;
+    // MIDI channel volume (CC7) and expression (CC11), both 0..127. They only
+    // ever reach the audio path folded into vol_gain, see yc_engine_update_gain().
+    uint8_t midi_volume = 127;
+    uint8_t expression = 127;
+    float vol_gain = 1.0f;     // volume * midi_volume * expression, each /127
+    // Pitch bend as a frequency factor; 1.0 = centre. Applied to the cached
+    // phase increments at note-on and re-applied to the active voices when it
+    // changes, never per sample.
+    float bend_ratio = 1.0f;
     bool sustain_held;
 };
 

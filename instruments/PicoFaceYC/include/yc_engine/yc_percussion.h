@@ -51,7 +51,8 @@ static inline float yc_percussion_render(yc_percussion_state_t& pstate, const yc
     }
 
     float ratio = (state.perc_type == 1) ? 3.0f : 2.0f;
-    float phase_inc = pstate.frequency * ratio / YC_SAMPLE_RATE * (float)YC_WAVETABLE_SIZE;
+    // The percussion follows the bend like the voices do (factor 1.0f at centre).
+    float phase_inc = pstate.frequency * ratio * state.bend_ratio / YC_SAMPLE_RATE * (float)YC_WAVETABLE_SIZE;
 
     int idx0 = (int)pstate.phase;
     int idx1 = (idx0 + 1) % YC_WAVETABLE_SIZE;
@@ -66,6 +67,8 @@ static inline float yc_percussion_render(yc_percussion_state_t& pstate, const yc
 
     pstate.samples_since_trigger++;
 
-    return sample * env_val;
+    // Through the same master gain as the voices: until here the percussion
+    // ignored the volume, so a muted organ still clicked at full level.
+    return sample * env_val * state.vol_gain;
 }
 

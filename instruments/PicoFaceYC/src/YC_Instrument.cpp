@@ -21,6 +21,7 @@
 #include "audio_subsystem.h"   // SAMPLES_PER_BUFFER
 #include "project_config.h"    // PIN_LED
 #include "ipc.h"
+#include "yc_ipc_apply.h"
 #include "midi_reface.h"
 #include "settings.h"
 #include "YC_Controller.h"
@@ -56,8 +57,7 @@ public:
 
         // Drain the ring first: MIDI dispatch and panel edits run on this core
         // but outside the producer, so they are applied at block boundaries.
-        uint32_t pkt;
-        while (yc_ipc_pop(&pkt)) applyIpc(pkt);
+        yc_ipc_drain(bridge_);
 
         // The YC engine renders float; convert to the packed int32 the I2S pool wants.
         static float buf[SAMPLES_PER_BUFFER * 2];
@@ -129,36 +129,6 @@ public:
     // from settings_task() rather than handing a buffer to the core.
 
 private:
-    void applyIpc(uint32_t pkt) {
-        switch (ipc_type(pkt))
-        {
-        case IPC_CMD_YC_NOTE_ON:
-            bridge_.noteOn(ipc_d1(pkt), (uint8_t) ipc_d2(pkt));
-            break;
-        case IPC_CMD_YC_NOTE_OFF:
-            bridge_.noteOff(ipc_d1(pkt));
-            break;
-        case IPC_CMD_YC_PANEL_UPDATE:
-            bridge_.setParam(ipc_d1(pkt), ipc_d2(pkt));
-            break;
-        case IPC_CMD_YC_SUSTAIN:
-            bridge_.setSustain(ipc_d1(pkt) != 0);
-            break;
-        case IPC_CMD_YC_ALL_NOTES_OFF:
-            bridge_.allNotesOff();
-            break;
-        case IPC_CMD_YC_ROTARY_TARGET:
-            bridge_.setRotaryTarget(ipc_d1(pkt));
-            break;
-        case IPC_CMD_YC_MIDI_CTRL_MODE:
-            break;  // not implemented yet
-        case IPC_CMD_YC_PITCH_BEND:
-            break;  // pitch bend not implemented in the tonegen yet
-        default:
-            break;
-        }
-    }
-
     YC_Synth_Bridge bridge_;
     RefaceMidi      refaceMidi_;   // channel/CC/SysEx/active sensing
     YC_Controller   controller_;

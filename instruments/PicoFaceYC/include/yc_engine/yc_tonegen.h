@@ -84,9 +84,27 @@ static inline void yc_tonegen_note_on(yc_engine_state_t& state, uint8_t note, ui
     v.base_freq = 440.0f * powf(2.0f, (float)(note - 69) / 12.0f) * exp2f((float)oct); // einmalig hier berechnet statt pro Sample
     v.phase = 0.0f;
     v.amp = 0.0f;
+    // Pitch bend goes in as a factor on the base frequency; with the bend at
+    // centre the factor is exactly 1.0f and the increments are what they were
+    // before bend existed.
+    const float bent = v.base_freq * state.bend_ratio;
     for (int i = 0; i < YC_NUM_FOOTAGES; ++i) {
         v.footage_phase[i] = 0.0f;
-        v.phase_inc[i] = (v.base_freq * YC_FOOTAGE_PITCH_RATIO[i] / YC_SAMPLE_RATE) * (float)YC_WAVETABLE_SIZE; // einmalig hier berechnet statt pro Sample
+        v.phase_inc[i] = (bent * YC_FOOTAGE_PITCH_RATIO[i] / YC_SAMPLE_RATE) * (float)YC_WAVETABLE_SIZE; // einmalig hier berechnet statt pro Sample
+    }
+}
+
+// A new bend factor: re-derive the cached increments of every active voice
+// from its base frequency. Runs at MIDI rate (a bend message), so 16 voices x
+// 9 footages is nothing; the per-sample path stays untouched.
+static inline void yc_tonegen_set_bend(yc_engine_state_t& state, float ratio) {
+    state.bend_ratio = ratio;
+    for (int k = 0; k < state.active_count; ++k) {
+        yc_voice_t& v = state.voices[state.active_idx[k]];
+        const float bent = v.base_freq * ratio;
+        for (int i = 0; i < YC_NUM_FOOTAGES; ++i) {
+            v.phase_inc[i] = (bent * YC_FOOTAGE_PITCH_RATIO[i] / YC_SAMPLE_RATE) * (float)YC_WAVETABLE_SIZE;
+        }
     }
 }
 

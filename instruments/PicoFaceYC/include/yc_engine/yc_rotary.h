@@ -13,6 +13,13 @@ constexpr float YC_ROTARY_RAMP_RATE = 6.5f / (2.0f * YC_SAMPLE_RATE); // ~2 s Ho
 constexpr float YC_ROTARY_CROSSOVER_ALPHA = 0.10772478580474854f; // 1 - expf(-2pi * 800 Hz / 44100 Hz), float32-exakt vorberechnet
 constexpr float YC_ROTARY_HORN_DEPTH = 0.4f;
 constexpr float YC_ROTARY_DRUM_DEPTH = 0.2f;
+// Stereo: the right channel hears each rotor at a phase offset, as a mic pair
+// around the cabinet would. The horn radiates from one mouth, so two mics on
+// opposite sides see it half a turn apart (pi); the bass rotor is far less
+// directional and gets a quarter turn, which moves the low end less. Both are
+// a first choice for the ear, not a measurement.
+constexpr float YC_ROTARY_HORN_STEREO_OFFSET = 0.5f * YC_2PI;
+constexpr float YC_ROTARY_DRUM_STEREO_OFFSET = 0.25f * YC_2PI;
 
 // Bewegt current schrittweise auf target zu (Leslie-Hochlauf/Auslauf).
 static inline float yc_approach(float current, float target, float step) {
@@ -34,12 +41,25 @@ struct yc_rotary_state_t {
     float lp_state = 0.0f;
 };
 
+// Half-wave AM of one rotor as seen from one mic: 1 - depth .. 1.
+static inline float yc_rotary_mod(float phase, float offset, float depth) {
+    float p = phase + offset;
+    if (p >= YC_ROTARY_2PI) p -= YC_ROTARY_2PI;
+    return 1.0f - depth + depth * (0.5f + 0.5f * yc_sinf_lut(p));
+}
+
 // rotary_speed: 0=OFF (harter Bypass), 1=STOP (Rotoren laufen aus und bleiben
 // stehen: statische Klangfaerbung, wie ein geparktes echtes Leslie),
 // 2=SLOW, 3=FAST. STOP ist ein gewollter Modus (GUI/MIDI/Doku), kein Restzustand.
-static inline float yc_rotary_process(yc_rotary_state_t& rstate, const yc_engine_state_t& state, float dry_sample) {
+//
+// Stereo out: the left channel is what the mono model always produced, the
+// right channel hears the rotors at the offsets above. OFF returns the dry
+// sample on both, bit for bit.
+static inline void yc_rotary_process(yc_rotary_state_t& rstate, const yc_engine_state_t& state, float dry_sample, float& out_l, float& out_r) {
     if (state.rotary_speed == 0) {
-        return dry_sample;
+        out_l = dry_sample;
+        out_r = dry_sample;
+        return;
     }
 
     // STOP (1): Zielgeschwindigkeiten 0 -> Auslauf-Rampe, danach eingefroren.
@@ -66,8 +86,8 @@ static inline float yc_rotary_process(yc_rotary_state_t& rstate, const yc_engine
     float low = rstate.lp_state;
     float high = dry_sample - low;
 
-    float horn_mod = 1.0f - YC_ROTARY_HORN_DEPTH + YC_ROTARY_HORN_DEPTH * (0.5f + 0.5f * yc_sinf_lut(rstate.horn_phase));
-    float drum_mod = 1.0f - YC_ROTARY_DRUM_DEPTH + YC_ROTARY_DRUM_DEPTH * (0.5f + 0.5f * yc_sinf_lut(rstate.drum_phase));
-
-    return (low * drum_mod) + (high * horn_mod);
+    out_l = low * yc_rotary_mod(rstate.drum_phase, 0.0f, YC_ROTARY_DRUM_DEPTH)
+          + high * yc_rotary_mod(rstate.horn_phase, 0.0f, YC_ROTARY_HORN_DEPTH);
+    out_r = low * yc_rotary_mod(rstate.drum_phase, YC_ROTARY_DRUM_STEREO_OFFSET, YC_ROTARY_DRUM_DEPTH)
+          + high * yc_rotary_mod(rstate.horn_phase, YC_ROTARY_HORN_STEREO_OFFSET, YC_ROTARY_HORN_DEPTH);
 }

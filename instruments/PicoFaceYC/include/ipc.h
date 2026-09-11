@@ -24,8 +24,9 @@ enum IpcCommand : uint8_t {
     IPC_CMD_YC_SUSTAIN = 0x0E,
     IPC_CMD_YC_ALL_NOTES_OFF = 0x0F,
     IPC_CMD_YC_ROTARY_TARGET = 0x10,
-    IPC_CMD_YC_MIDI_CTRL_MODE = 0x11,
-    IPC_CMD_YC_PITCH_BEND = 0x12
+    IPC_CMD_YC_MIDI_VOLUME = 0x11,     // CC7, d1 = 0..127
+    IPC_CMD_YC_PITCH_BEND = 0x12,      // d2 = 0..16383, centre 8192
+    IPC_CMD_YC_EXPRESSION = 0x13       // CC11, d1 = 0..127
 };
 
 static inline uint32_t ipc_pack(uint8_t type, uint8_t d1, uint16_t d2) {
@@ -106,8 +107,12 @@ static inline void ipc_send_yc_rotary_target(uint8_t target_speed) {
     yc_ipc_push(ipc_pack(IPC_CMD_YC_ROTARY_TARGET, target_speed, 0));
 }
 
-static inline void ipc_send_yc_midi_ctrl_mode(uint8_t enabled) {
-    yc_ipc_push(ipc_pack(IPC_CMD_YC_MIDI_CTRL_MODE, enabled, 0));
+static inline void ipc_send_yc_midi_volume(uint8_t value) {
+    yc_ipc_push(ipc_pack(IPC_CMD_YC_MIDI_VOLUME, value, 0));
+}
+
+static inline void ipc_send_yc_expression(uint8_t value) {
+    yc_ipc_push(ipc_pack(IPC_CMD_YC_EXPRESSION, value, 0));
 }
 
 static inline void ipc_send_yc_pitch_bend(uint16_t bend14) {

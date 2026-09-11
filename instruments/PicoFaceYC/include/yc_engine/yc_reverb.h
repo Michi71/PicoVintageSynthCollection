@@ -39,24 +39,35 @@ static inline float yc_reverb_allpass(float* buf, int& idx, int size, float inpu
     return y;
 }
 
-static inline float yc_reverb_process(yc_reverb_state_t& rstate, const yc_engine_state_t& state, float dry_sample) {
-    if (state.reverb == 0) {
-        return dry_sample;
-    }
-
+// The diffused signal for one mono input sample. The reverb stays mono behind
+// the stereo rotary: it is fed the mid of both channels and the same tail is
+// mixed into each, which keeps the 18 KB of delay lines single and is how a
+// room behind a Leslie sounds anyway - the swirl is in the direct sound.
+static inline float yc_reverb_wet(yc_reverb_state_t& rstate, float in) {
     const float comb_fb = 0.84f;
-    float c1 = yc_reverb_comb(rstate.comb1, rstate.comb1_idx, 1116, dry_sample, comb_fb);
-    float c2 = yc_reverb_comb(rstate.comb2, rstate.comb2_idx, 1188, dry_sample, comb_fb);
-    float c3 = yc_reverb_comb(rstate.comb3, rstate.comb3_idx, 1277, dry_sample, comb_fb);
-    float c4 = yc_reverb_comb(rstate.comb4, rstate.comb4_idx, 1356, dry_sample, comb_fb);
+    float c1 = yc_reverb_comb(rstate.comb1, rstate.comb1_idx, 1116, in, comb_fb);
+    float c2 = yc_reverb_comb(rstate.comb2, rstate.comb2_idx, 1188, in, comb_fb);
+    float c3 = yc_reverb_comb(rstate.comb3, rstate.comb3_idx, 1277, in, comb_fb);
+    float c4 = yc_reverb_comb(rstate.comb4, rstate.comb4_idx, 1356, in, comb_fb);
 
     float comb_out = (c1 + c2 + c3 + c4) * 0.25f;
 
     const float g = 0.5f;
     float ap1 = yc_reverb_allpass(rstate.allpass1, rstate.allpass1_idx, 225, comb_out, g);
-    float ap2 = yc_reverb_allpass(rstate.allpass2, rstate.allpass2_idx, 556, ap1, g);
+    return yc_reverb_allpass(rstate.allpass2, rstate.allpass2_idx, 556, ap1, g);
+}
 
-    float wet_level = (state.reverb / 127.0f) * 0.5f;
-    return dry_sample * (1.0f - wet_level) + ap2 * wet_level;
+static inline float yc_reverb_wet_level(const yc_engine_state_t& state) {
+    return (state.reverb / 127.0f) * 0.5f;
+}
+
+// Stereo in place. With l == r this is the old mono stage bit for bit: the
+// mid of two equal samples is that sample.
+static inline void yc_reverb_process(yc_reverb_state_t& rstate, const yc_engine_state_t& state, float& l, float& r) {
+    if (state.reverb == 0) return;
+    const float wet = yc_reverb_wet(rstate, 0.5f * (l + r));
+    const float w = yc_reverb_wet_level(state);
+    l = l * (1.0f - w) + wet * w;
+    r = r * (1.0f - w) + wet * w;
 }
 
