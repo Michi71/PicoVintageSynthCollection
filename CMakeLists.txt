@@ -76,6 +76,13 @@ else()
     message(FATAL_ERROR "PICOFACE_BOARD must be 'pico' or 'rp2350b_plus_w' (got '${PICOFACE_BOARD}')")
 endif()
 
+# PICOFACE_BOOT_DIAG=ON builds a boot-diagnostic image: the display comes up
+# BEFORE pico_init() touches voltage, clock or flash, shows what the bootrom
+# left in the QMI, and every stage of the boot appends a line. A board that
+# hangs leaves its last completed stage on the screen. Off by default; the
+# instrument is otherwise unchanged.
+option(PICOFACE_BOOT_DIAG "Boot-stage diagnostics on the display" OFF)
+
 include(cmake/pico_sdk_import.cmake)
 include(cmake/pico_extras_import.cmake)
 

@@ -64,6 +64,13 @@ static inline void pico_fpu_ftz_enable(void)
 
 void pico_init();
 
+// Boot-stage diagnostics. When set before pico_init(), it is called with a
+// short line at every stage of the voltage/clock/flash bring-up, always at a
+// moment where flash is readable (never from the SRAM-resident ladder). NULL
+// in normal builds; the PICOFACE_BOOT_DIAG image points it at the display so
+// a board that hangs shows its last completed stage.
+extern void (*picoface_boot_diag)(const char *line);
+
 // What the bootrom left in the QMI, captured at the first instruction of
 // pico_init() before anything is changed, plus what we concluded from it.
 // The three registers are diagnostics; the last two are what the flash is
