@@ -8,7 +8,11 @@ offene Punkte in dessen §8.
 **Stand:** Release **v1.21.0** (11.09.2026, Tag auf `4776ad1`): gemeinsame
 reface-MIDI-Schicht (#167, mit dem DX-Master-Tune-Fix), Host-Tests in der CI
 (#166), Doku-Pflege (#168), YC-MIDI komplett (#169: Pitch Bend, Stereo-Rotary,
-TG-Bulk-Dump, Model-ID aus der Datenliste). Nichts Ungereleastes auf `main`.
+TG-Bulk-Dump, Model-ID aus der Datenliste). Ungereleast auf `main`: #170
+(Bootrom-Revision `b4` im Splash), #172 (Boot-Diagnose `PICOFACE_BOOT_DIAG`,
+`PICOFACE_EXTRA_DEFINES`; Befund: Billigboards ignorieren das VREG-Register,
+Kern bleibt bei ~300 MHz, Flash und Stepping unschuldig) und die
+README-Hardware-Anforderung dazu.
 
 ## Sprache
 
