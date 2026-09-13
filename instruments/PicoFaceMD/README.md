@@ -339,6 +339,23 @@ of 2 in `include/moog/moog_defs.h` and can be set through `DEFINES` in
 `instrument.cmake`. The safe mode and the double-reset switch are gone; see the
 section below for what the latter now does.
 
+Two collection-wide switches exist for **test images**, both cache variables
+of the root `CMakeLists.txt`:
+
+- `-DPICOFACE_BOOT_DIAG=ON` brings the display up *before* `pico_init()`
+  touches voltage, clock or flash, prints the stepping, the bootrom revision
+  and the three QMI registers the bootrom left behind, then one line per
+  boot stage (`vreg`, `quad`, `slack`, `clk`, `tune`, `timing`, `init done`).
+  A board that hangs shows its last completed stage. See "The board that
+  stops at 300 MHz" below for the image in use.
+- `-DPICOFACE_EXTRA_DEFINES="A=1;B=2"` passes compile definitions to every
+  instrument target without touching the SDK's own flags (global
+  `CMAKE_C_FLAGS` break its platform detection). `PICOFACE_SYS_CLOCK_HZ`,
+  `PICOFACE_QMI_M0_TIMING_SAFE` and `PICOFACE_VREG_VOLTAGE` are the knobs
+  written for it. Every such image should be checked for its constant in the
+  ELF before it is sent anywhere -- the diagnostic lines print the values in
+  force, which is the check at the device.
+
 ### Oversampling
 
 The oscillators are band-limited by polyBLEP, so they alias very little on
@@ -831,6 +848,67 @@ produced by any path in the code -- `CLKDIV=8` exists only as `SAFE`, whose
 `RXDELAY` is 2, and the diagnostic confirmed the bootrom's own `RXDELAY` is 2 as
 well. It is most likely `444/56 r2` read off a 5x7 font; nothing above depends
 on it.
+
+### The board that stops at 300 MHz: a core voltage the register cannot reach
+
+The cheap 16 MB board bought to reproduce #107 without the reporter (marked
+`RP2350A0A4`, September 2026) shows nothing at all with the release image.
+With `PICOFACE_BOOT_DIAG` it shows this, and stops:
+
+```
+DIAG A3 b4 1.21.0-2-g8ea3
+T 60007203
+F 000492a8
+C 000000eb
+vreg 1.60
+vreg ok
+slack 60007208
+clk 444
+```
+
+Three things are settled by that screen alone. `b4` with `A3`: an A4-marked
+chip reports `A3` in `CHIP_ID`, whatever the datasheet says about `0x8`, and
+the ROM byte is the detector that works. `C ..eb` with a four-bit data width:
+the bootrom established quad on its own, with the same registers as an A2
+Pico 2 -- the flash chip is not what is different about this board. And the
+last line: the board dies inside `set_sys_clock_hz()`, before the ladder,
+before any fast flash timing is applied.
+
+Then four images, one variable at a time:
+
+| image | core | flash after the jump | vreg | result |
+|---|---|---|---|---|
+| `c444_f37` | 444 MHz | 37 MHz (`CLKDIV=12`) | 1.60 V | dies at `clk 444` |
+| `c300_f37` | 300 MHz | 37.5 MHz | 1.60 V | runs; ladder verifies `RX4`, 100 MHz flash |
+| 420 / 400 / 375 / 348 / 336 / 324 / 312 | as named | clk/8 | 1.60 V | all die at `clk N` |
+| `c300_v085` | 300 MHz | 37.5 MHz | **0.85 V requested** | **runs to the menu** |
+
+The first two exonerate the flash: the same part reads a correct checksum at
+100 MHz, so it did not fail at 37. The ladder puts the edge between 300 and
+312 MHz, as sharp as a timing limit at a fixed voltage. The last image is the
+one that matters: a core really running at 0.85 V does not do 300 MHz. That it
+does means **the regulator register has no effect on DVDD on this board** --
+the core has been running at whatever the board supplies, presumably the
+nominal 1.10 V, for every image above, and 300 MHz is exactly what an RP2350
+manages there. The chip is fine. The board's power design does not route
+`DVDD` through the on-chip regulator that `vreg_set_voltage()` controls, and
+without that there is no 444 MHz to be had from it, by any firmware.
+
+What this project can therefore say about hardware: it needs a board whose
+`DVDD` is fed by the RP2350's own regulator (the Pico 2 reference design and
+the Waveshare boards tested here do that). A board that ignores the regulator
+register tops out near 300 MHz, and the engines are budgeted for 444; that is
+"boots at 300 MHz, no sound", the exact picture in #107. The measurement that
+proves it on a board without opening the case is the `c300_v085` image, and
+the plain reading is a multimeter on the DVDD side of the inductor next to the
+chip: it should read 1.60 V under the release image, and on such a board it
+will not.
+
+Two of this file's earlier guesses close with that. The "core clock is the
+prime suspect" reading of the #107 register readout was right, and for the
+right reason. The lead that the A4 bootrom's faster early boot explains dual
+mode was already withdrawn in the section above; this board's bootrom found
+quad by itself.
 
 ### A benchmark that cannot be compared across builds
 
