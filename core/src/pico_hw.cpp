@@ -115,6 +115,13 @@ bool     picoface_flash_is_quad        = true;   // assumed until pico_init() lo
 uint32_t picoface_qmi_timing_effective = PICOFACE_QMI_M0_TIMING_SAFE;
 bool     picoface_flash_verified       = false;  // did the chosen timing prove itself?
 void   (*picoface_boot_diag)(const char *) = NULL;
+#define PF_STR_(x) #x
+#define PF_STR(x) PF_STR_(x)
+// Overridable for test images only (PICOFACE_EXTRA_DEFINES); see the note at
+// the call site in pico_init() for why 1.60 V is what ships.
+#ifndef PICOFACE_VREG_VOLTAGE
+#define PICOFACE_VREG_VOLTAGE VREG_VOLTAGE_1_60
+#endif
 #define PF_DIAG(...) do { if (picoface_boot_diag) { char _d[26]; snprintf(_d, sizeof _d, __VA_ARGS__); picoface_boot_diag(_d); } } while (0)
 
 #if PICO_RP2350
@@ -345,9 +352,9 @@ void pico_init()
     // a sustained full-polyphony soak with the CPU-load page as pass
     // criterion, then keep one 50 mV step of margin. Lower voltage means less
     // die heating and slower aging.
-    PF_DIAG("vreg 1.60");
+    PF_DIAG("vreg %s", PF_STR(PICOFACE_VREG_VOLTAGE) + sizeof "VREG_VOLTAGE_" - 1);
     vreg_disable_voltage_limit();
-    vreg_set_voltage(VREG_VOLTAGE_1_60);
+    vreg_set_voltage(PICOFACE_VREG_VOLTAGE);
     sleep_ms(10);   // switching regulator settles in tens of microseconds
     PF_DIAG("vreg ok");
 
