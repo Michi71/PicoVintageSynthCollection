@@ -167,7 +167,9 @@
 // switch and the board would not boot. 444 MHz stayed on the working side of
 // that edge, but with no margin worth the name. See README, "The 480 MHz boot
 // failure".
+#ifndef PICOFACE_QMI_M0_TIMING_SAFE
 #define PICOFACE_QMI_M0_TIMING_SAFE 0x60007208u
+#endif   // overridable for test images (PICOFACE_EXTRA_DEFINES)
 
 // 148 MHz flash at 444 MHz, sampled as early as it goes: 2.76 ns for a device
 // that may want 6 in the worst case, which places the sample point 11 % into

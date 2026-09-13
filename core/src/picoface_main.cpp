@@ -264,10 +264,56 @@ static bool pf_firmware_update(picoface::Instrument& inst,
     return true;
 }
 
+#if PICOFACE_BOOT_DIAG && PICO_RP2350
+// Eight lines of 5x7 text, scrolling; each call redraws and flushes. The I2C
+// baud is re-derived on every call because the stages straddle the clk_sys
+// change, and a divider computed at 150 MHz is three times too fast at 444.
+static void pf_boot_diag_line(const char *line)
+{
+    static char lines[8][26];
+    static int  n = 0;
+    if (n == 8) { memmove(lines[0], lines[1], sizeof lines - sizeof lines[0]); n = 7; }
+    snprintf(lines[n++], sizeof lines[0], "%s", line);
+    i2c_set_baudrate(i2c1, PICOFACE_OLED_I2C_HZ);
+    u8g2_ClearBuffer(&g_u8g2);
+    u8g2_SetFont(&g_u8g2, u8g2_font_5x7_tf);
+    for (int i = 0; i < n; i++) u8g2_DrawStr(&g_u8g2, 0, 7 + 8 * i, lines[i]);
+    u8g2_SendBuffer(&g_u8g2);
+}
+#endif
+
 int main(void)
 {
     // bring up the chip basics before anything else
+#if PICOFACE_BOOT_DIAG && PICO_RP2350
+    // Boot diagnostics: the display first, at the bootrom's clock and flash
+    // timing, before pico_init() changes any of it. The header is what the
+    // bootrom left behind; pico_init() then appends one line per stage. On a
+    // board that never reaches the splash, the last line on the screen is the
+    // stage it did not survive.
+    u8g2_Setup_sh1106_i2c_128x64_noname_f(&g_u8g2, U8G2_R0, u8x8_byte_pico_hw_i2c, u8x8_gpio_and_delay_pico);
+    u8g2_InitDisplay(&g_u8g2);
+    u8g2_SetPowerSave(&g_u8g2, 0);
+    {
+        char l[26];
+        snprintf(l, sizeof l, "DIAG A%u b%u %s", (unsigned)rp2350_chip_version(),
+                 (unsigned)rp2350_rom_version(), PICOFACE_VERSION);
+        pf_boot_diag_line(l);
+        snprintf(l, sizeof l, "T %08x", (unsigned)qmi_hw->m[0].timing);
+        pf_boot_diag_line(l);
+        snprintf(l, sizeof l, "F %08x", (unsigned)qmi_hw->m[0].rfmt);
+        pf_boot_diag_line(l);
+        snprintf(l, sizeof l, "C %08x", (unsigned)qmi_hw->m[0].rcmd);
+        pf_boot_diag_line(l);
+    }
+    picoface_boot_diag = pf_boot_diag_line;
+#endif
     pico_init();
+#if PICOFACE_BOOT_DIAG && PICO_RP2350
+    pf_boot_diag_line("init done");
+    // Leave it readable: the normal splash below would overwrite it.
+    for (int i = 0; i < 4000; i++) sleep_ms(1);
+#endif
 
     // grab the singleton instrument
     picoface::Instrument& inst = picoface::instrument();

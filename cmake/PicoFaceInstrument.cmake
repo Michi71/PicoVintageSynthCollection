@@ -194,6 +194,12 @@ function(picoface_add_instrument)
         PICOFACE_USB_PID=${PF_USB_PID}
         PICOFACE_VERSION=\"${PF_VERSION}\"
     )
+    if(PICOFACE_BOOT_DIAG)
+        list(APPEND _defines PICOFACE_BOOT_DIAG=1)
+    endif()
+    if(PICOFACE_EXTRA_DEFINES)
+        list(APPEND _defines ${PICOFACE_EXTRA_DEFINES})
+    endif()
     target_compile_definitions(${PF_NAME} PRIVATE ${_defines} ${PF_DEFINES})
 
     # --- compile / link options (target-local only) ------------------------------

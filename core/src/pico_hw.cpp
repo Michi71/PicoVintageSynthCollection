@@ -114,6 +114,15 @@ uint32_t picoface_boot_qmi_rcmd        = 0;
 bool     picoface_flash_is_quad        = true;   // assumed until pico_init() looks
 uint32_t picoface_qmi_timing_effective = PICOFACE_QMI_M0_TIMING_SAFE;
 bool     picoface_flash_verified       = false;  // did the chosen timing prove itself?
+void   (*picoface_boot_diag)(const char *) = NULL;
+#define PF_STR_(x) #x
+#define PF_STR(x) PF_STR_(x)
+// Overridable for test images only (PICOFACE_EXTRA_DEFINES); see the note at
+// the call site in pico_init() for why 1.60 V is what ships.
+#ifndef PICOFACE_VREG_VOLTAGE
+#define PICOFACE_VREG_VOLTAGE VREG_VOLTAGE_1_60
+#endif
+#define PF_DIAG(...) do { if (picoface_boot_diag) { char _d[26]; snprintf(_d, sizeof _d, __VA_ARGS__); picoface_boot_diag(_d); } } while (0)
 
 #if PICO_RP2350
 // --- Boot-time flash timing self-calibration -------------------------------
@@ -343,9 +352,11 @@ void pico_init()
     // a sustained full-polyphony soak with the CPU-load page as pass
     // criterion, then keep one 50 mV step of margin. Lower voltage means less
     // die heating and slower aging.
+    PF_DIAG("vreg %s", PF_STR(PICOFACE_VREG_VOLTAGE) + sizeof "VREG_VOLTAGE_" - 1);
     vreg_disable_voltage_limit();
-    vreg_set_voltage(VREG_VOLTAGE_1_60);
+    vreg_set_voltage(PICOFACE_VREG_VOLTAGE);
     sleep_ms(10);   // switching regulator settles in tens of microseconds
+    PF_DIAG("vreg ok");
 
     // Raise clk_sys with the flash held at a slack timing across the switch.
     //
@@ -391,8 +402,11 @@ void pico_init()
         // The bootrom settled on something slower than quad. Take a checksum in
         // that mode as the truth, try to get quad ourselves, and re-read the
         // registers so everything below sees the result.
+        PF_DIAG("quad: try");
         const uint32_t ref0 = picoface_flash_probe();
         picoface_flash_quad_by_us = picoface_flash_enable_quad(ref0);
+        PF_DIAG("quad J%06x %s", (unsigned)picoface_flash_jedec,
+                picoface_flash_quad_by_us ? "ok" : "no");
         picoface_boot_qmi_timing = qmi_hw->m[0].timing;
         picoface_boot_qmi_rfmt   = qmi_hw->m[0].rfmt;
         picoface_boot_qmi_rcmd   = qmi_hw->m[0].rcmd;
@@ -425,6 +439,7 @@ void pico_init()
     // other fields were never chosen with that flash in mind.
     const uint32_t slack = picoface_flash_is_quad ? PICOFACE_QMI_M0_TIMING_SAFE
                                                   : scaledBoot;
+    PF_DIAG("slack %08x", (unsigned)slack);
     qmi_hw->m[0].timing = slack;
     __dsb();
     // The datasheet asks for one more thing here, which we were not doing:
@@ -453,7 +468,9 @@ void pico_init()
     // target it returns false and silently leaves clk_sys at its default.
     // 444 MHz is reachable via the PLL (VCO 1332 / 3), but if that ever changes
     // we must not tighten the flash timing for a clock the part never got to.
+    PF_DIAG("clk %u", (unsigned)(PICOFACE_SYS_CLOCK_HZ / 1000000u));
     const bool clockOk = set_sys_clock_hz(PICOFACE_SYS_CLOCK_HZ, false);
+    PF_DIAG("clk %s", clockOk ? "ok" : "FAIL");
 
     if (!clockOk) {
         // clk_sys never moved, so the slack timing is already the right one and
@@ -482,6 +499,8 @@ void pico_init()
         picoface_qmi_timing_effective = scaledBoot;
         picoface_flash_verified       = false;
     } else {
+        PF_DIAG("tune %08x..", (unsigned)(picoface_flash_quad_by_us ? PICOFACE_QMI_M0_TIMING_CAUTIOUS
+                                                                    : PICOFACE_QMI_M0_TIMING_TARGET));
         picoface_qmi_timing_effective =
             picoface_flash_autotune(flashRef,
                                     picoface_flash_quad_by_us ? PICOFACE_QMI_M0_TIMING_CAUTIOUS
@@ -494,6 +513,8 @@ void pico_init()
     qmi_hw->m[0].timing = picoface_qmi_timing_effective;
     __dsb();
     __isb();
+    PF_DIAG("timing %08x %c", (unsigned)picoface_qmi_timing_effective,
+            picoface_flash_verified ? 'v' : '-');
 #else
     hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
     sleep_ms(33);
