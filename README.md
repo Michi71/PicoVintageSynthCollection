@@ -47,7 +47,9 @@ needs on a small board.
 ## Hardware
 
 - RP2350; the reference board carries 16 MB of flash, 4 MB is enough for every
-  instrument but the JV-880 (see [How much flash an instrument needs](#how-much-flash-an-instrument-needs))
+  instrument but the JV-880 (see [How much flash an instrument needs](#how-much-flash-an-instrument-needs)).
+  **The board must feed the core from the RP2350's own regulator** -- see
+  *The board has to take the overclock* below before buying anything cheap.
 - I2S audio (PCM5102 DAC)
 - 128x64 OLED over I2C (SH1106)
 - Three rotary encoders with push buttons
@@ -65,6 +67,31 @@ a default image on it drives the I2S lines into thin air: display, MIDI and
 encoders work, only the sound is missing, and every counter reads healthy. It
 is a build-time choice, not a wiring one -- see *Building* for
 `-DPICOFACE_BOARD=rp2350b_plus_w`.
+
+**The board has to take the overclock.** These engines are budgeted for a
+core clock of **444 MHz** (480 for the RD) at a core voltage of **1.60 V**:
+three times the RP2350's rated 150 MHz, and a voltage above what the SDK
+allows without an explicit override. That is not a tuning option, it is the
+design point -- below it the instruments do not finish their audio blocks.
+The firmware sets that voltage through the chip's on-board regulator, so the
+board has to route the core supply (`DVDD`) through that regulator, the way
+the Pico 2 reference design does. **Known good:** Raspberry Pi Pico 2,
+Waveshare RP2350-Plus, Waveshare RP2350B-Plus-W (with its build variant).
+**Known bad:** unbranded 16 MB "RP2350" boards from marketplace sellers. One
+was bought to settle issue #107: its chip and flash are fine, but the
+regulator register has no effect on its core voltage, so the core stays at the
+board's fixed supply and stops dead at 312 MHz. No build option, flash timing
+or stepping has anything to do with it, and no firmware can get 444 MHz from
+such a board. The symptom is either nothing on the screen with the release
+image, or "boots at 300 MHz, no sound" with a downclocked build. If a board
+does neither of the things above, the working image is the diagnosis: build
+`PicoFaceMD` with `-DPICOFACE_BOOT_DIAG=ON` and read the last line on the
+screen; the whole investigation, with the images that separate flash, core
+and voltage, is in the MD README under
+[The board that stops at 300 MHz](instruments/PicoFaceMD/README.md#the-board-that-stops-at-300-mhz-a-core-voltage-the-register-cannot-reach).
+Please check that section before opening an issue about a board that will
+not start: a chip marked `A4` is not the reason either (the splash shows the
+bootrom revision as `b4` now, and it changes nothing).
 
 **If the screen stays dark.** The panel is on I2C at 1 MHz with only the chip's
 internal pull-ups. That is above what an SH1106 datasheet promises (400 kHz) and
