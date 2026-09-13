@@ -474,7 +474,11 @@ and differs from A3 only in bootrom. The hardware delta a reporter comparing A2
 against A4 actually sees belongs to **A3** -- GPIO leakage, a QFN-60 NSMASK fix,
 USB and OTP mitigations, and changed reset states for the clock registers --
 and none of it touches flash timing. Of the 28 errata, 13 still affect A4 and
-not one concerns QMI or booting from flash. The datasheet puts the ceiling
+not one concerns QMI or booting from flash. Since the splash line carries the
+bootrom revision next to the stepping (`A3 b4 Q 444/111 r5`: CHIP_ID stepping,
+ROM byte 0x13, quad/dual, core and flash MHz, RXDELAY), an A4 board is
+recognisable at the device even where CHIP_ID does not say so -- the #107
+board, marked A0A4, reported `A3`. The datasheet puts the ceiling
 squarely on the board instead: *"the maximum SCK frequency is constrained by the
 limits of the attached QSPI device, the signal integrity afforded by the PCB
 layout, and IO delays in the pads."*

@@ -328,7 +328,15 @@ int main(void)
         // be misread as a flash problem), and it is the parameter the #107
         // board is suspected on. Reading "core/flash" also makes a set of
         // images that differ only in clock target tellable apart at the device.
-        snprintf(hw, sizeof hw, "A%u %c %u/%u r%u", (unsigned)rp2350_chip_version(),
+        //
+        // "b" is the bootrom revision (2/3/4 for A2/A3/A4), read from the ROM
+        // itself. The stepping letter comes from CHIP_ID, and A4 is by the
+        // datasheet a bootrom-only revision on unchanged silicon: the datasheet
+        // gives it REVISION 0x8, yet a chip marked A0A4 in #107 reported A3.
+        // The ROM byte does not depend on that mapping, so the two together
+        // say what the marking on the package actually corresponds to.
+        snprintf(hw, sizeof hw, "A%u b%u %c %u/%u r%u", (unsigned)rp2350_chip_version(),
+                 (unsigned)rp2350_rom_version(),
                  picoface_flash_is_quad ? 'Q' : 'D', (unsigned)coreMHz,
                  (unsigned)flashMHz, (unsigned)rxdelay);
         u8g2_SetFont(&g_u8g2, u8g2_font_5x7_tf);
