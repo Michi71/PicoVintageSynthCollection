@@ -351,6 +351,9 @@ only.
 Open points are listed in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 section 8.
 
+[Progress data](decomphub.progress.json) - the same figures in machine-readable
+form, scoped per measurement, for project directories such as DecompHub.
+
 ## License
 
 **GNU General Public License, version 3 or later** - see [LICENSE](LICENSE).

@@ -1,0 +1,34 @@
+{
+  "format": "decomphub.progress/v1",
+  "repository": "https://github.com/Michi71/PicoVintageSynthCollection",
+  "tracks": [
+    {
+      "id": "instruments-on-hardware",
+      "label": "Instruments running on hardware",
+      "scope": "Instruments that build and play on the reference RP2350 board (README, Status). Says nothing about how closely each matches the original; see each instrument's README.",
+      "measurement": { "kind": "ratio", "completed": 10, "total": 10, "unit": "instruments" },
+      "measuredAt": "2026-10-24"
+    },
+    {
+      "id": "release-binaries",
+      "label": "Instruments in the release binaries",
+      "scope": "Instruments built by CI and shipped as .uf2. RD, JV-880 and D-50 need a local Roland ROM set that cannot be distributed and are built from source only; they will stay out.",
+      "measurement": { "kind": "ratio", "completed": 7, "total": 10, "unit": "instruments" },
+      "measuredAt": "2026-10-24"
+    },
+    {
+      "id": "host-tests",
+      "label": "Instruments covered by host tests",
+      "scope": "Instruments with at least one suite in tools/host_tests/run_all.sh (engine, SysEx or front-panel render), run by CI on every pull request and push to main. Not a code-coverage figure.",
+      "measurement": { "kind": "ratio", "completed": 7, "total": 10, "unit": "instruments" },
+      "measuredAt": "2026-10-24"
+    },
+    {
+      "id": "ob-factory-patches",
+      "label": "PicoFaceOB: OB-Xf factory patches converted",
+      "scope": "Patches of the OB-Xf factory bank converted by tools/ob_fxp_to_presets; the other 137 need two active LFOs, an off-centre master tune or a transpose outside the oscillator range (instruments/PicoFaceOB/README.md, Presets).",
+      "measurement": { "kind": "ratio", "completed": 351, "total": 488, "unit": "patches" },
+      "measuredAt": "2026-10-24"
+    }
+  ]
+}

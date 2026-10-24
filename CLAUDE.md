@@ -42,7 +42,8 @@ Instrumente ohne ROMs und legt das Release an → Release-Text von Hand setzen
 (`gh release edit`, Stil wie die vorigen). Danach lokal `cmake -S . -B build`
 und alle zehn bauen, damit D5/JV/RD-Abbilder die Version im Splash tragen
 (`PICOFACE_VERSION` kommt aus `git describe` beim Konfigurieren). Zum Schluss
-den Stand oben nachziehen.
+den Stand oben nachziehen und `decomphub.progress.json` prüfen (statische
+Zahlen mit `measuredAt`, von DecompHub gelesen; ändert sich eine, Datum mit).
 
 ## Was nie ins Repo darf
 
