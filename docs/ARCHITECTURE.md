@@ -161,6 +161,7 @@ cmake --build build
 | PicoFaceDX | 0x1057 |
 | PicoFaceJV | 0x1058 |
 | PicoFaceD5 | 0x1059 |
+| PicoFaceM1 | 0x105A |
 
 The VID stays 0x2E8A. Before the merge all seven original firmwares carried the same PID 0x104C, so hosts could not tell them apart; PicoFaceYC additionally identified itself as "PicoFaceDX" - which, with the real PicoFaceDX on the same host, would have been a double misunderstanding. `core/src/usb_descriptors.c` is now parameterized through the compile definitions `PICOFACE_INSTRUMENT_NAME` and `PICOFACE_USB_PID`, which removes both faults.
 
@@ -360,6 +361,14 @@ These defines are deliberately not unified in the helper but set per instrument 
   hold them: the effect chip's algorithms (chorus, equalizer and the 32 reverb
   types stand on the MT-32's Boss reverb as munt documents it) and the absolute
   clock of the envelope ramps, which is calibrated against recordings.
+- PicoFaceM1 added as the eleventh instrument: the plain Korg M1 (no Plus+1)
+  over the machine's own PCM. Envelopes, LFOs, pitch, cutoff and amplitude
+  laws, voice allocation and the drum kits are taken from the OS's voice
+  driver; the oscillator uses the M1's own interpolation kernel and VDF
+  coefficient ROM. The effect chip is a programmable DSP whose instruction
+  set is not decoded, so the 33 effect types are an algorithmic port with
+  their coefficients read from the OS. Needs a local ROM set and more than
+  4 MB of flash. Not yet run on the hardware.
 - `tools/check_clean_build.sh` builds the collection from a fresh clone with the
   ROMs copied in from outside git. Three instruments need a local ROM set that
   cannot be in the repository, so whether a stranger with the right ROMs can

@@ -654,7 +654,7 @@ struct MonoDelay {
     void init(Ring& r) { line = r.alloc(15626 + 2); }
     void set(const FxTables& t, int ms, int fbv, int damp) {
         D = (int)(clampi(ms, 0, 500) * 31.25f) + 1;
-        fb = clampi(fbv, -99, 99) * 0.01f;      // firmware value; the plugin uses 0.00967
+        fb = clampi(fbv, -99, 99) * 0.01f;      // the firmware value, v x 0.01
         const int hd = clampi(damp, 0, 99);
         a = t.dly_a[hd]; b = t.dly_b[hd];
     }
@@ -681,7 +681,7 @@ public:
             for (int k = 0; k < 4; ++k) {
                 fbk[k] = v.fb[k][rt];
                 ak[k] = v.damp[k][hd];
-                bk[k] = (1.0f - ak[k]) * -0.9667969f;   // firmware G(1-a); plugin 0.998-a
+                bk[k] = (1.0f - ak[k]) * -0.9667969f;   // the firmware: G (1 - a)
             }
             const int pd = (int)(clampi(p[7], 0, 150) * 31.25f) + 6;
             tAp = pd + v.base_ap; tA = pd + v.base_c; tB = pd + v.base_b;

@@ -7,6 +7,9 @@
 //   m1_render <gendir> prog  <n> <note> <vel> <gate_s> <total_s> <out.wav> [nofx|ref]
 //   m1_render <gendir> combi <n> <note> <vel> <gate_s> <total_s> <out.wav> [nofx]
 //   m1_render <gendir> chord <prog|combi> <n> <out.wav>     a C major chord, 4 s
+//   m1_render <gendir> fxblock <50 hex digits> <in.wav> <out.wav>
+//            run a 25-byte effect block over a stereo 16-bit WAV (in on
+//            buses A/B, C/D silent)
 //   m1_render <gendir> fxcheck                                every effect type at
 //            its extreme parameters: delay RAM layout fits, output finite
 //
@@ -115,6 +118,31 @@ int main(int argc, char** argv) {
         float pk = 0;
         for (size_t i = 0; i < L.size(); ++i) pk = fmaxf(pk, fmaxf(fabsf(L[i]), fabsf(R[i])));
         printf("%s %d '%s': peak %.4f\n", combi ? "combi" : "prog", idx, e.name(), pk);
+        return 0;
+    }
+    if (cmd == "fxblock") {
+        if (argc < 6) return 2;
+        uint8_t blk[25];
+        for (int i = 0; i < 25; ++i) { unsigned v; sscanf(argv[3] + 2 * i, "%2x", &v); blk[i] = (uint8_t)v; }
+        FILE* f = fopen(argv[4], "rb");
+        if (!f) { perror(argv[4]); return 1; }
+        fseek(f, 44, SEEK_SET);
+        std::vector<int16_t> in;
+        int16_t buf[2];
+        while (fread(buf, 2, 2, f) == 2) { in.push_back(buf[0]); in.push_back(buf[1]); }
+        fclose(f);
+        const size_t n = in.size() / 2;
+        std::vector<float> a(n), b(n), z(n, 0.0f);
+        for (size_t i = 0; i < n; ++i) { a[i] = in[2 * i] / 32768.0f; b[i] = in[2 * i + 1] / 32768.0f; }
+        m1::EffectSection fx;
+        fx.init(&m1rom::kFx, m1rom::kPan101, g_fx);
+        fx.configure(blk);
+        L.assign(n, 0); R.assign(n, 0);
+        for (size_t i = 0; i < n; i += 64) {
+            const int m = (int)(n - i < 64 ? n - i : 64);
+            fx.process(&a[i], &b[i], &z[i], &z[i], &L[i], &R[i], m);
+        }
+        writeWav(argv[5], L, R);
         return 0;
     }
     if (cmd == "fxcheck") {

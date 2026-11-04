@@ -154,6 +154,73 @@ def fx_init(fx, rom):
     return "static const m1::FxTables kFx = {\n    " + ",\n    ".join(parts) + "\n};\n"
 
 
+def fill_assumed(fx, rom):
+    """Fill the effect values the OS does not hold (m1_fx_tables.UNRESOLVED).
+
+    The MDE generates its LFO waves and runs parts of the rotary, ensemble and
+    combination-reverb programs from template words whose semantics are not
+    decoded. Each value here is an assumption, not data, and is listed in
+    instruments/PicoFaceM1/doc/ENGINE.md with its reasoning. Returns the keys.
+    """
+    import math
+    done = []
+    if fx.get("wt") is None:
+        # Raised cosine and triangle over 128 steps, Q9, plus two wrap entries
+        # for the interpolation; the triangle is the firmware's exact shape.
+        sine = [round(511 * math.sin(math.pi * (i + 0.5) / 128) ** 2) / 512 for i in range(128)]
+        tri = [8 * min(i, 127 - i) / 512 for i in range(128)]
+        wt = [0.0] * (0x102 + 130)
+        for i in range(130):
+            wt[i] = sine[i % 128]
+            wt[0x102 + i] = tri[i % 128]
+        fx["wt"] = wt
+        done.append("wt")
+    if fx.get("wt2") is None:
+        # Second LFO wave: a raised cosine at twice the rate.
+        w2 = [round(511 * math.sin(2 * math.pi * (i + 0.5) / 128) ** 2) / 512 for i in range(128)]
+        fx["wt2"] = [w2[i % 128] for i in range(130)]
+        done.append("wt2")
+    ro = fx["rotary"]
+    if ro.get("c2c") is None:
+        # Drum low-pass pole chosen for unity DC gain of the firmware's two
+        # other coefficients: c44 (1 + c24) / (1 - c2c) = 1.
+        ro["c2c"] = 1.0 - ro["c44"] * (1.0 + ro["c24"])
+        done.append("rotary.c2c")
+    if ro.get("depth_k") is None:
+        # The firmware patches word 18 with v/100 (taken as the AM depth) and
+        # word 27 with v*0.002, scaled like the chorus depth (x 256 samples)
+        # to a Doppler swing of 0.512 samples per step, for horn and drum.
+        ro["depth_k"] = [0.99, 0.99, 99 * 0.512, 99 * 0.512]
+        done.append("rotary.depth_k")
+    sy = fx["sym"]
+    if sy.get("baseL") is None:
+        # Voice spreads are the firmware's template address differences
+        # (154/157/0, 94/217/60); the common offset of the modulated taps is
+        # not decoded: 300 samples (9.6 ms) assumed.
+        sy["baseL"] = [300 + 154, 300 + 157, 300]
+        sy["baseR"] = [300 + 94, 300 + 217, 300 + 60]
+        done += ["sym.baseL", "sym.baseR"]
+    if sy.get("off") is None:
+        # FX:1290 initialises the voices' LFO phases to A000/C000/E000h;
+        # taken as table steps (phase >> 9).
+        sy["off"] = [0xA000 >> 9, 0xC000 >> 9, 0xE000 >> 9]
+        done.append("sym.off")
+    if sy.get("mix2") is None:
+        sy["mix2"] = [0.1, 0.1, 0.1]
+        done.append("sym.mix2")
+    for t in (25, 26):
+        d = fx["crev"][t]
+        if d.get("eq") is None:
+            # The firmware never patches the pre-filter words; they keep the
+            # reverb EQ template's defaults, taken as 0 dB: two flat shelves
+            # at 1 kHz with gain 0.5 each. Stored as (Z1, -P1, Z2, -P2, s1, s2).
+            k = s16s(rom.os, *REV19["eq_k"])[2] / 8192.0
+            d["eq"] = [k, -k, k, -k, 0.5, 0.5]
+            if "crev.eq" not in done:
+                done.append("crev.eq")
+    return done
+
+
 def main():
     if len(sys.argv) != 3:
         print(__doc__)
@@ -210,14 +277,13 @@ def main():
     drows = ["{0, 0, 0, 0, 0}"] + ["{%d, %d, %d, %d, %d}" % (
         d["start"], d["loop"], d["end"], d["tune128"], 1 if d["loop_on"] else 0) for d in drums]
 
-    try:
-        from m1_fx_tables import fx_tables, UNRESOLVED
-        fx = fx_tables(img)
-        unresolved = sorted(UNRESOLVED)
-    except ImportError:
-        fx, unresolved = {}, ["(m1_fx_tables.py missing: all effect tables)"]
-    except Exception as e:   # TEMPORARY while m1_fx_tables.py is being written
-        fx, unresolved = {}, ["(m1_fx_tables.py failed: %s)" % e]
+    from m1_fx_tables import fx_tables, UNRESOLVED
+    fx = fx_tables(img)
+    assumed = fill_assumed(fx, rom)
+    left = [k for k in sorted(UNRESOLVED) if k not in assumed and not k.startswith("combo_")]
+    if left:
+        print("ERROR: effect tables neither in the OS nor assumed: " + ", ".join(left), file=sys.stderr)
+        return 1
 
     k1, k2 = rom.vdf_k()
     kern = list(rom.kernel_bytes())
@@ -242,8 +308,8 @@ def main():
     h.append(carr("kPrograms", "uint8_t", [b for p in pre["programs"] for b in p], 32))
     h.append(carr("kCombis", "uint8_t", [b for c in pre["combis"] for b in c], 32))
     h.append(carr("kKits", "uint8_t", [b for k in pre["kits"] for b in k], 30))
-    h.append("// Effect tables not found in the OS ROM (bypassed in the engine):")
-    h.append("static const char* const kFxUnresolved = \"%s\";" % ", ".join(unresolved))
+    h.append("// Effect values the OS does not hold, filled in by assumption (doc/ENGINE.md):")
+    h.append("static const char* const kFxAssumed = \"%s\";" % ", ".join(assumed))
     h.append("\n}  // namespace m1rom\n")
     with open(os.path.join(outdir, "m1_rom_tables.h"), "w") as f:
         f.write("\n".join(h))
@@ -252,7 +318,7 @@ def main():
           "%d drum sounds, OS %s+%s, preload %s%s" % (
               len(mss), len(splits), len(drums), rom.os_files[0], rom.os_files[1],
               os.path.basename(rom.preload_path),
-              ("; UNRESOLVED effect tables: " + ", ".join(unresolved)) if unresolved else ""))
+              "; assumed effect values: " + ", ".join(assumed)))
     return 0
 
 
