@@ -37,15 +37,17 @@ enum : int {
 
 constexpr uint32_t kSampleRate = 31250;   // 32 MHz / 1024
 
-struct Split {              // one keyboard zone of a multisound
+struct Split {              // one keyboard zone of a multisound (Rev 19: 10-byte record)
     uint32_t start, loop, end;   // absolute word addresses into the PCM
+    int16_t  tune128;            // sample record +0, added to the root (1/128 semitone)
     uint8_t  top;                // highest key of the zone
     uint8_t  pan;                // 0..13, always 5 in ROM multisounds
     uint8_t  root;               // root key
     uint8_t  flags;              // bit 0 loop on, bit 1 NT (root := played key)
     int8_t   tune;               // cents
-    int8_t   level;              // x 0x14A on 0x8000
+    int8_t   level;              // x 330 on 0x8000 (VDA)
     int8_t   cutoff;             // x 0x52 on the cutoff register
+    int8_t   decay;              // x 330 on 0x8000, VDA decay time (drum kits)
 };
 
 struct Multisound {
@@ -55,11 +57,10 @@ struct Multisound {
     char     name[11];
 };
 
-struct DrumSound {               // one entry of the OS drum-sound list
+struct DrumSound {               // one of the 44 internal drum sounds (DS:5B9E)
     uint32_t start, loop, end;
-    uint8_t  root;
+    int16_t  tune128;
     uint8_t  flags;              // bit 0 loop on
-    int8_t   tune, level, cutoff;
 };
 
 // Everything the engine reads from ROM. Produced by tools/m1_extract.
@@ -75,8 +76,13 @@ struct RomTables {
     const uint16_t*   vdf2k;          // 4096, Q13
     const uint16_t*   egRise;         // 256
     const uint16_t*   egFall;         // 256
-    const uint16_t*   velCurve;       // 128
-    const uint16_t*   mgFreq;         // 100
+    const uint16_t*   velCurve;       // 256, index 252 = unity
+    const uint16_t*   mgFreq;         // 100, MG phase step per update
+    const uint16_t*   mgDelay;        // 100, MG delay accumulator step
+    const uint16_t*   mgIntP;         // 100, pitch MG depth
+    const uint16_t*   mgIntF;         // 100, VDF MG depth
+    const uint16_t*   pitchS;         // 153, step per semitone (4.12)
+    const uint16_t*   pitchF;         // 128, fraction multiplier
     const uint16_t*   panReg;         // 14, DS:0854
     const uint16_t*   pan101;         // 101, DS:86EA
     const uint16_t*   delayStart;     // 100, DS:776E, in 1.3 ms ticks
@@ -86,19 +92,25 @@ struct RomTables {
     const uint8_t*    kits;           // 4 x 210
 };
 
-// Segment envelope (analysis 6.2): level moves linearly between break points,
-// segment length from the firmware's rise/fall rate tables. Levels are in
-// firmware units (parameter x 0x14A).
+// Segment envelope (analysis 6.2, corrected by the driver trace in
+// doc/ENGINE.md): every 20.8 ms update a rising segment adds its table rate to
+// a 16-bit phase and moves linearly; a falling VDF/VDA segment shrinks the
+// phase exponentially. Levels are firmware units (parameter x 330).
 struct Eg {
-    int32_t level = 0, src = 0, target = 0;
-    float   n = 0;            // updates in this segment
-    int     k = 0;
+    enum Kind : uint8_t { Pitch, Vdf, Vda };
+    int32_t level = 0, start = 0, target = 0;
+    int32_t phase = 0;
+    int32_t rate = 0;
+    bool    falling = false, active = false;
+    Kind    kind = Pitch;
     int     seg = 0, nseg = 0;
-    bool    active = false;
-    int16_t segTime[4], segLevel[4];
+    int16_t segTime[3] = {0, 0, 0}, segLevel[3] = {0, 0, 0};
     int16_t relTime = 0, relLevel = 0;
-    bool    useFall = true;
-    float   timeScale = 1.0f;
+    uint16_t factor[4] = {0x8000, 0x8000, 0x8000, 0x8000};   // per segment, 0x8000 = nominal
+    // Python reference mode: linear segments of 65536/rate updates.
+    bool    ref = false;
+    float   n = 0;
+    int     k = 0;
 };
 
 class Engine {
@@ -136,7 +148,6 @@ public:
     void setReferenceMode(bool b) { refMode_ = b; }
 
 private:
-    struct OscParams;
     struct Timbre {
         const uint8_t* prog = nullptr;    // 143-byte program
         int     level = 99;               // combi timbre level
@@ -149,23 +160,29 @@ private:
         // mono memory: current + two previous notes
         uint8_t monoNotes[3] = {0xFF, 0xFF, 0xFF};
         uint8_t monoVel[3] = {0, 0, 0};
-        uint32_t mgPhase[2] = {0, 0};     // free-running MG per timbre (no key sync)
+        uint16_t mgPhase[2] = {0, 0};     // free-running MG per timbre (no key sync)
     };
     struct Voice {
         bool     active = false;
         uint8_t  status = 0;              // 0x80 held, 3 sustained by damper, 1 release, 0 free
         uint8_t  timbre = 8, osc = 0, note = 0, vel = 0;
-        int      pitchNote = 0;           // note for pitch (after transpose)
+        int      nE = 0;                  // zone/pitch note after octave, transpose, interval
         const int16_t* base = nullptr;    // PCM at sample start
         // 20.12 offset from the sample start. Signed: DWGS waves loop back to
         // before their start address. The longest M1 sample is 56 K words.
         int32_t  pos = 0;
         int32_t  step = 0;                // 4.12
-        uint32_t endRel = 0, loopLen = 0; // in words, relative to start
+        int32_t  endRel = 0, loopLen = 0; // in words, relative to start
         bool     loop = false;
         int      root128 = 0;
-        int      splitCutoff = 0, splitLevel = 0;
         float    panA = 0, panB = 0, panC = 0, panD = 0;
+        // note-on terms (doc/ENGINE.md, "Voice")
+        int32_t  pegI = 0;                // pitch EG intensity
+        int32_t  cutK = 0;                // key tracking + split trim
+        int32_t  vdfI = 0;                // VDF EG intensity
+        int32_t  vdaA = 0;                // level x split trim + kbd track
+        int32_t  velG = 0;                // velocity gain from the curve
+        int      refCutoff = 0, refLevel = 0;   // reference mode
         // filter / amp
         float    y1 = 0, y2 = 0;
         float    cut = 0, cutInc = 0;     // register value, ramped
@@ -174,14 +191,12 @@ private:
         int      untilUpdate = 0;
         int      delayTicks = 0;          // OSC2 delay start, in samples
         Eg       pitchEg, vdfEg, vdaEg;
-        uint32_t mgPhase[2] = {0, 0};
-        int      mgDelay[2] = {0, 0};
-        bool     releasing = false;
+        uint16_t mgPhase[2] = {0, 0};
+        uint16_t mgAcc[2] = {0, 0};
         bool     oscDone = false;         // one-shot ran out: filters ring out to the next update
-        uint32_t age = 0;
     };
 
-    void startVoice(int v, int t, int osc, uint8_t note, uint8_t vel, int pitchNote);
+    void startVoice(int v, int t, int osc, uint8_t note, uint8_t vel);
     void releaseVoice(int v);
     void killVoice(int v);
     int  takeChannel();
@@ -193,11 +208,12 @@ private:
     void timbreNoteOff(int t, uint8_t note);
     void configureTimbre(int t, const uint8_t* prog);
     void renderVoice(Voice& v, int frames);
-    float egStep(Eg& e);
-    void  egStart(Eg& e, int startLevel, const int16_t* times, const int16_t* levels, int n,
-                  int relTime, int relLevel, bool useFall, float timeScale);
+    int32_t egStep(Eg& e);
+    void  egStart(Eg& e, Eg::Kind kind, int startLevel, const int16_t* times, const int16_t* levels,
+                  int n, int relTime, int relLevel);
     void  egRelease(Eg& e);
-    float segUpdates(int timeParam, bool rising, float scale) const;
+    void  egSegment(Eg& e, int time, int target, int segIndex);
+    uint16_t pitchStep(int32_t d) const;
 
     RomTables rom_{};
     EffectSection fx_;
@@ -212,7 +228,7 @@ private:
     int voiceLimit_ = kVoices;
     int16_t bend_[16] = {0};
     uint8_t mod_[16] = {0}, modNeg_[16] = {0}, aft_[16] = {0};
-    uint32_t ageCounter_ = 0;
+    uint8_t kitMap_[4][128];          // drum key -> kit instrument (0xFF none)
     float busA_[kRenderBlock], busB_[kRenderBlock], busC_[kRenderBlock], busD_[kRenderBlock];
 };
 

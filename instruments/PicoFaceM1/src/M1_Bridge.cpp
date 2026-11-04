@@ -55,6 +55,11 @@ void M1_Bridge::init() {
     rom.egFall = m1rom::kEgFall;
     rom.velCurve = m1rom::kVelCurve;
     rom.mgFreq = m1rom::kMgFreq;
+    rom.mgDelay = m1rom::kMgDelay;
+    rom.mgIntP = m1rom::kMgIntP;
+    rom.mgIntF = m1rom::kMgIntF;
+    rom.pitchS = m1rom::kPitchS;
+    rom.pitchF = m1rom::kPitchF;
     rom.panReg = m1rom::kPanReg;
     rom.pan101 = m1rom::kPan101;
     rom.delayStart = m1rom::kDelayStart;

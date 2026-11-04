@@ -43,8 +43,13 @@ m1_pcm_blob_end:
 REV19 = dict(
     eg_rise=(0x10C22, 256),      # CS:1133 in the Plus+1 driver segment, u16
     eg_fall=(0x10E22, 256),      # CS:1333, u16
-    vel_curve=(0x116AB, 128),    # CS:1BC3, u16
-    mg_freq=(0x10B5A, 100),      # CS:106B, u16
+    vel_curve=(0x116AB, 256),    # CS:1BC3, u16, index 252 = unity
+    mg_delay=(0x10B5A, 100),     # CS:106B, u16, added to the delay accumulator per update
+    mg_int_p=(0x109CA, 100),     # CS:0EDB, u16, pitch MG depth 0..8191
+    mg_int_f=(0x10A92, 100),     # CS:0FA3, u16, VDF MG depth 0..8068
+    mg_freq=(0x175C0 + 0x738E, 100),    # DS:738E (Plus+1 DS:78CC), phase step per update
+    pitch_s=(0x175C0 + 0x0616, 153),    # DS:0616, 4096 * 2^((k-128)/12)
+    pitch_f=(0x175C0 + 0x0748, 128),    # DS:0748, 65536 * (2^(j/1536) - 1)
     pan_reg=(0x175C0 + 0x0854, 14),     # DS:0854, u16
     pan101=(0x175C0 + 0x8272, 101),     # DS:8272 (Plus+1 DS:86EA), Q9
     def_bal=(0x175C0 + 0x749C, 68),     # DS:749C (Plus+1 DS:79DA), bytes
@@ -176,6 +181,15 @@ def main():
         print("ERROR: balance table not where Rev 19 has it", file=sys.stderr)
         return 1
 
+    checks = [(u16s(img, *REV19["vel_curve"])[252], 15629, "velocity curve"),
+              (u16s(img, *REV19["pitch_s"])[128], 4096, "pitch table"),
+              (u16s(img, *REV19["mg_int_p"])[99], 8191, "pitch MG depth table"),
+              (u16s(img, REV19["eg_rise"][0], 1)[0] > 0, True, "EG rise table")]
+    for got, want, what in checks:
+        if got != want:
+            print("ERROR: %s not where Rev 19 has it (%r != %r)" % (what, got, want), file=sys.stderr)
+            return 1
+
     with open(os.path.join(outdir, "m1_pcm.bin"), "wb") as f:
         f.write(rom.pcm)
     with open(os.path.join(outdir, "m1_blob.S"), "w") as f:
@@ -187,15 +201,14 @@ def main():
         msrows.append('{%d, %d, %d, "%s"}' % (len(splits), len(m["splits"]), int(m["dwgs"]),
                                               m["name"].replace('"', "'")))
         for s in m["splits"]:
-            splits.append("{%d, %d, %d, %d, %d, %d, %d, %d, %d, %d}" % (
-                s["start"], s["loop"], s["end"], s["top"], s["pan"], s["root"],
-                (1 if s["loop_on"] else 0) | (2 if s["nt"] else 0), s["tune"], s["level"], s["cutoff"]))
+            splits.append("{%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d}" % (
+                s["start"], s["loop"], s["end"], s["tune128"], s["top"], s["pan"], s["root"],
+                (1 if s["loop_on"] else 0) | (2 if s["nt"] else 0), s["tune"], s["level"],
+                s["cutoff"], s["decay"]))
 
-    from m1_drums import drum_sounds  # noqa: E402
-    drums = drum_sounds(rom)
-    drows = ["{0, 0, 0, 0, 0, 0, 0, 0}"] + ["{%d, %d, %d, %d, %d, %d, %d, %d}" % (
-        d["start"], d["loop"], d["end"], d["root"], 1 if d["loop_on"] else 0,
-        d["tune"], d["level"], d["cutoff"]) for d in drums]
+    drums = rom.drum_sounds()
+    drows = ["{0, 0, 0, 0, 0}"] + ["{%d, %d, %d, %d, %d}" % (
+        d["start"], d["loop"], d["end"], d["tune128"], 1 if d["loop_on"] else 0) for d in drums]
 
     try:
         from m1_fx_tables import fx_tables, UNRESOLVED
@@ -203,6 +216,8 @@ def main():
         unresolved = sorted(UNRESOLVED)
     except ImportError:
         fx, unresolved = {}, ["(m1_fx_tables.py missing: all effect tables)"]
+    except Exception as e:   # TEMPORARY while m1_fx_tables.py is being written
+        fx, unresolved = {}, ["(m1_fx_tables.py failed: %s)" % e]
 
     k1, k2 = rom.vdf_k()
     kern = list(rom.kernel_bytes())
@@ -218,7 +233,9 @@ def main():
     h.append(carr("kVdf1k", "uint16_t", k1))
     h.append(carr("kVdf2k", "uint16_t", k2))
     for name, key in (("kEgRise", "eg_rise"), ("kEgFall", "eg_fall"), ("kVelCurve", "vel_curve"),
-                      ("kMgFreq", "mg_freq"), ("kPanReg", "pan_reg"), ("kPan101", "pan101"),
+                      ("kMgFreq", "mg_freq"), ("kMgDelay", "mg_delay"), ("kMgIntP", "mg_int_p"),
+                      ("kMgIntF", "mg_int_f"), ("kPitchS", "pitch_s"), ("kPitchF", "pitch_f"),
+                      ("kPanReg", "pan_reg"), ("kPan101", "pan101"),
                       ("kDelayStart", "delay_start")):
         h.append(carr(name, "uint16_t", u16s(img, *REV19[key])))
     h.append(fx_init(fx, rom))

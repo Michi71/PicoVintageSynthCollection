@@ -148,9 +148,10 @@ class M1RomSet:
             off = (i - DWGS_FIRST) * DWGS_STRIDE if dwgs else 0
             splits = []
             for k in range(nsplit):
-                rec, top, pan, tune, root, level, cutoff = struct.unpack(
-                    "<HBBbBbb", self.ds(ptr + SPLIT_REC * k, 8))
+                rec, top, pan, tune, root, level, cutoff, decay = struct.unpack(
+                    "<HBBbBbbb", self.ds(ptr + SPLIT_REC * k, 9))
                 r = self.ds(rec, SAMPLE_REC)
+                tune128 = struct.unpack_from("<h", r, 0)[0]
                 start = r[2] | r[3] << 8 | r[4] << 16
                 loop = r[6] | r[7] << 8 | r[8] << 16
                 flags = r[9]
@@ -160,12 +161,35 @@ class M1RomSet:
                     raise RomError(f"multisound {i} split {k}: bank {bank} is not internal PCM")
                 a = lambda x: ((bank << 20) | (x & 0xFFFFF)) + off
                 s = dict(top=top, pan=pan, tune=tune, root=root & 0x7F, nt=bool(root & 0x80),
-                         level=level, cutoff=cutoff, start=a(start), loop=a(loop), end=a(end),
+                         level=level, cutoff=cutoff, decay=decay, tune128=tune128, start=a(start), loop=a(loop), end=a(end),
                          loop_on=bool(flags & 4))
                 if not (s["start"] <= s["end"] < PCM_WORDS and s["loop"] <= s["end"]):
                     raise RomError(f"multisound {i} split {k}: addresses out of range")
                 splits.append(s)
             out.append(dict(index=i, name=name, dwgs=dwgs, splits=splits))
+        return out
+
+    def drum_sounds(self):
+        """The 44 internal drum sounds: sample records at DS:5B9E (14 bytes each,
+        same register-image format as the multisound samples)."""
+        out = []
+        for i in range(44):
+            r = self.ds(0x5B9E + SAMPLE_REC * i, SAMPLE_REC)
+            start = r[2] | r[3] << 8 | r[4] << 16
+            loop = r[6] | r[7] << 8 | r[8] << 16
+            end = r[10] | r[11] << 8 | r[12] << 16
+            bank = (end >> 20) & 0xF
+            a = lambda x: (bank << 20) | (x & 0xFFFFF)
+            d = dict(start=a(start), loop=a(loop), end=a(end), loop_on=bool(r[9] & 4),
+                     tune128=struct.unpack_from("<h", r, 0)[0])
+            if bank > 1 or not d["start"] <= d["end"] < PCM_WORDS:
+                raise RomError(f"drum sound {i + 1}: addresses out of range")
+            if d["loop_on"] and not d["loop"] <= d["end"]:
+                raise RomError(f"drum sound {i + 1}: loop past the end")
+            out.append(d)
+        name = self.ds(0x6F48, 10)
+        if name != b"Kick 1    ":
+            raise RomError("drum-sound names not where Rev 19 has them")
         return out
 
     # --------------------------------------------------------- coefficient ROM

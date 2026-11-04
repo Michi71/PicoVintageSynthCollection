@@ -17,8 +17,6 @@
 namespace m1 {
 namespace {
 
-constexpr int kLevelUnit = 0x14A;           // EG level step: param x 330
-constexpr float kLevelFull = 99.0f * kLevelUnit;
 constexpr int kCutMax = 0x1FD2;             // VDF1 clamp, 99.6 x 0x52
 
 inline int clampi(int x, int lo, int hi) { return x < lo ? lo : (x > hi ? hi : x); }
@@ -51,73 +49,95 @@ enum : int {   // relative to the OSC block
 }  // namespace
 
 // ---------------------------------------------------------------------------
-// Envelopes (analysis 6.2)
+// Envelopes (driver EF83:1642, 1687, 1904..1A0D, 1B9C..1EB5; doc/ENGINE.md)
 // ---------------------------------------------------------------------------
-float Engine::segUpdates(int timeParam, bool rising, float scale) const {
-    int t = (int)((float)timeParam * 165.0f * scale);
-    if (t > 0x3FFF) t = 0x3FFF;
-    if (t < 0) t = 0;
-    const int idx = t >> 6;
-    const int rate = (rising ? rom_.egRise : rom_.egFall)[idx];
-    return 65536.0f / (float)(rate < 1 ? 1 : rate);
+namespace {
+inline int32_t hi16(int64_t x) { return (int32_t)(x >> 16); }
+inline int32_t sc(int p) { const int32_t x = (int32_t)(int8_t)p * 0x149; return x >> 8; }   // -99..99 -> -127..127
+}  // namespace
+
+void Engine::egSegment(Eg& e, int time, int target, int segIndex) {
+    e.start = e.level;
+    e.target = target;
+    if (e.ref) {
+        // Python reference: linear, 65536/rate updates, fall table for falls.
+        const bool rising = e.target >= e.start || e.kind == Eg::Pitch;
+        int t = time * 165;
+        if (t > 0x3FFF) t = 0x3FFF;
+        const int rate = (rising ? rom_.egRise : rom_.egFall)[t >> 6];
+        e.n = 65536.0f / (float)(rate < 1 ? 1 : rate);
+        e.k = 0;
+        e.active = true;
+        return;
+    }
+    const uint32_t f = e.factor[segIndex];
+    int idx;
+    if (e.kind == Eg::Pitch) {
+        int32_t x = hi16((int64_t)time * 330 * f);
+        if (x > 0x3FFF) x = 0x3FFF;
+        idx = x >> 6;
+    } else {
+        idx = hi16((int64_t)time * 330 * f) >> 6;
+        if (idx > 255) idx = 255;
+    }
+    if (idx < 0) idx = 0;
+    e.falling = e.kind != Eg::Pitch && target < e.level;
+    e.rate = (e.falling ? rom_.egFall : rom_.egRise)[idx];
+    e.phase = e.falling ? 0xFFFF : 0;
+    e.active = true;
 }
 
-void Engine::egStart(Eg& e, int startLevel, const int16_t* times, const int16_t* levels, int n,
-                     int relTime, int relLevel, bool useFall, float timeScale) {
-    e.level = startLevel * kLevelUnit;
+void Engine::egStart(Eg& e, Eg::Kind kind, int startLevel, const int16_t* times, const int16_t* levels,
+                     int n, int relTime, int relLevel) {
+    e.kind = kind;
+    e.ref = refMode_;
+    e.level = startLevel;
     e.nseg = n;
     for (int i = 0; i < n; ++i) { e.segTime[i] = times[i]; e.segLevel[i] = levels[i]; }
     e.relTime = (int16_t)relTime;
     e.relLevel = (int16_t)relLevel;
-    e.useFall = useFall;
-    e.timeScale = timeScale;
-    e.seg = 0;
-    e.active = false;
-    if (n > 0) {
-        e.src = e.level;
-        e.target = levels[0] * kLevelUnit;
-        const bool rising = e.target >= e.src || !useFall;
-        e.n = segUpdates(times[0], rising, timeScale);
-        e.k = 0;
-        e.seg = 1;
-        e.active = true;
-    }
+    e.seg = 1;
+    egSegment(e, times[0], levels[0], 0);
 }
 
 void Engine::egRelease(Eg& e) {
     e.nseg = 0;
     e.seg = 0;
-    e.src = e.level;
-    e.target = e.relLevel * kLevelUnit;
-    const bool rising = e.target >= e.src || !e.useFall;
-    e.n = segUpdates(e.relTime, rising, e.timeScale);
-    e.k = 0;
-    e.active = true;
+    egSegment(e, e.relTime, e.relLevel, 3);
 }
 
-// One 20.8 ms update. Returns the level normalised to -1..1.
-float Engine::egStep(Eg& e) {
-    if (e.active) {
+// One 20.8 ms update; returns the level in firmware units.
+int32_t Engine::egStep(Eg& e) {
+    if (!e.active) return e.level;
+    bool done;
+    if (e.ref) {
         e.k += 1;
-        if ((float)e.k >= e.n) {
-            e.level = e.target;
-            if (e.seg < e.nseg) {
-                e.src = e.level;
-                e.target = e.segLevel[e.seg] * kLevelUnit;
-                const bool rising = e.target >= e.src || !e.useFall;
-                e.n = segUpdates(e.segTime[e.seg], rising, e.timeScale);
-                e.k = 0;
-                e.seg += 1;
-            } else {
-                e.active = false;
-            }
-        } else {
-            e.level = e.src + (int32_t)((float)(e.target - e.src) * (float)e.k / e.n);
+        done = (float)e.k >= e.n;
+        if (!done) e.level = e.start + (int32_t)((float)(e.target - e.start) * (float)e.k / e.n);
+    } else if (!e.falling) {
+        e.phase += e.rate;
+        done = e.phase >= 0xFFDC;
+        if (!done) e.level = e.start + hi16((int64_t)(e.target - e.start) * e.phase);
+    } else {
+        int32_t dec = hi16((int64_t)e.rate * e.phase);
+        if (dec < 1) dec = 1;
+        e.phase -= dec;
+        // VDF ends at -48 dB of the segment, VDA at -48 dB, or -60 dB when it
+        // falls to zero (EF83:1950, 1DE8).
+        const int32_t thr = e.kind == Eg::Vdf ? 0x100 : (e.target == 0 ? 0x40 : 0xFF);
+        done = e.phase < thr;
+        if (!done) e.level = e.target + hi16((int64_t)(e.start - e.target) * e.phase);
+    }
+    if (done) {
+        e.level = e.target;
+        e.active = false;
+        if (e.seg > 0 && e.seg < e.nseg) {
+            const int s = e.seg++;
+            egSegment(e, e.segTime[s], e.segLevel[s], s);
         }
     }
-    return (float)e.level / kLevelFull;
+    return e.level;
 }
-
 // ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
@@ -125,6 +145,19 @@ bool Engine::init(const RomTables& rom, int16_t* fxMem) {
     rom_ = rom;
     fx_.init(rom.fx, rom.pan101, fxMem);
     for (int i = 0; i < kVoices; ++i) { queue_[i] = (uint8_t)i; voice_[i] = Voice(); }
+    // Drum keymaps (E066:2E48): each instrument fills its key and every key
+    // below it that still holds what its key held.
+    for (int k = 0; k < 4; ++k) {
+        uint8_t* map = kitMap_[k];
+        memset(map, 0xFF, 128);
+        const uint8_t* kit = rom.kits + kKitLen * k;
+        for (int i = 0; i < 30; ++i) {
+            const uint8_t* e = kit + 7 * i;
+            if (!e[0] || e[1] > 127) continue;
+            const uint8_t old = map[e[1]];
+            for (int key = e[1]; key >= 0 && map[key] == old; --key) map[key] = (uint8_t)i;
+        }
+    }
     return rom.pcm != nullptr;
 }
 
@@ -148,6 +181,7 @@ void Engine::selectProgram(int index) {
     combiMode_ = false;
     memcpy(name_, p, 10);
     name_[10] = 0;
+    for (int i = 0; i < 10; ++i) if (name_[i] == 0) name_[i] = ' ';   // the preload pads with NUL
     fx_.configure(p + P_FX);
 }
 
@@ -172,6 +206,7 @@ void Engine::selectCombi(int index) {
     combiMode_ = true;
     memcpy(name_, c, 10);
     name_[10] = 0;
+    for (int i = 0; i < 10; ++i) if (name_[i] == 0) name_[i] = ' ';
     fx_.configure(c + 11);
 }
 
@@ -252,13 +287,11 @@ void Engine::timbreNoteOn(int t, uint8_t note, uint8_t vel) {
         tb.monoNotes[1] = tb.monoNotes[0]; tb.monoVel[1] = tb.monoVel[0];
         tb.monoNotes[0] = note; tb.monoVel[0] = vel;
     }
-    // The zone note is folded back into 0..127 by octaves; the pitch note is not.
-    int pitchNote = note + tb.transpose;
     const int oscs = (mode == 1) ? 2 : 1;
     for (int o = 0; o < oscs; ++o) {
         const int v = takeChannel();
         if (voice_[v].active) killVoice(v);
-        startVoice(v, t, o, note, vel, pitchNote);
+        startVoice(v, t, o, note, vel);
     }
 }
 
@@ -287,7 +320,7 @@ void Engine::timbreNoteOff(int t, uint8_t note) {
                 for (int o = 0; o < oscs; ++o) {
                     const int v = takeChannel();
                     if (voice_[v].active) killVoice(v);
-                    startVoice(v, t, o, n, vl, n + tb.transpose);
+                    startVoice(v, t, o, n, vl);
                 }
                 return;
             }
@@ -321,6 +354,7 @@ void Engine::damper(uint8_t ch, bool down) {
 
 void Engine::releaseVoice(int v) {
     Voice& vc = voice_[v];
+    if (vc.delayTicks > 0) { killVoice(v); return; }   // delayed OSC 2 not started yet
     vc.status = 1;
     queueBeforeHeld(v);
     // Hold (program byte 11 bit 1): no release; the sound runs to the end of
@@ -330,7 +364,6 @@ void Engine::releaseVoice(int v) {
     egRelease(vc.pitchEg);
     egRelease(vc.vdfEg);
     egRelease(vc.vdaEg);
-    vc.releasing = true;
 }
 
 void Engine::killVoice(int v) {
@@ -356,62 +389,87 @@ void Engine::modWheelNeg(uint8_t ch, uint8_t v) { modNeg_[ch & 15] = v; }
 void Engine::aftertouch(uint8_t ch, uint8_t v) { aft_[ch & 15] = v; }
 
 // ---------------------------------------------------------------------------
-// Voice start (analysis 3.2, 7.2)
+// Voice start (driver EF83:01C4, 0C6F, 0D45; doc/ENGINE.md "Voice")
 // ---------------------------------------------------------------------------
-void Engine::startVoice(int vi, int t, int osc, uint8_t note, uint8_t vel, int pitchNote) {
+namespace {
+// EG time factor for each segment from the switch/polarity bytes (EF83:17C6,
+// 1A54): bits 0..3 switch attack/decay/slope/release on, bits 4..7 flip the
+// polarity; "+" makes higher keys / harder playing shorter.
+void timeFactors(uint16_t* out, uint8_t kbdSw, uint8_t velSw, int timeKbd, int timeVel,
+                 int note, int center, int V) {
+    int32_t kk = 2 * sc(timeKbd) * (int8_t)(note - center);
+    kk = -(kk < -0x4000 ? -0x4000 : (kk > 0x3FFF ? 0x3FFF : kk));
+    int32_t kv = 4 * sc(timeVel) * V;
+    kv = -(kv < -0x4000 ? -0x4000 : (kv > 0x3FFF ? 0x3FFF : kv));
+    for (int k = 0; k < 4; ++k) {
+        int32_t s = 0;
+        if (kbdSw & (1 << k)) s = (kbdSw & (0x10 << k)) ? -kk : kk;
+        if (velSw & (1 << k)) s += (velSw & (0x10 << k)) ? -kv : kv;
+        s *= 2;
+        if (s > 0x7FFF) s = 0x7FFF;
+        if (s < -0x8000) s = -0x8000;
+        out[k] = (uint16_t)(s + 0x8000);
+    }
+}
+}  // namespace
+
+void Engine::startVoice(int vi, int t, int osc, uint8_t note, uint8_t vel) {
     Voice& v = voice_[vi];
     const Timbre& tb = tim_[t];
     const uint8_t* p = tb.prog;
     const uint8_t* o = p + (osc ? P_OSC2 : P_OSC1);
     const int mode = p[P_OSC_MODE];
 
-    int zoneNote = pitchNote;
-    while (zoneNote > 127) zoneNote -= 12;
-    while (zoneNote < 0) zoneNote += 12;
+    // Zone and pitch note: octave, combi transpose and (OSC 2) interval,
+    // folded back into 0..127 by octaves (E066:887E).
+    int nE = note + tb.transpose;
+    if (!refMode_)                        // the Python reference plays the note as is
+        nE += 12 * s8(osc ? p[P_OCT2] : p[P_OCT1]) + (osc ? s8(p[P_INTERVAL]) : 0);
+    while (nE > 127) nE -= 12;
+    while (nE < 0) nE += 12;
 
-    // Source: multisound split, or a drum kit instrument.
     uint32_t start, loopA, end;
     bool loop;
-    int root, tuneCents, level, cutTrim, panCode = tb.pan & 0x0F;
-    bool nt = false;
-    float drumLevel = 1.0f;
+    int rootKey, cents, tune128, level, cutTrim, decay;
+    int panCode = (tb.pan & 0x80) ? -1 : (tb.pan & 0x0F);
     if (mode == 2) {
-        // Drums: the program's OSC 1 multisound byte selects one of the four
-        // global kits; the kit maps a key to a drum sound with its own pan,
-        // tune, level and decay (analysis 2.5, owner's manual TABLE 3).
-        const uint8_t* kit = rom_.kits + kKitLen * clampi(p[P_MS1], 0, 3);
-        const uint8_t* ins = nullptr;
-        for (int i = 0; i < 30; ++i)
-            if (kit[7 * i] && kit[7 * i + 1] == zoneNote) { ins = kit + 7 * i; break; }
-        if (!ins || ins[0] > rom_.nDrums) return;
+        // Drums: program byte 12 picks one of the four global kits. A kit
+        // instrument covers its key and the free keys below it (E066:2E48).
+        const int kit = p[P_MS1] & 3;
+        const int i = kitMap_[kit][nE];
+        if (i == 0xFF) return;
+        const uint8_t* ins = rom_.kits + kKitLen * kit + 7 * i;
+        if (ins[0] == 0 || ins[0] > rom_.nDrums) return;
         const DrumSound& d = rom_.drums[ins[0]];
         start = d.start; loopA = d.loop; end = d.end; loop = d.flags & 1;
-        root = d.root;
-        // ASSUMED: kit Tune in cents on top of the sound's own, Level as a
-        // trim in parameter units like split byte 6.
-        tuneCents = d.tune + s8(ins[3]);
-        level = d.level + s8(ins[4]) / 4;
-        cutTrim = d.cutoff;
-        nt = true;                            // drum sounds play at their own pitch
-        if (!combiMode_ || (tb.pan & 0x80)) panCode = ins[2] & 0x0F;
-        (void)drumLevel;
+        tune128 = d.tune128;
+        // Tune in 10-cent steps, split into a root key and a fine part.
+        const int T = s8(ins[3]);
+        const int f = (T % 10) * 10, s = T / 10;
+        if (f > 50)       { cents = f - 100; rootKey = ins[1] - s - 1; }
+        else if (f < -50) { cents = f + 100; rootKey = ins[1] - s + 1; }
+        else              { cents = f;       rootKey = ins[1] - s; }
+        level = s8(ins[4]);
+        decay = s8(ins[5]);
+        cutTrim = 0;
+        panCode = ins[2] & 0x0F;          // drum programs always use the instrument pan
     } else {
-        const int msIdx = clampi(o == p + P_OSC1 ? p[P_MS1] : p[P_MS2], 0, 99);
-        const Multisound& ms = rom_.ms[msIdx];
+        const Multisound& ms = rom_.ms[clampi(osc ? p[P_MS2] : p[P_MS1], 0, 99)];
         const Split* sp = nullptr;
         for (int i = 0; i < ms.count; ++i) {
             const Split& s = rom_.splits[ms.first + i];
-            if (zoneNote <= s.top) { sp = &s; break; }
+            if (nE <= s.top) { sp = &s; break; }
         }
-        if (!sp) return;                      // keymap FF: no voice
+        if (!sp) return;                  // keymap FF: no voice
         start = sp->start; loopA = sp->loop; end = sp->end;
         loop = sp->flags & 1;
-        nt = (sp->flags & 2) != 0;
-        root = sp->root;
-        tuneCents = sp->tune;
+        rootKey = (sp->flags & 2) ? note : sp->root;   // NT: root := played key
+        cents = sp->tune;
+        tune128 = sp->tune128;
         level = sp->level;
         cutTrim = sp->cutoff;
-        if (tb.pan & 0x80) panCode = sp->pan;
+        decay = sp->decay;
+        if (panCode < 0) panCode = sp->pan;
     }
 
     v = Voice();
@@ -421,183 +479,203 @@ void Engine::startVoice(int vi, int t, int osc, uint8_t note, uint8_t vel, int p
     v.osc = (uint8_t)osc;
     v.note = note;
     v.vel = vel;
-    v.pitchNote = pitchNote;
+    v.nE = nE;
     v.base = rom_.pcm + start;
-    v.endRel = end - start;
-    v.loopLen = end - loopA;
+    v.endRel = (int32_t)(end - start);
+    v.loopLen = (int32_t)(end - loopA);
     v.loop = loop && v.loopLen > 0;
     v.pos = 0;
-    // root128 = rootKey x 128 - cents x 1.285 (EF83:0223, x 0x149 >> 8), floor
-    const int rk = nt ? pitchNote : root;
-    int c = tuneCents * 0x149;
-    c = (c >= 0) ? (c >> 8) : -((-c + 255) >> 8);
-    v.root128 = rk * 128 - c;
-    v.splitCutoff = cutTrim;
-    v.splitLevel = level;
-    v.age = ++ageCounter_;
+    v.root128 = rootKey * 128 - sc(cents) + tune128;
 
-    // Voice pan to the buses (analysis 8.18): register word from DS:0854,
-    // A/B in 6 bits each, C and D on/off.
-    if (panCode >= 14) panCode = 5;
+    // Voice pan (EF83:0337): register word from DS:0854, A/B in 6 bits each,
+    // C and D on/off.
+    if (panCode < 0 || panCode >= 14) panCode = 5;
     const uint16_t pr = rom_.panReg[panCode];
     v.panA = (pr & 63) / 63.0f;
     v.panB = ((pr >> 6) & 63) / 63.0f;
-    v.panC = (pr >> 12) & 1;
-    v.panD = (pr >> 13) & 1;
+    v.panC = (float)((pr >> 12) & 1);
+    v.panD = (float)((pr >> 13) & 1);
 
-    // Envelopes. Pitch EG: start level, attack, decay to 0, release; rise
-    // table only. VDF EG: from 0 through AL, BP, SL; release to RL. VDA EG:
-    // from 0 through AL, BP, SL; release to 0.
-    float tsF = 1.0f, tsA = 1.0f;
-    if (!refMode_) {
-        // ASSUMED (doc/ENGINE.md): EG time KBD/VEL scale all non-release
-        // segment times; positive values shorten towards the top key / hard
-        // playing. Factor range 1/4 .. 4.
-        auto factor = [&](int kbd, int velp) {
-            float f = 1.0f;
-            f *= powf(2.0f, -(float)kbd / 99.0f * (float)(note - 60) / 24.0f);
-            f *= powf(2.0f, -(float)velp / 99.0f * (float)(vel - 64) / 32.0f);
-            return clampf(f, 0.25f, 4.0f);
-        };
-        tsF = factor(o[O_VDF_TKBD], o[O_VDF_TVEL]);
-        tsA = factor(o[O_VDA_TKBD], o[O_VDA_TVEL]);
+    const int V = vel - 64;
+    if (refMode_) {
+        v.refCutoff = o[O_CUTOFF] * 0x52 + cutTrim * 0x52;
+        v.refLevel = level;
+    } else {
+        // Pitch EG intensity and time factor (EF83:1687)
+        v.pegI = 0x1FC2 + sc(o[O_PEG_LVEL]) * V;
+        const int32_t ft = 0x8000 - ((s8(o[O_PEG_TVEL]) * V * 1316) >> 8);
+        for (int k = 0; k < 4; ++k) v.pitchEg.factor[k] = (uint16_t)clampi(ft, 0, 0xFFFF);
+        // Cutoff key terms (EF83:1846): a built-in tracking above note 32,
+        // the program's tracking around its centre, the split's trim.
+        int32_t K = nE * 0x47 - 0x900;
+        if (K < 0) K = 0;
+        K += sc(o[O_VDF_KT]) * (int8_t)(note - o[O_VDF_KC]) + cutTrim * 0x52;
+        v.cutK = clampi(K, -0x2000, 0x1FFF);
+        const int iv = s8(o[O_VDF_IVEL]);
+        const int m = iv >= 0 ? vel - 127 : vel;
+        v.vdfI = hi16((int64_t)o[O_VDF_EGI] * 330 * 2 * (0x3FFF + sc(iv) * m));
+        // Amplitude (EF83:1AF3, 1EE9)
+        int32_t A = hi16((int64_t)o[O_LEVEL] * 0xA5 * (0x8000 + level * 330));
+        if (A > 0x1FFF) A = 0x1FFF;
+        int32_t KT = sc(o[O_VDA_KT]) * (int8_t)(note - o[O_VDA_KC]);
+        KT = clampi(KT, -0x800, 0x7FF) * 4;
+        v.vdaA = A + KT;
+        const int vs = s8(o[O_VDA_VEL]);
+        const int mv = vs >= 0 ? vel - 128 : vel - 1;
+        const int idx = (((sc(vs) * mv + 0x3F01) << 2) & 0xFFFF) >> 8;
+        v.velG = rom_.velCurve[idx];
+        timeFactors(v.vdfEg.factor, o[O_VDF_TKBD_SW], o[O_VDF_TVEL_SW], o[O_VDF_TKBD], o[O_VDF_TVEL],
+                    note, o[O_VDF_KC], V);
+        timeFactors(v.vdaEg.factor, o[O_VDA_TKBD_SW], o[O_VDA_TVEL_SW], o[O_VDA_TKBD], o[O_VDA_TVEL],
+                    note, o[O_VDA_KC], V);
+        // A drum's Decay scales the VDA decay segment.
+        v.vdaEg.factor[1] = (uint16_t)clampi((int32_t)(((int64_t)v.vdaEg.factor[1] * (0x8000 + decay * 330)) >> 15),
+                                             0, 0xFFFF);
     }
+
+    // Envelopes. Pitch: start level, attack, decay to 0, release (linear,
+    // rise table only). VDF: from 0 through AL, BP, SL, release to RL.
+    // VDA: from 0 through AL, BP, SL, release to 0.
     {
+        auto L = [](int prm) { return (s8((uint8_t)prm) * 4 * 0x52BF) >> 8; };
         const int16_t tm[2] = {o[O_PEG_AT], o[O_PEG_DT]};
-        const int16_t lv[2] = {(int16_t)s8(o[O_PEG_AL]), 0};
-        egStart(v.pitchEg, s8(o[O_PEG_SL]), tm, lv, 2, o[O_PEG_RT], s8(o[O_PEG_RL]), false, 1.0f);
+        const int16_t lv[2] = {(int16_t)L(o[O_PEG_AL]), 0};
+        egStart(v.pitchEg, Eg::Pitch, L(o[O_PEG_SL]), tm, lv, 2, o[O_PEG_RT], L(o[O_PEG_RL]));
     }
     {
         const int16_t tm[3] = {o[O_VDF_AT], o[O_VDF_DT], o[O_VDF_ST]};
-        const int16_t lv[3] = {(int16_t)s8(o[O_VDF_AL]), (int16_t)s8(o[O_VDF_BP]), (int16_t)s8(o[O_VDF_SL])};
-        egStart(v.vdfEg, 0, tm, lv, 3, o[O_VDF_RT], s8(o[O_VDF_RL]), true, tsF);
+        const int16_t lv[3] = {(int16_t)(s8(o[O_VDF_AL]) * 330), (int16_t)(s8(o[O_VDF_BP]) * 330),
+                               (int16_t)(s8(o[O_VDF_SL]) * 330)};
+        egStart(v.vdfEg, Eg::Vdf, 0, tm, lv, 3, o[O_VDF_RT], s8(o[O_VDF_RL]) * 330);
     }
     {
         const int16_t tm[3] = {o[O_VDA_AT], o[O_VDA_DT], o[O_VDA_ST]};
-        const int16_t lv[3] = {(int16_t)o[O_VDA_AL], (int16_t)o[O_VDA_BP], (int16_t)o[O_VDA_SL]};
-        egStart(v.vdaEg, 0, tm, lv, 3, o[O_VDA_RT], 0, true, tsA);
+        const int16_t lv[3] = {(int16_t)(o[O_VDA_AL] * 330), (int16_t)(o[O_VDA_BP] * 330),
+                               (int16_t)(o[O_VDA_SL] * 330)};
+        egStart(v.vdaEg, Eg::Vda, 0, tm, lv, 3, o[O_VDA_RT], 0);
     }
 
     // OSC 2 delay start, in 1.3 ms ticks (DS:776E) -> samples.
-    if (osc == 1 && mode == 1 && !refMode_)
+    if (osc == 1 && !refMode_)
         v.delayTicks = (int)((float)rom_.delayStart[clampi(p[P_DELAY], 0, 99)] * 40.625f);
 
     // MGs: without key sync a new voice takes over the timbre's running phase.
     for (int m = 0; m < 2; ++m) {
         const uint8_t bits = p[m ? P_CMG_BITS : P_PMG_BITS];
         v.mgPhase[m] = (bits & 0x80) ? 0 : tim_[t].mgPhase[m];
-        v.mgDelay[m] = p[m ? P_CMG_DELAY : P_PMG_DELAY];
+        v.mgAcc[m] = 0;
     }
     v.first = true;
     v.untilUpdate = 0;
 }
 
+// Pitch register from 1/128 semitone (EF83:001F, tables DS:0616 / DS:0748).
+uint16_t Engine::pitchStep(int32_t d) const {
+    int32_t hi = (d >> 7) + 0x80;
+    const int lo = d & 0x7F;
+    if (hi >= 0x99) return 0x2FFF;
+    if (hi < 0) hi = 0;
+    const uint32_t S = rom_.pitchS[hi];
+    uint32_t step = S + ((S * rom_.pitchF[lo]) >> 16);
+    if (step >= 0x3000) step = 0x2FFF;
+    return (uint16_t)step;
+}
+
 // ---------------------------------------------------------------------------
-// Control update, every 20.8 ms per voice (analysis 6.1, 6.3)
+// Control update, every 20.8 ms per voice (EF83:1785, 1F58, 1EE9, 1533)
 // ---------------------------------------------------------------------------
+namespace {
+int32_t mgWave(int shape, uint16_t ph) {
+    switch (shape & 3) {
+        case 0: {                                        // triangle, from 0 rising
+            uint32_t x = (ph + 0x4000u) & 0xFFFFu;
+            if (x & 0x8000u) x = ~x & 0xFFFFu;
+            return (int32_t)(int16_t)(uint16_t)((x - 0x4000u) << 1);
+        }
+        case 1: return (int32_t)(int16_t)(uint16_t)(ph ^ 0x8000u);                  // saw up
+        case 2: return (int32_t)(int16_t)(uint16_t)(((0x10000u - ph) & 0xFFFFu) ^ 0x8000u);  // saw down
+        default: return ph < 0x8000 ? 0 : 0x7FFF;          // square, unipolar
+    }
+}
+}  // namespace
+
 void Engine::update(Voice& v) {
-    const Timbre& tb = tim_[v.timbre];
+    Timbre& tb = tim_[v.timbre];
     const uint8_t* p = tb.prog;
     const uint8_t* o = p + (v.osc ? P_OSC2 : P_OSC1);
 
-    const float pEg = egStep(v.pitchEg);
-    const float fEg = egStep(v.vdfEg);
-    const float aEg = egStep(v.vdaEg);
+    const int32_t pL = egStep(v.pitchEg);
+    const int32_t fL = egStep(v.vdfEg);
+    const int32_t aL = egStep(v.vdaEg);
 
-    float cutReg, amp;
-    int delta128;
+    float cut, amp;
+    int32_t step;
     if (refMode_) {
         // Exactly the Python reference's render_voice().
-        cutReg = (float)(o[O_CUTOFF] * 0x52 + v.splitCutoff * 0x52) + fEg * o[O_VDF_EGI] / 99.0f * 0x1FFF;
-        amp = (aEg > 0 ? aEg : 0) * o[O_LEVEL] / 99.0f * (float)(0x8000 + v.splitLevel * kLevelUnit) / 32768.0f;
-        delta128 = v.pitchNote * 128 + 3 - v.root128;
+        const float fEg = (float)fL / (99.0f * 330.0f), aEg = (float)aL / (99.0f * 330.0f);
+        float cr = (float)v.refCutoff + fEg * o[O_VDF_EGI] / 99.0f * 0x1FFF;
+        cut = floorf(clampf(cr, 0.0f, (float)kCutMax));
+        amp = (aEg > 0 ? aEg : 0) * o[O_LEVEL] / 99.0f * (float)(0x8000 + v.refLevel * 330) / 32768.0f;
+        step = (int32_t)lrintf(exp2f((float)(v.nE * 128 + 3 - v.root128) / 1536.0f) * 4096.0f);
+        if (step > 0x2FFF) step = 0x2FFF;
     } else {
         const int ch = tb.midiCh & 15;
-        // --- MGs (ASSUMED scaling: the MG table value is the phase step per
-        // update in a 16-bit cycle; triangle/saw/square as named).
-        float mg[2] = {0, 0};
+        const int AT = aft_[ch], JYp = mod_[ch], JYn = modNeg_[ch], BEND = bend_[ch];
+        // --- MGs: pitch (bytes 19..22) and VDF (23..26)
+        int32_t mgOut[2] = {0, 0};
         for (int m = 0; m < 2; ++m) {
             const uint8_t bits = p[m ? P_CMG_BITS : P_PMG_BITS];
-            const bool en = v.osc ? (bits & 0x40) : (bits & 0x20);
-            const int freq = clampi(p[m ? P_CMG_FREQ : P_PMG_FREQ], 0, 99);
-            v.mgPhase[m] = (v.mgPhase[m] + rom_.mgFreq[freq]) & 0xFFFF;
-            if (!en) continue;
-            if (v.mgDelay[m] > 0) { --v.mgDelay[m]; continue; }
-            const float ph = v.mgPhase[m] / 65536.0f;
-            float w;
-            switch (bits & 3) {
-                case 0: w = ph < 0.5f ? 4 * ph - 1 : 3 - 4 * ph; break;   // triangle
-                case 1: w = 2 * ph - 1; break;                            // saw up
-                case 2: w = 1 - 2 * ph; break;                            // saw down
-                default: w = ph < 0.5f ? 1.0f : -1.0f; break;             // square
+            const int jy = m ? JYn : JYp;
+            int fi = p[m ? P_CMG_FREQ : P_PMG_FREQ] + ((p[m ? P_JS_CMG_F : P_JS_PMG_F] * jy) >> 3);
+            if (fi > 99) fi = 99;
+            const uint16_t inc = rom_.mgFreq[clampi(fi, 0, 99)];
+            int32_t wave = 0;
+            if (inc) {
+                v.mgPhase[m] = (uint16_t)(v.mgPhase[m] + inc);
+                const bool en = v.osc ? (bits & 0x40) : (bits & 0x20);
+                if (en) wave = mgWave(bits, v.mgPhase[m]);
             }
-            mg[m] = w;
+            tb.mgPhase[m] = v.mgPhase[m];
+            uint32_t acc = v.mgAcc[m] + rom_.mgDelay[clampi(p[m ? P_CMG_DELAY : P_PMG_DELAY], 0, 99)];
+            if (acc > 0xFFFF) acc = 0xFFFF;
+            v.mgAcc[m] = (uint16_t)acc;
+            const uint32_t fade = acc >= 0x8000 ? (acc * 2) & 0xFFFF : 0;
+            const int32_t extra = hi16((int64_t)(p[m ? P_AT_CMG : P_AT_PMG] * AT
+                                                 + p[m ? P_JS_CMG : P_JS_PMG] * jy) * 0xA480);
+            const uint16_t* intT = m ? rom_.mgIntF : rom_.mgIntP;
+            int32_t depth = hi16((int64_t)fade * intT[clampi(p[m ? P_CMG_INT : P_PMG_INT], 0, 99)]) + extra;
+            if (depth > 0x1FFF) depth = 0x1FFF;
+            mgOut[m] = hi16((int64_t)depth * wave) * 2;
         }
-        tim_[v.timbre].mgPhase[0] = v.mgPhase[0];
-        tim_[v.timbre].mgPhase[1] = v.mgPhase[1];
-        const float modUp = mod_[ch] / 127.0f, modDn = modNeg_[ch] / 127.0f, at = aft_[ch] / 127.0f;
-
-        // --- pitch, in 1/128 semitone
-        const int oct = s8(o == p + P_OSC1 ? p[P_OCT1] : p[P_OCT2]);
-        float d = (float)(v.pitchNote * 128 + oct * 1536 + 3 - v.root128);
-        if (v.osc == 1) d += s8(p[P_INTERVAL]) * 128.0f;
-        // Detune spreads the two oscillators by +-half the value (cents).
-        const float det = s8(p[P_DETUNE]) * (v.osc ? 0.5f : -0.5f) + tb.detune + tuneCents_;
-        d += det * 1.285f;
-        // Pitch EG: level 99 = one octave (ASSUMED).
-        const float pegVel = 1.0f + s8(o[O_PEG_LVEL]) / 99.0f * ((float)v.vel - 64.0f) / 63.0f;
-        d += pEg * pegVel * 1536.0f;
-        // Pitch MG: intensity 99 = one octave (ASSUMED); joystick +Y and
-        // aftertouch add intensity.
-        const float pmgInt = (p[P_PMG_INT] + p[P_JS_PMG] * modUp + p[P_AT_PMG] * at) / 99.0f;
-        d += mg[0] * clampf(pmgInt, 0.0f, 1.0f) * 1536.0f;
-        // Joystick X, range in semitones per program; aftertouch pitch likewise.
-        const int b = bend_[ch];
-        d += (float)b / 8192.0f * s8(p[P_JS_BEND]) * 128.0f;
-        d += at * s8(p[P_AT_PITCH]) * 128.0f;
-        delta128 = (int)lrintf(d);
-
-        // --- cutoff register (EF83:1F58): additive in the log domain
-        float cr = (float)(o[O_CUTOFF] * 0x52 + v.splitCutoff * 0x52);
-        cr += (float)(v.pitchNote - o[O_VDF_KC]) * s8(o[O_VDF_KT]) / 99.0f * 0x47;   // ASSUMED
-        const float egInt = o[O_VDF_EGI] / 99.0f * (1.0f + s8(o[O_VDF_IVEL]) / 99.0f * ((float)v.vel - 64.0f) / 63.0f);
-        cr += fEg * clampf(egInt, 0.0f, 2.0f) * 0x1FFF;
-        cr += mg[1] * (p[P_CMG_INT] + p[P_JS_CMG] * modDn + p[P_AT_CMG] * at) / 99.0f * 0x1000;   // ASSUMED
-        cr += s8(p[P_JS_SWEEP]) / 99.0f * modDn * 0x1000;                                          // ASSUMED
-        cr += s8(p[P_AT_CUT]) / 99.0f * at * 0x1000;                                               // ASSUMED
-        cutReg = cr;
-
-        // --- amplitude (EF83:1EE9): multiplicative
-        float a = (aEg > 0 ? aEg : 0) * o[O_LEVEL] / 99.0f * (float)(0x8000 + v.splitLevel * kLevelUnit) / 32768.0f;
-        const int vs = s8(o[O_VDA_VEL]);
-        // Velocity through the firmware's exponential curve (CS:1BC3); the
-        // sensitivity blends between flat and that curve (ASSUMED blend).
-        const float vc = rom_.velCurve[v.vel & 127] / (float)rom_.velCurve[127];
-        const float velGain = vs >= 0 ? 1.0f + vs / 99.0f * (vc - 1.0f)
-                                      : 1.0f + (-vs) / 99.0f * (rom_.velCurve[127 - (v.vel & 127)] /
-                                                                (float)rom_.velCurve[127] - 1.0f);
-        a *= velGain;
-        // Keyboard tracking of level: +-99 = +-6 dB per octave (ASSUMED).
-        a *= powf(2.0f, s8(o[O_VDA_KT]) / 99.0f * ((float)v.pitchNote - o[O_VDA_KC]) / 12.0f * 1.0f);
-        a *= 1.0f + s8(p[P_AT_AMP]) / 99.0f * at;
-        a *= tb.level / 99.0f;
-        amp = clampf(a, 0.0f, 4.0f);
+        // --- pitch, 1/128 semitone (EF83:178B)
+        const int32_t t1e = hi16((int64_t)(s8(p[P_JS_BEND]) * 256) * (BEND * 4))
+                          + (AT == 127 ? s8(p[P_AT_PITCH]) * 128 : s8(p[P_AT_PITCH]) * AT)
+                          + (((tb.detune + tuneCents_) * 0x29) >> 5);
+        const int32_t egP = hi16((int64_t)hi16((int64_t)pL * v.pegI) * 0x6000);
+        const int32_t a = (v.osc ? (0x29 * s8(p[P_DETUNE])) >> 4 : 0) + (v.nE << 8);
+        const int32_t delta = (a >> 1) + hi16((int64_t)0x3000 * mgOut[0]) + t1e + egP;
+        step = pitchStep(delta + 3 - v.root128);
+        // --- cutoff register (EF83:1F58, E066:896C)
+        int32_t c1 = ((o[O_CUTOFF] * 0x52BF) >> 8) + v.cutK;
+        c1 = clampi(c1, 0, 0x1FFF);
+        const int32_t t1c = hi16((int64_t)(hi16((int64_t)(s8(p[P_JS_SWEEP]) * 256) * (BEND * 4))
+                                           + s8(p[P_AT_CUT]) * AT) * 0x5240);
+        const int32_t c = c1 + mgOut[1] + t1c + hi16((int64_t)fL * v.vdfI);
+        cut = (float)clampi(c, 0, 0x1FFF);
+        // --- amplitude (EF83:1EE9): every factor multiplies
+        const int32_t atA = hi16((int64_t)s8(p[P_AT_AMP]) * AT * 2 * 0x5240);
+        const int32_t A2 = clampi(v.vdaA + atA, 0, 0x1FFF);
+        const int32_t t18 = (tb.level * 127 * 0x524) >> 8;
+        const int32_t out = hi16((int64_t)hi16((int64_t)hi16((int64_t)(A2 << 3) * v.velG) * t18) * aL);
+        amp = (float)(out > 0 ? out : 0) * (1.0f / 8192.0f);
     }
-
-    // Pitch step 4.12, clamp 0x2FFF (EF83:001F)
-    float ratio = exp2f((float)delta128 / 1536.0f);
-    int32_t step = (int32_t)lrintf(ratio * 4096.0f);
-    if (step > 0x2FFF) step = 0x2FFF;
     v.step = step;
 
-    float cut = clampf(cutReg, 0.0f, (float)kCutMax);
-    cut = floorf(cut);
     if (v.first) { v.cut = cut; v.amp = amp; v.first = false; }
     // Hardware ramp, modelled as linear across the update interval.
     v.cutInc = (cut - v.cut) / (float)kUpdate;
     v.ampInc = (amp - v.amp) / (float)kUpdate;
 
-    // Voice end: VDA envelope finished at zero.
     // Voice end: the VDA envelope has finished at zero (a sustain of 0, or the
     // end of the release) and the ramp towards it has run out.
     if (!v.vdaEg.active && v.vdaEg.level <= 0 && amp <= 0.0f && v.amp <= 1e-6f) v.active = false;
@@ -636,7 +714,7 @@ void Engine::renderVoice(Voice& v, int frames) {
         if (n > v.untilUpdate) n = v.untilUpdate;
         for (int j = 0; j < n; ++j, ++i) {
             if (v.oscDone) {
-                y1 += (rom_.vdf1k[(int)v.cut >> 1] * (1.0f / 8192.0f)) * (0.0f - y1);
+                y1 += (rom_.vdf1k[((int)v.cut > kCutMax ? kCutMax : (int)v.cut) >> 1] * (1.0f / 8192.0f)) * (0.0f - y1);
                 y2 += (rom_.vdf2k[(int)v.cut >> 1] * (1.0f / 8192.0f)) * (y1 - y2);
                 const float out = y2 * v.amp;
                 busA_[i] += out * v.panA; busB_[i] += out * v.panB;
@@ -665,8 +743,9 @@ void Engine::renderVoice(Voice& v, int frames) {
             }
             const float x = (float)acc * (1.0f / (1226.0f * 32768.0f));
 
-            const int ci = (int)v.cut >> 1;
-            const float k1 = k1t[ci] * (1.0f / 8192.0f), k2 = k2t[ci] * (1.0f / 8192.0f);
+            const int ci = (int)v.cut;
+            const float k1 = k1t[(ci > kCutMax ? kCutMax : ci) >> 1] * (1.0f / 8192.0f);
+            const float k2 = k2t[ci >> 1] * (1.0f / 8192.0f);
             y1 += k1 * (x - y1);
             y2 += k2 * (y1 - y2);
             const float out = y2 * v.amp;

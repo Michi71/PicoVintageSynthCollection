@@ -59,7 +59,9 @@ static m1::Engine* makeEngine(const char* gendir) {
     rom.drums = m1rom::kDrums; rom.nDrums = m1rom::kDrumCount;
     rom.kernel = g_kernel; rom.vdf1k = m1rom::kVdf1k; rom.vdf2k = m1rom::kVdf2k;
     rom.egRise = m1rom::kEgRise; rom.egFall = m1rom::kEgFall; rom.velCurve = m1rom::kVelCurve;
-    rom.mgFreq = m1rom::kMgFreq; rom.panReg = m1rom::kPanReg; rom.pan101 = m1rom::kPan101;
+    rom.mgFreq = m1rom::kMgFreq; rom.mgDelay = m1rom::kMgDelay;
+    rom.mgIntP = m1rom::kMgIntP; rom.mgIntF = m1rom::kMgIntF;
+    rom.pitchS = m1rom::kPitchS; rom.pitchF = m1rom::kPitchF; rom.panReg = m1rom::kPanReg; rom.pan101 = m1rom::kPan101;
     rom.delayStart = m1rom::kDelayStart; rom.fx = &m1rom::kFx;
     rom.programs = m1rom::kPrograms; rom.combis = m1rom::kCombis; rom.kits = m1rom::kKits;
     auto* e = new m1::Engine();
