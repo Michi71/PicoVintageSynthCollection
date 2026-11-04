@@ -131,14 +131,19 @@ the analysis worked out, and the numbers come out of the OS:
 - **Assumed** (the OS does not hold them; the converter fills them in and
   says so, `fill_assumed` in `m1_make_blob.py`):
 
-  | Value | Assumption | Affects |
-  |---|---|---|
-  | LFO sine | raised cosine `sin²(π(i+½)/128)` over 128 steps, Q9; the triangle is the firmware's exact shape | chorus, flanger, phaser, tremolo, rotary, combinations |
-  | second LFO wave | raised cosine at twice the rate | flanger shape, tremolo shape, symphonic |
-  | rotary drum low-pass pole | unity DC gain of the two firmware coefficients | Rotary SP |
-  | rotary depth | word 18 (v/100) as AM depth, word 27 (v·0.002) × 256 samples as Doppler swing | Rotary SP |
-  | symphonic tap offset, second-LFO mix, voice phases | 300 samples + the template's spreads, 0.1, phase words A000/C000/E000h as table steps | Symphonic Ens |
-  | Delay/Hall, Delay/Room pre-filter | the template's EQ words unpatched, taken as flat 0 dB shelves | Delay/Hall, Delay/Room |
+  | Value | Assumption | Affects | Against the analysis' reference |
+  |---|---|---|---|
+  | LFO sine | raised cosine `sin²(π(i+½)/128)` over 128 steps, Q9; the triangle is the firmware's exact shape | chorus, flanger, phaser, tremolo, rotary, combinations | 12 of 128 points off by 1/512; inaudible (r 1.000) |
+  | second LFO wave | raised cosine at twice the rate | flanger shape, tremolo shape, symphonic | up to 0.09 off, peaks 2–3 steps early; flanger r 0.93, tremolo r 1.00, symphonic up to 4.6 dB in single bands |
+  | rotary drum low-pass pole | unity DC gain of the two firmware coefficients | Rotary SP | 0.910 against 0.908, +0.15 dB |
+  | rotary depth | word 18 (v/100) as AM depth, word 27 (v·0.002) × 256 samples as Doppler swing | Rotary SP | Doppler about 6 % (horn) and 24 % (drum) wider; ≤ 1.1 dB in single bands |
+  | symphonic tap offset, second-LFO mix, voice phases | 300 samples + the template's spreads, 0.1, phase words A000/C000/E000h as table steps | Symphonic Ens | offset 12 samples short, mix 0.1 against 0.084, phases spaced 45° instead of 90°; up to 3 dB in single bands |
+  | Delay/Hall, Delay/Room pre-filter | the template's unpatched words decoded with the reverb-EQ layout: two flat shelves | Delay/Hall, Delay/Room | the reference has a gentle bass cut here; +0.65 dB, ≤ 0.9 dB in single bands |
+
+The last column comes from running the analysis' Python effects once with
+its own values and once with these (outside this repository). The Symphonic
+Ensemble is the one audible gap; nothing in the OS fixes it, so it needs
+either the MDE's LFO semantics or a recording of an M1.
 
 The factory preload uses Symphonic Ens 7 times, Rotary SP once and
 Delay/Hall 4 times; the LFO shape matters to every Chorus (115 uses).

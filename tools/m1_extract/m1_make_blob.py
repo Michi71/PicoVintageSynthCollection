@@ -208,14 +208,20 @@ def fill_assumed(fx, rom):
     if sy.get("mix2") is None:
         sy["mix2"] = [0.1, 0.1, 0.1]
         done.append("sym.mix2")
+    import m1_fx_tables as M
+    tpl = M._templates(M._Img(rom.os))
     for t in (25, 26):
         d = fx["crev"][t]
         if d.get("eq") is None:
-            # The firmware never patches the pre-filter words; they keep the
-            # reverb EQ template's defaults, taken as 0 dB: two flat shelves
-            # at 1 kHz with gain 0.5 each. Stored as (Z1, -P1, Z2, -P2, s1, s2).
-            k = s16s(rom.os, *REV19["eq_k"])[2] / 8192.0
-            d["eq"] = [k, -k, k, -k, 0.5, 0.5]
+            # The firmware never patches the pre-filter words, so the
+            # template's own words apply (T25/T26 words 2-9, the reverb EQ
+            # layout): per stage Z, s - 1, then the pole as the product of the
+            # 0.967 factor and its second word. Decoded they are two flat
+            # shelves (zero = pole) of gain 0.5. The decoding of the word
+            # roles is the assumption. Stored as (Z1, P1, Z2, P2, s1, s2).
+            T = tpl(t)
+            c = [M._coef(T[k]) for k in range(2, 10)]
+            d["eq"] = [c[0], c[2] * c[3], c[4], c[6] * c[7], 1.0 + c[1], 1.0 + c[5]]
             if "crev.eq" not in done:
                 done.append("crev.eq")
     return done
