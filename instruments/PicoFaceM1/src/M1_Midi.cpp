@@ -12,13 +12,17 @@ bool M1_Midi::accepts(uint8_t ch) const {
 
 void M1_Midi::onNoteOn(uint8_t ch, uint8_t note, uint8_t vel) {
     if (!accepts(ch) || note > 127) return;
-    if (vel == 0) { bridge_.noteOff(0, note); return; }
-    bridge_.noteOn(0, note, vel);
+    const int n = note + controller_.keyTranspose();   // the M1's global key transpose
+    if (n < 0 || n > 127) return;
+    if (vel == 0) { bridge_.noteOff(0, (uint8_t)n); return; }
+    bridge_.noteOn(0, (uint8_t)n, vel);
 }
 
 void M1_Midi::onNoteOff(uint8_t ch, uint8_t note) {
     if (!accepts(ch) || note > 127) return;
-    bridge_.noteOff(0, note);
+    const int n = note + controller_.keyTranspose();
+    if (n < 0 || n > 127) return;
+    bridge_.noteOff(0, (uint8_t)n);
 }
 
 void M1_Midi::onProgramChange(uint8_t ch, uint8_t pc) {

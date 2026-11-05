@@ -183,7 +183,9 @@ MIDI comes in over two paths and goes out over two paths: USB and DIN. The callb
 
 Reception is interrupt-driven into a lock-free ring of 256 bytes. At 31250 baud a byte arrives every 320 microseconds; the 32-byte deep hardware FIFO would only give about 10 ms of headroom. That was already not enough for the blocking menus, which no longer exist, and today it covers the flash write of the persistence layer. The interrupt is RAM-resident and only moves bytes; parsing happens in process(). The interrupt priority sits below the audio DMA and above USB.
 
-The parser handles running status, SysEx up to 256 bytes, and lets realtime bytes pass through unharmed in the middle of a message. Note-on with velocity 0 is treated as note-off.
+The parser handles running status, SysEx up to 512 bytes, and lets realtime bytes pass through unharmed in the middle of a message. Note-on with velocity 0 is treated as note-off.
+
+Longer SysEx -- the M1's bank dumps are 14-50 KB -- does not go through a buffer at all: an instrument that returns true from `wantsSysExStream()` gets every SysEx byte from both wires through `sysExStream()` as it arrives, F0 and F7 included, and does its own framing. The buffered `sysEx()` keeps working beside it for everyone else. For dumps going the other way, `MIDIOutputUSB::freeSpace()` and `MIDISerial::txFree()` let a sender pace itself instead of overflowing the rings (PicoFaceM1's `M1_SysEx::poll()`).
 
 ### Integration
 

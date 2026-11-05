@@ -76,6 +76,9 @@ picoface_add_instrument(
         src/M1_Bridge.cpp
         src/M1_Controller.cpp
         src/M1_Midi.cpp
+        src/M1_SysEx.cpp
+        src/m1_memory.cpp
+        src/m1_params.cpp
         src/m1_engine/m1_engine.cpp
         src/m1_engine/m1_fx.cpp
         ${_m1_blob_s}
@@ -87,5 +90,6 @@ picoface_add_instrument(
     # ---- Optional core modules -------------------------------------------
     CORE_MODULES
         ui_kit     # shared panel look: header, knobs, two-value body, lists
+        ui_menu    # ListView for the menu and the edit-page list
 
 )

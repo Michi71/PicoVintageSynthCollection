@@ -123,6 +123,16 @@ public:
     void selectProgram(int index);
     // Combination mode: eight timbres.
     void selectCombi(int index);
+    // The same from a buffer (an edit buffer, a received dump). The engine
+    // keeps the pointer and reads it live: parameter edits are heard on the
+    // next note, or the next 20.8 ms update for envelope-independent terms.
+    // Combination timbres take their programs from RomTables::programs.
+    void playProgram(const uint8_t* prog143);
+    void playCombi(const uint8_t* combi124);
+    // After an edit of the 25-byte effect block: rebuilds the effects.
+    void refreshEffects(const uint8_t* block) { fx_.configure(block); }
+    // After a change to the drum kits.
+    void rebuildKits();
     bool combiMode() const { return combiMode_; }
     const char* name() const { return name_; }
 

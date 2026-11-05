@@ -13,21 +13,46 @@
 
 #include "M1_Bridge.h"
 #include "M1_Controller.h"
-#include "picoface/ui_kit.h"
 #include "M1_Midi.h"
+#include "M1_SysEx.h"
+#include "audio_i2s.h"   // g_i2s_underrun_count
+#include "m1_params.h"
+#include "m1_rom_tables.h"
 #include "m1_settings.h"
-#include "audio_i2s.h"   // g_i2s_underrun_count, for the diagnostics footer
+#include "midi_output_usb.h"
+#include "midi_serial.h"
+#include "picoface/ui_kit.h"
+
+// SysEx output for M1_SysEx: both wires, paced by whichever ring is fuller.
+// A host that does not read the USB endpoint (see MIDIOutputUSB::stalled)
+// must not hold DIN back.
+size_t m1_sysex_room() {
+    size_t room = midiSerial().txFree();
+    if (!usbMidiOut().stalled()) {
+        const size_t u = usbMidiOut().freeSpace();
+        if (u < room) room = u;
+    }
+    return room;
+}
+
+void m1_sysex_write(const uint8_t* data, size_t len) {
+    usbMidiOut().write(data, (uint16_t)len);
+    midiSerial().write(data, (uint16_t)len);
+}
 
 namespace {
 
 class M1Instrument final : public picoface::Instrument {
 public:
-    M1Instrument() : controller_(bridge_), midi_(bridge_, controller_) {}
+    M1Instrument() : controller_(bridge_), midi_(bridge_, controller_), sysex_(controller_) {}
 
     const char* name() const override { return "PicoFaceM1"; }
 
     void init() override {
         bridge_.init();
+        m1::setNameSources(m1rom::kMultisoundNames, m1rom::kDrumNames,
+                           bridge_.memory().image().programs);
+        controller_.setSysEx(&sysex_);
         M1SettingsV1 defaults{};
         controller_.exportSettings(defaults);
         controller_.importSettings(defaults);   // pushes them into the bridge
@@ -39,11 +64,7 @@ public:
         bridge_.fillBufferI32(out, (int)frames);
     }
 
-    // An underrun means polyphony outran the CPU, so shed voices -- but the cut
-    // has to be temporary. An earlier version only ever lowered the cap, so a
-    // brief overload ratcheted it down to the floor and left it there: every
-    // note after that stole a voice, which chops the sound in a way that is
-    // easy to mistake for bad loop points. Recovery happens in uiTick().
+    // An underrun sheds voices for a while; recovery in uiTick().
     void onAudioUnderrun() override {
         const int n = bridge_.voiceLimit();
         if (n > kVoiceFloor) bridge_.setVoiceLimit(n - 2);
@@ -57,44 +78,43 @@ public:
     void controlChange(uint8_t ch, uint8_t cc, uint8_t v) override { midi_.onControlChange(ch, cc, v); }
     void pitchBend(uint8_t ch, int16_t bend) override { midi_.onPitchBend(ch, bend); }
     void channelPressure(uint8_t ch, uint8_t v) override { midi_.onChannelPressure(ch, v); }
-    void programChange(uint8_t ch, uint8_t p) override {
-        midi_.onProgramChange(ch, p);
+    void programChange(uint8_t ch, uint8_t p) override { midi_.onProgramChange(ch, p); dirty_ = true; }
+
+    // Bank dumps are 14-50 KB: take SysEx as a stream.
+    bool wantsSysExStream() const override { return true; }
+    void sysExStream(const uint8_t* d, size_t n) override {
+        sysex_.feed(d, n);
         dirty_ = true;
     }
 
     // ---------------------------------------------------------------- GUI
-    void uiInit(picoface::ui::Display& d) override { draw(d); }
+    void uiInit(picoface::ui::Display& d) override { marquee_ = controller_.draw(d, 0); }
 
     void uiTick(picoface::ui::Display& d, const picoface::ui::InputState& in) override {
-        using picoface::ui::Encoder;
-        const int8_t ds = in.delta(Encoder::Sel);
-        const int8_t da = in.delta(Encoder::ParamA);
-        const int8_t db = in.delta(Encoder::ParamB);
-        // Voice governor recovery: one voice back per second of quiet, so a
-        // passing overload does not cost polyphony for the rest of the session.
-        // Deliberately slower than the cut, to avoid pumping around the limit.
+        sysex_.poll();
+        // Voice governor recovery, one voice per quiet second.
         if (g_i2s_underrun_count != lastUnderrun_) {
             lastUnderrun_ = g_i2s_underrun_count;
             lastUnderrunMs_ = in.nowMs;
-        } else if (bridge_.voiceLimit() < m1::kVoices &&
-                   (in.nowMs - lastUnderrunMs_) > 1000u) {
+        } else if (bridge_.voiceLimit() < m1::kVoices && (in.nowMs - lastUnderrunMs_) > 1000u) {
             bridge_.setVoiceLimit(bridge_.voiceLimit() + 1);
             lastUnderrunMs_ = in.nowMs;
+        }
+        // The memory mirror: written once things have been quiet for a while
+        // and nothing sounds, since the erase stops the CPU.
+        uint32_t changed = 0;
+        if (controller_.memoryDirtySince(changed) && (in.nowMs - changed) > 1500u &&
+            bridge_.activeVoices() == 0 && !sysex_.sending()) {
+            bridge_.memory().store();
             dirty_ = true;
         }
 
-        if (ds) { controller_.onEncoderSel(ds); dirty_ = true; }
-        if (da) { controller_.onEncoderA(da); dirty_ = true; }
-        if (db) { controller_.onEncoderB(db); dirty_ = true; }
-        // Redraw soon after input, and at least twice a second as a keep-alive
-        // so the footer's live counters stay current.
+        if (controller_.input(in)) dirty_ = true;
         if ((dirty_ && (in.nowMs - lastDrawMs_) > 50u) || (in.nowMs - lastDrawMs_) > 500u) {
-            draw(d, in.nowMs);
+            marquee_ = controller_.draw(d, in.nowMs);
             dirty_ = false;
             lastDrawMs_ = in.nowMs;
         } else if (marquee_ && (in.nowMs - lastMarqueeMs_) >= 40u) {
-            // The scrolling patch name: one band redrawn, one band flushed,
-            // nothing else on the screen moves.
             marquee_ = picoface::ui::kit::marqueeTick(d, in.nowMs);
             lastMarqueeMs_ = in.nowMs;
         }
@@ -112,7 +132,7 @@ public:
     }
 
     void settingsLoad(const uint8_t* buffer, size_t size) override {
-        if (size < sizeof(M1SettingsV1)) return;   // short record: keep defaults
+        if (size < sizeof(M1SettingsV1)) return;
         M1SettingsV1 s{};
         memcpy(&s, buffer, sizeof(s));
         controller_.importSettings(s);
@@ -120,59 +140,15 @@ public:
     }
 
 private:
-    void draw(picoface::ui::Display& d, uint32_t nowMs = 0) {
-        namespace kit = picoface::ui::kit;
-        marquee_ = false;
-
-        // The developer's numbers went from a strip at the bottom of every page
-        // to a page of their own (#161: that strip cost the body nine rows on
-        // a screen with none to spare). Formatted here because only this
-        // instrument knows what its numbers are; 6x12 holds 21 characters.
-        if (controller_.isDiagPage()) {
-            // Peak load first: it is the number that says how much headroom
-            // is left, and the one that moves before an underrun happens.
-            char r0[22], r1[22], r2[22];
-            snprintf(r0, sizeof r0, "CPU peak %d%%", (int)bridge_.cpuLoadPeakPercent());
-            snprintf(r1, sizeof r1, "Underruns %lu", (unsigned long)g_i2s_underrun_count);
-            snprintf(r2, sizeof r2, "Voices %d/%d", bridge_.activeVoices(), bridge_.voiceLimit());
-            const char* rows[3] = { r0, r1, r2 };
-            kit::diagnostics(d, controller_.pageName(), rows, 3);
-            d.flush();
-            return;
-        }
-
-
-        const M1_Controller::Value a = controller_.valueA();
-        const M1_Controller::Value b = controller_.valueB();
-
-        d.clear();
-        kit::header(d, controller_.pageName(), controller_.pageIndex(),
-                    controller_.pageTotal());
-        if (controller_.isPatchPage()) {
-            // The name gets the whole width and scrolls if it is longer than
-            // that; the bank sits under it.
-            marquee_ = kit::panelName(d, "", a.text, b.text, {}, nowMs);
-        } else {
-            kit::panelDuo(d, { a.name, a.text, a.norm },
-                             { b.name, b.text, b.norm });
-        }
-
-        // Arms the incremental push. Painting the buffer is not enough: the main
-        // loop only streams out rows whose bit in the flush mask is set, and
-        // flush() is what sets them. Without this the display keeps showing
-        // whatever was pushed last -- the boot splash -- while everything else
-        // runs normally.
-        d.flush();
-    }
-
     static constexpr int kVoiceFloor = 4;
 
     M1_Bridge bridge_;
     M1_Controller controller_;
     M1_Midi midi_;
+    M1_SysEx sysex_;
     bool dirty_ = true;
     uint32_t lastDrawMs_ = 0;
-    bool marquee_ = false;           // the patch name is scrolling; keep ticking it
+    bool marquee_ = false;
     uint32_t lastMarqueeMs_ = 0;
     uint32_t lastUnderrun_ = 0;
     uint32_t lastUnderrunMs_ = 0;

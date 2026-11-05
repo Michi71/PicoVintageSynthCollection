@@ -14,6 +14,7 @@
 #include <cstdint>
 
 #include "m1_engine/m1_engine.h"
+#include "m1_memory.h"
 
 class M1_Bridge {
 public:
@@ -32,10 +33,12 @@ public:
     void aftertouch(uint8_t ch, uint8_t v)             { engine_.aftertouch(ch, v); }
     void setRotaryFast(bool f)                         { engine_.setRotaryFast(f); }
 
-    void selectProgram(int i);
-    void selectCombi(int i);
-    const char* patchName() const { return engine_.name(); }
-    bool combiMode() const { return engine_.combiMode(); }
+    // The engine plays from the controller's edit buffers.
+    void playProgram(const uint8_t* p)        { engine_.playProgram(p); }
+    void playCombi(const uint8_t* c)          { engine_.playCombi(c); }
+    void refreshEffects(const uint8_t* block) { engine_.refreshEffects(block); }
+    void rebuildKits()                        { engine_.rebuildKits(); }
+    m1::Memory& memory();
 
     void setVolume(uint8_t percent);          // 0..100, the front-panel knob
     void setMidiVolume(uint8_t v);            // CC7

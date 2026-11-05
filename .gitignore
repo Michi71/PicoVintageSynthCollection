@@ -78,3 +78,4 @@ tools/host_tests/cp/out/
 # PicoFaceM1 host renders (tools/host_tests/m1_engine_test)
 tools/host_tests/m1_engine_test/m1_render
 tools/host_tests/m1_engine_test/out/
+tools/host_tests/m1_engine_test/m1_ui_shots

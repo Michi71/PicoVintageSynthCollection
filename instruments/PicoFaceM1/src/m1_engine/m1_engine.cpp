@@ -145,12 +145,17 @@ bool Engine::init(const RomTables& rom, int16_t* fxMem) {
     rom_ = rom;
     fx_.init(rom.fx, rom.pan101, fxMem);
     for (int i = 0; i < kVoices; ++i) { queue_[i] = (uint8_t)i; voice_[i] = Voice(); }
-    // Drum keymaps (E066:2E48): each instrument fills its key and every key
-    // below it that still holds what its key held.
+    rebuildKits();
+    return rom.pcm != nullptr;
+}
+
+// Drum keymaps (E066:2E48): each instrument fills its key and every key
+// below it that still holds what its key held.
+void Engine::rebuildKits() {
     for (int k = 0; k < 4; ++k) {
         uint8_t* map = kitMap_[k];
         memset(map, 0xFF, 128);
-        const uint8_t* kit = rom.kits + kKitLen * k;
+        const uint8_t* kit = rom_.kits + kKitLen * k;
         for (int i = 0; i < 30; ++i) {
             const uint8_t* e = kit + 7 * i;
             if (!e[0] || e[1] > 127) continue;
@@ -158,7 +163,6 @@ bool Engine::init(const RomTables& rom, int16_t* fxMem) {
             for (int key = e[1]; key >= 0 && map[key] == old; --key) map[key] = (uint8_t)i;
         }
     }
-    return rom.pcm != nullptr;
 }
 
 void Engine::configureTimbre(int t, const uint8_t* prog) {
@@ -169,9 +173,11 @@ void Engine::configureTimbre(int t, const uint8_t* prog) {
 }
 
 void Engine::selectProgram(int index) {
+    playProgram(rom_.programs + kProgLen * clampi(index, 0, kPrograms - 1));
+}
+
+void Engine::playProgram(const uint8_t* p) {
     allSoundOff();
-    index = clampi(index, 0, kPrograms - 1);
-    const uint8_t* p = rom_.programs + kProgLen * index;
     for (int t = 0; t < kTimbres; ++t) configureTimbre(t, nullptr);
     configureTimbre(0, p);
     Timbre& tb = tim_[0];
@@ -186,9 +192,11 @@ void Engine::selectProgram(int index) {
 }
 
 void Engine::selectCombi(int index) {
+    playCombi(rom_.combis + kCombiLen * clampi(index, 0, kCombis - 1));
+}
+
+void Engine::playCombi(const uint8_t* c) {
     allSoundOff();
-    index = clampi(index, 0, kCombis - 1);
-    const uint8_t* c = rom_.combis + kCombiLen * index;
     for (int t = 0; t < kTimbres; ++t) {
         const uint8_t* r = c + 36 + 11 * t;
         const bool off = (r[10] & 0x10) != 0;

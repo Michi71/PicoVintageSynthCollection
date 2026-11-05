@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "m1_rom_tables.h"   // generated at configure time from the user's ROMs
+#include "m1_memory.h"
 
 #if defined(TARGET_RP2350) || defined(PICO_BUILD)
 #  include "pico/time.h"
@@ -29,6 +30,9 @@ extern const uint8_t m1_pcm_blob_end[];
 namespace {
 // The MDE's 64 K words of delay RAM: 128 KB.
 int16_t g_fxMem[65536];
+// The M1's internal memory (programs, combinations, kits, global), in RAM and
+// mirrored to flash.
+m1::Memory g_memory;
 // The interpolation kernel is read at a random phase for every voice and every
 // sample; from flash that would fight the PCM stream for the 16 KB XIP cache.
 // The VDF coefficient tables are read per sample during ramps for the same
@@ -69,15 +73,18 @@ void M1_Bridge::init() {
     rom.pan101 = m1rom::kPan101;
     rom.delayStart = m1rom::kDelayStart;
     rom.fx = &m1rom::kFx;
-    rom.programs = m1rom::kPrograms;
-    rom.combis = m1rom::kCombis;
-    rom.kits = m1rom::kKits;
+    // The factory preload is the starting point; once the user has written
+    // anything, the flash mirror wins.
+    g_memory.init(m1rom::kGlobal, m1rom::kKits, m1rom::kCombis, m1rom::kPrograms);
+    m1::MemoryImage& img = g_memory.image();
+    rom.programs = img.programs;
+    rom.combis = img.combis;
+    rom.kits = img.kits;
     engine_.init(rom, g_fxMem);
     engine_.selectProgram(0);
 }
 
-void M1_Bridge::selectProgram(int i) { engine_.allSoundOff(); engine_.selectProgram(i); }
-void M1_Bridge::selectCombi(int i)   { engine_.allSoundOff(); engine_.selectCombi(i); }
+m1::Memory& M1_Bridge::memory() { return g_memory; }
 
 void M1_Bridge::setVolume(uint8_t percent) {
     if (percent > 100) percent = 100;

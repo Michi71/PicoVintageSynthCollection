@@ -108,6 +108,11 @@ static void pf_sysex(const uint8_t* d, uint16_t len)
     picoface::instrument().sysEx(d, len);
 }
 
+static void pf_sysex_stream(const uint8_t* d, uint16_t len)
+{
+    picoface::instrument().sysExStream(d, len);
+}
+
 static void pf_realtime(uint8_t status)
 {
     picoface::instrument().realtime(status);
@@ -427,6 +432,10 @@ int main(void)
     midiSerial().setPitchBendCallback(pf_pb);
     midiSerial().setChannelPressureCallback(pf_at);
     midiSerial().setSysExCallback(pf_sysex);
+    if (inst.wantsSysExStream()) {
+        g_usbmidi.setSysExStreamCallback(pf_sysex_stream);
+        midiSerial().setSysExStreamCallback(pf_sysex_stream);
+    }
     midiSerial().setRealtimeCallback(pf_realtime);
     midiSerial().setActivityCallback(pf_activity);
 

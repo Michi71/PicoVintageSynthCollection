@@ -119,6 +119,14 @@ public:
     virtual void channelPressure(uint8_t channel, uint8_t value) {}
     virtual void sysEx(const uint8_t* data, size_t length) {}
 
+    // SysEx without a length limit. sysEx() above only sees messages that fit
+    // the 512-byte receive buffers; an instrument that takes bank dumps (the
+    // M1's are 14-50 KB) returns true from wantsSysExStream() and gets every
+    // SysEx byte as it arrives, F0 and F7 included, from either wire.
+    // Called from the main loop, like every other MIDI hook.
+    virtual bool wantsSysExStream() const { return false; }
+    virtual void sysExStream(const uint8_t* data, size_t length) {}
+
     // Realtime status bytes (0xF8..0xFF) from either wire. Needed by an
     // instrument that supervises active sensing (0xFE); the default ignores
     // them.

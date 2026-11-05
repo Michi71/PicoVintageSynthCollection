@@ -317,6 +317,12 @@ def main():
     h.append(carr("kPrograms", "uint8_t", [b for p in pre["programs"] for b in p], 32))
     h.append(carr("kCombis", "uint8_t", [b for c in pre["combis"] for b in c], 32))
     h.append(carr("kKits", "uint8_t", [b for k in pre["kits"] for b in k], 30))
+    h.append(carr("kGlobal", "uint8_t", list(pre["global_raw"]), 21))
+    q = lambda t: '"' + t.replace('\\', '/').replace('"', "'") + '"'
+    h.append("static const char* const kMultisoundNames[100] = {\n    " +
+             ", ".join(q(m["name"]) for m in mss) + "\n};\n")
+    dn = [rom.ds(0x6F48 + 11 * i, 10).decode("latin1").rstrip() for i in range(44)]
+    h.append("static const char* const kDrumNames[44] = {\n    " + ", ".join(q(x) for x in dn) + "\n};\n")
     h.append("// Effect values the OS does not hold, filled in by assumption (doc/ENGINE.md):")
     h.append("static const char* const kFxAssumed = \"%s\";" % ", ".join(assumed))
     h.append("\n}  // namespace m1rom\n")

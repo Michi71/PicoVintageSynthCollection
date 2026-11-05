@@ -56,6 +56,7 @@ t_ob()       { "$HERE/ob/build_ob.sh" && "$HERE/ob/ob_engine_host_test"; }
 t_j6_ui()    { "$HERE/j6/build_ui.sh" && "$HERE/j6/j6_ui_test"; }
 t_yc()       { "$HERE/yc/build_yc.sh" && "$HERE/yc/yc_engine_host_test"; }
 t_yc_sysex() { "$HERE/yc_sysex/build_yc_sysex.sh"; }        # builds and runs
+t_m1_sysex() { "$HERE/m1_sysex/build_m1_sysex.sh"; }        # builds and runs; no ROMs needed
 
 t_ui_kit() {
     "$HERE/ui/build_ui_kit.sh" && mkdir -p "$HERE/ui/out" \
@@ -79,7 +80,7 @@ t_cp_render() {
     done
 }
 
-ALL="veeprom d5 dx_sysex yc_sysex ob j6_ui yc ui_kit md_ui cp_render"
+ALL="veeprom d5 dx_sysex yc_sysex m1_sysex ob j6_ui yc ui_kit md_ui cp_render"
 
 # --- runner -----------------------------------------------------------------
 

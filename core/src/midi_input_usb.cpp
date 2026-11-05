@@ -114,6 +114,9 @@ void MIDIInputUSB::sysexAppend(const uint8_t* b, uint8_t n)
     if (!_syxActive) {
         return;
     }
+    if (MIDISysExStreamCallback) {
+        MIDISysExStreamCallback(b, n);
+    }
 
     for (uint8_t i = 0; i < n; i++) {
         if (_syxLen < sizeof(_syx)) {

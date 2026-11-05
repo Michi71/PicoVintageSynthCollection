@@ -44,13 +44,62 @@ in [doc/ENGINE.md](doc/ENGINE.md).
 | Voice allocation (queue, stealing order, damper) | as the OS does it |
 | 33 effect types, serial/parallel, balances, Out-3/4 panpots | see "Effects" in ENGINE.md |
 | Scale types other than equal temperament | not implemented |
-| SysEx, MIDI program/combi dump | not implemented |
+| User memory (100 programs, 100 combinations, 4 drum kits, global) | in RAM, mirrored to flash; starts as the factory preload |
+| SysEx: dumps, requests, write, parameter change, device inquiry | works on the host with synthetic dumps and the real preload; see below |
+| Edit Program / Combination / Global / Drum kits, Write, Compare | works in host renders |
 | Out 3/4 as separate outputs | no: the PicoFace has one stereo pair, which is M1 outputs 1/2 |
 
 ## Playing it
 
 - **PROG/COMBI page**: encoder A picks the program or combination (0–99),
-  encoder B switches between Program and Combination mode.
+  encoder B switches between Program and Combination mode. A `*` after the
+  number means the edit buffer differs from what is stored, `CMP` that
+  Compare is on.
+- **Long press on SEL** opens the menu: Edit Program / Edit Combi, Write,
+  Compare, Global, Drum Kits, Send SysEx, memory protect, factory reset.
+- **Editing** follows the M1's own edit pages (manual TABLE 5/6): two values
+  per screen on encoders A and B, SEL turns to the next pair. A short press on
+  SEL lists the pages (OSC, Pitch EG, VDF, VDF EG, EG time switches, VDA, MGs,
+  After Touch, Joystick, Effects, the two effects' own parameters, the eight
+  timbres of a combination ...) and jumps; a long press leaves. Edits are heard
+  at once and live in the edit buffer until **Write** stores them (encoder A
+  picks the number, SEL confirms) or another program is selected. **Compare**
+  plays the stored version.
+- **Global**: master tune, key transpose, the pedal and scale settings (scale
+  types other than equal temperament are stored but not played).
+- **Drum Kits**: kit and instrument on the first page, then sound, key, pan,
+  tune (10-cent steps), level and decay.
+
+## Memory and SysEx
+
+The M1's internal memory -- 100 programs, 100 combinations, the four drum kits
+and the global data, 27.5 KB -- is kept in RAM and mirrored to 32 KB of flash
+below the settings store (and below PicoFaceJ6's patch sector, so switching
+instruments loses neither). The mirror is written about 1.5 s after the last
+change, once no voice is sounding: an erase stops the CPU for a moment. The
+first start, or a factory reset, loads Korg's preload.
+
+SysEx follows the owner's manual (MIDI implementation, sections 2-5 and 3),
+on USB and DIN, on the MIDI channel set on the SYS page (Omni = any):
+
+| Received | Function |
+|---|---|
+| 40 / 49 | program / combination parameter dump into the edit buffer |
+| 4C / 4D | all programs / all combinations (internal memory, 100/100 layout) |
+| 51 | global data and drum kits |
+| 50 | ALL DATA; the sequencer part is skipped |
+| 10, 19, 1C, 1D, 0E, 0F | dump requests, answered with the dumps above |
+| 11 / 1A | write the edit buffer to a program / combination |
+| 12, 4E | mode request / mode change |
+| 41 | parameter change (program pages; combination: Multi and effect pages) |
+| F0 7E .. 06 01 | device inquiry |
+
+Each received message is answered as the M1 does: data load completed / error,
+write completed / error, MIDI-in data format error for a wrong length.
+Memory protect refuses bank loads. Bank files from sites like presetpatch.com
+are ALL PROGRAM dumps (16 350 bytes) and load directly. The ALL DATA the
+PicoFace sends has no sequencer part, which a real M1 would reject; send the
+parts separately for one.
 - MIDI: notes, pitch bend (joystick X), CC 1 (joystick +Y), CC 2 (joystick −Y),
   channel aftertouch, CC 64 damper, CC 65 rotary speaker slow/fast, CC 7
   volume, program change (programs in Program mode, combinations in
