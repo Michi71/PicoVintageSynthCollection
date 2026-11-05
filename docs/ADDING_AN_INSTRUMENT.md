@@ -72,6 +72,8 @@ The instrument is found automatically on the next configure run, included in the
 | menu list for `uiTick()` (`picoface::ui::ListView`) | add `CORE_MODULES ui_menu` |
 | a Yamaha reface MIDI layer (SYSTEM block, active sensing, exclusive framing) | add `CORE_MODULES reface`, derive your `RefaceMidi` from `picoface::RefaceMidiBase` (`core/include/picoface/reface_midi.h`); PicoFaceDX is the template |
 | snapshot autosave of the panel state, MIDI changes included | `picoface/settings_autosave.h`, see `instruments/PicoFaceYC/src/settings.cpp` |
+| SysEx longer than 512 bytes (bank dumps) | return true from `wantsSysExStream()` and take the bytes in `sysExStream()`; pace dumps going out with `usbMidiOut().freeSpace()` / `midiSerial().txFree()`. PicoFaceM1's `M1_SysEx` is the example |
+| user patches in flash beyond the veeprom's 240 bytes | a sector range of your own below the veeprom, written from RAM like `j6_patchstore.cpp` / `m1_memory.cpp`; keep clear of the other instruments' sectors, since flash outside the image survives a switch of instrument |
 | own hardware access | add your own `src/pico_hw.cpp` and set `CORE_EXCLUDE pico_hw.cpp` |
 | own .pio files | list them under `PIO_SOURCES` |
 | no double-tap RESET into BOOTSEL | add the flag `NO_DOUBLE_RESET` (see `docs/ARCHITECTURE.md`, section 7) |

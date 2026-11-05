@@ -16,7 +16,7 @@ request, and a release is only published when it is green alongside the seven
 firmware builds. Before opening a PR:
 
 ```bash
-tools/host_tests/run_all.sh            # all ten, about 20 s on a Mac
+tools/host_tests/run_all.sh            # all of them, about 20 s on a Mac
 tools/host_tests/run_all.sh d5 ui_kit  # just these
 ```
 
@@ -28,6 +28,8 @@ panel frames, so a GUI change can be looked at from the PR without a board.
 | [`veeprom/`](veeprom/) | nothing | unit test of the core's virtual EEPROM: wear levelling, CRC, oversize rejection, 1000 saves. Prints PASS/FAIL per case. This one covers `core/`, not an instrument. |
 | [`yc/`](yc/) | nothing | renders a chord through the YC organ engine to a stereo WAV next to the binary and pins: finite and audible, rotary FAST tells left from right, rotary OFF is mono bit for bit, pitch bend ±2 semitones on the cached increments with an exact return to centre, expression and channel volume in the master gain. Prints pass/FAIL per case. |
 | [`d5/`](d5/) | nothing | pins two D-50 laws read from the firmware: the PCM pitch (every sample advances at f/250 words per output sample) with synthetic cycles, and the TVF base cutoff (2 × panel + 54 chip units, capped by the pitch) through the harmonic profile of a sawtooth. Prints pass/FAIL per case. |
+| [`m1_sysex/`](m1_sysex/) | nothing (the factory preload, if in `instruments/PicoFaceM1/roms`) | PicoFaceM1's SysEx layer fed in random-sized pieces as USB and DIN deliver them: an ALL PROGRAM dump as presetpatch.com sends it (16 350 bytes), requests answered and decoded back, the edit-buffer dump, global data, write requests, short, protected, card and foreign messages, a dump cut by a status byte, device inquiry; with the preload present also Korg's own ALL DATA file. Prints pass/FAIL per case. |
+| [`m1_engine_test/`](m1_engine_test/) | an M1 ROM set | engine renders to WAV, the effect-RAM layout check over all 33 types (`fxcheck`), the panel rendered to PBM with a navigation check (`build_ui.sh`), and comparisons against the analysis' Python reference (outside this repository). Not in CI. |
 | [`ob/`](ob/) | nothing | regression checks on the OB-X engine - pitch bend ranges, LFO->cutoff without LFO->pitch, mod lever vibrato, all presets finite - plus a WAV render. Prints pass/FAIL per case. |
 | [`yc_sysex/`](yc_sysex/) | nothing | PicoFaceYC's MIDI layer from the wire into the engine: the real `midi_reface.cpp` on the shared reface layer, the ring drained through the firmware's own `yc_ipc_apply()`. Pins the identity bytes and model byte from the Yamaha data list, the three-block TG bulk dump with byte counts and checksums, an editor's dump reaching every parameter, range clamping, Parameter Change/Request, pitch bend, mod wheel, volume, expression, sustain, reset and all-sound-off. Prints pass/FAIL per case. |
 | [`dx_sysex/`](dx_sysex/) | nothing | round trip through PicoFaceDX's SysEx layer and the shared reface layer under it (`core/src/reface/reface_midi.cpp`), both directions: a voice dump requested by an editor is parsed back and compared byte for byte, a voice sent by an editor is compared against what reaches the engine, and the SYSTEM block, checksum, omni and velocity-0 handling that CP and YC share with the DX are pinned. Prints pass/FAIL per case. |
