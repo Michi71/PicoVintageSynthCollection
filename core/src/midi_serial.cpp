@@ -90,6 +90,11 @@ void MIDISerial::init()
 // full. That is invisible for the 3-byte channel messages it was written for
 // and ruinous for a SysEx bulk dump, which is longer than the FIFO by an order
 // of magnitude and stalls the audio producer for as long as the wire needs.
+uint16_t MIDISerial::txFree() const
+{
+    return (uint16_t)(kTxRingSize - s_txCount);
+}
+
 void MIDISerial::write(const uint8_t* data, uint16_t len)
 {
     if (!data || len == 0) {
@@ -197,6 +202,9 @@ void MIDISerial::process()
 
         if (b == 0xF7) {
             if (inSysEx_) {
+                if (sysexStreamCb_) {
+                    sysexStreamCb_(&b, 1);
+                }
                 if (sysexCb_) {
                     sysexCb_(sysex_, sysexLen_);
                 }
@@ -209,6 +217,9 @@ void MIDISerial::process()
             if (b == 0xF0) {
                 inSysEx_  = true;
                 sysexLen_ = 0;
+                if (sysexStreamCb_) {
+                    sysexStreamCb_(&b, 1);
+                }
                 // a System Common message cancels running status
                 status_ = 0;
                 continue;
@@ -231,6 +242,9 @@ void MIDISerial::process()
         }
 
         if (inSysEx_) {
+            if (sysexStreamCb_) {
+                sysexStreamCb_(&b, 1);
+            }
             // an oversized dump is truncated rather than smashing the stack
             if (sysexLen_ < kSysExMax) {
                 sysex_[sysexLen_++] = b;

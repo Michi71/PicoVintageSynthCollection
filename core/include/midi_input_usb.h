@@ -19,6 +19,10 @@ public:
     using ChannelPressureCallback = void (*)(uint8_t, uint8_t);
     using RealtimeCallback     = void (*)(uint8_t);
     using SysExCallback        = void (*)(const uint8_t*, uint16_t);
+    // Raw SysEx bytes as they arrive, F0 and F7 included, in chunks of 1-3.
+    // For messages longer than the buffer below (an M1 bank is 16 KB); the
+    // buffered callback keeps working alongside it.
+    using SysExStreamCallback  = void (*)(const uint8_t*, uint16_t);
     using ActivityCallback     = void (*)(void);
 
     MIDIInputUSB() = default;
@@ -33,6 +37,7 @@ public:
     void setChannelPressureCallback(ChannelPressureCallback cb) { MIDIChannelPressureCallback = cb; }
     void setRealtimeCallback(RealtimeCallback cb)        { MIDIRealtimeCallback = cb; }
     void setSysExCallback(SysExCallback cb)              { MIDISysExCallback = cb; }
+    void setSysExStreamCallback(SysExStreamCallback cb)  { MIDISysExStreamCallback = cb; }
     void setActivityCallback(ActivityCallback cb)        { MIDIActivityCallback = cb; }
 
 private:
@@ -48,6 +53,7 @@ private:
     ChannelPressureCallback MIDIChannelPressureCallback = nullptr;
     RealtimeCallback     MIDIRealtimeCallback     = nullptr;
     SysExCallback        MIDISysExCallback        = nullptr;
+    SysExStreamCallback  MIDISysExStreamCallback  = nullptr;
     ActivityCallback     MIDIActivityCallback     = nullptr;
 
     // 512 bytes. It was 256, sized for a reface DX common block of 51; the

@@ -62,6 +62,11 @@ instruments/PicoFaceD5/roms/
 # ROMs they come from.
 instruments/PicoFaceRD/roms/
 
+# PicoFaceM1: the M1's PCM, coefficient and OS ROMs and the factory preload
+# dump. None of it is distributable, and neither is anything converted from it.
+instruments/PicoFaceM1/roms/
+tools/m1_extract/out/
+
 # Built by tools/cp_sampleprep/build_loop_finder.sh
 tools/cp_sampleprep/FindLoopPoints
 
@@ -69,3 +74,8 @@ tools/cp_sampleprep/FindLoopPoints
 tools/d5_extract/out/
 tools/host_tests/_out/
 tools/host_tests/cp/out/
+
+# PicoFaceM1 host renders (tools/host_tests/m1_engine_test)
+tools/host_tests/m1_engine_test/m1_render
+tools/host_tests/m1_engine_test/out/
+tools/host_tests/m1_engine_test/m1_ui_shots

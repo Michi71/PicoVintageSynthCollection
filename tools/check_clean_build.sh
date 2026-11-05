@@ -34,8 +34,8 @@
 #
 # Where the ROMs come from:
 #
-#   PICOFACE_ROMS=/path   a directory holding PicoFaceD5/, PicoFaceJV/ and
-#                         PicoFaceRD/ subdirectories of ROM files
+#   PICOFACE_ROMS=/path   a directory holding PicoFaceD5/, PicoFaceJV/,
+#                         PicoFaceM1/ and PicoFaceRD/ subdirectories of ROM files
 #   unset                 this checkout's own instruments/*/roms
 #
 # An instrument whose ROMs are absent is reported as skipped, not as a failure:
@@ -45,7 +45,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
 URL="https://github.com/Michi71/PicoVintageSynthCollection"
-ROM_INSTRUMENTS=(PicoFaceD5 PicoFaceJV PicoFaceRD)
+ROM_INSTRUMENTS=(PicoFaceD5 PicoFaceJV PicoFaceM1 PicoFaceRD)
 
 local_clone=0; variants=0; keep=0; outdir=""
 for arg in "$@"; do

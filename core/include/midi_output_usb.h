@@ -42,6 +42,7 @@ public:
 
     bool     empty() const { return _count == 0; }
     uint16_t pending() const { return _count; }
+    uint16_t freeSpace() const { return (uint16_t)(kBufSize - _count); }
     uint32_t dropped() const { return _dropped; }   // messages, not bytes
 
     // True while the host is not taking what is queued: the device is mounted,

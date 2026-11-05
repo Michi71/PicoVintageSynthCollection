@@ -25,6 +25,8 @@ public:
     using ChannelPressureCallback = void (*)(uint8_t, uint8_t);      // value, channel
     using RealtimeCallback = void (*)(uint8_t);
     using SysExCallback = void (*)(const uint8_t*, uint16_t);
+    // Raw SysEx bytes as they arrive, F0 and F7 included (see MIDIInputUSB).
+    using SysExStreamCallback = void (*)(const uint8_t*, uint16_t);
     using ActivityCallback = void (*)(void);
 
     void init();     // uart1 at 31250 baud 8N1 on PIN_MIDI_RX / PIN_MIDI_TX, pads set for the
@@ -39,6 +41,8 @@ public:
     // a low tone rather than a gap. A message that does not fit the queue is
     // dropped whole, never in part. process() moves it out.
     void write(const uint8_t* data, uint16_t len);   // raw bytes, e.g. a SysEx reply
+    // Room left in the TX ring, for a sender that paces a long dump itself.
+    uint16_t txFree() const;
     void sendNoteOn(uint8_t ch, uint8_t note, uint8_t vel);
     void sendNoteOff(uint8_t ch, uint8_t note, uint8_t vel);
     void sendControlChange(uint8_t ch, uint8_t cc, uint8_t value);
@@ -53,6 +57,7 @@ public:
     void setChannelPressureCallback(ChannelPressureCallback cb) { channelPressureCb_ = cb; }
     void setRealtimeCallback(RealtimeCallback cb)           { realtimeCb_ = cb; }
     void setSysExCallback(SysExCallback cb)                 { sysexCb_ = cb; }
+    void setSysExStreamCallback(SysExStreamCallback cb)     { sysexStreamCb_ = cb; }
     void setActivityCallback(ActivityCallback cb)           { activityCb_ = cb; }
 
 private:
@@ -71,6 +76,7 @@ private:
     ChannelPressureCallback channelPressureCb_ = nullptr;
     RealtimeCallback     realtimeCb_ = nullptr;
     SysExCallback        sysexCb_ = nullptr;
+    SysExStreamCallback  sysexStreamCb_ = nullptr;
     ActivityCallback     activityCb_ = nullptr;
 
     uint8_t  status_ = 0;        // running status, 0 = none
