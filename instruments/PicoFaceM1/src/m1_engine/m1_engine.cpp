@@ -690,22 +690,32 @@ void Engine::update(Voice& v) {
 // bilinear one whose pole is the chip's second table T0 = 2k - 1 (gain
 // (1 + T0)/2, so DC gain 1, zero at Nyquist). Four poles, 24 dB/oct
 // (doc/ENGINE.md, "VDF"). Reference mode: the earlier two one-pole stages.
+//
+// The chips run at twice the output rate: each output sample passes the
+// filter twice with the same input (held). That doubles every corner
+// frequency against reading k at 31.25 kHz. Evidence: recordings of a real
+// M1 (Pan Wave, cutoff register ~90 steps) show the filter practically open
+// up to 4 kHz, where a single pass would already cut 5-9 dB; and cutoff 99
+// would otherwise top out near 5 kHz in VDF 1. doc/ENGINE.md, "VDF".
 inline float Engine::vdf(Voice& v, float x) {
     const int ci = (int)v.cut;
     const int i1 = (ci > kCutMax ? kCutMax : ci) >> 1, i2 = ci >> 1;
     const float k1 = rom_.vdf1k[i1] * (1.0f / 8192.0f), k2 = rom_.vdf2k[i2] * (1.0f / 8192.0f);
-    v.y1 += k1 * (x - v.y1);
     if (refMode_) {
+        v.y1 += k1 * (x - v.y1);
         v.y2 += k2 * (v.y1 - v.y2);
         return v.y2;
     }
-    const float a1 = -rom_.vdf1t0[i1] * (1.0f / 8192.0f);
-    v.y2 = a1 * v.y2 + (1.0f - a1) * 0.5f * (v.y1 + v.x1);
-    v.x1 = v.y1;
-    v.y3 += k2 * (v.y2 - v.y3);
-    const float a2 = -rom_.vdf2t0[i2] * (1.0f / 8192.0f);
-    v.y4 = a2 * v.y4 + (1.0f - a2) * 0.5f * (v.y3 + v.x3);
-    v.x3 = v.y3;
+    const float a1 = -rom_.vdf1t0[i1] * (1.0f / 8192.0f), g1 = (1.0f - a1) * 0.5f;
+    const float a2 = -rom_.vdf2t0[i2] * (1.0f / 8192.0f), g2 = (1.0f - a2) * 0.5f;
+    for (int pass = 0; pass < 2; ++pass) {
+        v.y1 += k1 * (x - v.y1);
+        v.y2 = a1 * v.y2 + g1 * (v.y1 + v.x1);
+        v.x1 = v.y1;
+        v.y3 += k2 * (v.y2 - v.y3);
+        v.y4 = a2 * v.y4 + g2 * (v.y3 + v.x3);
+        v.x3 = v.y3;
+    }
     return v.y4;
 }
 

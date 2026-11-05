@@ -86,6 +86,20 @@ the chip tables lands within a few dB of it at 4 kHz (e.g. −85 against −86 d
 at register 0x1000, where the two-pole version gave −49 dB), while the corner
 frequencies stay the chip's. Nothing of the plugin is used in the code.
 
+**VDF rate** (**measured**, against recordings of a real M1): the chips are
+run at twice the output rate -- every output sample passes the four stages
+twice with the input held -- which doubles all corner frequencies against
+reading `k` at 31.25 kHz. A recording of *Pan Wave* (E5, cutoff register
+about 90 steps) has the harmonic profile of the raw 15-word ROM loop up to
+4 kHz, i.e. the filter is practically open there; a single pass would cut
+the 3rd to 6th harmonic by 5-9 dB. Over the first notes of *Pan Wave* and
+*RockGuitar* the harmonic-profile error against the recordings falls from
+6.0 to 4.3 dB and from 6.1-10.2 to 4.7-6.5 dB; three or four passes gain
+little more. It also makes cutoff 99 open, which a single pass at
+31.25 kHz (about 5 kHz in VDF 1) does not. The recordings carry hall,
+chorus and MP3 coding, so the factor 2 is the best fit, not a measurement of
+the chip. Reference mode runs one pass.
+
 **Amplitude** (firmware, EF83:1EE9): osc level × split level trim, plus
 keyboard tracking and aftertouch, times the velocity curve, the combi timbre
 level and the VDA EG, all multiplied; full scale 0x1FFF (**assumed**; the
