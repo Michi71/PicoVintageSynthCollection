@@ -68,6 +68,16 @@ static m1::Engine* makeEngine(const char* gendir) {
     rom.pitchS = m1rom::kPitchS; rom.pitchF = m1rom::kPitchF; rom.panReg = m1rom::kPanReg; rom.pan101 = m1rom::kPan101;
     rom.delayStart = m1rom::kDelayStart; rom.fx = &m1rom::kFx;
     rom.programs = m1rom::kPrograms; rom.combis = m1rom::kCombis; rom.kits = m1rom::kKits;
+    static uint8_t glob[21];
+    memcpy(glob, m1rom::kGlobal, 21);
+    rom.global = glob; rom.scale = m1rom::kScale;
+    // M1_SCALE=type,key[,userC..userB] sets the global scale for a render.
+    if (const char* sc = getenv("M1_SCALE")) {
+        int v[14] = {0}, n = 0;
+        for (const char* q = sc; *q && n < 14; ++n) { v[n] = atoi(q); q = strchr(q, ','); if (!q) { ++n; break; } ++q; }
+        glob[5] = (uint8_t)v[0]; glob[6] = (uint8_t)v[1];
+        for (int i = 0; i < 12; ++i) glob[7 + i] = (uint8_t)(int8_t)v[2 + i];
+    }
     auto* e = new m1::Engine();
     e->init(rom, g_fx);
     return e;

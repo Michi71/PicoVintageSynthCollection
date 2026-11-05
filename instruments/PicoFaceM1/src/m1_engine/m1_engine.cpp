@@ -494,6 +494,7 @@ void Engine::startVoice(int vi, int t, int osc, uint8_t note, uint8_t vel) {
     v.loop = loop && v.loopLen > 0;
     v.pos = 0;
     v.root128 = rootKey * 128 - sc(cents) + tune128;
+    if (!refMode_) v.root128 -= scaleOffset(note);       // subtracted from the root: added to the pitch
 
     // Voice pan (EF83:0337): register word from DS:0854, A/B in 6 bits each,
     // C and D on/off.
@@ -575,6 +576,29 @@ void Engine::startVoice(int vi, int t, int osc, uint8_t note, uint8_t vel) {
     }
     v.first = true;
     v.untilUpdate = 0;
+}
+
+// Global scale (EF83:015A), in 1/128 semitone, from the played key.
+int Engine::scaleOffset(int key) {
+    if (!rom_.global) return 0;
+    const int type = rom_.global[5], pkey = rom_.global[6] % 12;
+    switch (type) {
+    case 1: {
+        // Equal Temp 2: a fresh random detune per note from a 16-bit LFSR,
+        // squared towards zero: -16..+15 (about +-12 cents).
+        uint32_t x = lfsr_;
+        uint32_t t = x & 0x8805u, par = 0;
+        while (t) { par ^= t & 1u; t >>= 1; }
+        x = ((x << 1) | par) & 0xFFFFu;
+        lfsr_ = (uint16_t)x;
+        const int s = (int8_t)(uint8_t)(x >> 9);
+        return (s * (s < 0 ? -s : s)) >> 8;
+    }
+    case 2: return rom_.scale ? rom_.scale[(key + 12 - pkey) % 12] : 0;   // pure major
+    case 3: return rom_.scale ? rom_.scale[(key + 21 - pkey) % 12] : 0;   // pure minor
+    case 4: return sc(rom_.global[7 + key % 12]);                          // user, cents
+    default: return 0;                                                     // equal temperament
+    }
 }
 
 // Pitch register from 1/128 semitone (EF83:001F, tables DS:0616 / DS:0748).

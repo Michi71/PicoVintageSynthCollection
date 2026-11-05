@@ -51,6 +51,7 @@ REV19 = dict(
     pitch_s=(0x175C0 + 0x0616, 153),    # DS:0616, 4096 * 2^((k-128)/12)
     pitch_f=(0x175C0 + 0x0748, 128),    # DS:0748, 65536 * (2^(j/1536) - 1)
     pan_reg=(0x175C0 + 0x0854, 14),     # DS:0854, u16
+    scale=(0x175C0 + 0x0848, 12),       # DS:0848, s8, pure major in 1/128 semitone
     pan101=(0x175C0 + 0x8272, 101),     # DS:8272 (Plus+1 DS:86EA), Q9
     def_bal=(0x175C0 + 0x749C, 68),     # DS:749C (Plus+1 DS:79DA), bytes
     fw_def=(0x175C0 + 0x7502, 272),     # DS:7502 (Plus+1 DS:7A40), 34 x 8 bytes
@@ -257,6 +258,7 @@ def main():
     checks = [(u16s(img, *REV19["vel_curve"])[252], 15629, "velocity curve"),
               (u16s(img, *REV19["pitch_s"])[128], 4096, "pitch table"),
               (u16s(img, *REV19["mg_int_p"])[99], 8191, "pitch MG depth table"),
+              (list(struct.unpack_from("<12b", img, REV19["scale"][0]))[:3], [0, -38, 5], "scale table"),
               (u16s(img, REV19["eg_rise"][0], 1)[0] > 0, True, "EG rise table")]
     for got, want, what in checks:
         if got != want:
@@ -318,6 +320,7 @@ def main():
     h.append(carr("kCombis", "uint8_t", [b for c in pre["combis"] for b in c], 32))
     h.append(carr("kKits", "uint8_t", [b for k in pre["kits"] for b in k], 30))
     h.append(carr("kGlobal", "uint8_t", list(pre["global_raw"]), 21))
+    h.append(carr("kScale", "int8_t", list(struct.unpack_from("<12b", img, REV19["scale"][0]))))
     q = lambda t: '"' + t.replace('\\', '/').replace('"', "'") + '"'
     h.append("static const char* const kMultisoundNames[100] = {\n    " +
              ", ".join(q(m["name"]) for m in mss) + "\n};\n")

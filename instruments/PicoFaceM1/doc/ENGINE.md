@@ -64,8 +64,12 @@ the end; the filters then ring out until the next update.
 in 1/128 semitone, then `step = S[hi] + S[hi]·F[lo] >> 16`. The `+3` is in the
 code (+2.3 cents). `n_e` = key + 12·octave + combi transpose (+ interval on
 OSC 2), folded into 0–127; it selects the zone and sets the pitch. Root =
-`rootKey·128 − cents·1.285 + sample tune` (NT: root key = played key). Scale
-types other than equal temperament are not implemented.
+`rootKey·128 − cents·1.285 + sample tune` (NT: root key = played key). The global
+scale (EF83:015A) is subtracted from the root, i.e. added to the pitch, from
+the played key: Equal Temp 2 draws a detune of -16..+15/128 semitone per note
+from a 16-bit LFSR (taps 8805h, squared towards zero); Pure Major / Minor read
+DS:0848 at `(key + 12 - pureKey) % 12` / `(key + 21 - pureKey) % 12`; User
+takes the twelve cent values of the global data.
 
 **Cutoff** (firmware, EF83:1846/1F58): register = program cutoff × 82.75 +
 `max(0, n_e·0x47 − 0x900)` (a built-in tracking every program has) +

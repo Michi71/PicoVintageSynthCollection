@@ -80,6 +80,8 @@ void M1_Bridge::init() {
     rom.programs = img.programs;
     rom.combis = img.combis;
     rom.kits = img.kits;
+    rom.global = img.global;
+    rom.scale = m1rom::kScale;
     engine_.init(rom, g_fxMem);
     engine_.selectProgram(0);
 }

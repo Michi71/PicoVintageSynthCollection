@@ -92,6 +92,8 @@ struct RomTables {
     const uint8_t*    programs;       // 100 x 143
     const uint8_t*    combis;         // 100 x 124
     const uint8_t*    kits;           // 4 x 210
+    const uint8_t*    global;         // 21: scale type (5), pure key (6), user scale (7..18)
+    const int8_t*     scale;          // 12, DS:0848: pure major, 1/128 semitone
 };
 
 // Segment envelope (analysis 6.2, corrected by the driver trace in
@@ -220,6 +222,7 @@ private:
     void timbreNoteOff(int t, uint8_t note);
     void configureTimbre(int t, const uint8_t* prog);
     void renderVoice(Voice& v, int frames);
+    int  scaleOffset(int key);
     float vdf(Voice& v, float x);
     int32_t egStep(Eg& e);
     void  egStart(Eg& e, Eg::Kind kind, int startLevel, const int16_t* times, const int16_t* levels,
@@ -242,6 +245,7 @@ private:
     int16_t bend_[16] = {0};
     uint8_t mod_[16] = {0}, modNeg_[16] = {0}, aft_[16] = {0};
     uint8_t kitMap_[4][128];          // drum key -> kit instrument (0xFF none)
+    uint16_t lfsr_ = 0xACE1;          // Equal Temp 2's random detune
     float busA_[kRenderBlock], busB_[kRenderBlock], busC_[kRenderBlock], busD_[kRenderBlock];
 };
 

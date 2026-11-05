@@ -43,7 +43,7 @@ in [doc/ENGINE.md](doc/ENGINE.md).
 | Combinations: 8 timbres, key and velocity windows, transpose, detune, level, pan | works |
 | Voice allocation (queue, stealing order, damper) | as the OS does it |
 | 33 effect types, serial/parallel, balances, Out-3/4 panpots | see "Effects" in ENGINE.md |
-| Scale types other than equal temperament | not implemented |
+| Scale types: Equal Temp 1/2, Pure Major/Minor with key, User | works (firmware tables and the OS's random detune) |
 | User memory (100 programs, 100 combinations, 4 drum kits, global) | in RAM, mirrored to flash; starts as the factory preload |
 | SysEx: dumps, requests, write, parameter change, device inquiry | works on the host with synthetic dumps and the real preload; see below |
 | Edit Program / Combination / Global / Drum kits, Write, Compare | works in host renders |
@@ -65,8 +65,9 @@ in [doc/ENGINE.md](doc/ENGINE.md).
   at once and live in the edit buffer until **Write** stores them (encoder A
   picks the number, SEL confirms) or another program is selected. **Compare**
   plays the stored version.
-- **Global**: master tune, key transpose, the pedal and scale settings (scale
-  types other than equal temperament are stored but not played).
+- **Global**: master tune, key transpose, the pedal settings and the scale:
+  Equal Temp 1, Equal Temp 2 (a slight random detune per note, as on the M1),
+  Pure Major / Pure Minor on a chosen key, or a user scale in cents.
 - **Drum Kits**: kit and instrument on the first page, then sound, key, pan,
   tune (10-cent steps), level and decay.
 
