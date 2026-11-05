@@ -5,12 +5,12 @@ Instrument ein Ordner unter `instruments/` und ein eigenes `.uf2`. Alles
 Weitere zur Struktur steht in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 offene Punkte in dessen §8.
 
-**Stand:** Release **v1.21.1** (13.09.2026, Tag auf `18e65fd`): #107 beantwortet —
-Billigboards ignorieren das VREG-Register, der Kern bleibt bei ~300 MHz, Flash
-und Stepping unschuldig (#172, Boot-Diagnose `PICOFACE_BOOT_DIAG` und
-`PICOFACE_EXTRA_DEFINES`); Bootrom-Revision `b4` im Splash (#170);
-Hardware-Anforderung im README (#173). Seither auf `main`, noch nicht
-releast: **PicoFaceM1** (Korg M1, #176, auf der Hardware getestet).
+**Stand:** Release **v1.22.0** (05.11.2026, Tag auf `d50c18a`): elftes
+Instrument **PicoFaceM1** (Korg M1 ohne Plus+1, nur lokal baubar; Edit-Seiten,
+Benutzerspeicher im Flash, SysEx nach Handbuch, auf der Hardware getestet,
+#176); im Kern optionales Streaming-SysEx für lange Dumps; Doku auf elf
+Instrumente (#177). Die sieben Release-Instrumente unverändert. Nichts
+Ungereleastes auf `main`.
 
 ## Sprache
 
