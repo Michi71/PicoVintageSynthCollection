@@ -29,14 +29,26 @@ using picoface::ui::InputState;
 static const char* g_dir = ".";
 static uint32_t g_ms = 1000;
 
-static InputState in(int sel = 0, int a = 0, int b = 0, bool press = false, bool lng = false) {
+static M1_Controller* g_c = nullptr;
+
+// One gesture, delivered the way the core does: encoder turns in one tick; a
+// press as a tick with the button down and one with it up; a long press as
+// down, the long-press tick, and up.
+static void act(int sel = 0, int a = 0, int b = 0, bool press = false, bool lng = false) {
+    auto tick = [](InputState s) { g_ms += 30; s.nowMs = g_ms; g_c->input(s); };
     InputState s{};
     s.encoderDelta[0] = (int8_t)sel; s.encoderDelta[1] = (int8_t)a; s.encoderDelta[2] = (int8_t)b;
-    s.buttonPressed[0] = press; s.buttonLongPress[0] = lng;
+    tick(s);
+    if (press || lng) {
+        InputState d{};
+        d.buttonDown[0] = true; d.buttonPressed[0] = true;
+        tick(d);
+        if (lng) { InputState l{}; l.buttonDown[0] = true; l.buttonLongPress[0] = true; tick(l); }
+        tick(InputState{});
+    }
     g_ms += 600;
-    s.nowMs = g_ms;
-    return s;
 }
+#define in(...) act(__VA_ARGS__)
 
 static void shot(M1_Controller& c, const char* name) {
     uishot::begin();
@@ -45,50 +57,58 @@ static void shot(M1_Controller& c, const char* name) {
 }
 
 int main(int argc, char** argv) {
+    int fails = 0;
     if (argc > 1) g_dir = argv[1];
     static M1_Bridge bridge;
     bridge.init();
     m1::setNameSources(m1rom::kMultisoundNames, m1rom::kDrumNames, bridge.memory().image().programs);
     static M1_Controller c(bridge);
+    g_c = &c;
     static M1_SysEx sx(c);
     c.setSysEx(&sx);
     M1SettingsV1 s{};
     c.exportSettings(s);
     c.importSettings(s);
-    c.input(in(0, 1));                 shot(c, "01_prog_piano16");
-    c.input(in(0, 0, 1));              shot(c, "02_combi_mode");
-    c.input(in(0, 0, -1));
-    c.input(in(0, 0, 0, false, true)); shot(c, "03_menu");
-    c.input(in(0, 0, 0, true));        shot(c, "04_edit_name");
-    c.input(in(0, 0, 0, true));        shot(c, "05_edit_pages");
-    c.input(in(1));
-    c.input(in(0, 0, 0, true));        shot(c, "06_edit_osc_basic");
-    c.input(in(0, 0, 0, true)); c.input(in(6)); c.input(in(0, 0, 0, true));
+    in(0, 1);                 shot(c, "01_prog_piano16");
+    in(0, 0, 1);              shot(c, "02_combi_mode");
+    in(0, 0, -1);
+    in(0, 0, 0, false, true); shot(c, "03_menu");
+    in(0, 0, 0, true);        shot(c, "04_edit_name");
+    in(0, 0, 0, true);        shot(c, "05_edit_pages");
+    in(1);
+    in(0, 0, 0, true);        shot(c, "06_edit_osc_basic");
+    in(0, 0, 0, true); in(6); in(0, 0, 0, true);
     shot(c, "07_edit_vdf1_eg");
-    c.input(in(0, 3, -2));             shot(c, "08_vdf1_eg_edited");
-    c.input(in(0, 0, 0, true)); c.input(in(20)); c.input(in(0, 0, 0, true));
+    in(0, 3, -2);             shot(c, "08_vdf1_eg_edited");
+    in(0, 0, 0, true); in(20); in(0, 0, 0, true);
     shot(c, "09_edit_effects");
-    c.input(in(4));                    shot(c, "10_edit_effects_2");
-    c.input(in(0, 0, 0, true)); c.input(in(30)); c.input(in(0, 0, 0, true));
+    in(4);                    shot(c, "10_edit_effects_2");
+    in(0, 0, 0, true); in(30); in(0, 0, 0, true);
     shot(c, "11_edit_fx1_params");
-    c.input(in(0, 0, 0, false, true));
-    c.input(in(0, 0, 0, false, true)); c.input(in(1)); c.input(in(0, 0, 0, true));
+    in(0, 0, 0, false, true);
+    in(0, 0, 0, false, true); in(1); in(0, 0, 0, true);
     shot(c, "12_write");
-    c.input(in(0, 0, 0, false, true));
-    c.input(in(0, 0, 0, false, true)); c.input(in(3)); c.input(in(0, 0, 0, true));
+    in(0, 0, 0, false, true);          // a long press cancels: nothing may be written
+    if (memcmp(bridge.memory().program(1), m1rom::kPrograms + 143, 143) != 0) {
+        printf("FAIL: a long press in Write wrote the program\n"); fails++;
+    }
+    in(0, 0, 0, false, true); in(3); in(0, 0, 0, true);
     shot(c, "13_global");
-    c.input(in(0, 0, 0, false, true));
-    c.input(in(0, 0, 0, false, true)); c.input(in(4)); c.input(in(0, 0, 0, true));
-    c.input(in(1));                    shot(c, "14_drumkit");
-    c.input(in(0, 0, 0, false, true));
-    c.input(in(0, 0, 0, false, true)); c.input(in(5)); c.input(in(0, 0, 0, true));
+    if (c.m1Mode() != 4) { printf("FAIL: not in Global (mode %d)\n", c.m1Mode()); fails++; }
+    in(0, 0, 0, false, true);          // a long press leaves Global
+    if (c.m1Mode() != 2) { printf("FAIL: long press did not leave Global (mode %d)\n", c.m1Mode()); fails++; }
+    in(0, 0, 0, false, true); in(4); in(0, 0, 0, true);
+    in(1);                    shot(c, "14_drumkit");
+    in(0, 0, 0, false, true);
+    in(0, 0, 0, false, true); in(5); in(0, 0, 0, true);
     shot(c, "15_send_menu");
-    c.input(in(0, 0, 0, false, true));
-    c.input(in(0, 0, 1));
-    c.input(in(0, 0, 0, false, true)); c.input(in(0, 0, 0, true));
-    c.input(in(0, 0, 0, true)); c.input(in(2)); c.input(in(0, 0, 0, true));
+    in(0, 0, 0, false, true);
+    in(0, 0, 1);
+    in(0, 0, 0, false, true); in(0, 0, 0, true);
+    in(0, 0, 0, true); in(2); in(0, 0, 0, true);
     shot(c, "16_combi_timbre1");
-    c.input(in(0, 0, 0, false, true));
-    c.input(in(6));                    shot(c, "17_diag");
-    return 0;
+    in(0, 0, 0, false, true);
+    in(6);                    shot(c, "17_diag");
+    printf("%s\n", fails ? "navigation FAILED" : "navigation ok");
+    return fails ? 1 : 0;
 }

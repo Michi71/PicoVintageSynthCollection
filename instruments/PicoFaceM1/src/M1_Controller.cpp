@@ -418,10 +418,22 @@ void M1_Controller::menuChoose(int i) {
 // ---------------------------------------------------------------------------
 // Input
 // ---------------------------------------------------------------------------
-bool M1_Controller::input(const picoface::ui::InputState& in) {
-    nowMs_ = in.nowMs;
+bool M1_Controller::input(const picoface::ui::InputState& raw) {
+    nowMs_ = raw.nowMs;
+    // SEL carries two gestures. The core reports the press on the way down
+    // and the long press after a while, so a long press would first act as a
+    // short one (open the page list, confirm a write) and then the long press
+    // would land in whatever that opened. A short press therefore counts on
+    // release, and only if no long press fired while the button was held.
+    const bool down = raw.down(Button::Sel);
+    if (raw.longPress(Button::Sel)) selLongSeen_ = true;
+    const bool click = !down && selWasDown_ && !selLongSeen_;
+    if (!down) selLongSeen_ = false;
+    selWasDown_ = down;
+    picoface::ui::InputState in = raw;
+    in.buttonPressed[(int)Button::Sel] = click;      // what ListView sees, too
     const int ds = in.delta(Encoder::Sel), da = in.delta(Encoder::ParamA), db = in.delta(Encoder::ParamB);
-    const bool selShort = in.pressed(Button::Sel), selLong = in.longPress(Button::Sel);
+    const bool selShort = click, selLong = raw.longPress(Button::Sel);
     bool dirty = ds || da || db || selShort || selLong;
     if (popup_ && in.nowMs > popupUntil_) { popup_ = nullptr; dirty = true; }
 

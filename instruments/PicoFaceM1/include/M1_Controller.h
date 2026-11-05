@@ -134,6 +134,7 @@ private:
     uint8_t confirmAction_ = 0;
     const char* popup_ = nullptr;
     uint32_t popupUntil_ = 0;
+    bool    selWasDown_ = false, selLongSeen_ = false;   // SEL click on release
 };
 
 #endif // M1_CONTROLLER_H
