@@ -48,8 +48,15 @@ in steps, as on the M1.
 
 **Oscillator** (firmware): phase 20.12 from the sample start, step 4.12,
 clamped to 0x2FFF. Output = Σ kernel(phase fraction) × 8 samples around the
-read point. At a loop end the taps past the end read from the loop start
-(**assumed**, not traceable in code). A one-shot ends when the phase passes
+read point. A loop is `[loop, end)`: the ROM data repeats with period
+`end − loop` right up to the end, and the word *at* `end` does not continue
+the loop (measured over all looped splits: 0.04 against 0.3 of the loop's
+RMS). So taps from `end` on read from the loop start. Taps before the loop
+start read the ROM linearly, where Korg's data mostly continues the loop
+anyway (**assumed** for the hardware). The analysis' Python reference wrapped
+one word too late; on the shortest loops (PanWave: 15 words) that put a
+wrong sample into every period, about 15 dB below the signal. Reference mode
+keeps the old behaviour for the comparison. A one-shot ends when the phase passes
 the end; the filters then ring out until the next update.
 
 **Pitch** (firmware, EF83:178B):

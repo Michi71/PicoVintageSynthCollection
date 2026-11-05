@@ -693,6 +693,12 @@ void Engine::renderVoice(Voice& v, int frames) {
     const int32_t L = (int32_t)v.loopLen;
     const bool loop = v.loop;
     const int32_t below = -(int32_t)(base - rom_.pcm);   // first readable index
+    // A loop is [loop, end): its period is end - loop, and the word at `end`
+    // is not part of it -- the ROM repeats with exactly that period before the
+    // end, and the word after it does not continue the loop. So a tap at the
+    // end address already reads from the loop start. (The analysis' Python
+    // reference wraps one word later; the reference mode keeps that.)
+    const int32_t wrapAt = refMode_ ? endRel + 1 : endRel;
     float y1 = v.y1, y2 = v.y2;
     int i = 0;
     while (i < frames && v.active) {
@@ -725,7 +731,7 @@ void Engine::renderVoice(Voice& v, int frames) {
             const int32_t ip = v.pos >> 12;
             const uint8_t* w = K + ((v.pos & 0xFFF) << 3);
             int32_t acc;
-            if (ip - 3 >= below && ip + 4 <= endRel) {
+            if (ip - 3 >= below && ip + 4 < wrapAt) {
                 const int16_t* x = base + ip;
                 acc = (int8_t)w[0] * x[4] + (int8_t)w[1] * x[3] + 2 * (int8_t)w[2] * x[2]
                     + 8 * (w[3] * x[1] + w[4] * x[0])
@@ -735,7 +741,7 @@ void Engine::renderVoice(Voice& v, int frames) {
                 acc = 0;
                 for (int l = 0; l < 8; ++l) {
                     int32_t idx = ip + 4 - l;
-                    if (loop && idx > endRel) idx -= L;       // taps past the end read the loop
+                    if (loop && idx >= wrapAt) idx -= L;      // taps past the end read the loop
                     if (idx < below) idx = below;
                     const int wl = (l == 3 || l == 4) ? (int)w[l] : (int)(int8_t)w[l];
                     acc += mul[l] * wl * base[idx];
