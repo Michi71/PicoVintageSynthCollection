@@ -73,10 +73,18 @@ keyboard tracking × (key − centre) + split trim × 0x52 + MG + joystick/
 aftertouch + EG level × intensity, clamped to 0…0x1FFF; VDF 1 additionally
 to 0x1FD2. Both VDF chips get the same value.
 
-**VDF topology** (**assumed**): two one-pole low-passes in series, stage 1
-with the IC26 coefficient (0.707 k), stage 2 with the IC20 coefficient (k).
-The chips also hold a second table `2k − 1` whose use is unknown; no
-resonance.
+**VDF topology** (**assumed**, but now with every table in use): each of
+the two VDF chips runs two one-pole stages, a plain one with its `k` table
+(`y += k·(x − y)`; 0.707 k in VDF 1, k in VDF 2) and a bilinear one whose
+pole is the chip's second table `T0 = 2k − 1` (`y = −T0·y₁ + (1 + T0)/2 ·
+(x + x₁)`: DC gain 1, a zero at Nyquist). Four poles, 24 dB/octave, no
+resonance. The first version used only the `k` tables (two poles, 12 dB/oct)
+and left `T0` unexplained. Korg's own M1 plugin was read as a cross-check:
+it models the VDF as four identical one-poles (24 dB/oct) with an analog
+cutoff law of its own and never uses the ROM tables; the four-pole reading of
+the chip tables lands within a few dB of it at 4 kHz (e.g. −85 against −86 dB
+at register 0x1000, where the two-pole version gave −49 dB), while the corner
+frequencies stay the chip's. Nothing of the plugin is used in the code.
 
 **Amplitude** (firmware, EF83:1EE9): osc level × split level trim, plus
 keyboard tracking and aftertouch, times the velocity curve, the combi timbre
@@ -201,8 +209,10 @@ an M1 with nothing plugged into outputs 3/4.
 
 ## Known gaps
 
-- Hardware ramp shape of the VDF/VDA chips, VDF topology, interpolator taps
-  at the loop edge: assumed, see above.
+- Hardware ramp shape of the VDF/VDA chips, the VDF topology (four poles
+  from the two tables of each chip), interpolator taps before the loop start:
+  assumed, see above. The plugin ramps its cutoff over 128–660 samples
+  depending on the jump; the engine ramps over the whole 650-sample update.
 - The 1.3 ms tick rests on a 2 MHz timer clock inferred from the MIDI baud
   divisor.
 - No comparison against a real M1 has been made. The Python reference and

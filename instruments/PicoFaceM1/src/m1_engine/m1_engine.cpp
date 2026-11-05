@@ -684,11 +684,34 @@ void Engine::update(Voice& v) {
 // ---------------------------------------------------------------------------
 // Audio
 // ---------------------------------------------------------------------------
+// The VDF: two MB87404 chips in series, both fed the same cutoff register
+// (VDF 1 clamped to 0x1FD2). Each chip is taken as two one-pole stages: a
+// plain one with its k table (T1: 0.707 k in VDF 1, k in VDF 2) and a
+// bilinear one whose pole is the chip's second table T0 = 2k - 1 (gain
+// (1 + T0)/2, so DC gain 1, zero at Nyquist). Four poles, 24 dB/oct
+// (doc/ENGINE.md, "VDF"). Reference mode: the earlier two one-pole stages.
+inline float Engine::vdf(Voice& v, float x) {
+    const int ci = (int)v.cut;
+    const int i1 = (ci > kCutMax ? kCutMax : ci) >> 1, i2 = ci >> 1;
+    const float k1 = rom_.vdf1k[i1] * (1.0f / 8192.0f), k2 = rom_.vdf2k[i2] * (1.0f / 8192.0f);
+    v.y1 += k1 * (x - v.y1);
+    if (refMode_) {
+        v.y2 += k2 * (v.y1 - v.y2);
+        return v.y2;
+    }
+    const float a1 = -rom_.vdf1t0[i1] * (1.0f / 8192.0f);
+    v.y2 = a1 * v.y2 + (1.0f - a1) * 0.5f * (v.y1 + v.x1);
+    v.x1 = v.y1;
+    v.y3 += k2 * (v.y2 - v.y3);
+    const float a2 = -rom_.vdf2t0[i2] * (1.0f / 8192.0f);
+    v.y4 = a2 * v.y4 + (1.0f - a2) * 0.5f * (v.y3 + v.x3);
+    v.x3 = v.y3;
+    return v.y4;
+}
+
 void Engine::renderVoice(Voice& v, int frames) {
     const int16_t* base = v.base;
     const uint8_t* K = rom_.kernel;
-    const uint16_t* k1t = rom_.vdf1k;
-    const uint16_t* k2t = rom_.vdf2k;
     const int32_t endRel = (int32_t)v.endRel;
     const int32_t L = (int32_t)v.loopLen;
     const bool loop = v.loop;
@@ -699,7 +722,6 @@ void Engine::renderVoice(Voice& v, int frames) {
     // end address already reads from the loop start. (The analysis' Python
     // reference wraps one word later; the reference mode keeps that.)
     const int32_t wrapAt = refMode_ ? endRel + 1 : endRel;
-    float y1 = v.y1, y2 = v.y2;
     int i = 0;
     while (i < frames && v.active) {
         if (v.delayTicks > 0) {
@@ -720,9 +742,7 @@ void Engine::renderVoice(Voice& v, int frames) {
         if (n > v.untilUpdate) n = v.untilUpdate;
         for (int j = 0; j < n; ++j, ++i) {
             if (v.oscDone) {
-                y1 += (rom_.vdf1k[((int)v.cut > kCutMax ? kCutMax : (int)v.cut) >> 1] * (1.0f / 8192.0f)) * (0.0f - y1);
-                y2 += (rom_.vdf2k[(int)v.cut >> 1] * (1.0f / 8192.0f)) * (y1 - y2);
-                const float out = y2 * v.amp;
+                const float out = vdf(v, 0.0f) * v.amp;
                 busA_[i] += out * v.panA; busB_[i] += out * v.panB;
                 busC_[i] += out * v.panC; busD_[i] += out * v.panD;
                 v.cut += v.cutInc; v.amp += v.ampInc;
@@ -749,12 +769,7 @@ void Engine::renderVoice(Voice& v, int frames) {
             }
             const float x = (float)acc * (1.0f / (1226.0f * 32768.0f));
 
-            const int ci = (int)v.cut;
-            const float k1 = k1t[(ci > kCutMax ? kCutMax : ci) >> 1] * (1.0f / 8192.0f);
-            const float k2 = k2t[ci >> 1] * (1.0f / 8192.0f);
-            y1 += k1 * (x - y1);
-            y2 += k2 * (y1 - y2);
-            const float out = y2 * v.amp;
+            const float out = vdf(v, x) * v.amp;
             busA_[i] += out * v.panA;
             busB_[i] += out * v.panB;
             busC_[i] += out * v.panC;
@@ -773,7 +788,6 @@ void Engine::renderVoice(Voice& v, int frames) {
         }
         v.untilUpdate -= n;
     }
-    v.y1 = y1; v.y2 = y2;
     if (!v.active) {
         // The firmware puts a finished channel at the head of the queue.
         for (int k = 0; k < kVoices; ++k)

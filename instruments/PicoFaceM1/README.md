@@ -18,7 +18,7 @@ analysis found they do:
 |---|---|
 | TG MB87402/403, 16 channels, 4.12 pitch register | 16 voices, sample read forward from the 4 MB PCM in flash |
 | IC30 interpolation kernel, 8 taps, 4096 phases | the same kernel, from the user's IC30 |
-| two MB87404 VDF chips, coefficient ROMs IC26/IC20 | two one-pole stages in series with those coefficients (topology assumed) |
+| two MB87404 VDF chips, coefficient ROMs IC26/IC20 | four one-pole stages, two per chip, from both tables of each chip (topology assumed, 24 dB/oct) |
 | VDA in the second VDF chip | multiplicative amplitude, linear ramp per 20.8 ms update |
 | voice pan register to buses A/B/C/D | the same register words (DS:0854) |
 | MDE MB87405, a programmable DSP with 64 K words of delay RAM | an algorithmic port of all 33 effect types, 2 × 32 K words of int16 delay RAM |
@@ -64,7 +64,7 @@ in [doc/ENGINE.md](doc/ENGINE.md).
 - **Flash**: about 4.3 MB (4 MB of PCM). It needs a board with more than 4 MB
   of flash; there is no reduced build.
 - **RAM**: 128 KB for the effect delay lines (the MDE's 64 K words), 32 KB for
-  the interpolation kernel and 16 KB for the VDF coefficient tables, so that
+  the interpolation kernel and 32 KB for the VDF coefficient tables, so that
   only the PCM is read from flash.
 - **Sample rate**: 31 250 Hz, the M1's own (32 MHz / 1024). The I2S clock
   divider handles it like the RD's 20/32 kHz; the PCM5102 accepts it.

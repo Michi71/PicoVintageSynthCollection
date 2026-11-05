@@ -208,6 +208,15 @@ class M1RomSet:
             return [d[o + i] | d[o + 0x1000 + i] << 8 for i in range(4096)]
         return tab(0x8000), tab(0xC000)
 
+    def vdf_t0(self):
+        """(t1, t2): the first table of each 16 KB area, signed Q13, 2k - 1."""
+        d = self.coef
+
+        def tab(base):
+            v = [d[base + i] | d[base + 0x1000 + i] << 8 for i in range(4096)]
+            return [x - 0x10000 if x & 0x8000 else x for x in v]
+        return tab(0x8000), tab(0xC000)
+
 
 def _s8(v):
     return v - 256 if v >= 128 else v

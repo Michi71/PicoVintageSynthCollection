@@ -7,8 +7,8 @@
 // It is not a chip emulation. It reads the M1's own tables (multisounds,
 // interpolation kernel, VDF coefficients, EG and pitch tables, effect tables,
 // all from the user's ROM files at configure time) and runs the signal chain
-// the analysis worked out of the OS: TG with the IC30 8-tap kernel, two VDF
-// one-pole stages, VDA, software EGs updated every 20.8 ms with linear ramps in
+// the analysis worked out of the OS: TG with the IC30 8-tap kernel, a
+// four-pole VDF from the coefficient ROMs, VDA, software EGs updated every 20.8 ms with linear ramps in
 // between, voice pan to the four buses A/B/C/D, and the two-effect section.
 //
 // Like PicoFaceJV, every voice reads its sample strictly forward, so the PCM
@@ -74,6 +74,8 @@ struct RomTables {
     const uint8_t*    kernel;         // IC30: 4096 phases x 8 bytes
     const uint16_t*   vdf1k;          // 4096, Q13
     const uint16_t*   vdf2k;          // 4096, Q13
+    const int16_t*    vdf1t0;         // 4096, Q13, second table of VDF 1 (2k - 1)
+    const int16_t*    vdf2t0;         // 4096, Q13, second table of VDF 2
     const uint16_t*   egRise;         // 256
     const uint16_t*   egFall;         // 256
     const uint16_t*   velCurve;       // 256, index 252 = unity
@@ -184,7 +186,7 @@ private:
         int32_t  velG = 0;                // velocity gain from the curve
         int      refCutoff = 0, refLevel = 0;   // reference mode
         // filter / amp
-        float    y1 = 0, y2 = 0;
+        float    y1 = 0, y2 = 0, y3 = 0, y4 = 0, x1 = 0, x3 = 0;   // VDF stages
         float    cut = 0, cutInc = 0;     // register value, ramped
         float    amp = 0, ampInc = 0;
         bool     first = true;
@@ -208,6 +210,7 @@ private:
     void timbreNoteOff(int t, uint8_t note);
     void configureTimbre(int t, const uint8_t* prog);
     void renderVoice(Voice& v, int frames);
+    float vdf(Voice& v, float x);
     int32_t egStep(Eg& e);
     void  egStart(Eg& e, Eg::Kind kind, int startLevel, const int16_t* times, const int16_t* levels,
                   int n, int relTime, int relLevel);

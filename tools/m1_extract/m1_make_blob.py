@@ -304,6 +304,9 @@ def main():
     h.append(carr("kKernel", "uint8_t", kern, 32))
     h.append(carr("kVdf1k", "uint16_t", k1))
     h.append(carr("kVdf2k", "uint16_t", k2))
+    t1, t2 = rom.vdf_t0()
+    h.append(carr("kVdf1t0", "int16_t", t1))
+    h.append(carr("kVdf2t0", "int16_t", t2))
     for name, key in (("kEgRise", "eg_rise"), ("kEgFall", "eg_fall"), ("kVelCurve", "vel_curve"),
                       ("kMgFreq", "mg_freq"), ("kMgDelay", "mg_delay"), ("kMgIntP", "mg_int_p"),
                       ("kMgIntF", "mg_int_f"), ("kPitchS", "pitch_s"), ("kPitchF", "pitch_f"),

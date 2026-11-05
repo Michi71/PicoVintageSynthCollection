@@ -32,15 +32,18 @@ int16_t g_fxMem[65536];
 // The interpolation kernel is read at a random phase for every voice and every
 // sample; from flash that would fight the PCM stream for the 16 KB XIP cache.
 // The VDF coefficient tables are read per sample during ramps for the same
-// reason. 48 KB of RAM between them.
+// reason. 64 KB of RAM between them.
 uint8_t  g_kernel[sizeof(m1rom::kKernel)];
 uint16_t g_vdf1k[4096], g_vdf2k[4096];
+int16_t  g_vdf1t0[4096], g_vdf2t0[4096];
 } // namespace
 
 void M1_Bridge::init() {
     memcpy(g_kernel, m1rom::kKernel, sizeof g_kernel);
     memcpy(g_vdf1k, m1rom::kVdf1k, sizeof g_vdf1k);
     memcpy(g_vdf2k, m1rom::kVdf2k, sizeof g_vdf2k);
+    memcpy(g_vdf1t0, m1rom::kVdf1t0, sizeof g_vdf1t0);
+    memcpy(g_vdf2t0, m1rom::kVdf2t0, sizeof g_vdf2t0);
     m1::RomTables rom{};
     rom.pcm = reinterpret_cast<const int16_t*>(m1_pcm_blob);
     rom.pcmWords = (uint32_t)((m1_pcm_blob_end - m1_pcm_blob) / 2);
@@ -51,6 +54,8 @@ void M1_Bridge::init() {
     rom.kernel = g_kernel;
     rom.vdf1k = g_vdf1k;
     rom.vdf2k = g_vdf2k;
+    rom.vdf1t0 = g_vdf1t0;
+    rom.vdf2t0 = g_vdf2t0;
     rom.egRise = m1rom::kEgRise;
     rom.egFall = m1rom::kEgFall;
     rom.velCurve = m1rom::kVelCurve;
