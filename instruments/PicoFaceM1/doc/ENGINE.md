@@ -233,6 +233,7 @@ an M1 with nothing plugged into outputs 3/4.
   depending on the jump; the engine ramps over the whole 650-sample update.
 - The 1.3 ms tick rests on a 2 MHz timer clock inferred from the MIDI baud
   divisor.
-- No comparison against a real M1 has been made. The Python reference and
-  this engine share the same analysis, so agreement between them checks the
-  port, not the analysis.
+- The only comparison against a real M1 is two MP3 recordings (Pan Wave,
+  RockGuitar) with hall, chorus and unknown velocity; they fixed the VDF rate.
+  The Python reference and this engine share the same analysis, so agreement
+  between them checks the port, not the analysis.

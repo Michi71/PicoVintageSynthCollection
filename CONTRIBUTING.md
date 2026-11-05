@@ -40,9 +40,10 @@ English.
 
 ## Things that will not be merged
 
-- **Roland ROMs or any other copyrighted sample or ROM data** -- not in a
-  commit, not in a branch, not in a fork. `roms/` is ignored for that reason;
-  the RD, JV-880 and D-50 build only where a local ROM set exists.
+- **Roland or Korg ROMs, any other copyrighted sample or ROM data, or data read
+  out of a manufacturer's plugin** -- not in a commit, not in a branch, not in a
+  fork. `roms/` is ignored for that reason; the RD, JV-880, D-50 and M1 build
+  only where a local ROM set exists.
   `tools/check_clean_build.sh` checks that a clean checkout builds without them.
 - **A build option to swap the encoder A/B pins.** The pin map in
   [core/include/project_config.h](core/include/project_config.h) follows the

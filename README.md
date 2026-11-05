@@ -36,7 +36,7 @@ codebase. Same board, same core, one firmware image per instrument.
 | [instruments/PicoFaceRD](instruments/PicoFaceRD/README.md) | Roland RD / MKS-20 (sample piano) | local build only |
 | [instruments/PicoFaceJV](instruments/PicoFaceJV/README.md) | Roland JV-880 (native engine over the original PCM data) | local build only |
 | [instruments/PicoFaceD5](instruments/PicoFaceD5/README.md) | Roland D-50 (native LA engine over the original PCM data) | local build only |
-| [instruments/PicoFaceM1](instruments/PicoFaceM1/README.md) | Korg M1 (native engine over the original PCM data; untested on hardware) | local build only |
+| [instruments/PicoFaceM1](instruments/PicoFaceM1/README.md) | Korg M1 (native engine over the original PCM data, with edit pages and SysEx) | local build only |
 
 The RD, the JV-880, the D-50 and the M1 are the exceptions to "download and flash":
 they only build where the respective ROM set is present, and those ROMs are not
@@ -161,7 +161,7 @@ provide:
 | PicoFaceCP | 3.99 MB | fits, 190 KB to spare |
 | PicoFaceJV | 4.34 MB | only with `-DPICOFACEJV_4MB=ON` (3.76 MB, banks A+B) |
 | PicoFaceD5 | 0.86 MB | fits |
-| PicoFaceM1 | 4.44 MB | no (4 MB of PCM; no reduced build) |
+| PicoFaceM1 | 4.48 MB | no (4 MB of PCM; no reduced build) |
 | PicoFaceRD | 2.56 MB | fits |
 
 The JV's reduced variant drops something real: the user bank, and the 22
@@ -348,7 +348,7 @@ instrument's README names the document so it can be obtained separately.
 ## Status
 
 **All eleven instruments build from a single configure run, each with its own
-USB PID; ten of them run on the hardware, the M1 has not been tried there yet.**
+USB PID, and all eleven run on the hardware.**
 Seven are in the release binaries; the RD, the JV-880, the D-50 and the M1 need a
 local ROM set and are therefore built locally only.
 Open points are listed in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
@@ -363,8 +363,8 @@ form, scoped per measurement, for project directories such as DecompHub.
 Copyright (C) 2026 Michi71.
 
 The collection was assembled in August 2026 from seven single-instrument
-repositories -- YC, CP, DX, RD, J6, MD and SM; OB, JV and D5 were written here
-afterwards, which is why the number is seven and not ten. Each of those seven
+repositories -- YC, CP, DX, RD, J6, MD and SM; OB, JV, D5 and M1 were written
+here afterwards, which is why the number is seven and not eleven. Each of those seven
 already shipped the identical GPL-3 licence text, and every instrument README
 states GPL-3. It is also the lowest common denominator of what the engines are
 built on. Where an instrument derives from someone else's work:

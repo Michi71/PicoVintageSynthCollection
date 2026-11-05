@@ -5,7 +5,9 @@ expansion. It builds a firmware image, but only on a machine that has an M1
 ROM set. The ROMs are not distributable, so without them the instrument
 removes itself from the build and the other instruments are unaffected.
 
-**Untested on hardware.** Everything below was checked in host renders only.
+Runs on the hardware (confirmed 2026-11-05): sound, effects, edit pages, the
+user memory and SysEx bank loads from presetpatch.com, at about 32 % peak CPU
+load with 16 voices.
 
 ## What this is, and is not
 
@@ -45,8 +47,8 @@ in [doc/ENGINE.md](doc/ENGINE.md).
 | 33 effect types, serial/parallel, balances, Out-3/4 panpots | see "Effects" in ENGINE.md |
 | Scale types: Equal Temp 1/2, Pure Major/Minor with key, User | works (firmware tables and the OS's random detune) |
 | User memory (100 programs, 100 combinations, 4 drum kits, global) | in RAM, mirrored to flash; starts as the factory preload |
-| SysEx: dumps, requests, write, parameter change, device inquiry | works on the host with synthetic dumps and the real preload; see below |
-| Edit Program / Combination / Global / Drum kits, Write, Compare | works in host renders |
+| SysEx: dumps, requests, write, parameter change, device inquiry | works; pinned by a host test with synthetic dumps and the real preload, see below |
+| Edit Program / Combination / Global / Drum kits, Write, Compare | works |
 | Out 3/4 as separate outputs | no: the PicoFace has one stereo pair, which is M1 outputs 1/2 |
 
 ## Playing it
@@ -118,7 +120,7 @@ parts separately for one.
   only the PCM is read from flash.
 - **Sample rate**: 31 250 Hz, the M1's own (32 MHz / 1024). The I2S clock
   divider handles it like the RD's 20/32 kHz; the PCM5102 accepts it.
-- Everything runs on core 0. The CPU load has not been measured on hardware.
+- Everything runs on core 0, at about 32 % peak load with 16 voices sounding.
 
 ## Building the firmware
 
