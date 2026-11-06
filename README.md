@@ -15,11 +15,13 @@ codebase. Same board, same core, one firmware image per instrument.
 ## Demo
 
 <p align="center">
-  <a href="https://youtu.be/cG6gyhaqCxE">
-    <img src="https://img.youtube.com/vi/cG6gyhaqCxE/maxresdefault.jpg" alt="PicoVintageSynthCollection demo video" width="800">
+  <a href="https://youtu.be/6L494ZGSKgw">
+    <img src="https://img.youtube.com/vi/6L494ZGSKgw/maxresdefault.jpg" alt="PicoFaceM1 demo video on the project's own PCB" width="800">
   </a>
   <br>
-  <a href="https://youtu.be/cG6gyhaqCxE">&#9654; Demo video on YouTube</a>
+  <a href="https://youtu.be/6L494ZGSKgw">&#9654; PicoFaceM1 demo on YouTube</a> &mdash; the Korg M1 on the project's own PCB
+  <br><br>
+  <a href="https://youtu.be/cG6gyhaqCxE">&#9654; Earlier demo of the collection</a>
 </p>
 
 ## Project philosophy and architecture
@@ -54,7 +56,7 @@ goal, under the GPL-3 terms below.
 
 **How it is made.** The project is developed with an AI coding agent
 (Claude Code); the rules it works under are in [CLAUDE.md](CLAUDE.md). It
-does not build itself. Michael sets the goals, the order of authority and
+does not build itself. The author sets the goals, the order of authority and
 the bar for "done", decides every trade-off, builds the hardware and tests
 on it: no firmware change is merged without a hardware test. The agent does a large
 share of the disassembly analysis and the code. Every result is checked
