@@ -16,7 +16,7 @@ codebase. Same board, same core, one firmware image per instrument.
 
 <p align="center">
   <a href="https://youtu.be/6L494ZGSKgw">
-    <img src="https://img.youtube.com/vi/6L494ZGSKgw/maxresdefault.jpg" alt="PicoFaceM1 demo video on the project's own PCB" width="800">
+    <img src="https://img.youtube.com/vi/6L494ZGSKgw/hqdefault.jpg" alt="PicoFaceM1 demo video on the project's own PCB" width="800">
   </a>
   <br>
   <a href="https://youtu.be/6L494ZGSKgw">&#9654; PicoFaceM1 demo on YouTube</a> &mdash; the Korg M1 on the project's own PCB
