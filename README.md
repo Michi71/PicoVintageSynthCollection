@@ -15,12 +15,54 @@ codebase. Same board, same core, one firmware image per instrument.
 ## Demo
 
 <p align="center">
-  <a href="https://youtu.be/cG6gyhaqCxE">
-    <img src="https://img.youtube.com/vi/cG6gyhaqCxE/maxresdefault.jpg" alt="PicoVintageSynthCollection demo video" width="800">
+  <a href="https://youtu.be/6L494ZGSKgw">
+    <img src="https://img.youtube.com/vi/6L494ZGSKgw/hqdefault.jpg" alt="PicoFaceM1 demo video on the project's own PCB" width="800">
   </a>
   <br>
-  <a href="https://youtu.be/cG6gyhaqCxE">&#9654; Demo video on YouTube</a>
+  <a href="https://youtu.be/6L494ZGSKgw">&#9654; PicoFaceM1 demo on YouTube</a> &mdash; the Korg M1 on the project's own PCB
+  <br><br>
+  <a href="https://youtu.be/cG6gyhaqCxE">&#9654; Earlier demo of the collection</a>
 </p>
+
+## Project philosophy and architecture
+
+**Translation, not emulation.** No instrument here runs an emulated CPU or
+system bus, as MAME-style emulators do. Each one is a native C++17 engine on a
+shared core, and how it was derived depends on what the original leaves to
+work with:
+
+- The **Korg M1** and the **Roland D-50** come from a disassembly of the
+  original operating system: envelopes, filters, voice allocation and the
+  effect algorithms were read out of the firmware and rewritten as native
+  code that plays the machine's own PCM data. Where firmware, plugin and ear
+  disagree, the firmware wins.
+- The **JV-880** and the **RD/MKS-20** are written over the original PCM data
+  and calibrated against a reference emulator of the original firmware, which
+  runs on the host only and is not part of this repository.
+- The analog and modern instruments are modeled from manuals, schematics and
+  published work; the License section lists every upstream.
+
+**Lean because it has to be.** Every engine has to finish its audio blocks on
+an RP2350, a microcontroller with 520 KB of RAM, overclocked to 444 MHz. That
+budget leaves no room for waste: tables live in flash, the voice loops are
+measured on the device, and an instrument that does not fit does not ship.
+The same engine sources also build unchanged on macOS for the host tests,
+which is what makes them portable to other targets.
+
+**Made for reuse.** The engines are separate from the core that drives the
+hardware (display, encoders, MIDI, audio output). Taking an engine, a filter
+or an effect into your own hardware, plugin or application is an explicit
+goal, under the GPL-3 terms below.
+
+**How it is made.** The project is developed with an AI coding agent
+(Claude Code); the rules it works under are in [CLAUDE.md](CLAUDE.md). It
+does not build itself. The author sets the goals, the order of authority and
+the bar for "done", decides every trade-off, builds the hardware and tests
+on it: no firmware change is merged without a hardware test. The agent does a large
+share of the disassembly analysis and the code. Every result is checked
+against the original firmware, a reference render or a measurement before it
+lands, and what could not be verified is written down as such in the
+instrument's documentation.
 
 ## Instruments
 
