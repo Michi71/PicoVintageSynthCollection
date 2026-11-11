@@ -10,9 +10,11 @@ its service manual and the CEM3379 data sheet; the firmware of the Behringer
 Pro VS Mini served as a second reference for a few additions. It first ran as
 a host program and is unchanged here.
 
-**Status: first integration.** It has run on the board at 32 kHz, where the
-load peaked at 53 %. It now runs at 44.1 kHz, which should peak near 73 %; that
-rate has not been heard on the board yet. The panel shows the load.
+**Status:** it has run on the board at 32 kHz, where the load peaked at 53 %.
+It now runs at 44.1 kHz, which should peak near 73 %. That rate, the edit
+pages, the program store in flash, the arpeggiator and chord switches and the
+dump transmission have not been tested on the board yet; the host test
+(`tools/host_tests/vs/`) covers them as far as a host can.
 
 ## It builds from the repository alone
 
@@ -51,14 +53,49 @@ at configure time with a note.
 
 ## Panel
 
-| Control | Does |
-|---|---|
-| Sel | steps through the programs; press to switch between the VS bank and the Mini bank |
-| A | effect: as programmed, off, chorus, ensemble, VS chorus |
-| B | volume; press to reset the peak load |
+Controls as on PicoFaceM1: **SEL turns the pages, A and B set the two values
+shown.**
 
-The line under the name shows the effect, the sounding voices and the CPU load
-(current / peak, in percent of the block budget).
+| Page | A | B |
+|---|---|---|
+| PROGRAM | program | bank: VS programs or Pro VS Mini patches |
+| LEVEL | volume | effect: as programmed, off, chorus, ensemble, VS chorus |
+| ARP | arpeggiator off / on / latch | its clock: internal or MIDI clock |
+| ARP / CHORD | clocks per arpeggiator step (1-24) | chord set 1-8 (needs the Pro VS Mini data) |
+| DIAG | - | press: reset the peak load |
+
+A `*` after the program number means the edit buffer differs from what is
+stored, `CMP` that Compare is on. DIAG shows the sounding voices, the CPU load
+(current and peak, in percent of the block budget) and whether the bank has
+been written to flash.
+
+**A long press on SEL opens the menu:** Edit Program, Write Program, Compare,
+Send SysEx, Factory Reset.
+
+- **Edit Program**: two values per screen on A and B, SEL turns to the next
+  pair. A short press on SEL lists the groups - OSC, FILTER, FILTER ENV,
+  AMP ENV, MIX ENV, LFO 1, LFO 2, PRESSURE, VELOCITY, KEYBOARD, FILT ENV MOD,
+  MOD WHEEL, CHORUS, VOICE, PAN, ARP, NAME - and jumps; a long press leaves.
+  Edits are heard at once and live in the edit buffer until **Write Program**
+  stores them (A picks the number, SEL confirms) or another program is
+  selected. **Compare** plays the stored version. The arpeggiator's rate,
+  mode, scan, octaves and repeats are program parameters (group ARP), as on
+  the VS.
+- The Pro VS Mini's patches are played, not edited.
+- **Send SysEx**: the program in the edit buffer, or the whole VS bank, on USB
+  and DIN.
+- **Factory Reset** brings back the banks that were embedded at build time
+  (the init program if there were none).
+
+## Program memory
+
+The VS bank - 100 programs - lives in RAM and is mirrored to 12 KB of flash
+below the settings store (and below PicoFaceJ6's patch sector and PicoFaceM1's
+memory, so switching instruments leaves all of them alone). It is written a
+moment after a Write, a received dump or a factory reset, once no voice is
+sounding. From the first such write on, the stored bank takes precedence over
+the banks embedded in the image; Factory Reset goes back to those. The Pro VS
+Mini patch bank is not stored: a received one lives until power-off.
 
 ## MIDI
 
@@ -73,13 +110,17 @@ The line under the name shows the effect, the sounding voices and the CPU load
 | CC 64 | hold |
 | CC 66 | alternate release (the VS's footswitch) |
 | CC 120, 123 | all notes off |
-| SysEx | the bank formats above; a received bank lives in RAM until power-off |
+| MIDI clock | steps the arpeggiator when its clock is set to MIDI |
+| SysEx in | a VS bank dump or single program dump (stored in flash), a Pro VS Mini patch bank (RAM) |
+| SysEx out | from the menu: the program in the edit buffer (`F0 01 0A nn`), the VS bank (`F0 01 0A 64`) |
 
-## Not there yet
+All channels are received. Dump requests are not answered; dumps are sent from
+the menu.
 
-- Editing a program on the panel, and storing programs in flash.
-- The arpeggiator and the chord mode are in the engine but have no control.
-- Sending dumps.
-- A host test of this instrument in `tools/host_tests/`; the engine's own
-  tests live with the engine's source project.
-- The engine sources and the generators still carry their German comments.
+## Not there
+
+- The waves 0-31 are the Pro VS Mini's, or empty: the VS's user waves cannot
+  be edited or loaded.
+- Of the arpeggiator: Layer (overdub) and Split "Dual". The joystick has no
+  control; the mix envelope moves the vector position.
+- No MIDI channel setting and no parameter changes over MIDI.

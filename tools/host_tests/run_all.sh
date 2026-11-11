@@ -69,6 +69,14 @@ t_md_ui() {
         && "$HERE/md/md_ui_shots" "$HERE/md/out" && frames_ok "$HERE/md/out"
 }
 
+# PicoFaceVS: generates its data without any ROM (Python 3 with numpy), then
+# the program format, the parameter list, the flash mirror and the real panel.
+# Needs the u8g2 archive that t_ui_kit builds, like t_md_ui.
+t_vs() {
+    "$HERE/vs/build_vs.sh" && mkdir -p "$HERE/vs/out" \
+        && "$HERE/vs/vs_test" "$HERE/vs/out" && frames_ok "$HERE/vs/out"
+}
+
 # One note through each of the six CP voices: a keygroup table pointing past
 # its data would crash or render silence here before it reaches a board.
 t_cp_render() {
@@ -80,7 +88,7 @@ t_cp_render() {
     done
 }
 
-ALL="veeprom d5 dx_sysex yc_sysex m1_sysex ob j6_ui yc ui_kit md_ui cp_render"
+ALL="veeprom d5 dx_sysex yc_sysex m1_sysex ob j6_ui yc ui_kit md_ui vs cp_render"
 
 # --- runner -----------------------------------------------------------------
 

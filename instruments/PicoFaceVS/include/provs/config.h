@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Michi71
 
-// provs/config.h - was beim Bauen zur Verfuegung steht
+// provs/config.h - what is available at build time
 #pragma once
 
-// Die Behringer-Teile (Patches des Pro VS Mini, Chord-Modus) sind optional.
-// gen/pvm_state.h setzt PROVS_HAS_PVM: tools/gen_data.py legt die Datei mit 0
-// an, tools/gen_pvm.py stellt sie auf 1, sobald es Daten erzeugt hat.
+// The Behringer parts (patches of the Pro VS Mini, chord mode) are optional.
+// gen/pvm_state.h sets PROVS_HAS_PVM: tools/gen_data.py creates the file with
+// 0, tools/gen_pvm.py switches it to 1 as soon as it has generated data.
 #include "provs/gen/pvm_state.h"
 
-// PROVS_HOT markiert den Abtastpfad. Auf dem Pico (RP2040/RP2350) kommt er
-// ins RAM: aus dem XIP-Flash laeuft Code, der nicht in den Cache passt,
-// deutlich langsamer. Auf dem Rechner hat die Markierung keine Wirkung.
+// PROVS_HOT marks the per-sample path. On the Pico (RP2040/RP2350) it is
+// placed in RAM: code running from XIP flash that does not fit into the
+// cache is considerably slower. On a desktop host the marker has no effect.
 #if defined(PICO_ON_DEVICE) && PICO_ON_DEVICE
 #define PROVS_HOT __attribute__((noinline, section(".time_critical.provs")))
 #else

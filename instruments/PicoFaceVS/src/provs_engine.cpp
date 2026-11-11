@@ -35,15 +35,15 @@ void Engine::applyParams() {
     paramsDirty_ = false;
 }
 
-// --- Programme ---------------------------------------------------------------
+// --- Programs ----------------------------------------------------------------
 
-// Die Bank liegt im RAM: 100 Programme zu 116 Feldern (ein Byte je Feld).
+// The bank lives in RAM: 100 programs of 116 fields each (one byte per field).
 namespace {
 constexpr int kBankSize = 100;
 constexpr int kFields = 116;
-constexpr int kProgramBytes = 82;        // bitgepackt
+constexpr int kProgramBytes = 82;        // bit-packed
 uint8_t gBank[kBankSize][kFields];
-int gBankCount = 0;                      // 0 = noch nicht angelegt
+int gBankCount = 0;                      // 0 = not set up yet
 
 void bankInit() {
     for (auto& prog : gBank)
@@ -52,14 +52,26 @@ void bankInit() {
 }
 inline void bankNeed() { if (gBankCount == 0) bankInit(); }
 
-// 164 Nibbles (High-Nibble zuerst) -> 82 Bytes -> 116 Felder, MSB-first
-// nach der Breitentabelle der Firmware
+// 164 nibbles (high nibble first) -> 82 bytes -> 116 fields
 bool unpackProgram(const uint8_t* nib, uint8_t* fields) {
     uint8_t rec[kProgramBytes];
     for (int i = 0; i < kProgramBytes; ++i) {
         if ((nib[2 * i] | nib[2 * i + 1]) & 0xF0) return false;
         rec[i] = uint8_t((nib[2 * i] << 4) | nib[2 * i + 1]);
     }
+    Engine::unpackVsProgram(rec, fields);
+    return true;
+}
+}  // namespace
+
+void Engine::resetVsBank() { bankInit(); }
+
+int Engine::vsFieldBits(int field) {
+    return field >= 0 && field < kFields ? kProgramFieldBits[field] : 0;
+}
+
+// 82 bytes -> 116 fields, MSB first by the firmware's width table
+void Engine::unpackVsProgram(const uint8_t* rec, uint8_t* fields) {
     int bit = 0;
     for (int i = 0; i < kFields; ++i) {
         int v = 0;
@@ -67,11 +79,50 @@ bool unpackProgram(const uint8_t* nib, uint8_t* fields) {
             v = (v << 1) | ((rec[bit >> 3] >> (7 - (bit & 7))) & 1);
         fields[i] = uint8_t(v);
     }
+}
+
+void Engine::packVsProgram(const uint8_t* fields, uint8_t* rec) {
+    for (int i = 0; i < kProgramBytes; ++i) rec[i] = 0;
+    int bit = 0;
+    for (int i = 0; i < kFields; ++i)
+        for (int b = kProgramFieldBits[i] - 1; b >= 0; --b, ++bit)
+            if ((fields[i] >> b) & 1) rec[bit >> 3] |= uint8_t(0x80 >> (bit & 7));
+}
+
+void Engine::dumpVsNibbles(const uint8_t* fields, uint8_t* out) {
+    uint8_t rec[kProgramBytes];
+    packVsProgram(fields, rec);
+    for (int i = 0; i < kProgramBytes; ++i) {
+        out[2 * i] = rec[i] >> 4;
+        out[2 * i + 1] = rec[i] & 15;
+    }
+}
+
+size_t Engine::dumpVsProgram(const uint8_t* fields, int slot, uint8_t* out) {
+    out[0] = 0xF0; out[1] = 0x01; out[2] = 0x0A; out[3] = uint8_t(slot < 0 ? 0 : (slot > 99 ? 99 : slot));
+    dumpVsNibbles(fields, out + 4);
+    out[kVsDumpBytes - 1] = 0xF7;
+    return kVsDumpBytes;
+}
+
+const uint8_t* Engine::vsProgram(int index) {
+    bankNeed();
+    return index >= 0 && index < gBankCount ? gBank[index] : kInitProgram;
+}
+
+bool Engine::storeVsProgram(int index, const uint8_t* fields) {
+    bankNeed();
+    if (index < 0 || index >= kBankSize) return false;
+    for (int i = 0; i < kFields; ++i)
+        gBank[index][i] = uint8_t(fields[i] & ((1 << kProgramFieldBits[i]) - 1));
+    if (index + 1 > gBankCount) gBankCount = index + 1;
     return true;
 }
-}  // namespace
 
-void Engine::resetVsBank() { bankInit(); }
+void Engine::setVsBankCount(int count) {
+    bankNeed();
+    gBankCount = count < 1 ? 1 : (count > kBankSize ? kBankSize : count);
+}
 
 int Engine::loadVsSysex(const uint8_t* d, size_t n) {
     bankNeed();
@@ -83,9 +134,9 @@ int Engine::loadVsSysex(const uint8_t* d, size_t n) {
         if (d[i + 1] != 0x01 || d[i + 2] != 0x0A || d[i + 3] > kBankSize) { ++i; continue; }
         const int slot = d[i + 3];
         const int count = slot == kBankSize ? kBankSize : 1;
-        const size_t end = i + 4 + size_t(count) * kNib;      // Position des F7
+        const size_t end = i + 4 + size_t(count) * kNib;      // position of the F7
         if (end >= n || d[end] != 0xF7) { ++i; continue; }
-        // erst vollstaendig pruefen (nur Nibbles erlaubt), dann uebernehmen
+        // validate completely first (only nibbles allowed), then accept
         bool ok = true;
         for (size_t k = i + 4; k < end && ok; ++k) ok = (d[k] & 0xF0) == 0;
         if (ok) {
@@ -105,10 +156,14 @@ int Engine::presetCount() { bankNeed(); return gBankCount; }
 void Engine::setPreset(int index) {
     bankNeed();
     if (index < 0 || index >= gBankCount) return;
+    setVsProgram(gBank[index]);
+}
+
+void Engine::setVsProgram(const uint8_t* pr) {
+    bankNeed();
     Params p = pNext_;
-    const uint8_t* pr = gBank[index];
     mapVsPreset(pr, p);
-    // Split/Double: Feld 61 nennt das verknuepfte Programm fuer die 2. Lage
+    // Split/double: field 61 names the linked program for the second layer
     if (p.keyMode != kKeyNormal) {
         const int link = pr[61] < gBankCount ? pr[61] : 0;
         Params q;
@@ -140,7 +195,7 @@ void Engine::resetPvmBank() { gPvmCount = 0; }
 
 int Engine::loadPvmSysex(const uint8_t* d, size_t n) {
     if (!kPvmHasEnvTable) return 0;
-    constexpr size_t kLen = kPvmHeader + kPvmBankSize * kPvmPatchBytes + 2;   // Pruefbyte, F7
+    constexpr size_t kLen = kPvmHeader + kPvmBankSize * kPvmPatchBytes + 2;   // check byte, F7
     for (size_t i = 0; i + kLen <= n; ++i) {
         if (d[i] != 0xF0 || d[i + 1] != 0x00 || d[i + 2] != 0x20 || d[i + 3] != 0x32) continue;
         if (d[i + kLen - 1] != 0xF7) continue;
@@ -182,8 +237,8 @@ void Engine::setPvmPatch(int) {}
 
 // --- Envelopes -----------------------------------------------------------------
 
-// Pegel- und Zeitfolge wie die Arbeitstabellen der Firmware (@0x479C, @0x47EE):
-// Segmente 0..2 vorwaerts (L0->L1->L2->L3), 3..5 rueckwaerts (L3->L2->L1->L0).
+// Level and time sequence like the firmware's working tables (@0x479C, @0x47EE):
+// segments 0..2 forward (L0->L1->L2->L3), 3..5 backward (L3->L2->L1->L0).
 static inline float envPoint(const Env5& p, int i) {
     static const int idx[7] = {0, 1, 2, 3, 2, 1, 0};
     return p.level[idx[i]];
@@ -196,15 +251,15 @@ static inline float envSegTime(const Env5& p, int seg) {
 void Engine::envSegment(EnvState& e, const Env5& p, int stage) const {
     e.stage = stage;
     if (stage == kEnvRelease) {
-        // Release: exponentiell auf L4 (Firmware: v = L4 + (v-L4)*k je Tick)
+        // Release: exponentially to L4 (firmware: v = L4 + (v-L4)*k per tick)
         e.target = p.level[4];
         const float tau = (altRelease_ && p.releaseTauAlt >= 0.0f) ? p.releaseTauAlt : p.releaseTau;
         e.coef = tau > 0.0f ? 1.0f - std::exp(-1.0f / (tau * sr_)) : 1.0f;
         e.left = 1;
         return;
     }
-    // Jedes Segment beginnt exakt auf seinem Startpunkt (Firmware @0x0A48);
-    // beim Loop 1..3 ist das der Sprung zurueck.
+    // Each segment starts exactly at its start point (firmware @0x0A48);
+    // for loop 1..3 that is the jump back.
     e.v = envPoint(p, stage);
     e.target = envPoint(p, stage + 1);
     int n = int(envSegTime(p, stage) * sr_);
@@ -215,7 +270,7 @@ void Engine::envSegment(EnvState& e, const Env5& p, int stage) const {
 }
 
 void Engine::envStart(EnvState& e, const Env5& p) const {
-    // Wiederholzaehler wie @0x4756: ohne Loop 1, mit Loop repeat+1, 0 = endlos
+    // Repeat counter as at @0x4756: without loop 1, with loop repeat+1, 0 = endless
     e.repeat = p.loop == 0 ? 1 : (p.repeat ? p.repeat + 1 : 0);
     envSegment(e, p, 0);
 }
@@ -225,10 +280,10 @@ void Engine::envRelease(EnvState& e, const Env5& p) const {
 }
 
 void Engine::envTick(EnvState& e, const Env5& p) const {
-    if (e.left <= 0) return;                 // haelt oder fertig
+    if (e.left <= 0) return;                 // holding or done
     if (e.stage == kEnvRelease) {
         e.v += (e.target - e.v) * e.coef;
-        // Ende wie in der Firmware: Rest unter 1 LSB der 16-Bit-Huellkurve
+        // End as in the firmware: remainder below 1 LSB of the 16-bit envelope
         if (std::fabs(e.target - e.v) < 1.0f / 32768.0f) {
             e.v = e.target; e.left = 0; e.stage = kEnvDone;
         }
@@ -239,17 +294,17 @@ void Engine::envTick(EnvState& e, const Env5& p) const {
     if (--e.left > 0) return;
     e.v = e.target;
     const int loop = p.loop > 6 ? 3 : p.loop;
-    const int end = loop >= 4 ? 10 - loop : 3;          // erstes nicht gespieltes Segment
+    const int end = loop >= 4 ? 10 - loop : 3;          // first segment not played
     const int next = e.stage + 1;
     if (next < end) { envSegment(e, p, next); return; }
     if (--e.repeat == 0) { e.stage = kEnvHold; return; }
     envSegment(e, p, loop >= 4 ? loop - 4 : loop - 1);
 }
 
-// --- Tonhoehe --------------------------------------------------------------------
+// --- Pitch -----------------------------------------------------------------------
 
-// Firmware @0x5D12: cent = (Note-27)*100 + Coarse*100 + Fine, ganzzahlig.
-// Hier relativ zu A4 (Note 69) = 440 Hz.
+// Firmware @0x5D12: cent = (Note-27)*100 + Coarse*100 + Fine, integer.
+// Here relative to A4 (note 69) = 440 Hz.
 float Engine::oscHz(int note, int osc) const {
     const OscParams& o = p_.osc[osc & 3];
     const float cents = float((note - 69 + p_.transpose) * 100 + o.coarse * 100 + o.fine)
@@ -259,15 +314,15 @@ float Engine::oscHz(int note, int osc) const {
 
 // --- Modulation ----------------------------------------------------------------
 
-// Betrag 0..99 ueber die lineare Tabelle @0x6590 (99 = volle Skala)
+// Amount 0..99 via the linear table @0x6590 (99 = full scale)
 static inline float amt99(int v) {
     if (v > 99) v = 99; else if (v < -99) v = -99;
     return float(v) / 99.0f;
 }
 
-// Zwei globale LFOs wie in der ISR @0x8F6: Phase 16 Bit, Schritt je Tick aus
-// kLfoRateStep, Ausgang = Form * Betrag. Der zweite LFO sieht den neuen Wert
-// des ersten, der erste den alten des zweiten (Reihenfolge der Firmware).
+// Two global LFOs as in the ISR @0x8F6: 16-bit phase, step per tick from
+// kLfoRateStep, output = shape * amount. The second LFO sees the new value
+// of the first, the first the old value of the second (order of the firmware).
 void Engine::lfoAdvance(int samples, int layer) {
     const Params& P = lp(layer);
     Lfo* L = lfo_[layer];
@@ -277,14 +332,14 @@ void Engine::lfoAdvance(int samples, int layer) {
         const LfoParams& lp = P.lfo[i];
         const LfoParams& op = P.lfo[1 - i];
         const float other = L[1 - i].out;
-        // Rate: Tabellenwert + anderer LFO (Skala /128), nie negativ
+        // Rate: table value + other LFO (scale /128), never negative
         float step = lp.hz > 0.0f
-            ? lp.hz * 2.0f * 65536.0f * kFwTickSeconds      // Dreieck: 2 Durchlaeufe je Periode
+            ? lp.hz * 2.0f * 65536.0f * kFwTickSeconds      // triangle: 2 passes per period
             : float(kLfoRateStep[lp.rate > 99 ? 99 : (lp.rate < 0 ? 0 : lp.rate)]);
         if (op.dest & kLfoOtherRate) step += other * 256.0f;
         if (P.pressDest & (i == 0 ? kPressLfo1Rate : kPressLfo2Rate)) step += press * 8192.0f;
         if (step < 0.0f) step = 0.0f;
-        // Betrag: Grundwert + Mod-Wheel + anderer LFO (Skala /4), 0..1
+        // Amount: base value + mod wheel + other LFO (scale /4), 0..1
         float amount = amt99(lp.amount);
         if (P.wheelDest & (i == 0 ? kWheelLfo1 : kWheelLfo2)) amount += wheel_;
         if (op.dest & kLfoOtherAmount) amount += other * 0.25f;
@@ -299,7 +354,7 @@ void Engine::lfoAdvance(int samples, int layer) {
             while (l.phase >= 1.0f) l.phase -= 2.0f;
             while (l.phase < -1.0f) l.phase += 2.0f;
         } else if (l.phase >= 1.0f || l.phase < -1.0f) {
-            // am Rand umkehren und einen neuen Zufallswert ziehen
+            // reverse at the boundary and draw a new random value
             l.phase = l.phase >= 1.0f ? 2.0f - l.phase : -2.0f - l.phase;
             l.phase = clampf(l.phase, -1.0f, 1.0f);
             l.dir = -l.dir;
@@ -313,21 +368,21 @@ void Engine::lfoAdvance(int samples, int layer) {
     }
 }
 
-// Alles, was die Firmware je Tick pro Stimme rechnet: Tonhoehe, Cutoff,
-// VCA-Pegel, Pan und die Mix-Verschiebung.
+// Everything the firmware computes per tick for each voice: pitch, cutoff,
+// VCA level, pan and the mix offset.
 void Engine::voiceControl(Voice& v, bool snap) {
-    // Die neuen Werte werden nicht gesprungen, sondern bis zum naechsten
-    // Steuertakt linear angefahren (snap = sofort, beim Notenstart).
+    // The new values are not jumped to but approached linearly until the next
+    // control tick (snap = immediately, at note start).
     const float before[10] = {v.fcoef, v.level, v.panL, v.panR, v.modX, v.modY,
                               v.inc[0], v.inc[1], v.inc[2], v.inc[3]};
     const Params& P = lp(v.layer);
     const Lfo* L = lfo_[v.layer];
     const float fenvMod = v.filt.v * amt99(P.fenvAmount);   // -1 .. +1
-    // Pressure (@0x3B58): Wert * Betrag; volle Skala auf Pegel, Pan und
-    // LFO-Betrag, /4 auf Filter, Mix und LFO-Rate, /64 auf die Tonhoehe
+    // Pressure (@0x3B58): value * amount; full scale on level, pan and
+    // LFO amount, /4 on filter, mix and LFO rate, /64 on the pitch
     const float press = pressure_ * amt99(P.pressAmount);
 
-    // Tonhoehe: LFOs +-256 Cent (Ausgang /128), Filter-Env +-1024 Cent (/32)
+    // Pitch: LFOs +-256 cents (output /128), filter env +-1024 cents (/32)
     float common = bend_ * p_.bendRange * 100.0f + p_.tuneCents + v.detune + v.glide;
     if (P.fenvDest & kFenvFreq) common += fenvMod * 1024.0f;
     for (int i = 0; i < 4; ++i) {
@@ -339,18 +394,18 @@ void Engine::voiceControl(Voice& v, bool snap) {
             if (P.lfo[k].dest & (kLfoFreqA << i)) cents += L[k].out * 256.0f;
         if (P.pressDest & (kPressFreqA << i)) cents += press * 512.0f;
         v.inc[i] = 440.0f * std::exp2(cents / 1200.0f) * float(kWaveFrames) / sr_;
-        // Mip-Stufe nach der unmodulierten Tonhoehe: hoechster Oberton unter
-        // der halben Abtastrate, kein Umschalten im Vibrato
+        // Mip level chosen by the unmodulated pitch: highest harmonic below
+        // half the sample rate, no switching during vibrato
         const float maxHarm = 0.5f * sr_ / (440.0f * std::exp2(base / 1200.0f));
         int mip = 0;
         while (mip < kWaveMips - 1 && float(kMipHarmonics[mip]) > maxHarm) ++mip;
         const int w = o.wave & 127;
         v.tabScale[i] = kWaveDataGain / 32767.0f;
         if (w >= kWaveCountVS) {
-            v.tab[i] = nullptr;              // 127 = Rauschen
+            v.tab[i] = nullptr;              // 127 = noise
 #if PROVS_HAS_PVM
         } else if (w < kPvmUserWaveCount) {
-            // Wellen 0..31 stehen nicht im ROM; wenn vorhanden, aus den Behringer-Daten
+            // Waves 0..31 are not in the ROM; if available, taken from the Behringer data
             v.tab[i] = kPvmUserWaves + (w * kWaveMips + mip) * kWaveFrames;
             v.tabScale[i] = kPvmUserWaveGain / 32767.0f;
 #endif
@@ -359,9 +414,9 @@ void Engine::voiceControl(Voice& v, bool snap) {
         }
     }
 
-    // Filter (ISR @0x9B6): CV = Cutoff + Key + Env*Tiefe + LFOs/4, 0..1.
-    // Kennlinie CV -> Hz: kVcf-Konstanten in engine.h (37 Hz .. 71 kHz,
-    // 10,9 Oktaven).
+    // Filter (ISR @0x9B6): CV = cutoff + key + env*depth + LFOs/4, 0..1.
+    // Characteristic CV -> Hz: kVcf constants in engine.h (37 Hz .. 71 kHz,
+    // 10.9 octaves).
     float depth = P.envAmount;
     if (P.velDest & kVelFilterEnv) depth = clampf(depth + v.velMod, 0.0f, 1.0f);
     float cv = P.cutoff;
@@ -371,15 +426,15 @@ void Engine::voiceControl(Voice& v, bool snap) {
         if (P.lfo[k].dest & kLfoFilter) cv += L[k].out * 0.25f;
     if (P.pressDest & kPressFilter) cv += press * 0.25f;
     cv = clampf(cv, 0.0f, 1.0f);
-    // Glaettung am Frequenzeingang (Schaltplan: 2,2 uF gegen rund 1 kOhm = 2,1 ms)
+    // Smoothing at the frequency input (schematic: 2.2 uF against roughly 1 kOhm = 2.1 ms)
     if (v.vcfCv < 0.0f || snap) v.vcfCv = cv;
     else v.vcfCv += (cv - v.vcfCv) * (1.0f - std::exp(-float(kControlSamples) / (0.0021f * sr_)));
     cv = v.vcfCv;
     float cut = kVcfHzAt0 * std::exp((cv * kVcfSpanMv - kVcfOffsetMv) / kVcfVtMv);
     if (cut > 0.45f * sr_) cut = 0.45f * sr_;
-    // Koeffizient so, dass die vier Pole zusammen mit dem einen Sample
-    // Laufzeit der Rueckkopplung bei der Cutoff-Frequenz 180 Grad drehen:
-    // dort liegt dann die Resonanz, auch bei hohen Frequenzen.
+    // Coefficient chosen so that the four poles, together with the one-sample
+    // delay of the feedback, turn the phase by 180 degrees at the cutoff frequency:
+    // that is then where the resonance sits, even at high frequencies.
     {
         const float w = 6.2831853f * cut / sr_;
         const float t = std::tan(0.78539816f - 0.25f * w);
@@ -387,15 +442,15 @@ void Engine::voiceControl(Voice& v, bool snap) {
         v.fcoef = clampf(1.0f - a, 0.0001f, 1.0f);
     }
 
-    // VCA-Pegel (ISR @0xCCE): Grundpegel + Velocity, 0..1
+    // VCA level (ISR @0xCCE): base level + velocity, 0..1
     float level = P.ampLevel;
     if (P.velDest & kVelAmp) level += v.velMod;
     level = clampf(level, 0.0f, 1.0f);
     if (P.pressDest & kPressVolume) level = clampf(level + press, 0.0f, 1.0f);
-    // [ANN] Unisono: 8 Stimmen auf einer Note, Pegel halbiert fuer den Headroom
+    // [ANN] Unison: 8 voices on one note, level halved for the headroom
     v.level = P.unison > 0 ? 0.5f * level : level;
 
-    // Mix-Verschiebung (ISR @0xABA): Keyboard, Velocity, LFOs in voller Skala
+    // Mix offset (ISR @0xABA): keyboard, velocity, LFOs at full scale
     float mx = 0.0f, my = 0.0f;
     if (P.keyDest & kKeyMixAC) mx += v.keyMod;
     if (P.keyDest & kKeyMixBD) my += v.keyMod;
@@ -410,8 +465,8 @@ void Engine::voiceControl(Voice& v, bool snap) {
     v.modX = mx;
     v.modY = my;
 
-    // Pan (ISR @0xD86): Stimmen-Pan + Keyboard*2 + Velocity + LFOs + Env*2;
-    // volle Skala = halbe Panoramabreite.
+    // Pan (ISR @0xD86): voice pan + keyboard*2 + velocity + LFOs + env*2;
+    // full scale = half the panorama width.
     float pan = p_.pan[v.index & (kMaxVoices - 1)];
     if (P.keyDest & kKeyPan) pan += 2.0f * v.keyMod;
     if (P.velDest & kVelPan) pan += v.velMod;
@@ -419,8 +474,8 @@ void Engine::voiceControl(Voice& v, bool snap) {
     if (P.pressDest & kPressPan) pan += press;
     for (int k = 0; k < 2; ++k)
         if (P.lfo[k].dest & kLfoPan) pan += L[k].out;
-    // CEM3379: die beiden Pan-VCAs sind komplementaer und linear, in der
-    // Mitte je halbe Verstaerkung
+    // CEM3379: the two pan VCAs are complementary and linear, each at
+    // half gain in the center
     const float pos = clampf(0.5f + 0.5f * pan, 0.0f, 1.0f);
     v.panL = 1.0f - pos;
     v.panR = pos;
@@ -434,7 +489,7 @@ void Engine::voiceControl(Voice& v, bool snap) {
     }
 }
 
-// --- Noten ---------------------------------------------------------------------
+// --- Notes ---------------------------------------------------------------------
 
 void Engine::countActive() {
     active_ = 0;
@@ -444,7 +499,7 @@ void Engine::countActive() {
 int Engine::pickVoice(int lo, int hi) {
     for (int i = lo; i < hi; ++i)
         if (!voices_[i].on) return i;
-    int best = -1;                           // aelteste ausklingende, sonst aelteste
+    int best = -1;                           // oldest releasing one, otherwise the oldest
     uint64_t oldest = ~0ull;
     for (int i = lo; i < hi; ++i)
         if (voices_[i].amp.stage >= kEnvRelease && voices_[i].age < oldest) {
@@ -459,8 +514,8 @@ int Engine::pickVoice(int lo, int hi) {
 void Engine::startVoice(int index, int note, int velocity, float detune, int layer) {
     const Params& P = lp(layer);
     Voice& v = voices_[index];
-    // Glide (@0x5AB6): die Stimme gleitet von ihrer zuletzt gespielten
-    // (momentanen) Tonhoehe zur neuen
+    // Glide (@0x5AB6): the voice glides from its most recently played
+    // (momentary) pitch to the new one
     const float target = float(note * 100) + detune;
     const float from = lastCents_[index] + (v.on ? v.glide : 0.0f);
     const bool glides = P.glide > 0 && played_[index];
@@ -475,8 +530,8 @@ void Engine::startVoice(int index, int note, int velocity, float detune, int lay
     lastCents_[index] = target;
     played_[index] = true;
     v.age = ++clock_;
-    // Velocity (@0x5AE4): Kurve @0x6690 mal Betrag; Keyboard (@0x5B0C):
-    // (Note-66) * Betrag / 64 der vollen Skala
+    // Velocity (@0x5AE4): curve @0x6690 times amount; keyboard (@0x5B0C):
+    // (note-66) * amount / 64 of full scale
     const int vel = velocity < 0 ? 0 : (velocity > 127 ? 127 : velocity);
     v.velMod = float(kVelocityCurve[vel]) / 32767.0f * amt99(P.velAmount);
     v.keyMod = float(note - 66) * amt99(P.keyAmount) / 64.0f;
@@ -487,17 +542,17 @@ void Engine::startVoice(int index, int note, int velocity, float detune, int lay
     voiceControl(v, true);
 }
 
-// Stimmenbereich einer Schicht (@0x120A): normal alle 8, bei Split/Double
-// Hauptschicht 1-4 und verknuepftes Programm 5-8.
+// Voice range of a layer (@0x120A): normally all 8, with split/double
+// main layer 1-4 and linked program 5-8.
 void Engine::layerRange(int layer, int& lo, int& hi) const {
     if (p_.keyMode == kKeyNormal) { lo = 0; hi = kMaxVoices; }
     else if (layer == 0) { lo = 0; hi = kMaxVoices / 2; }
     else { lo = kMaxVoices / 2; hi = kMaxVoices; }
 }
 
-// Unisono (@0x1284, @0x404E): alle Stimmen der Schicht spielen die tiefste
-// gehaltene Taste, Stimme k um k * Detune Cent hoeher; bei Split/Double mit
-// vier Stimmen ist der Schritt doppelt so gross (@0x4078).
+// Unison (@0x1284, @0x404E): all voices of the layer play the lowest
+// held key, voice k higher by k * detune cents; with split/double and
+// four voices the step is twice as large (@0x4078).
 void Engine::unisonUpdate(int layer, int velocity) {
     int lo, hi;
     layerRange(layer, lo, hi);
@@ -528,10 +583,10 @@ void Engine::layerNoteOn(int layer, int note, int velocity) {
     }
     int lo, hi;
     layerRange(layer, lo, hi);
-    // Double: das verknuepfte Programm klingt um doubleDetune Cent hoeher (@0x4064)
+    // Double: the linked program sounds doubleDetune cents higher (@0x4064)
     const float detune = (layer == 1 && p_.keyMode == kKeyDouble) ? float(p_.doubleDetune) : 0.0f;
-    // Mono-Voicing des Arpeggiators (@0x5FC6): eine Stimme je Schicht, die
-    // bei jeder Note neu gestartet wird
+    // Mono voicing of the arpeggiator (@0x5FC6): one voice per layer, which
+    // is restarted on every note
     const int voice = (arpFromArp_ && !p_.arpPoly) ? lo : pickVoice(lo, hi);
     startVoice(voice, note, velocity, detune, layer);
 }
@@ -561,12 +616,12 @@ void Engine::queueDelayed(int note, int velocity, bool on) {
 void Engine::keyOn(int note, int velocity) {
     if (paramsDirty_) applyParams();
     if (p_.keyMode == kKeySplit) {
-        // @0x126E: ab dem Splitpunkt die Hauptschicht, darunter das verknuepfte Programm
+        // @0x126E: from the split point upward the main layer, below it the linked program
         layerNoteOn(note >= p_.splitPoint ? 0 : 1, note, velocity);
     } else if (p_.keyMode == kKeyDouble) {
         layerNoteOn(0, note, velocity);
         if (p_.doubleDelay > 0.0f) {
-            // @0x5458: verzoegerte Note mit um 3 verringerter Velocity
+            // @0x5458: delayed note with the velocity reduced by 3
             const int v2 = velocity > 3 ? velocity - 3 : 1;
             queueDelayed(note, v2, true);
         } else {
@@ -596,9 +651,9 @@ void Engine::keyOff(int note) {
 }
 
 // --- Arpeggiator ---------------------------------------------------------------
-// Ablauf wie in der Firmware (@0x5FEC ff.): Der interne Takt hat die Periode
-// (106 - Rate) Interrupts zu 1 ms (@0x5F26). Je Clocks/Step ein Schritt, die
-// Note endet nach der Haelfte des Schritts (@0x6020).
+// Sequence as in the firmware (@0x5FEC ff.): the internal clock has a period of
+// (106 - rate) interrupts of 1 ms each (@0x5F26). One step per clocks/step; the
+// note ends after half of the step (@0x6020).
 
 void Engine::setArp(bool on) {
     if (on == arpOn_) return;
@@ -639,7 +694,7 @@ void Engine::arpStep() {
     const int octs = p_.arpOctaves < 0 ? 0 : (p_.arpOctaves > 3 ? 3 : p_.arpOctaves);
 
     if (arpRepeatLeft_ > 0 && arpPos_ >= 0 && arpPos_ < n) {
-        --arpRepeatLeft_;                    // dieselbe Note noch einmal
+        --arpRepeatLeft_;                    // the same note once more
     } else {
         arpRepeatLeft_ = p_.arpRepeats < 0 ? 0 : (p_.arpRepeats > 3 ? 3 : p_.arpRepeats);
         const bool first = arpPos_ < 0 || arpPos_ >= n;
@@ -649,7 +704,7 @@ void Engine::arpStep() {
                 else if (--arpPos_ < 0) { arpPos_ = n - 1; if (--arpOct_ < 0) arpOct_ = octs; }
                 break;
             case kArpUpDown:
-                // am Rand umkehren, ohne die Randnote zu wiederholen (@0x61C0)
+                // reverse at the boundary without repeating the boundary note (@0x61C0)
                 if (first) { arpPos_ = 0; arpOct_ = 0; arpDir_ = 1; break; }
                 if (n == 1 && octs == 0) break;
                 if (arpDir_ > 0) {
@@ -679,8 +734,8 @@ void Engine::arpStep() {
     }
     if (arpOct_ > octs) arpOct_ = octs;
 
-    // Up/Down/UpDown laufen nach Tonhoehe, Assign/Reverse/Random in der
-    // Reihenfolge des Anschlags
+    // Up/Down/UpDown run in pitch order, Assign/Reverse/Random in the
+    // order in which the keys were struck
     int index = arpPos_;
     if (p_.arpScan <= kArpUpDown) {
         int order[kArpMaxKeys];
@@ -693,9 +748,9 @@ void Engine::arpStep() {
         }
         index = order[arpPos_];
     }
-    // Rests: das oberste C der VS-Tastatur steht fuer eine Pause (Handbuch Kap. 5)
+    // Rests: the top C of the VS keyboard stands for a rest (owner's manual ch. 5)
     if (p_.arpRests && arpKeys_[index].note == 96) return;
-    // Tonhoehe wie @0x62BC: Taste + 12 * Oktave + Transpose, nie negativ
+    // Pitch as at @0x62BC: key + 12 * octave + transpose, never negative
     arpNote_ = arpKeys_[index].note + 12 * arpOct_ + arpTranspose_;
     while (arpNote_ < 0) arpNote_ += 12;
     arpVel_ = p_.arpVelocity ? arpKeys_[index].velocity : 80;
@@ -706,8 +761,8 @@ void Engine::arpStep() {
     arpSounding_ = true;
 }
 
-// Arpeggiator-Split (nur bei Split-Programmen): 1 = nur rechts vom
-// Splitpunkt, 2 = nur links arpeggieren; die andere Seite spielt normal.
+// Arpeggiator split (split programs only): 1 = arpeggiate only right of the
+// split point, 2 = only left of it; the other side plays normally.
 bool Engine::arpTakes(int note) const {
     if (!arpOn_) return false;
     if (p_.keyMode != kKeySplit) return true;
@@ -725,7 +780,7 @@ void Engine::setArpLatch(bool on) {
     }
 }
 
-// Chord-Modus des Pro VS Mini (FUN_2400a694): Taste + Tabelle[Satz][Tonklasse]
+// Chord mode of the Pro VS Mini (FUN_2400a694): key + table[set][pitch class]
 #if PROVS_HAS_PVM
 static const unsigned char* chordOf(int set, int note) {
     if (set < 1 || set > kChordSetCount) return nullptr;
@@ -755,21 +810,21 @@ void Engine::inputOn(int note, int velocity) {
     if (!arpTakes(note)) { keyOn(note, velocity); return; }
     if (paramsDirty_) applyParams();
     const bool wasEmpty = arpCount_ == 0;
-    // Auto-Latch: eine neue Taste nach dem Loslassen aller beginnt neu
+    // Auto-latch: a new key after all have been released starts over
     if (p_.arpMode == kArpAutoLatch && arpHeld_ == 0) { arpCount_ = 0; arpPos_ = -1; }
     bool present = false;
     if (p_.arpMode != kArpExtend)
         for (int i = 0; i < arpCount_; ++i) present |= arpKeys_[i].note == note;
     if (!present && arpCount_ < kArpMaxKeys) arpKeys_[arpCount_++] = {note, velocity};
     ++arpHeld_;
-    if (wasEmpty && arpCount_ > 0) arpRestart();     // erster Schritt sofort
+    if (wasEmpty && arpCount_ > 0) arpRestart();     // first step immediately
 }
 
 void Engine::inputOff(int note) {
     if (note < 0 || note > 127) return;
     if (!arpTakes(note)) { keyOff(note); return; }
     if (arpHeld_ > 0) --arpHeld_;
-    if (p_.arpMode != kArpNormal || arpLatch_) return;   // gemerkte Tasten bleiben
+    if (p_.arpMode != kArpNormal || arpLatch_) return;   // remembered keys stay
     for (int i = 0; i < arpCount_; ++i) {
         if (arpKeys_[i].note != note) continue;
         for (int k = i + 1; k < arpCount_; ++k) arpKeys_[k - 1] = arpKeys_[k];
@@ -800,7 +855,7 @@ void Engine::pitchBend(float amount) { bend_ = clampf(amount, -1.0f, 1.0f); }
 
 void Engine::setModWheel(float amount) { wheel_ = clampf(amount, 0.0f, 1.0f); }
 
-// 7-Bit-Wert der Firmware: (v<<8 | v) >> 1, also 127 -> 32639 von 32767
+// 7-bit value of the firmware: (v<<8 | v) >> 1, i.e. 127 -> 32639 of 32767
 void Engine::setPressure(float amount) {
     pressure_ = clampf(amount, 0.0f, 1.0f) * (32639.0f / 32767.0f);
 }
@@ -810,10 +865,10 @@ void Engine::setPressure(float amount) {
 PROVS_HOT void Engine::render(float* out, int frames) {
     if (paramsDirty_) {
         applyParams();
-        ctl_ = 0;                            // sofort neu rechnen
+        ctl_ = 0;                            // recompute immediately
     }
-    // Chorus (ISR @0xDD2): Depth = Grundwert + Pressure + Mod-Wheel,
-    // Rate = Grundwert + Pressure/4 (in Phasenschritten der LFO-Tabelle)
+    // Chorus (ISR @0xDD2): depth = base value + pressure + mod wheel,
+    // rate = base value + pressure/4 (in phase steps of the LFO table)
     {
         const float press = pressure_ * amt99(p_.pressAmount);
         float mod = 0.0f;
@@ -826,13 +881,13 @@ PROVS_HOT void Engine::render(float* out, int frames) {
         fx_.setRate(p_.fxRate);
         fx_.setRateHz(hz > 0.0f ? hz : 0.0f);
         fx_.setDepth(clampf(p_.fxDepth + mod, 0.0f, 1.0f));
-        // Original-Chorus: rechts das gewaehlte Programm, links bei
-        // Split/Double das verknuepfte, sonst ebenfalls das gewaehlte
-        // (Handbuch Kap. 12)
+        // Original chorus: on the right the selected program, on the left the
+        // linked one with split/double, otherwise the selected one as well
+        // (owner's manual ch. 12)
         const Params& pl = p_.keyMode != kKeyNormal ? p2_ : p_;
         const float hzR = p_.fxRateHz > 0.0f ? p_.fxRateHz + rateMod : 0.05f + p_.fxRate * 1.15f;
         const float hzL = pl.fxRateHz > 0.0f ? pl.fxRateHz + rateMod : 0.05f + pl.fxRate * 1.15f;
-        // Latch U320: D8 = rechter, D9 = linker Chorus (Schaltplan SD2400-3)
+        // Latch U320: D8 = right, D9 = left chorus (schematic SD2400-3)
         fx_.setVsChorus(0, (pl.chorusOn & 2) != 0, hzL, clampf(pl.fxDepth + mod, 0.0f, 1.0f));
         fx_.setVsChorus(1, (p_.chorusOn & 1) != 0, hzR, clampf(p_.fxDepth + mod, 0.0f, 1.0f));
     }
@@ -843,7 +898,7 @@ PROVS_HOT void Engine::render(float* out, int frames) {
     for (int n = 0; n < frames; ++n) {
         if (ctl_ <= 0) {
             ctl_ = kControlSamples;
-            // Arpeggiator-Takt
+            // Arpeggiator clock
             if (arpOn_ && !arpExternal_ && arpCount_ > 0 && p_.arpRate > 0) {
                 arpSamples_ -= float(kControlSamples);
                 while (arpSamples_ <= 0.0f) {
@@ -854,7 +909,7 @@ PROVS_HOT void Engine::render(float* out, int frames) {
             }
             lfoAdvance(kControlSamples, 0);
             if (p_.keyMode != kKeyNormal) lfoAdvance(kControlSamples, 1);
-            // verzoegerte Noten der zweiten Schicht (Double mit Delay)
+            // delayed notes of the second layer (double with delay)
             for (int d = 0; d < delayedCount_;) {
                 Delayed& e = delayed_[d];
                 e.samples -= kControlSamples;
@@ -868,7 +923,7 @@ PROVS_HOT void Engine::render(float* out, int frames) {
             for (int vi = 0; vi < kMaxVoices; ++vi) {
                 Voice& v = voices_[vi];
                 if (!v.on) continue;
-                // Glide: mit festem Tempo (Cent je Tick) auf die Zieltonhoehe zu
+                // Glide: toward the target pitch at a fixed speed (cents per tick)
                 const int g = lp(v.layer).glide;
                 const float gstep = g > 0
                     ? float(kGlideRate[g > 99 ? 99 : g]) / 64.0f
@@ -894,8 +949,8 @@ PROVS_HOT void Engine::render(float* out, int frames) {
             envTick(v.my, P.mixEnvY);
             if (v.amp.stage == kEnvDone) { v.on = false; continue; }
 
-            // Vektor-Mix wie die Firmware (@0xB4E): u = (x+y+1)/2, v = (y-x+1)/2,
-            // A = (1-u)v, B = (1-u)(1-v), C = u(1-v), D = uv. In der Mitte je 25 %.
+            // Vector mix as in the firmware (@0xB4E): u = (x+y+1)/2, v = (y-x+1)/2,
+            // A = (1-u)v, B = (1-u)(1-v), C = u(1-v), D = uv. In the center 25 % each.
             const float x = clampf(v.mx.v * P.mixAmount + p_.mixX + v.modX, -1.0f, 1.0f);
             const float y = clampf(v.my.v * P.mixAmount + p_.mixY + v.modY, -1.0f, 1.0f);
             const float u = clampf(0.5f * (x + y) + 0.5f, 0.0f, 1.0f);
@@ -922,21 +977,21 @@ PROVS_HOT void Engine::render(float* out, int frames) {
                 const int before = int(v.phase[i]);
                 v.phase[i] += v.inc[i];
                 if (!v.tab[i] && int(v.phase[i]) != before) {
-                    // Rauschen: neuer Zufallswert je Wellen-Sample
+                    // Noise: new random value per wave sample
                     rng_ ^= rng_ << 13; rng_ ^= rng_ >> 17; rng_ ^= rng_ << 5;
                     v.noise[i] = float(int32_t(rng_)) * (1.0f / 2147483648.0f);
                 }
                 while (v.phase[i] >= fwrap) v.phase[i] -= fwrap;
             }
 
-            // 4-Pol-Tiefpass, Gegenkopplung ueber alle Pole (Resonanz), weich begrenzt
+            // 4-pole low-pass, negative feedback across all poles (resonance), soft-clipped
             const float f = v.fcoef;
-            // Handbuch Kap. 7: Selbstoszillation ab etwa Resonanz 70. Die
-            // Kaskade schwingt bei Schleifenverstaerkung 4.
+            // Owner's manual ch. 7: self-oscillation from about resonance 70. The
+            // cascade oscillates at a loop gain of 4.
             const float reso = clampf(P.resonance * (4.0f * 99.0f / 70.0f), 0.0f, 5.0f);
             float fb = clampf(reso * v.f3, -1.2f, 1.2f);
             fb = fb * (1.0f - fb * fb * 0.15f);
-            // Datenblatt: bei voller Resonanz faellt der Durchlasspegel nur um 6 dB
+            // Data sheet: at full resonance the passband level drops by only 6 dB
             float in = sum * (1.0f + 0.375f * reso) - fb;
             in = clampf(in, -1.5f, 1.5f);
             in = in * (1.0f - in * in * 0.05f);
@@ -948,11 +1003,11 @@ PROVS_HOT void Engine::render(float* out, int frames) {
             const float dc = v.f3 - v.dcX + 0.998f * v.dcY;
             v.dcX = v.f3;
             v.dcY = dc;
-            // 0,45: Platz fuer mehrere Stimmen plus Chorus-Anteil unter der Summenbegrenzung
-            // VCA des CEM3379: linear in der Steuerspannung, darunter (4 % der
-            // Skala, -20 dB) ein weicher Auslauf gegen Null
-            // Steuerspannung des VCA (Schaltplan): steigt ueber Diode und
-            // 390 Ohm praktisch sofort, faellt ueber 24 kOhm an 0,1 uF (2,4 ms)
+            // 0.45: room for several voices plus the chorus share below the sum limiter
+            // VCA of the CEM3379: linear in the control voltage, below that (4 % of the
+            // scale, -20 dB) a soft roll-off toward zero
+            // Control voltage of the VCA (schematic): rises practically instantly via a
+            // diode and 390 ohms, falls via 24 kOhm into 0.1 uF (2.4 ms)
             float cvA = v.amp.v * v.level;
             if (cvA < v.vcaCv) { v.vcaCv += (cvA - v.vcaCv) * vcaFall; cvA = v.vcaCv; }
             else v.vcaCv = cvA;
@@ -968,10 +1023,10 @@ PROVS_HOT void Engine::render(float* out, int frames) {
             v.inc[0] += v.ramp[6]; v.inc[1] += v.ramp[7];
             v.inc[2] += v.ramp[8]; v.inc[3] += v.ramp[9];
         }
-        float l = mixL * 2.0f, r = mixR * 2.0f;      // Pan Mitte = 0 dB
+        float l = mixL * 2.0f, r = mixR * 2.0f;      // pan center = 0 dB
         fx_.process(l, r);
-        // weiche Summenbegrenzung hinter den Effekten (kubisch, erreicht
-        // +-1 bei +-1,5)
+        // soft sum limiting after the effects (cubic, reaches
+        // +-1 at +-1.5)
         l = clampf(l, -1.5f, 1.5f);
         r = clampf(r, -1.5f, 1.5f);
         l -= l * l * l * (1.0f / 6.75f);

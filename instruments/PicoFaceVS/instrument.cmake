@@ -76,6 +76,9 @@ picoface_add_instrument(
 
     SOURCES
         src/VS_Instrument.cpp
+        src/VS_Controller.cpp
+        src/vs_params.cpp
+        src/vs_store.cpp
         src/provs_engine.cpp
 
     INCLUDE_DIRS
@@ -84,4 +87,5 @@ picoface_add_instrument(
 
     CORE_MODULES
         ui_kit     # shared panel look
+        ui_menu    # ListView for the menu and the edit-group list
 )

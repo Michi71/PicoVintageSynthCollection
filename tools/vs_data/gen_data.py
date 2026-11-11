@@ -1,52 +1,53 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Michi71
-"""Erzeugt die Daten-Header der provs-Engine.
+"""Generates the data headers of the provs engine.
 
-Drei Wege, die Wellen und Tabellen zu bekommen:
+Three ways to obtain the waves and tables:
 
-  aus dem Repository   Die Wellen aus der Obertontabelle
-                 data/vs_wave_harmonics.txt (geglaettete Rekonstruktion), die
-                 Tabellen aus Bildungsregeln, ein eigener Init-Patch. Es wird
-                 keine fremde Datei gebraucht.
-  mit ROM        Ein eigenes Abbild des Betriebssystem-ROMs (OS r1.2): Wellen,
-                 Tabellen und Init-Patch exakt wie im Original.
-  --vswaves ...  Wellen aus einer Datei VS-WAVES.DAT, Tabellen aus Bildungsregeln.
+  from the repository  The waves from the harmonic table
+                 vs_wave_harmonics.txt (smoothed reconstruction), the
+                 tables from generating rules, an init patch of our own. No
+                 third-party file is needed.
+  with ROM       Your own image of the operating system ROM (OS r1.2): waves,
+                 tables and init patch exactly as in the original.
+  --vswaves ...  Waves from a VS-WAVES.DAT file, tables from generating rules.
 
-Ohne Angaben schaut das Skript in den Ordner roms/ des Projekts (nicht im
-Repository): Liegt dort ein passendes ROM-Abbild - eine 64-KiB-Datei oder die
-beiden 32-KiB-EPROM-Abbilder, der Dateiname ist egal -, wird es benutzt,
-sonst baut es aus dem Repository. --no-rom erzwingt den Bau aus dem Repository.
+Without arguments the script looks into the project's roms/ folder (not in
+the repository): if a matching ROM image is there - one 64 KiB file or the
+two 32 KiB EPROM images, the file name does not matter - it is used,
+otherwise the script builds from the repository. --no-rom forces the build
+from the repository.
 
-Geschrieben wird nach engine/include/provs/gen/:
+Output is written to engine/include/provs/gen/:
 
-  wavetables.h   Wellen 32..126 (12 Bit) und daraus gerechnete Mip-Stufen
-  rom_tables.h   Tabellen der Firmware (Envelope, LFO, Velocity, Glide),
-                 Programmformat (Bitbreiten), Init-Patch, Zeichensatz
+  wavetables.h   Waves 32..126 (12 bit) and the mip levels computed from them
+  rom_tables.h   Firmware tables (envelope, LFO, velocity, glide),
+                 program format (bit widths), init patch, character set
 
-Programme sind nicht dabei: Die Engine laedt Programmbaenke zur Laufzeit aus
-SysEx-Dateien (Engine::loadVsSysex).
+Programs are not included: the engine loads program banks at run time from
+SysEx files (Engine::loadVsSysex).
 
-Aufruf:
-  gen_data.py                                      ROM aus roms/, sonst aus dem Repository
-  gen_data.py --no-rom                             aus dem Repository, auch wenn ein ROM da ist
-  gen_data.py --rom vs_os12.bin                    64-KiB-Abbild (MSB/LSB gemischt)
-  gen_data.py --msb msb.bin --lsb lsb.bin          die beiden 27256-EPROMs
-  gen_data.py --vswaves VS-WAVES.DAT               Wellen aus dieser Datei
+Usage:
+  gen_data.py                                      ROM from roms/, otherwise from the repository
+  gen_data.py --no-rom                             from the repository, even if a ROM is present
+  gen_data.py --rom vs_os12.bin                    64 KiB image (MSB/LSB interleaved)
+  gen_data.py --msb msb.bin --lsb lsb.bin          the two 27256 EPROMs
+  gen_data.py --vswaves VS-WAVES.DAT               waves from this file
 
-VS-WAVES.DAT: je Welle 128 Samples als 16 Bit Big-Endian (12 Bit, um 4 Bit
-nach links geschoben), geordnet nach Wellennummer; Welle 32 ist der Sinus.
+VS-WAVES.DAT: 128 samples per wave as 16 bit big-endian (12 bit, shifted left
+by 4 bits), ordered by wave number; wave 32 is the sine.
 
-Was wo im ROM steht (OS r1.2, alle Adressen gegen die Firmware geprueft):
-* Wellen: ROM-Welle n (32..126) bei 0xA0C0 + n*0xC0 als 192-Byte-Datensatz:
-  128 Bytes (obere 8 Bit, signed) + 64 Bytes mit den unteren 4 Bit
-  (High-Nibble = gerades Sample). Beleg: Upload-Routine @0x43BE.
-  Die Wellen 0..31 sind User-RAM und stehen nicht im ROM; sie bleiben leer.
-* Mip-Stufen 1..3: von diesem Skript aus den Wellen gerechnet (Fourier-Reihe,
-  Obertoene oberhalb von 31/15/7 gestrichen).
-* Bitbreiten der 116 Programmfelder @0x48F6, Init-Patch @0x496C.
-* Tabellen: Envelope-Segmentdauer @0x6920, Release-Koeffizient @0x6A20,
-  LFO-Rate @0x6790, Velocity @0x6690, Glide @0x6858, Zeichensatz @0x1A2F.
+What is where in the ROM (OS r1.2, all addresses checked against the firmware):
+* Waves: ROM wave n (32..126) at 0xA0C0 + n*0xC0 as a 192-byte record:
+  128 bytes (upper 8 bits, signed) + 64 bytes holding the lower 4 bits
+  (high nibble = even sample). Evidence: upload routine @0x43BE.
+  Waves 0..31 are user RAM and are not in the ROM; they stay empty.
+* Mip levels 1..3: computed by this script from the waves (Fourier series,
+  harmonics above 31/15/7 removed).
+* Bit widths of the 116 program fields @0x48F6, init patch @0x496C.
+* Tables: envelope segment duration @0x6920, release coefficient @0x6A20,
+  LFO rate @0x6790, velocity @0x6690, glide @0x6858, character set @0x1A2F.
 """
 import argparse
 import os
@@ -59,12 +60,12 @@ HERE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 ROOT = os.path.abspath(os.path.join(HERE, '..'))
 OUT = os.path.join(HERE, 'engine', 'include', 'provs', 'gen')
 
-# Ordner fuer eigene ROM-Abbilder (steht in der .gitignore)
+# Folder for the user's own ROM images (listed in .gitignore)
 ROMS = os.path.join(HERE, 'roms')
 
-# Programmformat des Prophet VS: Bitbreite der 116 Felder und Zeichensatz der
-# Namen. Das sind Angaben zum Dateiformat (SysEx-Dump); mit ROM werden sie
-# gegen das ROM geprueft.
+# Program format of the Prophet VS: bit width of the 116 fields and character
+# set of the names. These describe the file format (SysEx dump); with a ROM
+# they are checked against the ROM.
 FIELD_BITS = [
     7, 7, 7, 7, 5, 5, 5, 5, 7, 7, 7, 7, 7, 7, 7, 3, 3, 7, 7, 7,
     7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
@@ -78,7 +79,7 @@ NAME_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ12345 '
 N_WAVES, FRAMES, MIPS = 127, 128, 4
 MIP_HARMONICS = (64, 31, 15, 7)
 N_FIELDS = 116
-HEAD = "// Auto-generiert von tools/gen_data.py - nicht von Hand aendern, nicht einchecken."
+HEAD = "// Auto-generated by gen_data.py - do not edit by hand, do not commit."
 
 
 def first_existing(paths):
@@ -89,7 +90,7 @@ def first_existing(paths):
 
 
 def find_rom():
-    """ROM-Abbild in roms/ suchen, erkannt am Inhalt: (rom, Quelle) oder None."""
+    """Look for a ROM image in roms/, identified by its content: (rom, source) or None."""
     if not os.path.isdir(ROMS):
         return None
     files = sorted(os.path.join(ROMS, f) for f in os.listdir(ROMS))
@@ -111,54 +112,54 @@ def find_rom():
 
 
 def load_rom(args):
-    """ROM aus den Angaben (--rom oder --msb/--lsb), sonst aus roms/."""
+    """ROM from the arguments (--rom or --msb/--lsb), otherwise from roms/."""
     for path in (args.rom, args.msb, args.lsb):
         if path and not os.path.exists(path):
-            sys.exit(f'{path}: Datei nicht gefunden')
+            sys.exit(f'{path}: file not found')
     if args.msb or args.lsb:
         if not (args.msb and args.lsb):
-            sys.exit('--msb und --lsb gehoeren zusammen')
+            sys.exit('--msb and --lsb must be given together')
         msb, lsb = open(args.msb, 'rb').read(), open(args.lsb, 'rb').read()
         if len(msb) != 32768 or len(lsb) != 32768:
-            sys.exit('die EPROM-Abbilder muessen je 32768 Bytes gross sein')
+            sys.exit('the EPROM images must be 32768 bytes each')
         rom, src = bytes(b for pair in zip(msb, lsb) for b in pair), f'{args.msb} + {args.lsb}'
     elif args.rom:
         rom, src = open(args.rom, 'rb').read(), args.rom
     else:
         found = find_rom()
         if not found:
-            sys.exit('Kein ROM gefunden. Bitte ein Abbild des Prophet-VS-Betriebssystems r1.2 nach '
-                     'roms/ legen oder --rom DATEI bzw. --msb/--lsb angeben.')
+            sys.exit('No ROM found. Please put an image of the Prophet VS operating system r1.2 into '
+                     'roms/ or pass --rom FILE or --msb/--lsb.')
         return found
     check_rom(rom)
     return rom, src
 
 
 def check_rom(rom):
-    """Stellt sicher, dass es das erwartete ROM ist - die Adressen gelten nur dafuer."""
+    """Makes sure this is the expected ROM - the addresses are valid only for it."""
     problems = rom_problems(rom)
     if problems:
-        sys.exit('Das ROM wird nicht erkannt:\n  ' + '\n  '.join(problems))
+        sys.exit('The ROM is not recognised:\n  ' + '\n  '.join(problems))
 
 
 def rom_problems(rom):
     problems = []
     if len(rom) != 65536:
-        problems.append(f'Groesse {len(rom)} statt 65536 Bytes')
+        problems.append(f'size {len(rom)} instead of 65536 bytes')
     else:
         ssp, pc = struct.unpack('>II', rom[:8])
         if (ssp, pc) != (0xFFFFD000, 0x100):
-            problems.append('Reset-Vektoren passen nicht (MSB/LSB vertauscht?)')
+            problems.append('reset vectors do not match (MSB/LSB swapped?)')
         if b'PROPHET VS' not in rom or b'r1.2' not in rom:
-            problems.append('Kennung "PROPHET VS ... r1.2" fehlt (andere OS-Version?)')
+            problems.append('identifier "PROPHET VS ... r1.2" missing (different OS version?)')
         if list(rom[0x48F6:0x48F6 + N_FIELDS]) != FIELD_BITS:
-            problems.append('Bitbreiten-Tabelle nicht bei 0x48F6')
+            problems.append('bit width table not at 0x48F6')
         if rom[0x1A2F:0x1A2F + 32] != NAME_CHARS.encode():
-            problems.append('Zeichensatz nicht bei 0x1A2F')
+            problems.append('character set not at 0x1A2F')
         sine = rom_wave(rom, 32)
         ref = 2047 * np.cos(2 * np.pi * np.arange(128) / 128)
         if np.abs(sine - ref).max() > 1.0:
-            problems.append('Welle 32 ist kein Sinus')
+            problems.append('wave 32 is not a sine')
     return problems
 
 
@@ -168,14 +169,14 @@ def rom_wave(rom, n):
     lo = rom[a + 128:a + 192]
     nib = np.array([(lo[k // 2] >> 4) if k % 2 == 0 else (lo[k // 2] & 15)
                     for k in range(128)])
-    return hi * 16 + nib            # 12 Bit signed, -2048..2047
+    return hi * 16 + nib            # 12 bit signed, -2048..2047
 
 
 def load_vswaves(path):
-    """Wellen aus VS-WAVES.DAT: Liste mit 127 Eintraegen (12 Bit) oder None."""
+    """Waves from VS-WAVES.DAT: list of 127 entries (12 bit) or None."""
     data = open(path, 'rb').read()
     if len(data) % 256 or len(data) < 126 * 256:
-        sys.exit(f'{path}: keine VS-WAVES.DAT (erwartet 256 Bytes je Welle, mindestens 126 Wellen)')
+        sys.exit(f'{path}: not a VS-WAVES.DAT (expected 256 bytes per wave, at least 126 waves)')
     count = len(data) // 256
     waves = [None] * N_WAVES
     for n in range(32, N_WAVES):
@@ -184,18 +185,18 @@ def load_vswaves(path):
             waves[n] = v >> 4
     spec = np.abs(np.fft.rfft(waves[32]))
     if spec[1] < 100000 or spec[2:].max() > 0.001 * spec[1]:
-        sys.exit(f'{path}: Welle 32 ist kein Sinus - andere Anordnung oder anderes Format')
+        sys.exit(f'{path}: wave 32 is not a sine - different ordering or different format')
     return waves
 
 
-# Obertontabelle: neben dem Skript (Einbau in ein anderes Projekt) oder in data/
+# Harmonic table: next to the script (when embedded in another project) or in data/
 HARMONICS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'vs_wave_harmonics.txt')
 if not os.path.exists(HARMONICS):
     HARMONICS = os.path.join(HERE, 'data', 'vs_wave_harmonics.txt')
 
 
 def read_harmonics(path, waves):
-    """Obertontabelle lesen und die Wellen rechnen (Format: Kopf der Datei)."""
+    """Read the harmonic table and compute the waves (format: see the file header)."""
     n = np.arange(FRAMES)
     count = 0
     for line in open(path):
@@ -215,12 +216,12 @@ def read_harmonics(path, waves):
 
 def load_harmonics(path=None):
     path = path or HARMONICS
-    """Wellen 32..125 aus der Obertontabelle des Repositorys."""
+    """Waves 32..125 from the repository's harmonic table."""
     if not os.path.exists(path):
-        sys.exit(f'{path} fehlt - die Obertontabelle gehoert zum Repository')
+        sys.exit(f'{path} is missing - the harmonic table is part of the repository')
     waves = [None] * N_WAVES
     if read_harmonics(path, waves) != 94:
-        sys.exit(f'{path}: erwartet werden die 94 Wellen 32..125')
+        sys.exit(f'{path}: expected the 94 waves 32..125')
     return waves
 
 
@@ -244,24 +245,24 @@ def gen_waves(waves, source):
         tab[n, 0] = base
         for m in range(1, MIPS):
             tab[n, m] = bandlimit(base, MIP_HARMONICS[m])
-    # Die Bandbegrenzung schwingt an Flanken ueber; alles gemeinsam skalieren
+    # Band-limiting overshoots at edges; scale everything by a common factor
     peak = float(np.abs(tab).max())
     gain = 1.0 if peak <= 1.0 else peak * 1.0001
     out = [HEAD,
-           "// 127 Prophet-VS-Wellen x 4 Mip-Stufen x 128 Samples (int16).",
-           f"//   Wellen 32..126, Stufe 0: {source}",
-           "//   Stufen 1..3: daraus gerechnet, bandbegrenzt auf 31/15/7 Obertoene",
-           "//   Wellen 0..31: leer (User-RAM des Originals, nicht im ROM)",
-           "//   Welle 127 (Rauschen) erzeugt die Engine selbst.",
+           "// 127 Prophet VS waves x 4 mip levels x 128 samples (int16).",
+           f"//   Waves 32..126, level 0: {source}",
+           "//   Levels 1..3: computed from it, band-limited to 31/15/7 harmonics",
+           "//   Waves 0..31: empty (user RAM of the original, not in the ROM)",
+           "//   Wave 127 (noise) is generated by the engine itself.",
            "#pragma once", "#include <cstdint>", "namespace provs {",
            f"constexpr int kWaveCountVS = {N_WAVES};",
            f"constexpr int kWaveFrames  = {FRAMES};",
            f"constexpr int kWaveMips    = {MIPS};",
-           "// hoechster Oberton je Mip-Stufe",
+           "// highest harmonic per mip level",
            "constexpr int kMipHarmonics[kWaveMips] = {64, 31, 15, 7};",
-           "// Welle = Wert / 32767 * kWaveDataGain",
+           "// wave = value / 32767 * kWaveDataGain",
            f"constexpr float kWaveDataGain = {gain:.6f}f;",
-           "// Welle n, Stufe m = kWaveDataVS[(n*kWaveMips + m)*kWaveFrames ...]",
+           "// wave n, level m = kWaveDataVS[(n*kWaveMips + m)*kWaveFrames ...]",
            "inline constexpr int16_t kWaveDataVS[kWaveCountVS * kWaveMips * kWaveFrames] = {"]
     for n in range(N_WAVES):
         for m in range(MIPS):
@@ -269,20 +270,20 @@ def gen_waves(waves, source):
             out.append("    " + ",".join(map(str, v)) + f", // wave {n} mip {m}")
     out += ["};", "}  // namespace provs"]
     write('wavetables.h', out)
-    print(f'wavetables.h: Wellen 32..126 aus {source}, Spitzenwert {peak:.4f}')
+    print(f'wavetables.h: waves 32..126 from {source}, peak value {peak:.4f}')
 
 
 def formula_tables():
-    """Die fuenf Tabellen der Firmware aus eigenen Bildungsregeln.
+    """The five firmware tables from our own generating rules.
 
-    Alle fuenf Kurven sind Exponentialkurven, in ganzen Zahlen schrittweise
-    gebildet. Zwei Formen kommen vor:
-      Summe:  Wert[n+1] = Wert[n] + gerundet(a * r^n)
-      Kette:  Wert[n+1] = ganzzahliger Teil von (Wert[n] * r + b)
-    Mit Startwert und zwei bis drei Zahlen ist jede Tabelle neu gerechnet.
-    Abweichung gegen die Tabellen des ROMs (OS r1.2), nachzumessen mit
-    --check-formulas: Envelope, Release, LFO und Glide keine; Velocity
-    hoechstens 3 von 32767.
+    All five curves are exponential curves, built step by step in integers.
+    Two forms occur:
+      sum:    value[n+1] = value[n] + rounded(a * r^n)
+      chain:  value[n+1] = integer part of (value[n] * r + b)
+    With a start value and two or three numbers each table is recomputed.
+    Deviation from the tables of the ROM (OS r1.2), to be measured with
+    --check-formulas: envelope, release, LFO and glide none; velocity
+    at most 3 out of 32767.
     """
     def sums(start, a, r, n=100, sign=1):
         out = [start]
@@ -295,32 +296,32 @@ def formula_tables():
         for _ in range(n - 1):
             out.append(max(1, int(np.floor(out[-1] * r + b))))
         return out
-    # Segmentdauer in Ticks: jeder Schritt 6,8 % laenger als der vorige
+    # Segment duration in ticks: each step 6.8 % longer than the previous one
     ticks = sums(1, 1.0, 1.068)
-    # Release: der Abstand zu 32768 schrumpft je Rate um rund 7,6 %
-    release = [0] + [32768 - g for g in chain(29375, 0.92353, -0.34, n=99)]   # Rate 0: sofort
-    # LFO-Rate: rund 3,5 % schneller je Schritt
+    # Release: the distance to 32768 shrinks by about 7.6 % per rate
+    release = [0] + [32768 - g for g in chain(29375, 0.92353, -0.34, n=99)]   # rate 0: immediate
+    # LFO rate: about 3.5 % faster per step
     lfo = chain(40, 1.03498, 8.10)
     velocity = [min(32767, v) for v in sums(864, 102.46, 1.01266, n=128)]
-    # Glide: jeder Schritt 2,9 % kleiner als der vorige
+    # Glide: each step 2.9 % smaller than the previous one
     glide = sums(32767, 1000.0, 0.971, sign=-1)
     return ticks, release, lfo, velocity, glide
 
 
 def own_init_program():
-    """Eigener Init-Patch fuer den Bau ohne ROM: vier Grundwellen, Filter offen."""
+    """Our own init patch for the build without ROM: four basic waves, filter open."""
     f = [0] * N_FIELDS
-    f[0:4] = [32, 33, 34, 35]            # Wellen A-D
+    f[0:4] = [32, 33, 34, 35]            # waves A-D
     f[12] = 99                           # Cutoff
-    f[17] = f[18] = 60                   # LFO-Raten
-    f[24:28] = [99, 99, 99, 99]          # Amp-Envelope: Pegel 0-3
-    f[60] = 60                           # Split-Punkt
-    f[67], f[68], f[69] = 40, 40, 80     # Chorus Rate/Depth, Lautstaerke
+    f[17] = f[18] = 60                   # LFO rates
+    f[24:28] = [99, 99, 99, 99]          # amp envelope: levels 0-3
+    f[60] = 60                           # split point
+    f[67], f[68], f[69] = 40, 40, 80     # chorus rate/depth, volume
     f[78:86] = [NAME_CHARS.index(c) for c in 'INIT    ']
-    f[86] = 70                           # Arpeggiator-Rate
+    f[86] = 70                           # arpeggiator rate
     f[92] = f[93] = 1
     f[103] = 15
-    f[115] = 1                           # Modulationsrad -> LFO 1
+    f[115] = 1                           # mod wheel -> LFO 1
     return f
 
 
@@ -339,69 +340,69 @@ def gen_tables(rom):
     if rom is not None:
         ticks, release, lfo = words(0x6920, 100), words(0x6A20, 100), words(0x6790, 100)
         velocity, glide = words(0x6690, 128), words(0x6858, 100)
-        init, where = list(rom[0x496C:0x496C + N_FIELDS]), "Init-Patch der Firmware (@0x496C)"
-        title = "// Tabellen aus dem ROM des Original-Prophet-VS (OS r1.2)."
+        init, where = list(rom[0x496C:0x496C + N_FIELDS]), "Init patch of the firmware (@0x496C)"
+        title = "// Tables from the ROM of the original Prophet VS (OS r1.2)."
     else:
         ticks, release, lfo, velocity, glide = formula_tables()
-        init, where = own_init_program(), "eigener Init-Patch (Bau ohne ROM)"
-        title = ("// Bau ohne ROM: Tabellen aus Bildungsregeln gerechnet (tools/gen_data.py, formula_tables).")
+        init, where = own_init_program(), "Own init patch (build without ROM)"
+        title = ("// Build without ROM: tables computed from generating rules (gen_data.py, formula_tables).")
     out = [HEAD, title,
            "#pragma once", "#include <cstdint>", "namespace provs {", "",
-           "// true: Tabellen aus dem ROM gelesen; false: aus Bildungsregeln gerechnet",
+           "// true: tables read from the ROM; false: computed from generating rules",
            f"constexpr bool kTablesFromRom = {'true' if rom is not None else 'false'};", "",
-           "// Envelope, Raten 1-3: Segmentdauer in Ticks (Firmware @0x6920)"]
+           "// Envelope, rates 1-3: segment duration in ticks (firmware @0x6920)"]
     out += arr('kEnvSegmentTicks', ticks)
-    out += ["", "// Envelope, Raten 4/4A: Release-Koeffizient k, je Tick v = L4 + (v-L4)*k/32768 (@0x6A20)"]
+    out += ["", "// Envelope, rates 4/4A: release coefficient k, per tick v = L4 + (v-L4)*k/32768 (@0x6A20)"]
     out += arr('kEnvReleaseCoef', release)
-    out += ["", "// LFO-Rate 0..99 -> Phasenschritt je Tick (@0x6790)"]
+    out += ["", "// LFO rate 0..99 -> phase increment per tick (@0x6790)"]
     out += arr('kLfoRateStep', lfo)
-    out += ["", "// Velocity 0..127 -> Modulationswert, 32767 = voll (@0x6690)"]
+    out += ["", "// Velocity 0..127 -> modulation value, 32767 = full (@0x6690)"]
     out += arr('kVelocityCurve', velocity, 8)
-    out += ["", "// Glide 1..99 -> Tempo, Wert/64 Cent je Tick (@0x6858)"]
+    out += ["", "// Glide 1..99 -> speed, value/64 cents per tick (@0x6858)"]
     out += arr('kGlideRate', glide)
-    out += ["", "// Programmformat: Bitbreite der 116 Felder (@0x48F6); ein Programm sind",
-            "// 82 Bytes, die Felder stehen darin MSB-first hintereinander"]
+    out += ["", "// Program format: bit width of the 116 fields (@0x48F6); a program is",
+            "// 82 bytes, with the fields packed in it one after another, MSB first"]
     out += bytes_('kProgramFieldBits', FIELD_BITS)
-    out += ["", f"// {where}, ein Byte je Feld"]
+    out += ["", f"// {where}, one byte per field"]
     out += bytes_('kInitProgram', init)
-    out += ["", "// Zeichensatz der Programmnamen, 5 Bit je Zeichen (@0x1A2F)",
+    out += ["", "// Character set of the program names, 5 bits per character (@0x1A2F)",
             f'inline constexpr char kNameChars[33] = "{NAME_CHARS}";', "",
             "}  // namespace provs"]
     write('rom_tables.h', out)
-    print('rom_tables.h: ' + ('5 Tabellen und Init-Patch aus dem ROM' if rom is not None
-                              else '5 Tabellen aus Bildungsregeln gerechnet, eigener Init-Patch'))
+    print('rom_tables.h: ' + ('5 tables and init patch from the ROM' if rom is not None
+                              else '5 tables computed from generating rules, own init patch'))
 
 
 def compare_formulas(rom):
-    """--check-formulas: eigene Formeln gegen die Tabellen des ROMs messen."""
+    """--check-formulas: measure our own formulas against the tables of the ROM."""
     def words(addr, n):
         return np.array(struct.unpack(f'>{n}H', rom[addr:addr + 2 * n]), dtype=float)
     ticks, release, lfo, velocity, glide = [np.array(v, dtype=float) for v in formula_tables()]
-    for name, own, ref in (('Envelope-Segmentdauer', ticks, words(0x6920, 100)),
-                           ('LFO-Rate', lfo, words(0x6790, 100)),
+    for name, own, ref in (('Envelope segment duration', ticks, words(0x6920, 100)),
+                           ('LFO rate', lfo, words(0x6790, 100)),
                            ('Velocity', velocity, words(0x6690, 128)),
                            ('Glide', glide, words(0x6858, 100))):
         d = np.abs(own - ref)
-        print(f'{name:24s} groesste Abweichung {d.max():.0f}, relativ {100 * np.max(d / np.maximum(ref, 1)):.2f} %, '
-              f'{int((d == 0).sum())} von {len(ref)} Werten gleich')
+        print(f'{name:26s} largest deviation {d.max():.0f}, relative {100 * np.max(d / np.maximum(ref, 1)):.2f} %, '
+              f'{int((d == 0).sum())} of {len(ref)} values equal')
     ref = words(0x6A20, 100)
     tau = lambda k: -1.0 / np.log(k / 32768.0)
     e = np.abs(tau(release[1:]) / tau(ref[1:]) - 1)
-    print(f'{"Release-Zeitkonstante":24s} groesste Abweichung {100 * e.max():.2f} %, '
-          f'{int((release == ref).sum())} von 100 Werten gleich')
+    print(f'{"Release time constant":26s} largest deviation {100 * e.max():.2f} %, '
+          f'{int((release == ref).sum())} of 100 values equal')
 
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--rom', help='64-KiB-Abbild des OS-ROMs (MSB/LSB gemischt)')
-    ap.add_argument('--no-rom', action='store_true', help='aus dem Repository bauen, auch wenn in roms/ ein ROM liegt')
-    ap.add_argument('--msb', help='EPROM mit den oberen Datenbits (32 KiB)')
-    ap.add_argument('--lsb', help='EPROM mit den unteren Datenbits (32 KiB)')
-    ap.add_argument('--vswaves', help='Wellen aus einer Datei VS-WAVES.DAT statt aus der Obertontabelle')
-    ap.add_argument('--out', help='Zielordner fuer die Header (sonst engine/include/provs/gen)')
-    ap.add_argument('--roms', help='Ordner mit eigenen ROM-Abbildern (sonst roms/)')
+    ap.add_argument('--rom', help='64 KiB image of the OS ROM (MSB/LSB interleaved)')
+    ap.add_argument('--no-rom', action='store_true', help='build from the repository, even if there is a ROM in roms/')
+    ap.add_argument('--msb', help='EPROM with the upper data bits (32 KiB)')
+    ap.add_argument('--lsb', help='EPROM with the lower data bits (32 KiB)')
+    ap.add_argument('--vswaves', help='waves from a VS-WAVES.DAT file instead of from the harmonic table')
+    ap.add_argument('--out', help='output folder for the headers (default: engine/include/provs/gen)')
+    ap.add_argument('--roms', help='folder with your own ROM images (default: roms/)')
     ap.add_argument('--check-formulas', action='store_true',
-                    help='eigene Formeln gegen die Tabellen des ROMs messen, nichts schreiben')
+                    help='measure our own formulas against the tables of the ROM, write nothing')
     args = ap.parse_args()
     if args.out:
         OUT = args.out
@@ -412,10 +413,10 @@ if __name__ == '__main__':
         use_rom = True
     if args.vswaves:
         if use_rom:
-            sys.exit('--vswaves bitte nicht zusammen mit --rom/--msb/--lsb')
+            sys.exit('please do not combine --vswaves with --rom/--msb/--lsb')
         if not os.path.exists(args.vswaves):
-            sys.exit(f'{args.vswaves}: Datei nicht gefunden')
-        print(f'Ohne ROM. Wellen: {args.vswaves}')
+            sys.exit(f'{args.vswaves}: file not found')
+        print(f'Without ROM. Waves: {args.vswaves}')
         gen_waves(load_vswaves(args.vswaves), 'VS-WAVES.DAT')
         gen_tables(None)
     elif use_rom:
@@ -425,12 +426,12 @@ if __name__ == '__main__':
             compare_formulas(rom)
             sys.exit(0)
         waves = [None] * 32 + [rom_wave(rom, n) for n in range(32, N_WAVES)]
-        gen_waves(waves, 'Original-ROM')
+        gen_waves(waves, 'original ROM')
         gen_tables(rom)
     else:
-        print('Ohne ROM. Wellen: Obertontabelle vs_wave_harmonics.txt')
-        gen_waves(load_harmonics(), 'Rekonstruktion aus der Obertontabelle')
+        print('Without ROM. Waves: harmonic table vs_wave_harmonics.txt')
+        gen_waves(load_harmonics(), 'reconstruction from the harmonic table')
         gen_tables(None)
-    old = os.path.join(OUT, 'vs_presets.hpp')      # frueher einkompilierte Bank
+    old = os.path.join(OUT, 'vs_presets.hpp')      # formerly compiled-in bank
     if os.path.exists(old):
         os.remove(old)

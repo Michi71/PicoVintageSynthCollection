@@ -12,7 +12,7 @@ land next to their script and are gitignored.
 a ROM set** - the "nothing" rows of the table plus the three renders below it -
 and exits with the number of failures. CI runs exactly that
 (`.github/workflows/build.yml`, job *Host tests*) on every push and pull
-request, and a release is only published when it is green alongside the seven
+request, and a release is only published when it is green alongside the eight
 firmware builds. Before opening a PR:
 
 ```bash
@@ -36,6 +36,7 @@ panel frames, so a GUI change can be looked at from the PR without a board.
 | [`j6/build_ui.sh`](j6/) | nothing | drives `J6_Controller` and the patch store through a scripted panel session - menu navigation, patch save/load, the free-slot rule. |
 | [`ui/`](ui/README.md) | nothing | renders the shared UI kit's panels to PBM frames through the real u8g2 - the README sheets come from here. `run_all.sh` checks that every frame is written. |
 | [`md/build_md_ui.sh`](md/) | nothing | the same for the real `MD_Controller`: seven of its pages as frames. |
+| [`vs/`](vs/) | Python 3 with numpy | PicoFaceVS without any ROM: generates the engine's data from the harmonic table and the generating rules, then checks the program format (pack, unpack, dump and load back), every entry of the edit parameter list against its field's width, and the real `VS_Controller` through a scripted panel session - edit, Write, the flash mirror on a simulated flash, program and bank dumps read back, a received dump, factory reset, the arpeggiator. Renders sixteen of its screens as frames. |
 | [`cp/build_render.sh`](cp/README.md) | nothing | offline render of one note through the mdaEPiano engine; `run_all.sh` plays each of the six voices and fails on a silent one. `ab_compare.py` compares two such renders, which is how a sample-set change is checked. |
 | [`cp/`](cp/README.md) | portmidi | plays the mdaEPiano engine, with or without the reface CP effect chain, over CoreAudio. |
 | [`j6/build_juno.sh`](j6/) | portmidi | plays the Juno engine over CoreAudio. |
