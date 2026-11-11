@@ -10,10 +10,9 @@ its service manual and the CEM3379 data sheet; the firmware of the Behringer
 Pro VS Mini served as a second reference for a few additions. It first ran as
 a host program and is unchanged here.
 
-**Status: first integration, not yet tested on the hardware.** It builds and
-the engine passes its own host tests, but nobody has heard it on the board yet.
-In particular the CPU load is unmeasured, which is why it runs at 32 kHz for
-now; the panel shows the load.
+**Status: first integration.** It has run on the board at 32 kHz, where the
+load peaked at 53 %. It now runs at 44.1 kHz, which should peak near 73 %; that
+rate has not been heard on the board yet. The panel shows the load.
 
 ## It builds from the repository alone
 

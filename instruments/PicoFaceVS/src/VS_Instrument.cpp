@@ -25,10 +25,9 @@
 
 namespace {
 
-// 32 kHz to start with. The engine is rate independent; the load on the
-// RP2350 has not been measured on the hardware yet, and the panel shows it.
-// Raise this once the measurement says there is room.
-constexpr uint32_t kSampleRate = 32000;
+// The engine is rate independent. On the hardware it peaked at 53 % load at
+// 32 kHz, so 44.1 kHz should peak near 73 %; the panel shows the load.
+constexpr uint32_t kSampleRate = 44100;
 
 // Longest SysEx this instrument takes: a Prophet VS bank dump
 // (F0 01 0A 64, 100 x 164 nibbles, F7).
