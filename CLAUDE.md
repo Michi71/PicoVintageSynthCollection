@@ -1,6 +1,6 @@
 # PicoVintageSynthCollection — Arbeitsregeln
 
-Zwölf RP2350-Synthesizer-Firmwares auf einem gemeinsamen Kern (`core/`), je
+Dreizehn RP2350-Synthesizer-Firmwares auf einem gemeinsamen Kern (`core/`), je
 Instrument ein Ordner unter `instruments/` und ein eigenes `.uf2`. Alles
 Weitere zur Struktur steht in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 offene Punkte in dessen §8.
@@ -43,7 +43,7 @@ sind Englisch — bis auf das D5-Protokoll, das deutsch gewachsen ist.
 Nur auf Zuruf. Ablauf: Tag `vX.Y.Z` auf `main` pushen → die CI baut die acht
 Instrumente ohne ROMs und legt das Release an → Release-Text von Hand setzen
 (`gh release edit`, Stil wie die vorigen). Danach lokal `cmake -S . -B build`
-und alle zwölf bauen, damit D5/JV/RD/M1-Abbilder die Version im Splash tragen
+und alle dreizehn bauen, damit D5/JV/RD/M1/CM-Abbilder die Version im Splash tragen
 (`PICOFACE_VERSION` kommt aus `git describe` beim Konfigurieren). Zum Schluss
 den Stand oben nachziehen und `decomphub.progress.json` prüfen (statische
 Zahlen mit `measuredAt`, von DecompHub gelesen; ändert sich eine, Datum mit).
@@ -52,7 +52,7 @@ Zahlen mit `measuredAt`, von DecompHub gelesen; ändert sich eine, Datum mit).
 
 Roland- und Korg-ROMs, die CP-Quellaufnahmen und alles, was aus Hersteller-
 Plugins/VSTs gelesen wurde (nur als Orakel bei der Analyse) — auch nicht in
-einen privaten Fork. `roms/` ist ignoriert; D5, JV, RD und M1 bauen nur
+einen privaten Fork. `roms/` ist ignoriert; D5, JV, RD, M1 und CM bauen nur
 lokal. Die Kette für die CP-Sample-Sätze ist
 [tools/cp_sampleprep](tools/cp_sampleprep/README.md), die
 Aufnahmen liegen nur bei Michael (Herkunft nicht rekonstruierbar, nicht neu

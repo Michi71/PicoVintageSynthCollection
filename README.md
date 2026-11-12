@@ -1,6 +1,6 @@
 # PicoVintageSynthCollection
 
-Twelve vintage synthesizer emulations for the RP2350, built from one shared
+Thirteen vintage synthesizer emulations for the RP2350, built from one shared
 codebase. Same board, same core, one firmware image per instrument.
 
 <p align="center">
@@ -36,6 +36,11 @@ work with:
   effect algorithms were read out of the firmware and rewritten as native
   code that plays the machine's own PCM data. Where firmware, plugin and ear
   disagree, the firmware wins.
+- The **Roland CM-32L** is the one that runs somebody else's engine: the
+  synthesis core of [munt](https://github.com/munt/munt)'s mt32emu, which
+  models the LA32 chip and restates the module's firmware, with the original
+  control and PCM ROM. It was reshaped to fit the board - both cores render,
+  the code that plays runs from RAM - and still produces upstream's samples.
 - The **JV-880** and the **RD/MKS-20** are written over the original PCM data
   and calibrated against a reference emulator of the original firmware, which
   runs on the host only and is not part of this repository.
@@ -80,11 +85,12 @@ instrument's documentation.
 | [instruments/PicoFaceJV](instruments/PicoFaceJV/README.md) | Roland JV-880 (native engine over the original PCM data) | local build only |
 | [instruments/PicoFaceD5](instruments/PicoFaceD5/README.md) | Roland D-50 (native LA engine over the original PCM data) | local build only |
 | [instruments/PicoFaceM1](instruments/PicoFaceM1/README.md) | Korg M1 (native engine over the original PCM data, with edit pages and SysEx) | local build only |
+| [instruments/PicoFaceCM](instruments/PicoFaceCM/README.md) | Roland CM-32L (mt32emu's LA synthesis core over the original ROMs, eight parts and rhythm, on both cores) | local build only |
 
-The RD, the JV-880, the D-50 and the M1 are the exceptions to "download and flash":
+The RD, the JV-880, the D-50, the M1 and the CM-32L are the exceptions to "download and flash":
 they only build where the respective ROM set is present, and those ROMs are not
-distributable, so none of the three is in the release binaries. Without them
-the configure step skips them and the eight above are unaffected. All three run
+distributable, so none of them is in the release binaries. Without them
+the configure step skips them and the eight above are unaffected. All of them run
 on the hardware; see the flash note below for the one build option the JV-880
 needs on a small board.
 
@@ -179,7 +185,7 @@ board first.
 
 ### Switching instruments
 
-One board, twelve firmware images, so choosing a different instrument is something
+One board, thirteen firmware images, so choosing a different instrument is something
 you do rather than something a factory does once. **Hold all three encoder
 buttons together.** After half a second the display takes over and counts down
 from two; let go and nothing happens. Hold it out and the board silences itself,
@@ -205,6 +211,7 @@ provide:
 | PicoFaceCP | 3.99 MB | fits, 190 KB to spare |
 | PicoFaceJV | 4.34 MB | only with `-DPICOFACEJV_4MB=ON` (3.76 MB, banks A+B) |
 | PicoFaceD5 | 0.86 MB | fits |
+| PicoFaceCM | 1.28 MB | fits |
 | PicoFaceM1 | 4.48 MB | no (4 MB of PCM; no reduced build) |
 | PicoFaceRD | 2.56 MB | fits |
 
@@ -227,7 +234,7 @@ anything: every sample keeps its attack byte for byte and loops 40-100 ms
 earlier, at a loop cycle chosen to stay within 1 dB and 10 % spectral centroid
 of the cycle it looped before. The rule and the numbers are in
 [tools/cp_sampleprep](tools/cp_sampleprep/README.md#fitting-a-4-mb-flash).
-Anything from 8 MB up holds any of the twelve instruments. The D-50 is the one
+Anything from 8 MB up holds any of the thirteen instruments. The D-50 is the one
 sample-based instrument that never needed cutting -- its whole sample ROM is
 512 KB.
 
@@ -260,7 +267,7 @@ stepped down from. See the PicoFaceMD README, *The bit the bootrom never sets*. 
 with a faster flash can ask for the full rung with
 `-DPICOFACE_QMI_M0_TIMING_TARGET=PICOFACE_QMI_M0_TIMING_RX4`. The released UF2s
 are the default variant; the RP2350B build is one cmake flag away and produces
-the same twelve images.
+the same thirteen images.
 
 ```bash
 cmake -S . -B build-b -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICOFACE_BOARD=rp2350b_plus_w
@@ -277,15 +284,16 @@ version used to read `0.1` in every build ever made, which identified nothing.
 
 A tarball without `.git` builds fine and shows `unknown`.
 
-### The four that need ROMs
+### The five that need ROMs
 
-`PicoFaceRD`, `PicoFaceJV`, `PicoFaceD5` and `PicoFaceM1` play the original machines' own
+`PicoFaceRD`, `PicoFaceJV`, `PicoFaceD5`, `PicoFaceM1` and `PicoFaceCM` play the original machines' own
 data, which is not distributable. Each looks in its own `roms/` directory —
 `instruments/<name>/roms/`, gitignored — and removes itself from the build with
 a note if what it needs is not there. Nothing else is affected.
 
 | | what goes in `roms/` | |
 |---|---|---|
+| **PicoFaceCM** | the CM-32L's control ROM v1.02 (64 KB) and PCM ROM (1 MB) | identified by SHA-1, so **names do not matter** |
 | **PicoFaceD5** | two PCM ROMs and a program EPROM | identified by CRC32, so **names do not matter** |
 | | | plus optional `*.syx` bulk dumps for the patch banks |
 | **PicoFaceJV** | `jv880_rom2.bin`, `jv880_waverom1.bin`, `jv880_waverom2.bin` | exact names, 256 KB + 2 MB + 2 MB |
@@ -309,7 +317,7 @@ already building the firmware.
 
 **To check that all of this actually works from scratch**, `tools/check_clean_build.sh`
 clones into a temporary directory, copies the ROMs in from outside git, and
-builds all twelve. That last part is the point: the ROM sets are not in this
+builds all thirteen. That last part is the point: the ROM sets are not in this
 repository and must never be, so a build here is the one thing CI cannot cover.
 Name a directory to build there instead and keep the result; add `--variants`
 for the reduced images too.
@@ -391,9 +399,9 @@ instrument's README names the document so it can be obtained separately.
 
 ## Status
 
-**All twelve instruments build from a single configure run, each with its own
-USB PID, and all twelve run on the hardware.**
-Eight are in the release binaries; the RD, the JV-880, the D-50 and the M1 need a
+**All thirteen instruments build from a single configure run, each with its own
+USB PID, and all thirteen run on the hardware.**
+Eight are in the release binaries; the RD, the JV-880, the D-50, the M1 and the CM-32L need a
 local ROM set and are therefore built locally only.
 Open points are listed in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 section 8.
@@ -407,8 +415,8 @@ form, scoped per measurement, for project directories such as DecompHub.
 Copyright (C) 2026 Michi71.
 
 The collection was assembled in August 2026 from seven single-instrument
-repositories -- YC, CP, DX, RD, J6, MD and SM; OB, JV, D5, M1 and VS were written
-here afterwards, which is why the number is seven and not twelve. Each of those seven
+repositories -- YC, CP, DX, RD, J6, MD and SM; OB, JV, D5, M1, VS and CM were added
+here afterwards, which is why the number is seven and not thirteen. Each of those seven
 already shipped the identical GPL-3 licence text, and every instrument README
 states GPL-3. It is also the lowest common denominator of what the engines are
 built on. Where an instrument derives from someone else's work:
@@ -427,6 +435,7 @@ built on. Where an instrument derives from someone else's work:
 | PicoFaceJV | own engine over the machine's own PCM data, measured against [giulioz/jv880_juce](https://github.com/giulioz/jv880_juce) (host-side reference; tone field layout) | non-commercial; not vendored, see below |
 | PicoFaceM1 | own engine over the machine's own PCM and tables, from a disassembly of the M1 OS; no third-party code | - |
 | PicoFaceVS | own engine, from a disassembly of the Prophet VS OS, its service manual and the CEM3379 data sheet; no third-party code. The waves are recomputed from a harmonic table derived from the original's | - |
+| PicoFaceCM | [munt](https://github.com/munt/munt)'s mt32emu 2.8.6 (engine): a modified copy in `instruments/PicoFaceCM/mt32emu`, with its licence text and a list of every change | LGPL-2.1-or-later |
 | PicoFaceD5 | [munt](https://github.com/munt/munt) - the LA32's wave generation and the Boss reverb topology as that project *documents* them, no code | LGPL-2.1-or-later upstream, does not reach here; see below |
 
 Two rows in that table need a sentence more than a table cell holds.

@@ -54,8 +54,8 @@ img/
     └── build.yml
 ```
 
-## 3. One hardware platform, twelve instruments
-The board is the same for all twelve instruments. Pin map and flash timing therefore live in the core: `core/include/project_config.h` and `core/include/pico_hw.h`. In the seven original repositories every single pin definition was already identical; the files differed only in comments, in one extra QMI timing constant for PicoFaceRD, and in one inline helper. The core versions are the union of all variants.
+## 3. One hardware platform, thirteen instruments
+The board is the same for all thirteen instruments. Pin map and flash timing therefore live in the core: `core/include/project_config.h` and `core/include/pico_hw.h`. In the seven original repositories every single pin definition was already identical; the files differed only in comments, in one extra QMI timing constant for PicoFaceRD, and in one inline helper. The core versions are the union of all variants.
 
 ### Why the core is still not a library
 
@@ -63,7 +63,7 @@ The core continues to publish lists of absolute source paths instead of a STATIC
 
 From that follows the include order `instruments/<NAME>/include` before `core/include`, so that an instrument's own variant of a header wins. After the merge that affects only five headers (see section 7).
 
-Counter-example: lib/audio, lib/encoder and lib/u8g2 stay STATIC and are built once for all twelve targets.
+Counter-example: lib/audio, lib/encoder and lib/u8g2 stay STATIC and are built once for all thirteen targets.
 
 **Note on the audio library:** lib/audio/src/audio_subsystem.cpp originally included project_config.h and read PIN_I2S_DOUT and PIN_I2S_BCK from it. In the old projects this went unnoticed because a global `include_directories()` leaked the instrument include path into every target. The library now uses the standard macros PICO_AUDIO_I2S_DATA_PIN and PICO_AUDIO_I2S_CLOCK_PIN_BASE and no longer knows anything about the instrument configuration.
 
@@ -85,7 +85,7 @@ The core calls init(), then queries sampleRate() and initializes the audio pool 
 
 ## 4a. The runtime model
 
-**All twelve instruments run in the same model:** core0 does audio, USB, MIDI and GUI, the core polls the encoders into an InputState and calls `uiTick()`. core1 belongs to the instrument - PicoFaceRD uses it as a voice worker, the other nine leave it idle.
+**All thirteen instruments run in the same model:** core0 does audio, USB, MIDI and GUI, the core polls the encoders into an InputState and calls `uiTick()`. core1 belongs to the instrument - PicoFaceRD uses it as a voice worker, the other nine leave it idle.
 
 Until the conversion of PicoFaceYC and PicoFaceCP there was a second model in which an instrument took over the entire user interface on core1 via `ownsUserInterface()`. The core then started core1 itself, initialized neither display nor encoders, and called `pumpCrossCore()` instead of `uiTick()`; for flash access the instrument supplied a pair of park hooks. With the last user gone, the five methods disappeared from `picoface::Instrument` and so did the corresponding branch in `picoface_main.cpp`. An instrument that needs core1 starts it from its own adapter, the way PicoFaceRD does.
 
@@ -191,7 +191,7 @@ Longer SysEx -- the M1's bank dumps are 14-50 KB -- does not go through a buffer
 
 ### Integration
 
-`MIDISerial::process()` runs for all twelve instruments in `picoface_main.cpp`, right next to `MIDIInputUSB::process()`.
+`MIDISerial::process()` runs for all thirteen instruments in `picoface_main.cpp`, right next to `MIDIInputUSB::process()`.
 
 The core passes realtime bytes and bare receive activity through via the optional methods `realtime()` and `midiActivity()`. Both are needed for the active sensing supervision of the reface layer in YC, CP and DX - their 350 ms timeout silences all voices when 0xFE stops arriving. The defaults are empty; the other instruments ignore both.
 
@@ -339,9 +339,9 @@ These defines are deliberately not unified in the helper but set per instrument 
 
 - `core/src/picoface_main.cpp`: shared main() for both runtime models.
 - `core/src/ui/display.cpp`: u8g2 facade; flush() only arms the row-by-row output.
-- All twelve adapters, all in the standard model. PicoFaceMD is the template.
-- All twelve build from a single configure run and carry their own USB PID.
-- All twelve tested on the hardware and working, PicoFaceRD including the 480 MHz clocking (PicoFaceM1 since 2026-11-05, PicoFaceVS since 2026-11-12).
+- All thirteen adapters, all in the standard model. PicoFaceMD is the template.
+- All thirteen build from a single configure run and carry their own USB PID.
+- All thirteen tested on the hardware and working, PicoFaceRD including the 480 MHz clocking (PicoFaceM1 since 2026-11-05, PicoFaceVS and PicoFaceCM since 2026-11-12).
 - PicoFaceOB (section 6b) confirmed on the hardware on 2026-08-04, PicoFaceDX (section 4a) on 2026-08-05 - the last two. For DX that covers audio out, the factory presets sounding as they should, the whole of the user interface that used to run on core1 (preset switching, master volume, the settings write), and USB MIDI far enough that Soundmondo connects and loads voices into it.
 - PicoFaceJV added as the ninth instrument: a native JV-880 engine over the
   machine's own PCM data, every law measured differentially against a
@@ -396,6 +396,17 @@ These defines are deliberately not unified in the helper but set per instrument 
   bend, wheel, pressure and a joystick offset per voice; with parameter
   changes over MIDI in both directions; and with notes going out (the
   arpeggiator's on a channel of their own, and overflow).
+- PicoFaceCM added as the thirteenth instrument: the Roland CM-32L. It is the
+  second instrument on a ported foreign engine (after PicoFaceOB, section
+  6b): the synthesis core of munt's mt32emu, LGPL 2.1 or later, as a modified
+  copy with a list of every change. It is also the first that renders on both
+  cores as a matter of course - core1 is the engine's second executor, not a
+  worker for one stage - and the first whose engine is linked into RAM for
+  the most part, because flash is read through a cache the PCM samples go
+  through as well. 32 partials take 50 % of the block time on average while
+  a MIDI file plays, 61 % in the worst block (2026-11-12). Needs a local ROM
+  set. The panel has no state of its own: every value is a byte in the
+  module's memory.
 - `tools/check_clean_build.sh` builds the collection from a fresh clone with the
   ROMs copied in from outside git. Four instruments need a local ROM set that
   cannot be in the repository, so whether a stranger with the right ROMs can
@@ -422,6 +433,7 @@ These defines are deliberately not unified in the helper but set per instrument 
 | PicoFaceD5 | 924,136 | 248,152 | 0x1059 | - (new) |
 | PicoFaceM1 | 4,481,068 | 280,848 | 0x105A | - (new) |
 | PicoFaceVS | 277,008 | 128,248 | 0x105B | - (new) |
+| PicoFaceCM | 1,276,768 | 123,288 | 0x105C | - (new; measured 12.11.2026) |
 
 Measured with `arm-none-eabi-size` (text / bss) on the build of 11.09.2026
 (after the shared UI kit, the 4 MB CP sets and the reface module; RD after the
