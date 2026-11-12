@@ -82,6 +82,9 @@ struct OscParams {
     int   coarse = 0;        // 0..24 semitones upward
     int   fine = 0;          // 0..99 cents upward
     float level = 1.0f;
+    // Edit Waveform mode (owner's manual ch. 13): the wave runs at this
+    // multiple of the pitch, 1..32. Programs always use 1.
+    int   harmonic = 1;
 };
 
 // Destination bits of the LFOs (order of the firmware tables @0x5F6 / @0x61E)
@@ -167,9 +170,16 @@ struct Params {
     int arpOctaves = 0;      // 0..3 additional octaves upward
     int arpRepeats = 0;      // 0..3 additional repeats per note
     bool arpVelocity = true; // use the played velocity (otherwise fixed 80)
-    int arpSplit = 0;        // split only: 0 off, arpeggiate 1 right, 2 left
-    bool arpPoly = true;     // false: mono voicing, one voice per layer
-    bool arpRests = false;   // top C (note 96) counts as a rest
+    // Split programs only: 0 off, 1 arpeggiate right of the split point,
+    // 2 left of it, 3 dual - both sides, as two separate sequences
+    int arpSplit = 0;
+    bool arpPoly = true;     // false: mono voicing, one voice per sequence
+    // Top C (note 96) counts as a rest; with an arpeggiator split the lowest
+    // C (note 36) as well
+    bool arpRests = false;
+    // Layer (field 94): with a latched sequence, keys held after that are
+    // arpeggiated as a second sequence beside it (overdub)
+    bool arpLayer = false;
 
     // Chord mode of the Pro VS Mini: 0 = off, 1..8 = chord set (kChordSets);
     // each key plays three notes. Only with the Behringer data (PROVS_HAS_PVM).
@@ -213,15 +223,24 @@ public:
     void setArp(bool on);
     bool arp() const { return arpOn_; }
     void setArpClocksPerStep(int clocks) { arpClocksPerStep_ = clocks < 1 ? 1 : clocks; }
-    // Latch: the played keys stay remembered after they are released.
+    // Latch (@0x2FC4): freezes the sequences as they are. Keys played after
+    // that sound normally - or, with the Layer option on, are arpeggiated as
+    // a second sequence over the first. Switched on while nothing is held it
+    // waits for the next keys instead and latches them once they are all
+    // released: a panel without a latch button cannot be pressed while a
+    // chord is held. Switching it off drops what is no longer held.
     void setArpLatch(bool on);
+    bool arpLatched() const { return arpLatched_; }
     // Transpose of the arpeggiator notes in semitones (in the original: key
     // relative to middle C while Latch/Transpose is held)
     void setArpTranspose(int semitones) { arpTranspose_ = semitones; }
     // External clock: when true the arpeggiator runs only via arpTick()
     // (e.g. MIDI clock, 24 per quarter note)
     void setArpExternalClock(bool on) { arpExternal_ = on; }
-    void arpTick() { if (arpOn_ && arpExternal_ && arpCount_ > 0) arpClock(); }
+    void arpTick() { if (arpOn_ && arpExternal_ && arpAny()) arpClock(); }
+    // Keys a sequence holds: 0 = the first, 1 = the overdub or the left half
+    // of a dual split (for tests and displays)
+    int arpKeyCount(int sequence) const { return arp_[sequence & 1].count; }
 
     // Render an audio block (interleaved stereo)
     void render(float* out, int frames);
@@ -272,6 +291,46 @@ public:
     static size_t dumpVsProgram(const uint8_t* fields, int slot, uint8_t* out);
     static void dumpVsNibbles(const uint8_t* fields, uint8_t* out164);
 
+    // --- User waves ----------------------------------------------------------
+    // Waves 0..31 are RAM on the original: 128 samples of 12 bits, signed. A
+    // slot that has been written plays from here; one that has not plays what
+    // the build put there (the Pro VS Mini's wave, or silence). Shared by all
+    // Engine instances, like the program bank.
+    static constexpr int kUserWaves = 32;
+    static constexpr int kWaveSamples = 128;
+    static constexpr int kWaveRecordBytes = 192;
+    // Writes a slot. Its band-limited levels are computed by buildUserWaves();
+    // until then the slot plays what it played before.
+    static void setUserWave(int slot, const int16_t* samples);
+    // Back to what the build put there.
+    static void clearUserWave(int slot);
+    static void clearUserWaves();
+    static uint32_t userWaveMask();              // bit n: slot n has been written
+    // The 12-bit samples of a written slot (zeros and false for one that has
+    // not been).
+    static bool userWave(int slot, int16_t* out);
+    // Computes the band-limited levels of written slots, at most 'harmonics'
+    // harmonics of work per call (31 complete one wave; each costs about a
+    // thousand multiplications). Returns true while work is left, so a caller
+    // can spread it over its ticks.
+    static bool buildUserWaves(int harmonics);
+    // The samples of any wave 0..126 on the 12-bit scale, whatever it plays
+    // from. The Mini's waves may exceed 12 bits; 127 (noise) gives zeros.
+    static void waveSamples(int wave, int16_t* out);
+    // The mix of four waves as Edit Waveform mode stores it (@0x7222): each
+    // wave read at its harmonic step, weighted by the joystick position x, y
+    // (-1..+1), rounded to 12 bits. A mix that would exceed them is scaled
+    // down as a whole.
+    static void mixWave(const int* wave, const int* harmonic, float x, float y, int16_t* out);
+    // The 192-byte record of the firmware: the upper eight bits of the 128
+    // samples, then their lower four bits, two samples to a byte.
+    static void packWave(const int16_t* samples, uint8_t* record);
+    static void unpackWave(const uint8_t* record, int16_t* samples);
+    // The table a written slot plays from: level 0 is the wave, 1..3 are
+    // band-limited to 31, 15 and 7 harmonics; 128 samples, full scale 16384
+    // (for tests)
+    static const int16_t* userWaveTable(int slot, int level);
+
     // Patch bank of the Behringer Pro VS Mini (F0 00 20 32 ..., 32 patches).
     // Usable only with the optional Behringer tables (PROVS_HAS_PVM, ADSR times),
     // otherwise returns 0.
@@ -300,6 +359,7 @@ private:
     };
     struct Voice {
         bool on = false, held = false, pending = false;
+        int arpSeq = -1;       // started by this arpeggiator sequence, -1 = by a key
         int index = 0;
         int layer = 0;
         int note = 60;
@@ -347,11 +407,16 @@ private:
     void keyOff(int note);
     void inputOn(int note, int velocity);
     void inputOff(int note);
-    bool arpTakes(int note) const;
+    struct ArpSeq;
+    bool arpAny() const { return arp_[0].count > 0 || arp_[1].count > 0; }
+    int arpRoute(int note) const;
+    void arpSeqReset(ArpSeq& q);
+    void arpLatchNow();
     void arpClock();
-    void arpStep();
-    void arpGateOff();
-    void arpRestart();
+    void arpStepSeq(int s);
+    void arpGateOff(int s);
+    bool arpOwns(int voice) const;
+    int keysDown(int lo, int hi) const;
     void startRelease(Voice& v);
     void releaseHeld();
     void countActive();
@@ -374,19 +439,29 @@ private:
     int heldNotes_[2][16];
     int heldCount_[2] = {0, 0};
     int unisonNote_[2] = {-1, -1};
-    // Arpeggiator
+    // Arpeggiator: two sequences as in the firmware (@0xFFFFB828 and
+    // @0xFFFFBA26), stepped together. The first takes the keys; the second
+    // is the overdub of the Layer option, or the left half of a dual split.
     struct ArpKey { int note; int velocity; };
     static constexpr int kArpMaxKeys = 64;
-    ArpKey arpKeys_[kArpMaxKeys];
-    int arpCount_ = 0, arpHeld_ = 0;
+    struct ArpSeq {
+        ArpKey keys[kArpMaxKeys];
+        int count = 0;
+        int mode = kArpNormal;     // the arpeggiator mode it was recorded in
+        bool latched = false;      // held by the latch (flag at 0x1F0)
+        int pos = -1, oct = 0, dir = 1, repeatLeft = 0;
+        int note = -1;             // the note it sounds
+        bool sounding = false;
+    };
+    ArpSeq arp_[2];
+    uint32_t keyDown_[4] = {0, 0, 0, 0};   // keys physically held, one bit per note
     bool arpOn_ = false;
+    bool arpLatchWanted_ = false, arpLatched_ = false, arpArmed_ = false;
     int arpClocksPerStep_ = 6;
     int arpClock_ = 0;             // clocks until the next step
     float arpSamples_ = 0.0f;      // samples until the next clock
-    int arpPos_ = -1, arpOct_ = 0, arpDir_ = 1, arpRepeatLeft_ = 0;
-    int arpNote_ = -1, arpVel_ = 80;   // last played note
-    bool arpSounding_ = false;
-    bool arpLatch_ = false, arpExternal_ = false, arpFromArp_ = false;
+    bool arpExternal_ = false;
+    int arpSeqNow_ = -1;           // the sequence whose note is being started or ended
     int arpTranspose_ = 0;
     // Double with delay: delayed notes of the second layer
     Delayed delayed_[32];

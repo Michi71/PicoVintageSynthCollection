@@ -3,8 +3,8 @@
 
 // VS_Controller.h -- the panel of PicoFaceVS and everything behind it that is
 // not audio: which program plays, the edit buffer, Write and Compare, the
-// arpeggiator and chord switches, SysEx dumps in both directions and the
-// moment the bank goes to flash.
+// joystick, the arpeggiator and chord switches, Edit Waveform mode, SysEx in
+// both directions and the moment the memory goes to flash.
 //
 // Controls, as on PicoFaceM1: SEL turns the pages, A and B the two values
 // shown. A long press on SEL opens the menu. In an edit page a short press on
@@ -21,55 +21,59 @@
 #include "picoface/list_view.h"
 #include "picoface/ui.h"
 #include "provs/engine.h"
+#include "vs_dump.h"
 #include "vs_store.h"
 
-// SysEx output, provided by the adapter (both wires) or by the host test.
-// vs_sysex_room() is how many bytes may be written right now.
-size_t vs_sysex_room();
-void   vs_sysex_write(const uint8_t* data, size_t len);
-
-struct VsSettingsV2 {
+struct VsSettingsV3 {
     uint8_t bank;
     uint8_t program;
-    uint8_t fx;         // 0 = as programmed, 1..4 = forced effect type + 1
-    uint8_t volume;     // 0..100
-    uint8_t arp;        // 0 off, 1 on, 2 latch
-    uint8_t arpClock;   // 0 internal, 1 MIDI clock
-    uint8_t clocks;     // clocks per arpeggiator step, 1..24
-    uint8_t chord;      // 0 off, 1..8 chord set
+    uint8_t fx;           // 0 = as programmed, 1..4 = forced effect type + 1
+    uint8_t volume;       // 0..100
+    uint8_t arp;          // 0 off, 1 on, 2 latch
+    uint8_t arpClock;     // 0 internal, 1 MIDI clock
+    uint8_t clocks;       // clocks per arpeggiator step, 1..24
+    uint8_t chord;        // 0 off, 1..8 chord set
+    uint8_t midiChannel;  // 0..15, 16 = omni
+    int8_t  joyX, joyY;   // joystick, -64..+64; x toward C, y toward D
+    uint8_t waveNo[4];    // Edit Waveform: the wave of A-D, 0..126
+    uint8_t waveHarm[4];  //   its harmonic, 1..32
+    int8_t  waveX, waveY; //   and the mix position
 };
-constexpr uint16_t kVsSettingsVersion = 2;
+constexpr uint16_t kVsSettingsVersion = 3;
 
 class VS_Controller {
 public:
     enum Bank : uint8_t { kBankVs = 0, kBankMini = 1 };
-    enum class Page : uint8_t { Program = 0, Level, Arp, Arp2, Diag, Count };
+    enum class Page : uint8_t { Program = 0, Level, Joystick, Arp, Arp2, Midi, Diag, Count };
 
     VS_Controller(provs::Engine& engine, vs::Store& store) : engine_(engine), store_(store) {}
 
     // After Engine::init(). 'banks' are the .syx files embedded at build time
-    // (may be empty); a bank stored in flash takes precedence over them.
+    // (may be empty); what is stored in flash takes precedence over them.
     void init(const uint8_t* banks, size_t size);
 
     // One UI tick; returns true if the screen needs a redraw.
     bool input(const picoface::ui::InputState& in);
     // Draws the whole screen. Returns true if a name is scrolling.
     bool draw(picoface::ui::Display& d, uint32_t nowMs);
-    // Every tick: feeds a running dump and writes the bank to flash once
-    // things have been quiet. Returns true if the screen needs a redraw.
+    // Every tick: feeds a running dump, computes the levels of a user wave
+    // that has changed and writes the memory to flash once things have been
+    // quiet. Returns true if the screen needs a redraw.
     bool poll(uint32_t nowMs);
 
     // MIDI
+    bool accepts(uint8_t channel) const { return midiChannel_ > 15 || channel == midiChannel_; }
     void programChange(uint8_t bankLsb, uint8_t program);
     void setVolume(uint8_t volume);                 // 0..100
+    void setJoystick(int axis, uint8_t value);      // controllers 16 (x) and 17 (y), 64 = center
     void sysExMessage(const uint8_t* data, size_t length);   // one complete message
     void midiClock() { engine_.arpTick(); }
 
     void setLoad(float percent);
-    bool sending() const { return txBank_ || txProgram_; }
+    bool sending() const { return dump_.busy(); }
 
-    void exportSettings(VsSettingsV2& s) const;
-    void importSettings(const VsSettingsV2& s);
+    void exportSettings(VsSettingsV3& s) const;
+    void importSettings(const VsSettingsV3& s);
 
     // For the host test.
     Page page() const { return page_; }
@@ -77,27 +81,34 @@ public:
     const uint8_t* editBuffer() const { return edit_; }
 
 private:
-    enum class State : uint8_t { Play, Menu, Edit, Groups, Write, Send, Confirm };
+    enum class State : uint8_t { Play, Menu, Edit, Groups, Write, Send, Confirm, Wave };
 
     static int count(uint8_t bank);
     void select(uint8_t bank, int program);
-    void play();                    // the current program into the engine
+    void play();                    // what is selected into the engine
+    void playWaveEdit();
     void applyOverrides();
     void applyArp();
     void editStep(int which, int delta);
     void write(int slot);
+    void storeWave();
+    void receiveWaves(const uint8_t* data, size_t length);
     void factoryReset();
     void openMenu();
     void openSend();
     void menuChoose(int i);
     void popup(const char* text);
+    uint8_t channel() const { return midiChannel_ > 15 ? 0 : midiChannel_; }
 
     bool drawPlay(picoface::ui::Display& d, uint32_t nowMs);
     void drawEdit(picoface::ui::Display& d);
     void drawWrite(picoface::ui::Display& d);
+    void drawWave(picoface::ui::Display& d);
+    static void drawVector(picoface::ui::Display& d, int x, int y);
 
     provs::Engine& engine_;
     vs::Store& store_;
+    VS_Dump dump_;
     const uint8_t* banks_ = nullptr;
     size_t banksSize_ = 0;
 
@@ -111,12 +122,21 @@ private:
     uint8_t arpClock_ = 0;
     uint8_t clocks_ = 6;
     uint8_t chord_ = 0;
+    uint8_t midiChannel_ = 16;
+    int8_t  joyX_ = 0, joyY_ = 0;
 
     uint8_t edit_[provs::Engine::kVsFields] = {0};
     bool    edited_ = false;
     bool    comparing_ = false;
     int     cursor_ = 0;           // index of the first of the two shown params
     int     writeTo_ = 0;
+
+    // Edit Waveform mode
+    uint8_t wavePage_ = 0;         // 0..3 wave A-D, 4 mix, 5 store
+    uint8_t waveNo_[4] = {32, 32, 32, 32};
+    uint8_t waveHarm_[4] = {1, 2, 3, 4};
+    int8_t  waveX_ = 0, waveY_ = 0;
+    uint8_t waveTo_ = 0;
 
     // menus
     picoface::ui::ListView list_;
@@ -127,11 +147,6 @@ private:
     uint32_t popupUntil_ = 0;
     uint32_t nowMs_ = 0;
     bool    selWasDown_ = false, selLongSeen_ = false;   // SEL click on release
-
-    // dumps going out
-    bool    txProgram_ = false;    // one program (the edit buffer) is waiting
-    bool    txBank_ = false;
-    int     txNext_ = 0;           // next program of a bank dump
 
     // flash mirror
     uint32_t memChangedMs_ = 0;

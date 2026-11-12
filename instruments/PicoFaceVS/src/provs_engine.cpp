@@ -235,6 +235,201 @@ const char* Engine::pvmPatchName(int) { return ""; }
 void Engine::setPvmPatch(int) {}
 #endif
 
+// --- User waves ----------------------------------------------------------------
+// Waves 0..31 are RAM on the original (NVRAM @0xFFFFA008, 192 bytes each).
+// Here a slot that has been written plays from the tables below; one that has
+// not plays what the build put there - the Pro VS Mini's wave, or silence.
+
+namespace {
+constexpr int kUserWaveCount = Engine::kUserWaves;
+static_assert(Engine::kWaveSamples == kWaveFrames, "wave length");
+int16_t gUserRaw[kUserWaveCount][kWaveFrames];                 // 12 bit signed, as written
+int16_t gUserMips[kUserWaveCount][kWaveMips][kWaveFrames];     // amplitude 1 = kUserUnit
+uint32_t gUserMask = 0;          // slots that have been written
+uint32_t gUserPending = 0;       // slots whose band-limited levels are out of date
+// Half the int16 range for full scale: band-limiting overshoots at edges.
+constexpr float kUserUnit = 16384.0f;
+
+// One cycle of sine in 128 steps. Every harmonic of a 128-sample wave lands
+// on these points, so analysis and synthesis need no other values.
+float gSine[kWaveFrames];
+bool gSineReady = false;
+
+// The wave whose levels are being computed, harmonic by harmonic.
+int gBuildSlot = -1;
+int gBuildHarm = 0;                               // the next harmonic
+float gBuildAcc[kWaveFrames];                     // sum of the harmonics so far
+int16_t gBuildMips[kWaveMips][kWaveFrames];
+
+inline int16_t toUserUnit(float v12) {
+    const float v = v12 * (kUserUnit / 2048.0f);
+    return int16_t(v < -32768.0f ? -32768 : (v > 32767.0f ? 32767 : std::lround(v)));
+}
+}  // namespace
+
+void Engine::setUserWave(int slot, const int16_t* samples) {
+    if (slot < 0 || slot >= kUserWaveCount) return;
+    for (int n = 0; n < kWaveFrames; ++n) {
+        const int v = samples[n];
+        gUserRaw[slot][n] = int16_t(v < -2048 ? -2048 : (v > 2047 ? 2047 : v));
+    }
+    // A slot that is new has nothing to go on playing: start it on the wave
+    // itself until the band-limited levels are there.
+    if (!((gUserMask >> slot) & 1u))
+        for (int m = 0; m < kWaveMips; ++m)
+            for (int n = 0; n < kWaveFrames; ++n) gUserMips[slot][m][n] = int16_t(gUserRaw[slot][n] * 8);
+    gUserMask |= 1u << slot;
+    gUserPending |= 1u << slot;
+}
+
+void Engine::clearUserWave(int slot) {
+    if (slot < 0 || slot >= kUserWaveCount) return;
+    gUserMask &= ~(1u << slot);
+    gUserPending &= ~(1u << slot);
+    if (gBuildSlot == slot) gBuildSlot = -1;
+}
+
+void Engine::clearUserWaves() {
+    gUserMask = gUserPending = 0;
+    gBuildSlot = -1;
+}
+
+uint32_t Engine::userWaveMask() { return gUserMask; }
+
+const int16_t* Engine::userWaveTable(int slot, int level) {
+    return gUserMips[slot & (kUserWaveCount - 1)][level & (kWaveMips - 1)];
+}
+
+bool Engine::userWave(int slot, int16_t* out) {
+    const bool set = slot >= 0 && slot < kUserWaveCount && ((gUserMask >> slot) & 1u);
+    for (int n = 0; n < kWaveFrames; ++n) out[n] = set ? gUserRaw[slot][n] : int16_t(0);
+    return set;
+}
+
+// Level 0 is the wave itself. Levels 1..3 keep its mean and the harmonics up
+// to 31, 15 and 7, like the tables the build makes for the ROM waves.
+bool Engine::buildUserWaves(int harmonics) {
+    if (!gSineReady) {
+        for (int n = 0; n < kWaveFrames; ++n)
+            gSine[n] = std::sin(6.283185307f * float(n) / float(kWaveFrames));
+        gSineReady = true;
+    }
+    while (harmonics > 0) {
+        if (gBuildSlot >= 0 && ((gUserPending >> gBuildSlot) & 1u)) gBuildSlot = -1;   // written again: start over
+        if (gBuildSlot < 0) {
+            if (!gUserPending) return false;
+            int slot = 0;
+            while (!((gUserPending >> slot) & 1u)) ++slot;
+            gUserPending &= ~(1u << slot);
+            gBuildSlot = slot;
+            gBuildHarm = 1;
+            float mean = 0.0f;
+            for (int n = 0; n < kWaveFrames; ++n) mean += float(gUserRaw[slot][n]);
+            mean *= 1.0f / float(kWaveFrames);
+            for (int n = 0; n < kWaveFrames; ++n) {
+                gBuildAcc[n] = mean;
+                gBuildMips[0][n] = int16_t(gUserRaw[slot][n] * 8);
+            }
+        }
+        const int16_t* raw = gUserRaw[gBuildSlot];
+        const int h = gBuildHarm;
+        float re = 0.0f, im = 0.0f;
+        for (int n = 0, i = 0; n < kWaveFrames; ++n, i = (i + h) & (kWaveFrames - 1)) {
+            re += float(raw[n]) * gSine[(i + kWaveFrames / 4) & (kWaveFrames - 1)];
+            im += float(raw[n]) * gSine[i];
+        }
+        re *= 2.0f / float(kWaveFrames);
+        im *= 2.0f / float(kWaveFrames);
+        for (int n = 0, i = 0; n < kWaveFrames; ++n, i = (i + h) & (kWaveFrames - 1))
+            gBuildAcc[n] += re * gSine[(i + kWaveFrames / 4) & (kWaveFrames - 1)] + im * gSine[i];
+        --harmonics;
+        for (int m = 1; m < kWaveMips; ++m)
+            if (h == kMipHarmonics[m])
+                for (int n = 0; n < kWaveFrames; ++n) gBuildMips[m][n] = toUserUnit(gBuildAcc[n]);
+        if (++gBuildHarm > kMipHarmonics[1]) {
+            for (int m = 0; m < kWaveMips; ++m)
+                for (int n = 0; n < kWaveFrames; ++n) gUserMips[gBuildSlot][m][n] = gBuildMips[m][n];
+            gBuildSlot = -1;
+        }
+    }
+    return gBuildSlot >= 0 || gUserPending != 0;
+}
+
+void Engine::waveSamples(int wave, int16_t* out) {
+    for (int n = 0; n < kWaveFrames; ++n) out[n] = 0;
+    if (wave < 0 || wave >= kWaveCountVS) return;            // 127 = noise: nothing to read
+    if (wave < kUserWaveCount && ((gUserMask >> wave) & 1u)) {
+        for (int n = 0; n < kWaveFrames; ++n) out[n] = gUserRaw[wave][n];
+        return;
+    }
+    const int16_t* tab = kWaveDataVS + wave * kWaveMips * kWaveFrames;
+    float scale = kWaveDataGain / 32767.0f * 2048.0f;
+#if PROVS_HAS_PVM
+    if (wave < kPvmUserWaveCount) {
+        tab = kPvmUserWaves + wave * kWaveMips * kWaveFrames;
+        scale = kPvmUserWaveGain / 32767.0f * 2048.0f;
+    }
+#endif
+    for (int n = 0; n < kWaveFrames; ++n) out[n] = int16_t(std::lround(float(tab[n]) * scale));
+}
+
+// The firmware's own arithmetic (@0x7272 ff.), so that a wave made here is
+// the wave the original would have stored.
+void Engine::mixWave(const int* wave, const int* harmonic, float x, float y, int16_t* out) {
+    // Joystick position as 16 bit signed (@0xC54C, @0xC54E); u = x + y and
+    // w = y - x, saturated, taken as unsigned
+    auto q15 = [](float v) { return int(std::lround(clampf(v, -1.0f, 1.0f) * 32767.0f)); };
+    auto sat = [](int v) { return v < -32768 ? -32768 : (v > 32767 ? 32767 : v); };
+    const int jx = q15(x), jy = q15(y);
+    const uint32_t u = uint32_t(sat(jx + jy) + 32768), w = uint32_t(sat(jy - jx) + 32768);
+    const uint32_t nu = 0xFFFFu - u, nw = 0xFFFFu - w;
+    // A = (1-u)w, B = (1-u)(1-w), C = u(1-w), D = the rest; then 15 bit
+    uint32_t gain[4];
+    gain[0] = (nu * w) >> 16;
+    gain[1] = (nw * nu) >> 16;
+    gain[2] = (u * nw) >> 16;
+    gain[3] = 0xFFFFu - ((gain[0] + gain[1] + gain[2]) & 0xFFFFu);
+    for (uint32_t& g : gain) g >>= 1;
+
+    int16_t src[4][kWaveFrames];
+    int step[4];
+    for (int k = 0; k < 4; ++k) {
+        waveSamples(wave[k], src[k]);
+        step[k] = harmonic[k] < 1 ? 1 : (harmonic[k] > 32 ? 32 : harmonic[k]);
+    }
+    int32_t mix[kWaveFrames];
+    int32_t peak = 0;
+    for (int n = 0; n < kWaveFrames; ++n) {
+        int64_t acc = 0;
+        for (int k = 0; k < 4; ++k)                           // samples left-aligned in 16 bits
+            acc += int64_t(src[k][(n * step[k]) & (kWaveFrames - 1)]) * 16 * int64_t(gain[k]);
+        mix[n] = int32_t(((2 * acc) >> 16) + 8);              // @0x7304: rounds to 12 bits
+        const int32_t mag = mix[n] < 0 ? -mix[n] - 1 : mix[n];
+        if (mag > peak) peak = mag;
+    }
+    // The ROM's waves fit twelve bits, and so does any mix of them. The
+    // reconstructed ones overshoot a little and the Mini's are hotter: a mix
+    // of those that would clip is scaled down as a whole instead, which
+    // costs a little level and nothing of the timbre.
+    for (int n = 0; n < kWaveFrames; ++n) {
+        const int32_t v = peak > 32767 ? int32_t(int64_t(mix[n]) * 32767 / peak) : mix[n];
+        out[n] = int16_t(v >> 4);
+    }
+}
+
+void Engine::packWave(const int16_t* samples, uint8_t* record) {
+    for (int n = 0; n < kWaveFrames; ++n) record[n] = uint8_t((samples[n] >> 4) & 0xFF);
+    for (int n = 0; n < kWaveFrames; n += 2)
+        record[kWaveFrames + n / 2] = uint8_t(((samples[n] & 15) << 4) | (samples[n + 1] & 15));
+}
+
+void Engine::unpackWave(const uint8_t* record, int16_t* samples) {       // @0x73E4
+    for (int n = 0; n < kWaveFrames; ++n) {
+        const uint8_t lo = record[kWaveFrames + n / 2];
+        samples[n] = int16_t(int(int8_t(record[n])) * 16 + ((n & 1) ? (lo & 15) : (lo >> 4)));
+    }
+}
+
 // --- Envelopes -----------------------------------------------------------------
 
 // Level and time sequence like the firmware's working tables (@0x479C, @0x47EE):
@@ -393,16 +588,22 @@ void Engine::voiceControl(Voice& v, bool snap) {
         for (int k = 0; k < 2; ++k)
             if (P.lfo[k].dest & (kLfoFreqA << i)) cents += L[k].out * 256.0f;
         if (P.pressDest & (kPressFreqA << i)) cents += press * 512.0f;
-        v.inc[i] = 440.0f * std::exp2(cents / 1200.0f) * float(kWaveFrames) / sr_;
+        // Edit Waveform mode reads the wave at a multiple of the pitch (@0x4418)
+        const float harm = float(o.harmonic < 1 ? 1 : (o.harmonic > 32 ? 32 : o.harmonic));
+        v.inc[i] = 440.0f * std::exp2(cents / 1200.0f) * harm * float(kWaveFrames) / sr_;
         // Mip level chosen by the unmodulated pitch: highest harmonic below
         // half the sample rate, no switching during vibrato
-        const float maxHarm = 0.5f * sr_ / (440.0f * std::exp2(base / 1200.0f));
+        const float maxHarm = 0.5f * sr_ / (440.0f * std::exp2(base / 1200.0f) * harm);
         int mip = 0;
         while (mip < kWaveMips - 1 && float(kMipHarmonics[mip]) > maxHarm) ++mip;
         const int w = o.wave & 127;
         v.tabScale[i] = kWaveDataGain / 32767.0f;
         if (w >= kWaveCountVS) {
             v.tab[i] = nullptr;              // 127 = noise
+        } else if (w < kUserWaveCount && ((gUserMask >> w) & 1u)) {
+            // a user wave that has been written
+            v.tab[i] = gUserMips[w][mip];
+            v.tabScale[i] = 1.0f / kUserUnit;
 #if PROVS_HAS_PVM
         } else if (w < kPvmUserWaveCount) {
             // Waves 0..31 are not in the ROM; if available, taken from the Behringer data
@@ -496,19 +697,28 @@ void Engine::countActive() {
     for (int i = 0; i < kMaxVoices; ++i) active_ += voices_[i].on ? 1 : 0;
 }
 
+// Mono voicing of the arpeggiator (@0x5FC6): voice 1 belongs to its first
+// sequence, and voice 5 to the second whenever there can be one - a split or
+// double program, or the Layer option. Keys played beside it use the others.
+bool Engine::arpOwns(int voice) const {
+    if (!arpOn_ || p_.arpPoly) return false;
+    if (voice == 0) return true;
+    return voice == kMaxVoices / 2 && (p_.keyMode != kKeyNormal || p_.arpLayer);
+}
+
 int Engine::pickVoice(int lo, int hi) {
     for (int i = lo; i < hi; ++i)
-        if (!voices_[i].on) return i;
+        if (!voices_[i].on && !arpOwns(i)) return i;
     int best = -1;                           // oldest releasing one, otherwise the oldest
     uint64_t oldest = ~0ull;
     for (int i = lo; i < hi; ++i)
-        if (voices_[i].amp.stage >= kEnvRelease && voices_[i].age < oldest) {
+        if (!arpOwns(i) && voices_[i].amp.stage >= kEnvRelease && voices_[i].age < oldest) {
             oldest = voices_[i].age; best = i;
         }
     if (best < 0)
         for (int i = lo; i < hi; ++i)
-            if (voices_[i].age < oldest) { oldest = voices_[i].age; best = i; }
-    return best;
+            if (!arpOwns(i) && voices_[i].age < oldest) { oldest = voices_[i].age; best = i; }
+    return best < 0 ? lo : best;
 }
 
 void Engine::startVoice(int index, int note, int velocity, float detune, int layer) {
@@ -524,6 +734,7 @@ void Engine::startVoice(int index, int note, int velocity, float detune, int lay
     v.held = true;
     v.index = index;
     v.layer = layer;
+    v.arpSeq = arpSeqNow_;
     v.note = note;
     v.detune = detune;
     v.glide = glides ? from - target : 0.0f;
@@ -564,7 +775,7 @@ void Engine::unisonUpdate(int layer, int velocity) {
     if (lowest < 0) {
         for (int i = lo; i < hi; ++i) {
             Voice& v = voices_[i];
-            if (!v.on || !v.held) continue;
+            if (!v.on || !v.held || arpOwns(i)) continue;
             if (hold_) v.pending = true; else startRelease(v);
         }
         return;
@@ -572,7 +783,7 @@ void Engine::unisonUpdate(int layer, int velocity) {
     const int step = lp(layer).unison * (p_.keyMode == kKeyNormal ? 1 : 2);
     const float base = (layer == 1 && p_.keyMode == kKeyDouble) ? float(p_.doubleDetune) : 0.0f;
     for (int i = lo; i < hi; ++i)
-        startVoice(i, lowest, velocity, base + float((i - lo) * step), layer);
+        if (!arpOwns(i)) startVoice(i, lowest, velocity, base + float((i - lo) * step), layer);
 }
 
 void Engine::layerNoteOn(int layer, int note, int velocity) {
@@ -585,10 +796,7 @@ void Engine::layerNoteOn(int layer, int note, int velocity) {
     layerRange(layer, lo, hi);
     // Double: the linked program sounds doubleDetune cents higher (@0x4064)
     const float detune = (layer == 1 && p_.keyMode == kKeyDouble) ? float(p_.doubleDetune) : 0.0f;
-    // Mono voicing of the arpeggiator (@0x5FC6): one voice per layer, which
-    // is restarted on every note
-    const int voice = (arpFromArp_ && !p_.arpPoly) ? lo : pickVoice(lo, hi);
-    startVoice(voice, note, velocity, detune, layer);
+    startVoice(pickVoice(lo, hi), note, velocity, detune, layer);
 }
 
 void Engine::layerNoteOff(int layer, int note) {
@@ -604,6 +812,7 @@ void Engine::layerNoteOff(int layer, int note) {
     for (int i = lo; i < hi; ++i) {
         Voice& v = voices_[i];
         if (!v.on || !v.held || v.note != note || v.layer != layer) continue;
+        if ((v.arpSeq >= 0) != (arpSeqNow_ >= 0)) continue;
         if (hold_) v.pending = true; else startRelease(v);
     }
 }
@@ -654,129 +863,218 @@ void Engine::keyOff(int note) {
 // Sequence as in the firmware (@0x5FEC ff.): the internal clock has a period of
 // (106 - rate) interrupts of 1 ms each (@0x5F26). One step per clocks/step; the
 // note ends after half of the step (@0x6020).
+//
+// There are two sequences (@0xFFFFB828 and @0xFFFFBA26), stepped together
+// (@0x607A). The first takes the keys. The second holds the overdub of the
+// Layer option, or the keys left of the split point when the arpeggiator
+// split is set to dual.
+
+void Engine::arpSeqReset(ArpSeq& q) {            // @0x6532
+    q.count = 0;
+    q.mode = p_.arpMode;
+    q.latched = false;
+    q.pos = -1;
+    q.oct = 0;
+    q.dir = 1;
+    q.repeatLeft = 0;
+}
 
 void Engine::setArp(bool on) {
     if (on == arpOn_) return;
-    if (!on) arpGateOff();
+    if (paramsDirty_) applyParams();
+    if (!on) { arpGateOff(0); arpGateOff(1); }
     arpOn_ = on;
-    arpCount_ = arpHeld_ = 0;
-    arpRestart();
-}
-
-void Engine::arpRestart() {
-    arpPos_ = -1;
-    arpOct_ = 0;
-    arpDir_ = 1;
-    arpRepeatLeft_ = 0;
+    arpSeqReset(arp_[0]);
+    arpSeqReset(arp_[1]);
+    arpLatched_ = false;
+    arpArmed_ = on && arpLatchWanted_;
     arpClock_ = 0;
     arpSamples_ = 0.0f;
 }
 
-void Engine::arpGateOff() {
-    if (!arpSounding_) return;
-    keyOff(arpNote_);
-    arpSounding_ = false;
+// Ends the note a sequence sounds. In poly voicing that is a key release like
+// any other; whatever the sequence started and is still held goes with it, so
+// a change of voicing in between leaves nothing hanging.
+void Engine::arpGateOff(int s) {
+    ArpSeq& q = arp_[s];
+    if (!q.sounding) return;
+    q.sounding = false;
+    arpSeqNow_ = s;
+    if (p_.arpPoly) keyOff(q.note);
+    for (int i = 0; i < kMaxVoices; ++i) {
+        Voice& v = voices_[i];
+        if (!v.on || !v.held || v.arpSeq != s) continue;
+        if (hold_) v.pending = true; else startRelease(v);
+    }
+    arpSeqNow_ = -1;
 }
 
 void Engine::arpClock() {
     if (--arpClock_ <= 0) {
         arpClock_ = arpClocksPerStep_;
-        arpStep();
+        arpStepSeq(0);
+        arpStepSeq(1);
     } else if (arpClock_ == arpClocksPerStep_ / 2) {
-        arpGateOff();
+        arpGateOff(0);
+        arpGateOff(1);
     }
 }
 
-void Engine::arpStep() {
-    arpGateOff();
-    const int n = arpCount_;
+void Engine::arpStepSeq(int s) {
+    ArpSeq& q = arp_[s];
+    arpGateOff(s);
+    const int n = q.count;
     if (n <= 0) return;
     const int octs = p_.arpOctaves < 0 ? 0 : (p_.arpOctaves > 3 ? 3 : p_.arpOctaves);
 
-    if (arpRepeatLeft_ > 0 && arpPos_ >= 0 && arpPos_ < n) {
-        --arpRepeatLeft_;                    // the same note once more
+    if (q.repeatLeft > 0 && q.pos >= 0 && q.pos < n) {
+        --q.repeatLeft;                      // the same note once more
     } else {
-        arpRepeatLeft_ = p_.arpRepeats < 0 ? 0 : (p_.arpRepeats > 3 ? 3 : p_.arpRepeats);
-        const bool first = arpPos_ < 0 || arpPos_ >= n;
+        q.repeatLeft = p_.arpRepeats < 0 ? 0 : (p_.arpRepeats > 3 ? 3 : p_.arpRepeats);
+        const bool first = q.pos < 0 || q.pos >= n;
         switch (p_.arpScan) {
             case kArpDown:
-                if (first) { arpPos_ = n - 1; arpOct_ = octs; }
-                else if (--arpPos_ < 0) { arpPos_ = n - 1; if (--arpOct_ < 0) arpOct_ = octs; }
+                if (first) { q.pos = n - 1; q.oct = octs; }
+                else if (--q.pos < 0) { q.pos = n - 1; if (--q.oct < 0) q.oct = octs; }
                 break;
             case kArpUpDown:
                 // reverse at the boundary without repeating the boundary note (@0x61C0)
-                if (first) { arpPos_ = 0; arpOct_ = 0; arpDir_ = 1; break; }
+                if (first) { q.pos = 0; q.oct = 0; q.dir = 1; break; }
                 if (n == 1 && octs == 0) break;
-                if (arpDir_ > 0) {
-                    if (arpPos_ + 1 < n) ++arpPos_;
-                    else if (arpOct_ < octs) { arpPos_ = 0; ++arpOct_; }
-                    else { arpDir_ = -1; if (--arpPos_ < 0) { arpPos_ = n - 1; --arpOct_; } }
+                if (q.dir > 0) {
+                    if (q.pos + 1 < n) ++q.pos;
+                    else if (q.oct < octs) { q.pos = 0; ++q.oct; }
+                    else { q.dir = -1; if (--q.pos < 0) { q.pos = n - 1; --q.oct; } }
                 } else {
-                    if (arpPos_ > 0) --arpPos_;
-                    else if (arpOct_ > 0) { arpPos_ = n - 1; --arpOct_; }
-                    else { arpDir_ = 1; if (++arpPos_ >= n) { arpPos_ = 0; ++arpOct_; } }
+                    if (q.pos > 0) --q.pos;
+                    else if (q.oct > 0) { q.pos = n - 1; --q.oct; }
+                    else { q.dir = 1; if (++q.pos >= n) { q.pos = 0; ++q.oct; } }
                 }
                 break;
             case kArpRandom:
                 rng_ ^= rng_ << 13; rng_ ^= rng_ >> 17; rng_ ^= rng_ << 5;
-                arpPos_ = int((rng_ >> 8) % uint32_t(n));
-                arpOct_ = int((rng_ >> 20) % uint32_t(octs + 1));
+                q.pos = int((rng_ >> 8) % uint32_t(n));
+                q.oct = int((rng_ >> 20) % uint32_t(octs + 1));
                 break;
             case kArpReverse:
-                if (first) { arpPos_ = n - 1; arpOct_ = 0; }
-                else if (--arpPos_ < 0) { arpPos_ = n - 1; if (++arpOct_ > octs) arpOct_ = 0; }
+                if (first) { q.pos = n - 1; q.oct = 0; }
+                else if (--q.pos < 0) { q.pos = n - 1; if (++q.oct > octs) q.oct = 0; }
                 break;
             default:   // Up, Assign
-                if (first) { arpPos_ = 0; arpOct_ = 0; }
-                else if (++arpPos_ >= n) { arpPos_ = 0; if (++arpOct_ > octs) arpOct_ = 0; }
+                if (first) { q.pos = 0; q.oct = 0; }
+                else if (++q.pos >= n) { q.pos = 0; if (++q.oct > octs) q.oct = 0; }
                 break;
         }
     }
-    if (arpOct_ > octs) arpOct_ = octs;
+    if (q.oct > octs) q.oct = octs;
+    if (q.oct < 0) q.oct = 0;
 
     // Up/Down/UpDown run in pitch order, Assign/Reverse/Random in the
     // order in which the keys were struck
-    int index = arpPos_;
+    int index = q.pos;
     if (p_.arpScan <= kArpUpDown) {
         int order[kArpMaxKeys];
         for (int i = 0; i < n; ++i) order[i] = i;
         for (int i = 1; i < n; ++i) {
             const int k = order[i];
             int j = i - 1;
-            while (j >= 0 && arpKeys_[order[j]].note > arpKeys_[k].note) { order[j + 1] = order[j]; --j; }
+            while (j >= 0 && q.keys[order[j]].note > q.keys[k].note) { order[j + 1] = order[j]; --j; }
             order[j + 1] = k;
         }
-        index = order[arpPos_];
+        index = order[q.pos];
     }
-    // Rests: the top C of the VS keyboard stands for a rest (owner's manual ch. 5)
-    if (p_.arpRests && arpKeys_[index].note == 96) return;
-    // Pitch as at @0x62BC: key + 12 * octave + transpose, never negative
-    arpNote_ = arpKeys_[index].note + 12 * arpOct_ + arpTranspose_;
-    while (arpNote_ < 0) arpNote_ += 12;
-    arpVel_ = p_.arpVelocity ? arpKeys_[index].velocity : 80;
-    if (arpNote_ > 127) return;
-    arpFromArp_ = true;
-    keyOn(arpNote_, arpVel_);
-    arpFromArp_ = false;
-    arpSounding_ = true;
+    const ArpKey key = q.keys[index];
+    // Rests (@0x6464): the top C of the VS keyboard stands for a rest, and
+    // with an arpeggiator split the lowest C as well - the rest key of the
+    // left half (owner's manual ch. 5)
+    if (p_.arpRests && (key.note >= 96 || (p_.arpSplit != 0 && key.note <= 36))) return;
+    // Pitch as at @0x62BC: key + 12 * octave + transpose, brought back into
+    // range by octaves
+    int note = key.note + 12 * q.oct + arpTranspose_;
+    while (note < 0) note += 12;
+    while (note > 127) note -= 12;
+    const int vel = p_.arpVelocity ? key.velocity : 80;
+    q.note = note;
+    q.sounding = true;
+    arpSeqNow_ = s;
+    if (p_.arpPoly) {
+        keyOn(note, vel);                    // like a played key (@0x62EE)
+    } else {
+        // Mono voicing (@0x6306): the first sequence plays voice 1 and the
+        // second voice 5 - with split or double that is the linked program,
+        // in double detuned like it. The voice is restarted on every note.
+        const int voice = s ? kMaxVoices / 2 : 0;
+        const int layer = (s && p_.keyMode != kKeyNormal) ? 1 : 0;
+        const float detune = (s && p_.keyMode == kKeyDouble) ? float(p_.doubleDetune) : 0.0f;
+        startVoice(voice, note, vel, detune, layer);
+        countActive();
+    }
+    arpSeqNow_ = -1;
 }
 
-// Arpeggiator split (split programs only): 1 = arpeggiate only right of the
-// split point, 2 = only left of it; the other side plays normally.
-bool Engine::arpTakes(int note) const {
-    if (!arpOn_) return false;
-    if (p_.keyMode != kKeySplit) return true;
-    if (p_.arpSplit == 1) return note >= p_.splitPoint;
-    if (p_.arpSplit == 2) return note < p_.splitPoint;
-    return true;
+int Engine::keysDown(int lo, int hi) const {
+    int n = 0;
+    for (int k = lo < 0 ? 0 : lo; k < hi && k < 128; ++k) n += (keyDown_[k >> 5] >> (k & 31)) & 1u;
+    return n;
+}
+
+// Where a key goes (@0x6326): -1 = it is played normally, 0 = into the first
+// sequence, 1 = into the second.
+int Engine::arpRoute(int note) const {
+    if (!arpOn_) return -1;
+    const bool split = p_.keyMode == kKeySplit && p_.arpSplit != 0;
+    const bool left = note < p_.splitPoint;
+    if (!arpLatched_) {                              // @0x633E
+        if (!split) return 0;
+        if (!left) return (p_.arpSplit & 1) ? 0 : -1;          // right: Right and Dual
+        return p_.arpSplit == 2 ? 0 : (p_.arpSplit == 3 ? 1 : -1);
+    }
+    if (!p_.arpLayer) return -1;                     // @0x6374: latched, no overdub
+    if (!split) return 1;
+    // Dual has both sequences in use; a side can be overdubbed only if it was
+    // empty when the latch was set (flag at 0x1F0)
+    if (!left) {
+        if (p_.arpSplit == 1) return 1;
+        return (p_.arpSplit == 3 && !arp_[0].latched) ? 0 : -1;
+    }
+    if (p_.arpSplit == 2) return 1;
+    return (p_.arpSplit == 3 && !arp_[1].latched) ? 1 : -1;
+}
+
+void Engine::arpLatchNow() {                         // @0x2FCE
+    arpLatched_ = true;
+    arpArmed_ = false;
+    for (ArpSeq& q : arp_)
+        if (q.count > 0) q.latched = true;
 }
 
 void Engine::setArpLatch(bool on) {
-    arpLatch_ = on;
-    if (!on && arpHeld_ == 0 && p_.arpMode == kArpNormal) {
-        arpGateOff();
-        arpCount_ = 0;
-        arpPos_ = -1;
+    arpLatchWanted_ = on;
+    if (!arpOn_) return;
+    if (paramsDirty_) applyParams();
+    if (on) {
+        if (arpLatched_) return;
+        if (arpAny()) arpLatchNow(); else arpArmed_ = true;
+        return;
+    }
+    arpLatched_ = arpArmed_ = false;
+    const bool dual = p_.keyMode == kKeySplit && p_.arpSplit == 3;
+    for (int s = 0; s < 2; ++s) {
+        ArpSeq& q = arp_[s];
+        q.latched = false;
+        if (s == 1 && !dual) {                       // an overdub goes with the latch
+            arpGateOff(1);
+            q.count = 0;
+            q.pos = -1;
+            continue;
+        }
+        if (p_.arpMode != kArpNormal) continue;      // those modes remember by themselves
+        int kept = 0;
+        for (int i = 0; i < q.count; ++i)
+            if ((keyDown_[q.keys[i].note >> 5] >> (q.keys[i].note & 31)) & 1u) q.keys[kept++] = q.keys[i];
+        q.count = kept;
+        if (q.pos >= kept) q.pos = -1;
+        if (kept == 0) arpGateOff(s);
     }
 }
 
@@ -807,32 +1105,58 @@ void Engine::noteOff(int note) {
 
 void Engine::inputOn(int note, int velocity) {
     if (note < 0 || note > 127) return;
-    if (!arpTakes(note)) { keyOn(note, velocity); return; }
     if (paramsDirty_) applyParams();
-    const bool wasEmpty = arpCount_ == 0;
+    const int s = arpRoute(note);
+    // Auto-latch (@0x64B0) asks whether another key is down - on this side of
+    // the split point if the arpeggiator is split, anywhere otherwise
+    const bool split = p_.keyMode == kKeySplit && p_.arpSplit != 0;
+    const int others = !split ? keysDown(0, 128)
+                     : (note < p_.splitPoint ? keysDown(0, p_.splitPoint) : keysDown(p_.splitPoint, 128));
+    keyDown_[note >> 5] |= 1u << (note & 31);
+    if (s < 0) { keyOn(note, velocity); return; }
+
+    ArpSeq& q = arp_[s];
+    if (q.mode != p_.arpMode) arpSeqReset(q);        // @0x63BE: recorded in another mode
     // Auto-latch: a new key after all have been released starts over
-    if (p_.arpMode == kArpAutoLatch && arpHeld_ == 0) { arpCount_ = 0; arpPos_ = -1; }
+    if (p_.arpMode == kArpAutoLatch && others == 0) arpSeqReset(q);
+    const bool wasEmpty = q.count == 0;
     bool present = false;
     if (p_.arpMode != kArpExtend)
-        for (int i = 0; i < arpCount_; ++i) present |= arpKeys_[i].note == note;
-    if (!present && arpCount_ < kArpMaxKeys) arpKeys_[arpCount_++] = {note, velocity};
-    ++arpHeld_;
-    if (wasEmpty && arpCount_ > 0) arpRestart();     // first step immediately
+        for (int i = 0; i < q.count; ++i) present |= q.keys[i].note == note;
+    if (!present && q.count < kArpMaxKeys) q.keys[q.count++] = {note, velocity};
+    if (wasEmpty && q.count > 0) {                   // @0x64F6: the first key restarts the clock
+        q.pos = -1;
+        q.oct = 0;
+        q.dir = 1;
+        q.repeatLeft = 0;
+        arpClock_ = 0;
+        arpSamples_ = 0.0f;
+    }
 }
 
 void Engine::inputOff(int note) {
     if (note < 0 || note > 127) return;
-    if (!arpTakes(note)) { keyOff(note); return; }
-    if (arpHeld_ > 0) --arpHeld_;
-    if (p_.arpMode != kArpNormal || arpLatch_) return;   // remembered keys stay
-    for (int i = 0; i < arpCount_; ++i) {
-        if (arpKeys_[i].note != note) continue;
-        for (int k = i + 1; k < arpCount_; ++k) arpKeys_[k - 1] = arpKeys_[k];
-        --arpCount_;
-        if (arpPos_ >= i && arpPos_ >= 0) --arpPos_;
-        break;
+    keyDown_[note >> 5] &= ~(1u << (note & 31));
+    const int s = arpRoute(note);
+    bool found = false;
+    if (s >= 0) {
+        ArpSeq& q = arp_[s];
+        for (int i = 0; i < q.count && !found; ++i) {
+            if (q.keys[i].note != note) continue;
+            found = true;
+            // @0x63F6: only the normal mode forgets a released key - and not
+            // while the latch is waiting for the chord to be complete
+            if (p_.arpMode != kArpNormal || arpArmed_) break;
+            for (int k = i + 1; k < q.count; ++k) q.keys[k - 1] = q.keys[k];
+            --q.count;
+            if (q.pos >= i && q.pos >= 0) --q.pos;
+            if (q.count == 0) { arpGateOff(s); q.pos = -1; }
+        }
     }
-    if (arpCount_ == 0) { arpGateOff(); arpPos_ = -1; }
+    // Not a key of a sequence: it was played normally, perhaps before the
+    // arpeggiator was switched on or the latch was set
+    if (!found) keyOff(note);
+    if (arpArmed_ && keysDown(0, 128) == 0 && arpAny()) arpLatchNow();
 }
 
 void Engine::releaseHeld() {
@@ -845,9 +1169,13 @@ void Engine::allNotesOff() {
     heldCount_[0] = heldCount_[1] = 0;
     unisonNote_[0] = unisonNote_[1] = -1;
     delayedCount_ = 0;
-    arpCount_ = arpHeld_ = 0;
-    arpSounding_ = false;
-    arpPos_ = -1;
+    for (ArpSeq& q : arp_) {
+        arpSeqReset(q);
+        q.sounding = false;
+    }
+    for (uint32_t& w : keyDown_) w = 0;
+    arpLatched_ = false;
+    arpArmed_ = arpOn_ && arpLatchWanted_;       // the latch waits for new keys
     active_ = 0;
 }
 
@@ -899,7 +1227,7 @@ PROVS_HOT void Engine::render(float* out, int frames) {
         if (ctl_ <= 0) {
             ctl_ = kControlSamples;
             // Arpeggiator clock
-            if (arpOn_ && !arpExternal_ && arpCount_ > 0 && p_.arpRate > 0) {
+            if (arpOn_ && !arpExternal_ && arpAny() && p_.arpRate > 0) {
                 arpSamples_ -= float(kControlSamples);
                 while (arpSamples_ <= 0.0f) {
                     const int rate = p_.arpRate > 99 ? 99 : p_.arpRate;

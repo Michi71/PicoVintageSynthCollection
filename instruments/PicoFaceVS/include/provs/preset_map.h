@@ -55,11 +55,11 @@
 //                Reverse, Random
 //  89       2    Arp octaves (0..3 additional)                [FW] @0x6134
 //  90       2    Arp repeats (0..3 additional)                [FW] @0x62AC
-//  91       2    Arp split: Off, Right, Left, Dual            [MAN] (Dual same as Off)
+//  91       2    Arp split: Off, Right, Left, Dual            [FW] @0x6348, @0x6384
 //  92       1    Arp voicing: 0 Mono, 1 Poly                  [FW] @0x5FC6
-//  93       1    Arp velocity on/off                          [MAN]
-//  94       1    Arp layer                                    [MAN] - not implemented
-//  95       1    Arp rests                                    [MAN]
+//  93       1    Arp velocity on/off                          [FW] @0x6486
+//  94       1    Arp layer: overdub into a second sequence    [FW] @0x6374
+//  95       1    Arp rests                                    [FW] @0x6464
 //  96-97    7    LFO 1/2 amount 0..99                        [FW] @0x44BC
 //  98       8    Pressure amount, signed                     [FW] @0x44E4
 //  99       8    Velocity amount, signed                     [FW] @0x44F6
@@ -95,10 +95,7 @@
 //  point 3 back to point 0/1/2, 4-6 alternate between point 0/1/2 and 3;
 //  Repeat 0 = endless, otherwise number of repetitions. [FW] @0x4756, @0x0A0C
 //
-//  Not implemented: for the arpeggiator, Layer (overdub) and Split "Dual";
-//  separate chorus values per layer with
-//  Split/Double; the analog chorus circuit itself (replaced by the
-//  Behringer chorus).
+//  Not implemented: separate chorus values per layer with Split/Double.
 //  Levels 0..99 run through the linear table @0x6590 (331 per step).
 // ============================================================================
 #pragma once
@@ -139,6 +136,7 @@ inline void mapVsPreset(const uint8_t* f, Params& p) {
         p.osc[i].coarse = f[4 + i] > 24 ? 24 : f[4 + i];
         p.osc[i].fine = f[8 + i] > 99 ? 99 : f[8 + i];
         p.osc[i].level = 1.0f;
+        p.osc[i].harmonic = 1;
     }
     p.cutoff = level99(f[12]);
     p.resonance = level99(f[13]);
@@ -200,6 +198,7 @@ inline void mapVsPreset(const uint8_t* f, Params& p) {
     p.arpSplit = f[91];
     p.arpPoly = f[92] != 0;
     p.arpRests = f[95] != 0;
+    p.arpLayer = f[94] != 0;
     // Split/Double: the firmware treats mode 3 as "off" (@0x4200)
     p.keyMode = f[59] <= 2 ? f[59] : 0;
     p.splitPoint = f[60];

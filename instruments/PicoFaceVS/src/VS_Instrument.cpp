@@ -29,7 +29,7 @@
 #include "vs_banks.h"          // generated: the user's .syx files, or empty
 #include "vs_store.h"
 
-// SysEx output for VS_Controller: both wires, paced by whichever ring is
+// SysEx output for VS_Dump: both wires, paced by whichever ring is
 // fuller. A host that does not read the USB endpoint (see
 // MIDIOutputUSB::stalled) must not hold DIN back.
 size_t vs_sysex_room() {
@@ -53,7 +53,8 @@ namespace {
 constexpr uint32_t kSampleRate = 44100;
 
 // Longest SysEx this instrument takes: a Prophet VS bank dump
-// (F0 01 0A 64, 100 x 164 nibbles, F7).
+// (F0 01 0A 64, 100 x 164 nibbles, F7). The dump of all user waves is shorter
+// (F0 01 0A 7F, 32 x 384 nibbles, F7: 12293 bytes).
 constexpr size_t kSysExMax = 16405;
 
 class VSInstrument final : public picoface::Instrument {
@@ -97,41 +98,56 @@ public:
     // MIDI
     // ----------------------------------------------------------------
 
-    void noteOn(uint8_t, uint8_t note, uint8_t vel) override {
-        if (vel == 0) { noteOff(0, note, 0); return; }
+    // The channel is the one set on the MIDI page, or all of them (Omni).
+    void noteOn(uint8_t ch, uint8_t note, uint8_t vel) override {
+        if (!controller_.accepts(ch)) return;
+        if (vel == 0) { noteOff(ch, note, 0); return; }
         gpio_put(PIN_LED, 1);
         engine_.noteOn(note, vel);
     }
 
-    void noteOff(uint8_t, uint8_t note, uint8_t) override {
+    void noteOff(uint8_t ch, uint8_t note, uint8_t) override {
+        if (!controller_.accepts(ch)) return;
         gpio_put(PIN_LED, 0);
         engine_.noteOff(note);
     }
 
-    void controlChange(uint8_t, uint8_t cc, uint8_t value) override {
+    // Controllers as the VS takes them (owner's manual ch. 14), plus hold.
+    void controlChange(uint8_t ch, uint8_t cc, uint8_t value) override {
+        if (!controller_.accepts(ch)) return;
         switch (cc) {
         case 0:   return;                                    // bank select MSB, ignored
         case 32:  midiBank_ = value; return;                 // bank select LSB
-        case 1:   engine_.setModWheel((float) value * (1.f / 127.f)); return;
+        case 1:                                              // mod wheel
+        case 4:   engine_.setModWheel((float) value * (1.f / 127.f)); return;   // foot pedal: the same
+        case 2:   engine_.setPressure((float) value * (1.f / 127.f)); return;   // breath: as pressure
         case 7:   controller_.setVolume((uint8_t)((value * 100 + 63) / 127)); dirty_ = true; return;
+        case 16:  controller_.setJoystick(0, value); dirty_ = true; return;     // joystick x
+        case 17:  controller_.setJoystick(1, value); dirty_ = true; return;     // joystick y
+        case 48:
+        case 49:  return;                                    // their LSBs: seven bits are kept
         case 64:  engine_.setHold(value >= 64); return;
-        case 66:  engine_.setAltRelease(value >= 64); return;   // the VS's alternate-release footswitch
+        case 66:                                             // the VS's alternate-release footswitch
+        case 69:  engine_.setAltRelease(value >= 64); return;   // its own number for it
         case 120:
         case 123: engine_.allNotesOff(); return;
         default:  return;
         }
     }
 
-    void pitchBend(uint8_t, int16_t bend) override {
+    void pitchBend(uint8_t ch, int16_t bend) override {
+        if (!controller_.accepts(ch)) return;
         engine_.pitchBend((float) bend * (1.f / 8192.f));
     }
 
-    void channelPressure(uint8_t, uint8_t value) override {
+    void channelPressure(uint8_t ch, uint8_t value) override {
+        if (!controller_.accepts(ch)) return;
         engine_.setPressure((float) value * (1.f / 127.f));
     }
 
     // Bank select LSB 0 = Prophet VS programs, 1 = Pro VS Mini patches.
-    void programChange(uint8_t, uint8_t program) override {
+    void programChange(uint8_t ch, uint8_t program) override {
+        if (!controller_.accepts(ch)) return;
         controller_.programChange(midiBank_, program);
         dirty_ = true;
     }
@@ -186,18 +202,18 @@ public:
     // ----------------------------------------------------------------
 
     uint16_t settingsVersion() const override { return kVsSettingsVersion; }
-    size_t settingsSize() const override { return sizeof(VsSettingsV2); }
+    size_t settingsSize() const override { return sizeof(VsSettingsV3); }
 
     void settingsSave(uint8_t* buffer, size_t size) const override {
-        if (size < sizeof(VsSettingsV2)) return;
-        VsSettingsV2 s{};
+        if (size < sizeof(VsSettingsV3)) return;
+        VsSettingsV3 s{};
         controller_.exportSettings(s);
         memcpy(buffer, &s, sizeof(s));
     }
 
     void settingsLoad(const uint8_t* buffer, size_t size) override {
-        if (size < sizeof(VsSettingsV2)) return;
-        VsSettingsV2 s{};
+        if (size < sizeof(VsSettingsV3)) return;
+        VsSettingsV3 s{};
         memcpy(&s, buffer, sizeof(s));
         controller_.importSettings(s);
         dirty_ = true;

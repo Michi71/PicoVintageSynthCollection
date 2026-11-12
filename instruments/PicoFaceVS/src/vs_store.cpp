@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Michi71
 //
-// vs_store.cpp -- flash mirror of the program bank.
+// vs_store.cpp -- flash mirror of the program bank and the user waves.
 //
 // The flash write path is the one from veeprom.cpp, j6_patchstore.cpp and
 // m1_memory.cpp, for the same reason: after an erase or program the SDK
@@ -17,9 +17,12 @@
 namespace {
 
 constexpr uint32_t kMagic = 0x31425356u;    // "VSB1"
+constexpr uint32_t kWaveMagic = 0x31575356u; // "VSW1"
 constexpr uint32_t kVersion = 1u;
 constexpr uint32_t kSector = 4096u;
-constexpr uint32_t kSectors = 3u;            // 12 KB reserved
+constexpr uint32_t kSectors = 3u;            // programs: 12 KB
+constexpr uint32_t kWaveSectors = 2u;        // user waves: 8 KB, below the programs
+constexpr uint32_t kAllSectors = kWaveSectors + kSectors;
 constexpr int kPrograms = 100;
 constexpr size_t kProgramBytes = provs::Engine::kVsProgramBytes;
 constexpr size_t kDataBytes = kPrograms * kProgramBytes;
@@ -31,6 +34,13 @@ struct Header {
 static_assert(sizeof(Header) == 32, "header");
 static_assert(sizeof(Header) + kDataBytes <= kSectors * kSector, "fits 12 KB");
 
+// The wave image: the same header with the mask of written slots in 'count',
+// then 32 records.
+constexpr int kWaves = provs::Engine::kUserWaves;
+constexpr size_t kWaveBytes = provs::Engine::kWaveRecordBytes;
+constexpr size_t kWaveDataBytes = kWaves * kWaveBytes;
+static_assert(sizeof(Header) + kWaveDataBytes <= kWaveSectors * kSector, "fits 8 KB");
+
 uint32_t crc32(const uint8_t* p, size_t n) {
     uint32_t c = 0xFFFFFFFFu;
     for (size_t i = 0; i < n; ++i) {
@@ -40,15 +50,15 @@ uint32_t crc32(const uint8_t* p, size_t n) {
     return ~c;
 }
 
-// The image as it goes to flash: header, then the packed programs. Assembled
-// in store() and written sector by sector.
+// An image as it goes to flash: header, then the packed programs or the wave
+// records. Assembled in store() and written sector by sector.
 uint8_t g_image[kSectors * kSector];
 
 }  // namespace
 
 #if defined(VS_STORE_HOST_TEST)
 
-uint8_t vs_store_sim_flash[kSectors * kSector];
+uint8_t vs_store_sim_flash[kAllSectors * kSector];
 static const uint8_t* flashImage() { return vs_store_sim_flash; }
 static bool writeSector(const uint8_t* buf, uint32_t s) {
     memcpy(vs_store_sim_flash + s * kSector, buf, kSector);
@@ -68,8 +78,10 @@ static bool writeSector(const uint8_t* buf, uint32_t s) {
 // in and the eight of PicoFaceM1's memory: flash outside the image survives a
 // switch of instrument, so this must not write into another instrument's
 // store. Derived from the veeprom layout; moving it orphans what is stored.
+// The programs occupy the upper three of the five sectors, the waves the two
+// below them.
 #define VS_STORE_FLASH_OFFSET \
-    (PICO_FLASH_SIZE_BYTES - (VEEPROM_NUM_SECTORS + 1u + 8u + kSectors) * kSector)
+    (PICO_FLASH_SIZE_BYTES - (VEEPROM_NUM_SECTORS + 1u + 8u + kAllSectors) * kSector)
 
 static const uint8_t* flashImage() {
     return (const uint8_t*)(XIP_BASE + VS_STORE_FLASH_OFFSET);
@@ -106,6 +118,7 @@ namespace vs {
 bool Store::load() {
     const uint8_t* f = flashImage();
     if (!f) return false;
+    f += kWaveSectors * kSector;
     Header h;
     memcpy(&h, f, sizeof h);
     if (h.magic != kMagic || h.version != kVersion || h.count < 1 || h.count > (uint32_t)kPrograms ||
@@ -131,7 +144,30 @@ void Store::touch(int slot) {
 
 void Store::touchAll() { dirty_ = (1u << kSectors) - 1u; }
 
+static bool storeWaves() {
+    memset(g_image, 0xFF, sizeof g_image);
+    uint8_t* data = g_image + sizeof(Header);
+    int16_t samples[provs::Engine::kWaveSamples];
+    for (int i = 0; i < kWaves; ++i) {
+        provs::Engine::userWave(i, samples);
+        provs::Engine::packWave(samples, data + (size_t)i * kWaveBytes);
+    }
+    Header h{};
+    h.magic = kWaveMagic;
+    h.version = kVersion;
+    h.count = provs::Engine::userWaveMask();
+    h.crc = crc32(data, kWaveDataBytes);
+    memcpy(g_image, &h, sizeof h);
+    for (uint32_t s = 0; s < kWaveSectors; ++s)
+        if (!writeSector(g_image + s * kSector, s)) return false;
+    return true;
+}
+
 bool Store::store() {
+    if (wavesDirty_) {
+        if (!storeWaves()) return false;
+        wavesDirty_ = false;
+    }
     if (!dirty_) return true;
     // The first write on a board has to lay down every sector: the CRC covers
     // them all, and the ones never written hold something else.
@@ -148,10 +184,28 @@ bool Store::store() {
     memcpy(g_image, &h, sizeof h);
     for (uint32_t s = 0; s < kSectors; ++s) {
         if (!(dirty_ & (1u << s))) continue;
-        if (!writeSector(g_image + s * kSector, s)) return false;
+        if (!writeSector(g_image + s * kSector, kWaveSectors + s)) return false;
     }
     dirty_ = 0;
     valid_ = true;
+    return true;
+}
+
+bool Store::loadWaves() {
+    const uint8_t* f = flashImage();
+    if (!f) return false;
+    Header h;
+    memcpy(&h, f, sizeof h);
+    if (h.magic != kWaveMagic || h.version != kVersion ||
+        crc32(f + sizeof(Header), kWaveDataBytes) != h.crc)
+        return false;
+    int16_t samples[provs::Engine::kWaveSamples];
+    for (int i = 0; i < kWaves; ++i) {
+        if (!((h.count >> i) & 1u)) continue;
+        provs::Engine::unpackWave(f + sizeof(Header) + (size_t)i * kWaveBytes, samples);
+        provs::Engine::setUserWave(i, samples);
+    }
+    wavesDirty_ = false;
     return true;
 }
 

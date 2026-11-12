@@ -78,6 +78,7 @@ picoface_add_instrument(
         src/VS_Instrument.cpp
         src/VS_Controller.cpp
         src/vs_params.cpp
+        src/vs_dump.cpp
         src/vs_store.cpp
         src/provs_engine.cpp
 

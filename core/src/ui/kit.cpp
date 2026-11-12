@@ -418,10 +418,14 @@ bool panelName(Display& d, const char* number, const char* name, const char* sub
         u8g2_SetFont(u, kFontLabel);
         u8g2_DrawStr(u, static_cast<u8g2_uint_t>(bx), 59, b.name);
 
+        // Two rows lower than the label: the value face is fourteen rows
+        // tall, and on the label's baseline its capitals touched the
+        // separator above ("VS", "Mini"). Here it sits in the middle of the
+        // band, level with the knob.
         const char* bt = (b.text != nullptr) ? b.text : "";
         u8g2_SetFont(u, kFontValue);
         const int16_t tw = static_cast<int16_t>(u8g2_GetStrWidth(u, bt));
-        u8g2_DrawStr(u, static_cast<u8g2_uint_t>(kW - 10 - tw), 59, bt);
+        u8g2_DrawStr(u, static_cast<u8g2_uint_t>(kW - 10 - tw), 61, bt);
 
         u8g2_SetFont(u, kFontSmall);
         u8g2_DrawStr(u, kW - 6, 62, "B");

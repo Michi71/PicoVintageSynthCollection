@@ -8,6 +8,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "u8g2.h"                   // the vector diamond is drawn with lines
+
 #include "picoface/ui_kit.h"
 #include "provs/gen/rom_tables.h"   // kNameChars
 #include "vs_params.h"
@@ -20,12 +22,14 @@ using provs::Engine;
 namespace {
 
 enum MenuAction : uint8_t {
-    A_EDIT, A_WRITE, A_COMPARE, A_SEND, A_RESET, A_EXIT,
-    A_SEND_PROGRAM, A_SEND_BANK, A_BACK,
+    A_EDIT, A_WRITE, A_COMPARE, A_WAVE, A_SEND, A_RESET, A_EXIT,
+    A_SEND_PROGRAM, A_SEND_BANK, A_SEND_WAVES, A_BACK,
 };
 
 constexpr uint32_t kPopupMs = 1200;
 constexpr uint32_t kStoreQuietMs = 1500;
+constexpr int kJoyStep = 4;          // of 64 from the center to an edge, per detent
+constexpr int kWavePages = 6;        // wave A-D, mix, store
 
 const char* const kFxName[5] = {"Prog", "Off", "Chorus", "Ensemble", "VS Chorus"};
 const char* const kArpName[3] = {"Off", "On", "Latch"};
@@ -39,6 +43,7 @@ constexpr bool kHaveChords = false;
 #endif
 
 int clampInt(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
+float clamp01(float v) { return v < 0.f ? 0.f : (v > 1.f ? 1.f : v); }
 
 }  // namespace
 
@@ -54,6 +59,8 @@ void VS_Controller::init(const uint8_t* banks, size_t size) {
         Engine::loadPvmSysex(banks, size);
     }
     store_.load();          // a stored bank replaces the embedded one
+    store_.loadWaves();
+    while (Engine::buildUserWaves(1000)) {}      // nothing sounds yet: all at once
     applyArp();
     select(kBankVs, 0);
 }
@@ -73,16 +80,39 @@ void VS_Controller::select(uint8_t bank, int program) {
 }
 
 void VS_Controller::play() {
+    if (state_ == State::Wave) { playWaveEdit(); return; }
     if (bank_ == kBankMini) engine_.setPvmPatch(program_);
     else engine_.setVsProgram(comparing_ ? Engine::vsProgram(program_) : edit_);
     applyOverrides();
 }
 
-// Volume, a forced effect and the chord set sit on top of whatever the
-// program says.
+// Edit Waveform mode does not play the program (owner's manual ch. 13): it
+// plays an organ - no modulation, filter open, on and off at once - whose
+// four oscillators run the chosen waves at their harmonics, mixed by the
+// position on the WAVE MIX page alone. That is, sample for sample, what
+// Store writes.
+void VS_Controller::playWaveEdit() {
+    provs::Params p;
+    for (int k = 0; k < 4; ++k) {
+        p.osc[k].wave = waveNo_[k];
+        p.osc[k].harmonic = waveHarm_[k];
+    }
+    p.ampEnv.releaseTau = 0.03f;
+    p.wheelDest = 0;
+    p.mixX = (float)waveX_ * (1.f / 64.f);
+    p.mixY = (float)waveY_ * (1.f / 64.f);
+    p.gain = 0.7f * (float)volume_ * (1.f / 80.f);
+    engine_.setParams(p);
+}
+
+// Volume, the joystick, a forced effect and the chord set sit on top of
+// whatever the program says.
 void VS_Controller::applyOverrides() {
+    if (state_ == State::Wave) { playWaveEdit(); return; }
     provs::Params p = engine_.params();
     p.gain = 0.7f * (float)volume_ * (1.f / 80.f);      // 80 = the engine's own level
+    p.mixX = (float)joyX_ * (1.f / 64.f);
+    p.mixY = (float)joyY_ * (1.f / 64.f);
     if (fx_ > 0) p.fxType = (provs::Fx::Type)(fx_ - 1);
     p.chordSet = kHaveChords ? chord_ : 0;
     engine_.setParams(p);
@@ -106,6 +136,13 @@ void VS_Controller::setVolume(uint8_t volume) {
     applyOverrides();
 }
 
+// Controllers 16 and 17, as the VS sends and takes them (owner's manual ch. 14)
+void VS_Controller::setJoystick(int axis, uint8_t value) {
+    const int8_t v = (int8_t)(value >= 127 ? 64 : (int)value - 64);
+    if (axis == 0) joyX_ = v; else joyY_ = v;
+    applyOverrides();
+}
+
 void VS_Controller::editStep(int which, int delta) {
     const int i = cursor_ + which;
     if (i >= vs::paramCount() || comparing_) return;     // compare shows the stored version
@@ -122,14 +159,28 @@ void VS_Controller::write(int slot) {
     select(kBankVs, slot);
 }
 
+// The mix on the WAVE MIX page becomes user wave 'waveTo_', computed as the
+// firmware computes it.
+void VS_Controller::storeWave() {
+    const int wave[4] = {waveNo_[0], waveNo_[1], waveNo_[2], waveNo_[3]};
+    const int harm[4] = {waveHarm_[0], waveHarm_[1], waveHarm_[2], waveHarm_[3]};
+    int16_t out[Engine::kWaveSamples];
+    Engine::mixWave(wave, harm, (float)waveX_ * (1.f / 64.f), (float)waveY_ * (1.f / 64.f), out);
+    Engine::setUserWave(waveTo_, out);
+    store_.touchWaves();
+    memChangedMs_ = nowMs_;
+}
+
 void VS_Controller::factoryReset() {
     Engine::resetVsBank();
     Engine::resetPvmBank();
+    Engine::clearUserWaves();
     if (banksSize_) {
         Engine::loadVsSysex(banks_, banksSize_);
         Engine::loadPvmSysex(banks_, banksSize_);
     }
     store_.touchAll();
+    store_.touchWaves();
     memChangedMs_ = nowMs_;
     engine_.allNotesOff();
     select(kBankVs, 0);
@@ -139,6 +190,33 @@ void VS_Controller::factoryReset() {
 // SysEx
 // ---------------------------------------------------------------------------
 void VS_Controller::sysExMessage(const uint8_t* data, size_t length) {
+    if (length < 4 || data[0] != 0xF0) return;
+
+    if (data[1] == 0x7E) {                               // sample dump standard
+        const int wave = dump_.sampleDump(data, length, channel(), nowMs_);
+        if (wave >= 0) {
+            Engine::setUserWave(wave, dump_.received());
+            store_.touchWaves();
+            memChangedMs_ = nowMs_;
+            popup("Loaded");
+        }
+        return;
+    }
+    if (data[1] != 0x01) return;                         // not Sequential
+
+    if (data[2] == 0x00) {                               // dump request (@0x4BC6)
+        if (length < 5) return;
+        const uint8_t nn = data[3];
+        if (nn == 0x7F) dump_.sendWaves();
+        else if (nn == 0x64) dump_.sendBank();
+        else if (nn < 100) dump_.sendProgram(Engine::vsProgram(nn), nn);
+        return;
+    }
+    if (data[2] == 0x0A && data[3] == 0x7F) {            // all user waves
+        receiveWaves(data, length);
+        return;
+    }
+
     const int nVs = Engine::loadVsSysex(data, length);
     const int nMini = Engine::loadPvmSysex(data, length);
     if (nVs + nMini == 0) return;
@@ -151,33 +229,42 @@ void VS_Controller::sysExMessage(const uint8_t* data, size_t length) {
     popup("Loaded");
 }
 
+// F0 01 0A 7F, 32 records of 192 bytes as nibbles, F7. A record that is all
+// zero leaves its slot as the build has it: that is how a slot never written
+// goes out, and silence is not worth a slot.
+void VS_Controller::receiveWaves(const uint8_t* data, size_t length) {
+    constexpr size_t kNibbles = 2 * Engine::kWaveRecordBytes;
+    if (length != 4 + Engine::kUserWaves * kNibbles + 1) return;
+    for (size_t i = 4; i + 1 < length; ++i)
+        if (data[i] > 15) return;
+    for (int w = 0; w < Engine::kUserWaves; ++w) {
+        const uint8_t* nib = data + 4 + (size_t)w * kNibbles;
+        uint8_t record[Engine::kWaveRecordBytes];
+        for (int k = 0; k < Engine::kWaveRecordBytes; ++k)
+            record[k] = (uint8_t)((nib[2 * k] << 4) | nib[2 * k + 1]);
+        int16_t samples[Engine::kWaveSamples];
+        Engine::unpackWave(record, samples);
+        bool any = false;
+        for (int16_t v : samples) any |= v != 0;
+        if (any) Engine::setUserWave(w, samples); else Engine::clearUserWave(w);
+    }
+    store_.touchWaves();
+    memChangedMs_ = nowMs_;
+    popup("Loaded");
+}
+
 bool VS_Controller::poll(uint32_t nowMs) {
     nowMs_ = nowMs;
     bool dirty = false;
 
-    if (txProgram_ && vs_sysex_room() >= (size_t)Engine::kVsDumpBytes) {
-        uint8_t msg[Engine::kVsDumpBytes];
-        vs_sysex_write(msg, Engine::dumpVsProgram(edit_, program_, msg));
-        txProgram_ = false;
+    if (dump_.poll(nowMs)) {
+        popup("Sent");
+        dirty = true;
     }
-    // A bank dump is one message of 16405 bytes: it goes out a program at a
-    // time, as the output rings take it.
-    if (txBank_ && !txProgram_ && vs_sysex_room() >= 4 + 164 + 1) {
-        uint8_t chunk[4 + 164 + 1];
-        size_t n = 0;
-        if (txNext_ == 0) {
-            chunk[n++] = 0xF0; chunk[n++] = 0x01; chunk[n++] = 0x0A; chunk[n++] = 0x64;
-        }
-        Engine::dumpVsNibbles(Engine::vsProgram(txNext_), chunk + n);
-        n += 164;
-        if (++txNext_ == 100) {
-            chunk[n++] = 0xF7;
-            txBank_ = false;
-            popup("Sent");
-            dirty = true;
-        }
-        vs_sysex_write(chunk, n);
-    }
+
+    // The levels of a user wave that has changed: a few harmonics a tick, so
+    // that the audio next door does not notice.
+    Engine::buildUserWaves(8);
 
     // The flash mirror: written once things have been quiet for a while and
     // nothing sounds, since the erase stops the CPU.
@@ -209,6 +296,7 @@ void VS_Controller::openMenu() {
         item("Write Program", A_WRITE);
         item(comparing_ ? "Compare: Off" : "Compare", A_COMPARE);
     }
+    item("Edit Waveform", A_WAVE);
     item("Send SysEx", A_SEND);
     item("Factory Reset", A_RESET);
     item("<< Back", A_EXIT);
@@ -221,6 +309,7 @@ void VS_Controller::openSend() {
     auto item = [&](const char* s, uint8_t a) { menu_[nMenu_] = s; menuAction_[nMenu_] = a; ++nMenu_; };
     if (bank_ == kBankVs) item("This Program", A_SEND_PROGRAM);
     item("VS Bank", A_SEND_BANK);
+    item("User Waves", A_SEND_WAVES);
     item("<< Back", A_BACK);
     list_.open(menu_, (uint8_t)nMenu_, 0);
     state_ = State::Send;
@@ -237,8 +326,14 @@ void VS_Controller::menuChoose(int i) {
         break;
     case A_COMPARE:
         comparing_ = !comparing_;
-        play();
         state_ = State::Play;
+        play();
+        break;
+    case A_WAVE:
+        state_ = State::Wave;
+        wavePage_ = 0;
+        engine_.allNotesOff();
+        play();
         break;
     case A_SEND:
         openSend();
@@ -271,8 +366,8 @@ bool VS_Controller::input(const picoface::ui::InputState& raw) {
     in.buttonPressed[(int)Button::Sel] = click;      // what ListView sees, too
     const int ds = in.delta(Encoder::Sel), da = in.delta(Encoder::ParamA), db = in.delta(Encoder::ParamB);
     const bool selShort = click, selLong = raw.longPress(Button::Sel);
-    const bool bPress = raw.pressed(Button::ParamB);
-    bool dirty = ds || da || db || selShort || selLong || bPress;
+    const bool aPress = raw.pressed(Button::ParamA), bPress = raw.pressed(Button::ParamB);
+    bool dirty = ds || da || db || selShort || selLong || aPress || bPress;
     if (popup_ && in.nowMs > popupUntil_) { popup_ = nullptr; dirty = true; }
 
     switch (state_) {
@@ -304,14 +399,32 @@ bool VS_Controller::input(const picoface::ui::InputState& raw) {
                 play();                  // "Prog" needs the programmed effect back
             }
             break;
+        case Page::Joystick:
+            // A moves between A and C, B between D and B: clockwise is right, and up
+            if (da) joyX_ = (int8_t)clampInt(joyX_ + da * kJoyStep, -64, 64);
+            if (db) joyY_ = (int8_t)clampInt(joyY_ - db * kJoyStep, -64, 64);
+            if (aPress || bPress) joyX_ = joyY_ = 0;
+            if (da || db || aPress || bPress) applyOverrides();
+            break;
         case Page::Arp:
-            if (da) arp_ = (uint8_t)clampInt(arp_ + da, 0, 2);
-            if (db) arpClock_ = db > 0 ? 1 : 0;
-            if (da || db) applyArp();
+            if (da) { arp_ = (uint8_t)clampInt(arp_ + da, 0, 2); applyArp(); }
+            // Layer is a parameter of the program (field 94), as on the VS
+            if (db && bank_ == kBankVs && !comparing_) {
+                const uint8_t on = db > 0 ? 1 : 0;
+                if (edit_[94] != on) { edit_[94] = on; edited_ = true; play(); }
+            }
             break;
         case Page::Arp2:
             if (da) { clocks_ = (uint8_t)clampInt(clocks_ + da, 1, 24); applyArp(); }
             if (db && kHaveChords) { chord_ = (uint8_t)clampInt(chord_ + db, 0, 8); applyOverrides(); }
+            break;
+        case Page::Midi:
+            if (da) {                    // Omni, then 1..16
+                const int i = clampInt((midiChannel_ > 15 ? 0 : midiChannel_ + 1) + da, 0, 16);
+                midiChannel_ = (uint8_t)(i == 0 ? 16 : i - 1);
+                engine_.allNotesOff();   // a note of the old channel would never end
+            }
+            if (db) { arpClock_ = db > 0 ? 1 : 0; applyArp(); }
             break;
         case Page::Diag:
             if (bPress) loadPeak_ = 0.f;
@@ -331,16 +444,14 @@ bool VS_Controller::input(const picoface::ui::InputState& raw) {
         if (selLong) { state_ = State::Play; break; }
         const int c = list_.update(in);
         if (c == picoface::ui::ListView::kNone) break;
-        if (sending()) {
-            popup("Busy");
-        } else if (menuAction_[c] == A_SEND_PROGRAM) {
-            txProgram_ = true;
-            popup("Sent");
-        } else if (menuAction_[c] == A_SEND_BANK) {
-            txBank_ = true;
-            txNext_ = 0;
-            popup("Sending");
+        bool started = false;
+        switch (menuAction_[c]) {
+        case A_SEND_PROGRAM: started = dump_.sendProgram(edit_, program_); break;
+        case A_SEND_BANK:    started = dump_.sendBank(); break;
+        case A_SEND_WAVES:   started = dump_.sendWaves(); break;
+        default:             break;
         }
+        if (menuAction_[c] != A_BACK) popup(started ? "Sending" : "Busy");
         state_ = State::Play;
         break;
     }
@@ -381,6 +492,35 @@ bool VS_Controller::input(const picoface::ui::InputState& raw) {
             state_ = State::Play;
         }
         break;
+    case State::Wave:
+        if (selLong) {                   // back to the program
+            state_ = State::Play;
+            engine_.allNotesOff();
+            play();
+            break;
+        }
+        if (ds) {
+            int p = ((int)wavePage_ + ds) % kWavePages;
+            if (p < 0) p += kWavePages;
+            wavePage_ = (uint8_t)p;
+        }
+        if (wavePage_ < 4) {
+            if (da) waveNo_[wavePage_] = (uint8_t)clampInt(waveNo_[wavePage_] + da, 0, 126);
+            if (db) waveHarm_[wavePage_] = (uint8_t)clampInt(waveHarm_[wavePage_] + db, 1, 32);
+            if (da || db) playWaveEdit();
+        } else if (wavePage_ == 4) {
+            if (da) waveX_ = (int8_t)clampInt(waveX_ + da * kJoyStep, -64, 64);
+            if (db) waveY_ = (int8_t)clampInt(waveY_ - db * kJoyStep, -64, 64);
+            if (aPress || bPress) waveX_ = waveY_ = 0;
+            if (da || db || aPress || bPress) playWaveEdit();
+        } else {
+            if (da) waveTo_ = (uint8_t)clampInt(waveTo_ + da, 0, Engine::kUserWaves - 1);
+            if (selShort) {
+                storeWave();
+                popup("Stored");
+            }
+        }
+        break;
     }
     return dirty;
 }
@@ -397,18 +537,55 @@ bool VS_Controller::draw(picoface::ui::Display& d, uint32_t nowMs) {
     case State::Groups: list_.draw(d, "PAGES"); break;
     case State::Edit:   drawEdit(d); break;
     case State::Write:  drawWrite(d); break;
+    case State::Wave:   drawWave(d); break;
     case State::Confirm:
         d.clear();
         kit::popup(d, "FACTORY RESET?", "SEL: yes");   // a long press backs out
         break;
     }
-    if (popup_ && state_ == State::Play) kit::popup(d, "VS", popup_);
+    if (popup_ && (state_ == State::Play || state_ == State::Wave)) kit::popup(d, "VS", popup_);
     d.flush();
     return marquee;
 }
 
+// The vector plane as on the VS's panel - A left, B top, C right, D bottom -
+// with the position as the mix sees it, and the four shares it gives. x runs
+// toward C, y toward D; a position outside the diamond counts as the nearest
+// point of its edge, which is what the mix law makes of it (@0xB4E).
+void VS_Controller::drawVector(picoface::ui::Display& d, int x, int y) {
+    constexpr int cx = 27, cy = 38, r = 17;
+    const float fx = (float)x * (1.f / 64.f), fy = (float)y * (1.f / 64.f);
+    const float u = clamp01(0.5f * (fx + fy) + 0.5f), w = clamp01(0.5f * (fy - fx) + 0.5f);
+    const int share[4] = {(int)((1.f - u) * w * 100.f + 0.5f), (int)((1.f - u) * (1.f - w) * 100.f + 0.5f),
+                          (int)(u * (1.f - w) * 100.f + 0.5f), (int)(u * w * 100.f + 0.5f)};
+
+    u8g2_t* g = d.raw();
+    u8g2_DrawLine(g, cx - r, cy, cx, cy - r);
+    u8g2_DrawLine(g, cx, cy - r, cx + r, cy);
+    u8g2_DrawLine(g, cx + r, cy, cx, cy + r);
+    u8g2_DrawLine(g, cx, cy + r, cx - r, cy);
+    const int px = cx + (int)((u - w) * (float)r + (u >= w ? 0.5f : -0.5f));
+    const int py = cy + (int)((u + w - 1.f) * (float)r + (u + w >= 1.f ? 0.5f : -0.5f));
+    u8g2_DrawBox(g, (u8g2_uint_t)(px - 1), (u8g2_uint_t)(py - 1), 3, 3);
+
+    d.setFont(u8g2_font_4x6_tf);
+    d.drawText(cx - r - 6, cy + 3, "A");
+    d.drawText(cx - 1, cy - r - 2, "B");
+    d.drawText(cx + r + 3, cy + 3, "C");
+    d.drawText(cx - 1, 63, "D");
+    d.drawText(60, 53, "A: left/right");
+    d.drawText(60, 61, "B: up/down");
+
+    char line[16];
+    d.setFont(u8g2_font_6x12_tf);
+    snprintf(line, sizeof line, "A%-3d B%d", share[0], share[1]);
+    d.drawText(60, 27, line);
+    snprintf(line, sizeof line, "C%-3d D%d", share[2], share[3]);
+    d.drawText(60, 40, line);
+}
+
 bool VS_Controller::drawPlay(picoface::ui::Display& d, uint32_t nowMs) {
-    static const char* const kTitle[] = {"PROGRAM", "LEVEL", "ARP", "ARP / CHORD", "DIAG"};
+    static const char* const kTitle[] = {"PROGRAM", "LEVEL", "JOYSTICK", "ARP", "ARP / CHORD", "MIDI", "DIAG"};
     char ta[24] = {0}, tb[24] = {0};
     d.clear();
 
@@ -416,7 +593,7 @@ bool VS_Controller::drawPlay(picoface::ui::Display& d, uint32_t nowMs) {
         char r0[24], r1[24], r2[24];
         snprintf(r0, sizeof r0, "Voices %d", engine_.activeVoices());
         snprintf(r1, sizeof r1, "CPU %d%%  peak %d%%", (int)load_, (int)loadPeak_);
-        snprintf(r2, sizeof r2, "Bank %s", store_.dirty() ? "not saved yet" : "saved");
+        snprintf(r2, sizeof r2, "Memory %s", store_.dirty() ? "not saved yet" : "saved");
         const char* rows[] = {r0, r1, r2, "B: reset peak"};
         kit::diagnostics(d, "DIAG", rows, 4);
         return false;
@@ -449,9 +626,16 @@ bool VS_Controller::drawPlay(picoface::ui::Display& d, uint32_t nowMs) {
         snprintf(ta, sizeof ta, "%d", (int)volume_);
         kit::panelDuo(d, {"Volume", ta, (float)volume_ * 0.01f}, {"Effect", kFxName[fx_], -1});
         break;
-    case Page::Arp:
-        kit::panelDuo(d, {"Arp", kArpName[arp_], -1}, {"Clock", arpClock_ ? "MIDI" : "Internal", -1});
+    case Page::Joystick:
+        drawVector(d, joyX_, joyY_);
         break;
+    case Page::Arp: {
+        kit::Param b{"Layer", "n/a", -1};
+        if (bank_ == kBankVs) b.text = (comparing_ ? Engine::vsProgram(program_) : edit_)[94] ? "On" : "Off";
+        else b.dimmed = true;
+        kit::panelDuo(d, {"Arp", kArpName[arp_], -1}, b);
+        break;
+    }
     case Page::Arp2: {
         snprintf(ta, sizeof ta, "%d", (int)clocks_);
         if (!kHaveChords) snprintf(tb, sizeof tb, "n/a");
@@ -462,6 +646,11 @@ bool VS_Controller::drawPlay(picoface::ui::Display& d, uint32_t nowMs) {
         kit::panelDuo(d, {"Clk/Step", ta, (float)(clocks_ - 1) / 23.f}, b);
         break;
     }
+    case Page::Midi:
+        if (midiChannel_ > 15) snprintf(ta, sizeof ta, "Omni");
+        else snprintf(ta, sizeof ta, "%d", (int)midiChannel_ + 1);
+        kit::panelDuo(d, {"Channel", ta, -1}, {"Arp Clock", arpClock_ ? "MIDI" : "Internal", -1});
+        break;
     default:
         break;
     }
@@ -501,21 +690,59 @@ void VS_Controller::drawWrite(picoface::ui::Display& d) {
     kit::panelDuo(d, {"To", num, (float)writeTo_ / 99.f}, {"Replaces", name, -1});
 }
 
+void VS_Controller::drawWave(picoface::ui::Display& d) {
+    static const char* const kTitle[kWavePages] = {"WAVE A", "WAVE B", "WAVE C", "WAVE D", "WAVE MIX", "STORE WAVE"};
+    char ta[16], tb[16];
+    d.clear();
+    kit::header(d, kTitle[wavePage_], wavePage_, kWavePages);
+    if (wavePage_ < 4) {
+        snprintf(ta, sizeof ta, "%d", (int)waveNo_[wavePage_]);
+        snprintf(tb, sizeof tb, "%d", (int)waveHarm_[wavePage_]);
+        kit::panelDuo(d, {"Wave", ta, (float)waveNo_[wavePage_] / 126.f},
+                      {"Harmonic", tb, (float)(waveHarm_[wavePage_] - 1) / 31.f});
+    } else if (wavePage_ == 4) {
+        drawVector(d, waveX_, waveY_);
+    } else {
+        // The Review of the VS in one number: how many programs would change
+        int users = 0;
+        for (int i = 0; i < Engine::presetCount(); ++i) {
+            const uint8_t* f = Engine::vsProgram(i);
+            if (f[0] == waveTo_ || f[1] == waveTo_ || f[2] == waveTo_ || f[3] == waveTo_) ++users;
+        }
+        snprintf(ta, sizeof ta, "%02d", (int)waveTo_);
+        if (users) snprintf(tb, sizeof tb, "%d prg", users); else snprintf(tb, sizeof tb, "none");
+        kit::panelDuo(d, {"To", ta, (float)waveTo_ / 31.f}, {"Used by", tb, -1});
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
-void VS_Controller::exportSettings(VsSettingsV2& s) const {
+void VS_Controller::exportSettings(VsSettingsV3& s) const {
     s.bank = bank_; s.program = program_; s.fx = fx_; s.volume = volume_;
     s.arp = arp_; s.arpClock = arpClock_; s.clocks = clocks_; s.chord = chord_;
+    s.midiChannel = midiChannel_;
+    s.joyX = joyX_; s.joyY = joyY_;
+    for (int k = 0; k < 4; ++k) { s.waveNo[k] = waveNo_[k]; s.waveHarm[k] = waveHarm_[k]; }
+    s.waveX = waveX_; s.waveY = waveY_;
 }
 
-void VS_Controller::importSettings(const VsSettingsV2& s) {
+void VS_Controller::importSettings(const VsSettingsV3& s) {
     fx_ = s.fx < 5 ? s.fx : 0;
     volume_ = s.volume <= 100 ? s.volume : 80;
     arp_ = s.arp < 3 ? s.arp : 0;
     arpClock_ = s.arpClock ? 1 : 0;
     clocks_ = (uint8_t)clampInt(s.clocks, 1, 24);
     chord_ = s.chord <= 8 ? s.chord : 0;
+    midiChannel_ = s.midiChannel <= 16 ? s.midiChannel : 16;
+    joyX_ = (int8_t)clampInt(s.joyX, -64, 64);
+    joyY_ = (int8_t)clampInt(s.joyY, -64, 64);
+    for (int k = 0; k < 4; ++k) {
+        waveNo_[k] = (uint8_t)clampInt(s.waveNo[k], 0, 126);
+        waveHarm_[k] = (uint8_t)clampInt(s.waveHarm[k], 1, 32);
+    }
+    waveX_ = (int8_t)clampInt(s.waveX, -64, 64);
+    waveY_ = (int8_t)clampInt(s.waveY, -64, 64);
     applyArp();
     select(s.bank == kBankMini ? kBankMini : kBankVs, s.program);
 }

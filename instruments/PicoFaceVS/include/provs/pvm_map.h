@@ -82,6 +82,7 @@ inline void mapPvmPatch(const uint8_t* r, Params& p) {
         p.osc[i].coarse = r[4 + 2 * i] < 25 ? r[4 + 2 * i] : 12;
         p.osc[i].fine = r[5 + 2 * i] < 100 ? r[5 + 2 * i] : 0;
         p.osc[i].level = 1.0f;
+        p.osc[i].harmonic = 1;
     }
     float cutoff = level99(r[12]);
     p.resonance = level99(r[13]);
@@ -162,6 +163,7 @@ inline void mapPvmPatch(const uint8_t* r, Params& p) {
     p.arpRate = 70; p.arpMode = kArpNormal; p.arpScan = kArpUp;
     p.arpOctaves = 0; p.arpRepeats = 0; p.arpVelocity = true;
     p.arpSplit = 0; p.arpPoly = true; p.arpRests = false;
+    p.arpLayer = false;
     p.keyMode = kKeyNormal;
     for (float& x : p.pan) x = 0.0f;
 }

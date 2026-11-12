@@ -109,7 +109,7 @@ const ParamDef kParams[] = {
     ENUM("Scan", 88, kArpScan), NUM("Octaves", 89, 0, 3),
     NUM("Repeats", 90, 0, 3), ENUM("Split", 91, kArpSplit),
     ENUM("Voicing", 92, kVoicing), ENUM("Velocity", 93, kOffOn),
-    ENUM("Rests", 95, kOffOn), BLANK,
+    ENUM("Rests", 95, kOffOn), ENUM("Layer", 94, kOffOn),
     // NAME
     {"Char 1", 78, Kind::Char, 0, 31, nullptr, 0}, {"Char 2", 79, Kind::Char, 0, 31, nullptr, 0},
     {"Char 3", 80, Kind::Char, 0, 31, nullptr, 0}, {"Char 4", 81, Kind::Char, 0, 31, nullptr, 0},

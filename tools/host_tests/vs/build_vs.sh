@@ -7,7 +7,8 @@
 # Generates the engine's data the way a build without any ROM does (harmonic
 # table and generating rules only; whatever is in instruments/PicoFaceVS/roms
 # is deliberately not used, so the test is the same everywhere), then compiles
-# the *unmodified* engine, parameter list, flash store and VS_Controller with
+# the *unmodified* engine, parameter list, dump module, flash store and
+# VS_Controller with
 # the shared UI kit against the real u8g2. No pico-sdk, no audio.
 #
 # Needs Python 3 with numpy, and the u8g2 archive from ../ui/build_ui_kit.sh.
@@ -42,6 +43,7 @@ CXX="${CXX:-c++}"
     "$ROOT/src/VS_Controller.cpp" \
     "$ROOT/src/vs_params.cpp" \
     "$ROOT/src/vs_store.cpp" \
+    "$ROOT/src/vs_dump.cpp" \
     "$ROOT/src/provs_engine.cpp" \
     "$REPO/core/src/ui/kit.cpp" \
     "$REPO/core/src/ui/display.cpp" \
