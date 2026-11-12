@@ -157,8 +157,8 @@ power-off.
 | CC 7 | volume |
 | CC 16, CC 17 | joystick x and y, 64 = center (their LSBs, CC 48 and 49, are ignored) |
 | CC 32, program change | bank select LSB 0 = VS programs, 1 = Mini patches |
-| CC 64 | hold |
-| CC 66, CC 69 | alternate release (the VS's footswitch; 69 is the number the VS uses) |
+| CC 64, CC 69 | alternate release (rate 4A instead of 4), as on the VS's footswitch |
+| CC 66 | hold (not on the VS) |
 | CC 120, 123 | all notes off |
 | MIDI clock | steps the arpeggiator when its clock is set to MIDI |
 
@@ -198,5 +198,3 @@ out its timeouts.
   user waves go out.
 - Transposing a latched arpeggio from the keyboard, and the ROM and RAM
   cartridges.
-- On the VS, controller 64 is the alternate-release footswitch. Here it is
-  hold, and alternate release is on 66 and 69.

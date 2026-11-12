@@ -112,7 +112,8 @@ public:
         engine_.noteOff(note);
     }
 
-    // Controllers as the VS takes them (owner's manual ch. 14), plus hold.
+    // Controllers as the VS takes them (owner's manual ch. 14). Hold, which
+    // the VS does not have, is on 66.
     void controlChange(uint8_t ch, uint8_t cc, uint8_t value) override {
         if (!controller_.accepts(ch)) return;
         switch (cc) {
@@ -126,9 +127,9 @@ public:
         case 17:  controller_.setJoystick(1, value); dirty_ = true; return;     // joystick y
         case 48:
         case 49:  return;                                    // their LSBs: seven bits are kept
-        case 64:  engine_.setHold(value >= 64); return;
-        case 66:                                             // the VS's alternate-release footswitch
-        case 69:  engine_.setAltRelease(value >= 64); return;   // its own number for it
+        case 64:                                             // the VS's alternate-release footswitch
+        case 69:  engine_.setAltRelease(value >= 64); return;   // its second number for it
+        case 66:  engine_.setHold(value >= 64); return;
         case 120:
         case 123: engine_.allNotesOff(); return;
         default:  return;
