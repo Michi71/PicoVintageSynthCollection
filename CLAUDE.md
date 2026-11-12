@@ -5,14 +5,14 @@ Instrument ein Ordner unter `instruments/` und ein eigenes `.uf2`. Alles
 Weitere zur Struktur steht in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 offene Punkte in dessen §8.
 
-**Stand:** Release **v1.23.0** (12.11.2026, Tag auf `fe3de0e`): zwölftes
-Instrument **PicoFaceVS** (Sequential Prophet VS, baut ohne ROM aus dem
-Repository und ist das achte Release-Binary; Edit-Seiten, Joystick,
-Arpeggiator mit Layer/Dual, Edit Waveform, Programme und User-Wellen im
-Flash, SysEx nach Handbuch und Firmware, auf der Hardware getestet, #180); im
-UI-Kit sitzt der B-Wert der Namensseite zwei Zeilen tiefer; Doku auf zwölf
-Instrumente (#181). Die sieben bisherigen Release-Instrumente unverändert.
-Nichts Ungereleastes auf `main`.
+**Stand:** Release **v1.24.0** (12.11.2026, Tag auf `4ed0a32`): **PicoFaceVS**
+bekommt den Rest vom MIDI des Originals und die Cartridge — Empfangsmodi 1, 3
+und 4 mit rechtem und linkem Kanal, Parameter per MIDI in beide Richtungen,
+Arpeggiator-Kanal und Overflow als Noten-Ausgang, Transponieren, Sample-Dump
+auch für ROM-Wellen, Cartridge als zweiter Speicher im Flash (#183, auf der
+Hardware getestet); Doku dazu (#184). Davor v1.23.0 mit PicoFaceVS als
+zwölftem Instrument und achtem Release-Binary (#180). Die sieben übrigen
+Release-Instrumente unverändert. Nichts Ungereleastes auf `main`.
 
 ## Sprache
 
