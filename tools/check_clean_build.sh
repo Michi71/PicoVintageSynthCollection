@@ -34,7 +34,7 @@
 #
 # Where the ROMs come from:
 #
-#   PICOFACE_ROMS=/path   a directory holding PicoFaceD5/, PicoFaceJV/,
+#   PICOFACE_ROMS=/path   a directory holding PicoFaceCM/, PicoFaceD5/, PicoFaceJV/,
 #                         PicoFaceM1/ and PicoFaceRD/ subdirectories of ROM files
 #   unset                 this checkout's own instruments/*/roms
 #
@@ -45,7 +45,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
 URL="https://github.com/Michi71/PicoVintageSynthCollection"
-ROM_INSTRUMENTS=(PicoFaceD5 PicoFaceJV PicoFaceM1 PicoFaceRD)
+ROM_INSTRUMENTS=(PicoFaceCM PicoFaceD5 PicoFaceJV PicoFaceM1 PicoFaceRD)
 
 local_clone=0; variants=0; keep=0; outdir=""
 for arg in "$@"; do
@@ -180,7 +180,7 @@ fi
 # ------------------------------------------------------------------- the verdict
 say "result"
 built="$(ls -1 "$WORK/build-full"/*.uf2 2>/dev/null | wc -l | tr -d ' ')"
-echo "   $built of 10 instruments built"
+echo "   $built of $(ls -1d "$TREE"/instruments/*/ 2>/dev/null | wc -l | tr -d ' ') instruments built"
 if [ "$rc" -eq 0 ] && [ "$built" -gt 0 ]; then
     echo "CLEAN BUILD PASS"
 else
