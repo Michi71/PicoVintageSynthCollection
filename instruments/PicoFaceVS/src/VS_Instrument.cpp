@@ -29,7 +29,7 @@
 #include "vs_banks.h"          // generated: the user's .syx files, or empty
 #include "vs_store.h"
 
-// SysEx output for VS_Dump: both wires, paced by whichever ring is
+// MIDI output for VS_Controller and VS_Dump: both wires, paced by whichever ring is
 // fuller. A host that does not read the USB endpoint (see
 // MIDIOutputUSB::stalled) must not hold DIN back.
 size_t vs_sysex_room() {
@@ -98,58 +98,28 @@ public:
     // MIDI
     // ----------------------------------------------------------------
 
-    // The channel is the one set on the MIDI page, or all of them (Omni).
+    // What a channel means is the controller's business (MIDI mode, right
+    // and left channel); the LED shows a note that was for this instrument.
     void noteOn(uint8_t ch, uint8_t note, uint8_t vel) override {
-        if (!controller_.accepts(ch)) return;
         if (vel == 0) { noteOff(ch, note, 0); return; }
-        gpio_put(PIN_LED, 1);
-        engine_.noteOn(note, vel);
+        if (controller_.noteOn(ch, note, vel)) gpio_put(PIN_LED, 1);
     }
 
     void noteOff(uint8_t ch, uint8_t note, uint8_t) override {
-        if (!controller_.accepts(ch)) return;
-        gpio_put(PIN_LED, 0);
-        engine_.noteOff(note);
+        if (controller_.noteOff(ch, note)) gpio_put(PIN_LED, 0);
     }
 
-    // Controllers as the VS takes them (owner's manual ch. 14). Hold, which
-    // the VS does not have, is on 66.
     void controlChange(uint8_t ch, uint8_t cc, uint8_t value) override {
-        if (!controller_.accepts(ch)) return;
-        switch (cc) {
-        case 0:   return;                                    // bank select MSB, ignored
-        case 32:  midiBank_ = value; return;                 // bank select LSB
-        case 1:                                              // mod wheel
-        case 4:   engine_.setModWheel((float) value * (1.f / 127.f)); return;   // foot pedal: the same
-        case 2:   engine_.setPressure((float) value * (1.f / 127.f)); return;   // breath: as pressure
-        case 7:   controller_.setVolume((uint8_t)((value * 100 + 63) / 127)); dirty_ = true; return;
-        case 16:  controller_.setJoystick(0, value); dirty_ = true; return;     // joystick x
-        case 17:  controller_.setJoystick(1, value); dirty_ = true; return;     // joystick y
-        case 48:
-        case 49:  return;                                    // their LSBs: seven bits are kept
-        case 64:                                             // the VS's alternate-release footswitch
-        case 69:  engine_.setAltRelease(value >= 64); return;   // its second number for it
-        case 66:  engine_.setHold(value >= 64); return;
-        case 120:
-        case 123: engine_.allNotesOff(); return;
-        default:  return;
-        }
+        controller_.controlChange(ch, cc, value);
+        dirty_ = true;
     }
 
-    void pitchBend(uint8_t ch, int16_t bend) override {
-        if (!controller_.accepts(ch)) return;
-        engine_.pitchBend((float) bend * (1.f / 8192.f));
-    }
+    void pitchBend(uint8_t ch, int16_t bend) override { controller_.pitchBend(ch, bend); }
 
-    void channelPressure(uint8_t ch, uint8_t value) override {
-        if (!controller_.accepts(ch)) return;
-        engine_.setPressure((float) value * (1.f / 127.f));
-    }
+    void channelPressure(uint8_t ch, uint8_t value) override { controller_.pressure(ch, value); }
 
-    // Bank select LSB 0 = Prophet VS programs, 1 = Pro VS Mini patches.
     void programChange(uint8_t ch, uint8_t program) override {
-        if (!controller_.accepts(ch)) return;
-        controller_.programChange(midiBank_, program);
+        controller_.programChange(ch, program);
         dirty_ = true;
     }
 
@@ -203,18 +173,18 @@ public:
     // ----------------------------------------------------------------
 
     uint16_t settingsVersion() const override { return kVsSettingsVersion; }
-    size_t settingsSize() const override { return sizeof(VsSettingsV3); }
+    size_t settingsSize() const override { return sizeof(VsSettingsV4); }
 
     void settingsSave(uint8_t* buffer, size_t size) const override {
-        if (size < sizeof(VsSettingsV3)) return;
-        VsSettingsV3 s{};
+        if (size < sizeof(VsSettingsV4)) return;
+        VsSettingsV4 s{};
         controller_.exportSettings(s);
         memcpy(buffer, &s, sizeof(s));
     }
 
     void settingsLoad(const uint8_t* buffer, size_t size) override {
-        if (size < sizeof(VsSettingsV3)) return;
-        VsSettingsV3 s{};
+        if (size < sizeof(VsSettingsV4)) return;
+        VsSettingsV4 s{};
         memcpy(&s, buffer, sizeof(s));
         controller_.importSettings(s);
         dirty_ = true;
@@ -224,7 +194,6 @@ private:
     provs::Engine engine_;
     vs::Store store_;
     VS_Controller controller_;
-    uint8_t  midiBank_ = 0;      // CC 32, held until the next program change
     bool     dirty_    = true;
     bool     marquee_  = false;
     uint32_t lastDrawMs_ = 0, lastMarqueeMs_ = 0;

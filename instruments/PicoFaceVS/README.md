@@ -11,10 +11,10 @@ Pro VS Mini served as a second reference for a few additions. It first ran as
 a host program and is unchanged here.
 
 **Status:** on the board it runs at 44.1 kHz with a peak load of 67 % at
-eight voices. The joystick and MIDI pages, the arpeggiator's Layer and Dual,
-Edit Waveform mode, the wave store and the answers to dump requests are newer
-than that test; the host test (`tools/host_tests/vs/`) covers them as far as a
-host can.
+eight voices, and everything up to release v1.23.0 has been tested there.
+The MIDI modes and options, parameters over MIDI, the arpeggiator transpose
+and the cartridge are newer than that; the host test
+(`tools/host_tests/vs/`) covers them as far as a host can.
 
 ## It builds from the repository alone
 
@@ -63,7 +63,7 @@ shown.**
 | JOYSTICK | left / right, between A and C | up / down, between B and D; a press on either centers it |
 | ARP | arpeggiator off / on / latch | Layer off / on (a parameter of the program) |
 | ARP / CHORD | clocks per arpeggiator step (1-24) | chord set 1-8 (needs the Pro VS Mini data) |
-| MIDI | channel: Omni or 1-16 | arpeggiator clock: internal or MIDI clock |
+| MIDI | receive mode: 1 Omni, 3 Poly, 4 Mono | channel 1-16 (the VS's right channel) |
 | DIAG | - | press: reset the peak load |
 
 A `*` after the program number means the edit buffer differs from what is
@@ -93,9 +93,12 @@ setting, not part of the program.
   the lowest C (note 36) too.
 - In Mono voicing each sequence has one voice of its own (voices 1 and 5);
   keys played beside it use the others.
+- *Transpose*: on the VS, Latch/Transpose held and a key. Here, press A on
+  the ARP page and play the key - middle C is no transposition; a press on B
+  takes it back.
 
 **A long press on SEL opens the menu:** Edit Program, Write Program, Compare,
-Edit Waveform, Send SysEx, Factory Reset.
+Edit Waveform, MIDI Options, Cartridge, Send SysEx, Factory Reset.
 
 - **Edit Program**: two values per screen on A and B, SEL turns to the next
   pair. A short press on SEL lists the groups - OSC, FILTER, FILTER ENV,
@@ -105,6 +108,12 @@ Edit Waveform, Send SysEx, Factory Reset.
   stores them (A picks the number, SEL confirms) or another program is
   selected. **Compare** plays the stored version.
 - The Pro VS Mini's patches are played, not edited.
+- **MIDI Options**, three pages: the left channel and the arpeggiator
+  channel; parameters over MIDI (off, receive, transmit, both) and overflow;
+  the arpeggiator clock (internal or MIDI clock). See MIDI below.
+- **Cartridge**: Save Programs, Save Waves, Load Programs, Load Waves - the
+  VS's "Dump Internal to Cartridge" and "Load Internal from Cartridge". The
+  cartridge is a second memory in flash.
 - **Send SysEx**: the program in the edit buffer, the whole VS bank, or all
   user waves, on USB and DIN.
 - **Factory Reset** brings back the banks that were embedded at build time
@@ -145,6 +154,12 @@ precedence over the banks embedded in the image; Factory Reset goes back to
 those. The Pro VS Mini patch bank is not stored: a received one lives until
 power-off.
 
+The **cartridge** is another 20 KB below that, of the same layout: a place to
+put the 100 programs or the 32 waves and get them back, as with the VS's RAM
+cartridge. It is written and read at once when asked, with all notes off.
+Programs are not played from it, and there is no ROM cartridge - the VS's
+cartridge switch has no counterpart.
+
 ## MIDI
 
 | Message | Does |
@@ -155,15 +170,47 @@ power-off.
 | CC 1, CC 4 | mod wheel (the VS takes the foot pedal as the wheel) |
 | CC 2 | pressure (the VS takes breath as pressure) |
 | CC 7 | volume |
-| CC 16, CC 17 | joystick x and y, 64 = center (their LSBs, CC 48 and 49, are ignored) |
+| CC 16, CC 17 | joystick x and y, 64 = center, added to the panel's joystick (their LSBs, CC 48 and 49, are ignored) |
 | CC 32, program change | bank select LSB 0 = VS programs, 1 = Mini patches |
 | CC 64, CC 69 | alternate release (rate 4A instead of 4), as on the VS's footswitch |
 | CC 66 | hold (not on the VS) |
 | CC 120, 123 | all notes off |
 | MIDI clock | steps the arpeggiator when its clock is set to MIDI |
+| CC 98, 99, then 38 and 6 | a program parameter, when "Params" receives - see below |
 
-The channel is set on the MIDI page: one of 1-16, or Omni. SysEx is not tied
-to a channel.
+
+**Receive modes** (MIDI page), as on the VS:
+
+- *Mode 1 (Omni)*: every channel plays.
+- *Mode 3 (Poly)*: the channel plays. In a split or double program whose
+  left channel (MIDI Options) differs from it, the two channels are two
+  instruments: each plays its program over the whole keyboard, with its own
+  wheels, pressure and joystick; a program change on the left channel
+  changes the linked program only.
+- *Mode 4 (Mono)*: eight consecutive channels from the channel play one
+  voice each - four from the left channel and four from the right in a split
+  or double. A second note on a channel before the first has ended moves
+  the pitch without retriggering. Pitch bend, pressure, wheel and joystick
+  reach the one voice; sent on the channel below the range, they reach all.
+
+**Going out**, on USB and DIN:
+
+- *Arp Ch*: the notes the arpeggiator plays, on a channel of their own.
+- *Overflow*: when every voice holds a note, a further key is not played by
+  stealing one but sent out on the channel, for a second instrument.
+- *Params* transmit: a parameter turned on the edit pages.
+
+**Parameters over MIDI** follow the VS's table 14-1: select with controllers
+98 (LSB) and 99 (MSB), then data entry 38 (LSB) and 6 (MSB). MSB 0 with the
+field number as LSB is a value - 00-0B oscillators, 0C-0E filter, and so on
+through the program's fields; MSB 1 is a switch - 00-09 and 10-19 the
+destinations of LFO 1 and 2, 20-2E pressure, 30-34 velocity, 40-43 keyboard,
+50-51 filter envelope, 60-62 mod wheel. As in the firmware, the data is the
+position of the VS's slider in eight bits (the MSB's seven, then the LSB's
+top bit), scaled onto the parameter's range; a switch is on from the middle.
+Overflow and Params are off after power-up, as on the VS.
+
+SysEx is not tied to a channel.
 
 | SysEx | Direction | |
 |---|---|---|
@@ -172,7 +219,7 @@ to a channel.
 | `F0 01 0A 7F` + 32 x 384 nibbles + `F7` | in, out | all user waves, as the VS's 192-byte records |
 | `F0 01 00 nn F7` | in | dump request: program nn, all programs (nn = 64h) or all waves (7Fh) |
 | `F0 7E cc 01 ...`, `F0 7E cc 02 ...` | in, out | one user wave in the sample dump standard, 128 words of 12 bits |
-| `F0 7E cc 03 ss 00 F7` | in | sample dump request for user wave ss |
+| `F0 7E cc 03 ss 00 F7` | in | sample dump request for wave ss: a user wave 0-31, or a ROM wave 32-126 |
 | `F0 00 20 32 ...` | in | Pro VS Mini patch bank (RAM only) |
 
 Dumps go out from the menu or on request, on USB and DIN.
@@ -191,10 +238,10 @@ out its timeouts.
 
 ## Not there
 
-- Parameter changes over MIDI (the VS's parameter select and data entry
-  controllers), MIDI mode 4, separate channels for the two halves of a
-  split, overflow, the arpeggiator channel.
-- The VS answers a sample dump request for a ROM wave too; here only the
-  user waves go out.
-- Transposing a latched arpeggio from the keyboard, and the ROM and RAM
-  cartridges.
+- Of the VS's MIDI: transmitting the wheels, the joystick and program
+  changes (there is no keyboard here to send from), the receive switches for
+  wheels, programs, pressure and joystick, and program numbers 7E / 7F for
+  the cartridge switch.
+- In mode 4 the LFOs and the chorus of a layer follow its first voice's
+  wheel and pressure.
+- Playing programs from the cartridge, and ROM cartridges.

@@ -8,6 +8,7 @@
 
 #include <cstdio>
 
+#include "provs/engine.h"           // vsFieldBits
 #include "provs/gen/rom_tables.h"   // kNameChars
 
 namespace vs {
@@ -230,6 +231,65 @@ void paramFormat(const ParamDef& p, const uint8_t* f, char* text, size_t size, f
         }
     }
     if (norm) *norm = n;
+}
+
+// Switch groups of table 14-1: first LSB, the field of bits 0-7, the field
+// of the bits above (0 = none), number of bits
+struct SwitchGroup { uint8_t first, low, high, bits; };
+static const SwitchGroup kSwitches[] = {
+    {0x00, 103, 102, 10}, {0x10, 105, 104, 10}, {0x20, 107, 106, 15}, {0x30, 109, 0, 5},
+    {0x40, 111, 0, 4},    {0x50, 113, 0, 2},    {0x60, 115, 0, 3},
+};
+
+const ParamDef* paramByMidi(int number) {
+    static ParamDef made;
+    const int msb = (number >> 7) & 127, lsb = number & 127;
+    if (msb == 1) {
+        for (const SwitchGroup& g : kSwitches) {
+            const int bit = lsb - g.first;
+            if (bit < 0 || bit >= g.bits) continue;
+            made = {"", (uint8_t)(bit < 8 ? g.low : g.high), Kind::Bit, 0, 1, nullptr,
+                    (uint8_t)(1u << (bit & 7))};
+            return &made;
+        }
+        return nullptr;
+    }
+    if (msb != 0 || lsb >= provs::Engine::kVsFields) return nullptr;
+    for (const ParamDef& p : kParams)
+        if (p.kind != Kind::Blank && p.kind != Kind::Bit && p.field == lsb) return &p;
+    // a field the panel shows as switches, or not at all: its plain number
+    const int bits = provs::Engine::vsFieldBits(lsb);
+    made = {"", (uint8_t)lsb, Kind::Num, 0, (int16_t)((1 << bits) - 1), nullptr, 0};
+    return &made;
+}
+
+int paramMidiNumber(const ParamDef& p) {
+    if (p.kind == Kind::Blank) return -1;
+    if (p.kind != Kind::Bit) return p.field;
+    int bit = 0;
+    while (bit < 7 && !((p.bit >> bit) & 1)) ++bit;
+    for (const SwitchGroup& g : kSwitches) {
+        if (p.field == g.low) return 0x80 + g.first + bit;
+        if (g.high && p.field == g.high) return 0x80 + g.first + 8 + bit;
+    }
+    return p.field;          // the two chorus switches share field 66: sent as its number
+}
+
+bool paramSetSlider(const ParamDef& p, uint8_t* f, int position) {
+    if (p.kind == Kind::Blank) return false;
+    position &= 255;
+    const int old = value(p, f);
+    const int v = p.kind == Kind::Bit ? (position >= 128 ? 1 : 0)
+                                      : p.min + ((position * (p.max - p.min + 1)) >> 8);
+    return paramStep(p, f, v - old);
+}
+
+int paramSlider(const ParamDef& p, const uint8_t* f) {
+    if (p.kind == Kind::Blank) return 0;
+    if (p.kind == Kind::Bit) return value(p, f) ? 255 : 0;
+    const int count = p.max - p.min + 1;
+    const int position = ((value(p, f) - p.min) * 256 + count - 1) / count;
+    return position > 255 ? 255 : position;
 }
 
 } // namespace vs

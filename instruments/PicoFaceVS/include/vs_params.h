@@ -59,6 +59,18 @@ bool paramStep(const ParamDef& p, uint8_t* fields, int delta);
 // position and a negative number for one without (an enum, a switch).
 void paramFormat(const ParamDef& p, const uint8_t* fields, char* text, size_t size, float* norm);
 
+// --- Parameters over MIDI (owner's manual table 14-1, firmware @0x50AC) ----
+// A parameter is selected by a 14-bit number: MSB 0 with the field number as
+// LSB, or MSB 1 with a switch bit as LSB - 00-09 and 10-19 the destinations
+// of LFO 1 and 2, 20-2E pressure, 30-34 velocity, 40-43 keyboard, 50-51
+// filter envelope, 60-62 mod wheel. The data is not the value but the
+// position of the VS's slider in eight bits: value = minimum + position *
+// (number of values) / 256, and a switch is on from 128.
+const ParamDef* paramByMidi(int number);
+int paramMidiNumber(const ParamDef& p);          // -1 for a blank
+bool paramSetSlider(const ParamDef& p, uint8_t* fields, int position);
+int paramSlider(const ParamDef& p, const uint8_t* fields);   // the lowest position that gives the value
+
 } // namespace vs
 
 #endif // VS_PARAMS_H

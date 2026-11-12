@@ -82,8 +82,18 @@ uint8_t VS_Dump::byteAt(size_t i) {
 // Sample dump standard, going out (@0x5878)
 // ---------------------------------------------------------------------------
 bool VS_Dump::sendWave(int wave, uint8_t channel, uint32_t nowMs) {
-    if (busy() || wave < 0 || wave >= Engine::kUserWaves) return false;
-    Engine::userWave(wave, sdsData_);                    // a slot never written goes out as silence
+    if (busy() || wave < 0 || wave > 126) return false;
+    if (wave < Engine::kUserWaves) {
+        Engine::userWave(wave, sdsData_);                // a slot never written goes out as silence
+    } else {
+        // A wave of the ROM (@0x5894). A reconstructed one may overshoot
+        // twelve bits a little; it is brought down to fit.
+        Engine::waveSamples(wave, sdsData_);
+        int peak = 2047;
+        for (int16_t v : sdsData_) peak = v > peak ? v : (-v - 1 > peak ? -v - 1 : peak);
+        if (peak > 2047)
+            for (int16_t& v : sdsData_) v = (int16_t)((int)v * 2047 / peak);
+    }
     sdsWave_ = wave;
     sdsChannel_ = channel & 15;
     sdsNext_ = 0;

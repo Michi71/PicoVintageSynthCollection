@@ -503,7 +503,7 @@ void Engine::envTick(EnvState& e, const Env5& p) const {
 float Engine::oscHz(int note, int osc) const {
     const OscParams& o = p_.osc[osc & 3];
     const float cents = float((note - 69 + p_.transpose) * 100 + o.coarse * 100 + o.fine)
-                      + bend_ * p_.bendRange * 100.0f + p_.tuneCents;
+                      + bend_[0] * p_.bendRange * 100.0f + p_.tuneCents;
     return 440.0f * std::exp2(cents / 1200.0f);
 }
 
@@ -522,7 +522,9 @@ void Engine::lfoAdvance(int samples, int layer) {
     const Params& P = lp(layer);
     Lfo* L = lfo_[layer];
     const float ticks = float(samples) / (kFwTickSeconds * sr_);
-    const float press = pressure_ * amt99(P.pressAmount);
+    // the layer's first voice stands for it
+    const int first = (layer && p_.keyMode != kKeyNormal) ? kMaxVoices / 2 : 0;
+    const float press = pressure_[first] * amt99(P.pressAmount);
     for (int i = 0; i < 2; ++i) {
         const LfoParams& lp = P.lfo[i];
         const LfoParams& op = P.lfo[1 - i];
@@ -536,7 +538,7 @@ void Engine::lfoAdvance(int samples, int layer) {
         if (step < 0.0f) step = 0.0f;
         // Amount: base value + mod wheel + other LFO (scale /4), 0..1
         float amount = amt99(lp.amount);
-        if (P.wheelDest & (i == 0 ? kWheelLfo1 : kWheelLfo2)) amount += wheel_;
+        if (P.wheelDest & (i == 0 ? kWheelLfo1 : kWheelLfo2)) amount += wheel_[first];
         if (op.dest & kLfoOtherAmount) amount += other * 0.25f;
         if (P.pressDest & (i == 0 ? kPressLfo1Amount : kPressLfo2Amount)) amount += press;
         amount = clampf(amount, 0.0f, 1.0f);
@@ -571,19 +573,20 @@ void Engine::voiceControl(Voice& v, bool snap) {
     const float before[10] = {v.fcoef, v.level, v.panL, v.panR, v.modX, v.modY,
                               v.inc[0], v.inc[1], v.inc[2], v.inc[3]};
     const Params& P = lp(v.layer);
+    const int vi = v.index & (kMaxVoices - 1);
     const Lfo* L = lfo_[v.layer];
     const float fenvMod = v.filt.v * amt99(P.fenvAmount);   // -1 .. +1
     // Pressure (@0x3B58): value * amount; full scale on level, pan and
     // LFO amount, /4 on filter, mix and LFO rate, /64 on the pitch
-    const float press = pressure_ * amt99(P.pressAmount);
+    const float press = pressure_[vi] * amt99(P.pressAmount);
 
     // Pitch: LFOs +-256 cents (output /128), filter env +-1024 cents (/32)
-    float common = bend_ * p_.bendRange * 100.0f + p_.tuneCents + v.detune + v.glide;
+    float common = bend_[vi] * p_.bendRange * 100.0f + p_.tuneCents + v.detune + v.glide;
     if (P.fenvDest & kFenvFreq) common += fenvMod * 1024.0f;
     for (int i = 0; i < 4; ++i) {
         const OscParams& o = P.osc[i];
         const float osc = float((v.note - 69 + P.transpose) * 100 + o.coarse * 100 + o.fine);
-        const float base = osc + bend_ * p_.bendRange * 100.0f + p_.tuneCents;
+        const float base = osc + bend_[vi] * p_.bendRange * 100.0f + p_.tuneCents;
         float cents = osc + common;
         for (int k = 0; k < 2; ++k)
             if (P.lfo[k].dest & (kLfoFreqA << i)) cents += L[k].out * 256.0f;
@@ -824,6 +827,17 @@ void Engine::queueDelayed(int note, int velocity, bool on) {
 
 void Engine::keyOn(int note, int velocity) {
     if (paramsDirty_) applyParams();
+    // Overflow: every voice this key could take is holding a note
+    if (overflow_ && arpSeqNow_ < 0) {
+        int lo = 0, hi = kMaxVoices;
+        if (p_.keyMode == kKeySplit) layerRange(note >= p_.splitPoint ? 0 : 1, lo, hi);
+        else if (p_.keyMode == kKeyDouble) layerRange(0, lo, hi);
+        if (allHeld(lo, hi) && lp(0).unison == 0) {
+            overflowed_[note >> 5] |= 1u << (note & 31);
+            pushNoteOut(false, true, note, velocity);
+            return;
+        }
+    }
     if (p_.keyMode == kKeySplit) {
         // @0x126E: from the split point upward the main layer, below it the linked program
         layerNoteOn(note >= p_.splitPoint ? 0 : 1, note, velocity);
@@ -853,6 +867,11 @@ void Engine::startRelease(Voice& v) {
 }
 
 void Engine::keyOff(int note) {
+    if (arpSeqNow_ < 0 && ((overflowed_[note >> 5] >> (note & 31)) & 1u)) {
+        overflowed_[note >> 5] &= ~(1u << (note & 31));
+        pushNoteOut(false, false, note, 0);
+        return;
+    }
     if (p_.keyMode == kKeyNormal) { layerNoteOff(0, note); return; }
     layerNoteOff(0, note);
     if (p_.keyMode == kKeyDouble && p_.doubleDelay > 0.0f) queueDelayed(note, 0, false);
@@ -899,6 +918,7 @@ void Engine::arpGateOff(int s) {
     ArpSeq& q = arp_[s];
     if (!q.sounding) return;
     q.sounding = false;
+    if (arpOut_) pushNoteOut(true, false, q.note, 0);
     arpSeqNow_ = s;
     if (p_.arpPoly) keyOff(q.note);
     for (int i = 0; i < kMaxVoices; ++i) {
@@ -996,6 +1016,7 @@ void Engine::arpStepSeq(int s) {
     const int vel = p_.arpVelocity ? key.velocity : 80;
     q.note = note;
     q.sounding = true;
+    if (arpOut_) pushNoteOut(true, true, note, vel);
     arpSeqNow_ = s;
     if (p_.arpPoly) {
         keyOn(note, vel);                    // like a played key (@0x62EE)
@@ -1174,18 +1195,98 @@ void Engine::allNotesOff() {
         q.sounding = false;
     }
     for (uint32_t& w : keyDown_) w = 0;
+    for (int n = 0; n < 128; ++n)
+        if ((overflowed_[n >> 5] >> (n & 31)) & 1u) pushNoteOut(false, false, n, 0);
+    for (uint32_t& w : overflowed_) w = 0;
     arpLatched_ = false;
     arpArmed_ = arpOn_ && arpLatchWanted_;       // the latch waits for new keys
     active_ = 0;
 }
 
-void Engine::pitchBend(float amount) { bend_ = clampf(amount, -1.0f, 1.0f); }
+void Engine::pitchBend(float amount, unsigned voices) {
+    for (int i = 0; i < kMaxVoices; ++i)
+        if ((voices >> i) & 1u) bend_[i] = clampf(amount, -1.0f, 1.0f);
+}
 
-void Engine::setModWheel(float amount) { wheel_ = clampf(amount, 0.0f, 1.0f); }
+void Engine::setModWheel(float amount, unsigned voices) {
+    for (int i = 0; i < kMaxVoices; ++i)
+        if ((voices >> i) & 1u) wheel_[i] = clampf(amount, 0.0f, 1.0f);
+}
 
 // 7-bit value of the firmware: (v<<8 | v) >> 1, i.e. 127 -> 32639 of 32767
-void Engine::setPressure(float amount) {
-    pressure_ = clampf(amount, 0.0f, 1.0f) * (32639.0f / 32767.0f);
+void Engine::setPressure(float amount, unsigned voices) {
+    for (int i = 0; i < kMaxVoices; ++i)
+        if ((voices >> i) & 1u) pressure_[i] = clampf(amount, 0.0f, 1.0f) * (32639.0f / 32767.0f);
+}
+
+void Engine::setJoystick(int axis, float amount, unsigned voices) {
+    for (int i = 0; i < kMaxVoices; ++i)
+        if ((voices >> i) & 1u) (axis ? joyY_ : joyX_)[i] = clampf(amount, -1.0f, 1.0f);
+}
+
+unsigned Engine::layerVoices(int layer) const {
+    if (pNext_.keyMode == kKeyNormal) return kAllVoices;
+    return layer ? (kAllVoices & ~((1u << (kMaxVoices / 2)) - 1u)) : ((1u << (kMaxVoices / 2)) - 1u);
+}
+
+// --- Notes for one layer or one voice (MIDI modes 3 and 4) ----------------------
+
+void Engine::layerOn(int layer, int note, int velocity) {
+    if (note < 0 || note > 127) return;
+    if (paramsDirty_) applyParams();
+    layerNoteOn(p_.keyMode == kKeyNormal ? 0 : (layer & 1), note, velocity);
+    countActive();
+}
+
+void Engine::layerOff(int layer, int note) {
+    if (note < 0 || note > 127) return;
+    layerNoteOff(p_.keyMode == kKeyNormal ? 0 : (layer & 1), note);
+}
+
+void Engine::voiceOn(int voice, int note, int velocity) {
+    if (voice < 0 || voice >= kMaxVoices || note < 0 || note > 127) return;
+    if (paramsDirty_) applyParams();
+    Voice& v = voices_[voice];
+    const int layer = (p_.keyMode != kKeyNormal && voice >= kMaxVoices / 2) ? 1 : 0;
+    if (v.on && v.held) {                    // legato: the pitch moves, the envelopes go on
+        const float target = float(note * 100) + v.detune;
+        if (lp(layer).glide > 0) v.glide += lastCents_[voice] - target;
+        lastCents_[voice] = target;
+        v.note = note;
+        return;
+    }
+    const float detune = (layer == 1 && p_.keyMode == kKeyDouble) ? float(p_.doubleDetune) : 0.0f;
+    startVoice(voice, note, velocity, detune, layer);
+    countActive();
+}
+
+void Engine::voiceOff(int voice, int note) {
+    if (voice < 0 || voice >= kMaxVoices) return;
+    Voice& v = voices_[voice];
+    if (!v.on || !v.held || v.note != note) return;      // an earlier note of a legato line
+    if (hold_) v.pending = true; else startRelease(v);
+}
+
+// --- Notes handed on: arpeggiator channel and overflow --------------------------
+
+void Engine::pushNoteOut(bool arp, bool on, int note, int velocity) {
+    if (noteOutCount_ >= kNoteOutSize) return;
+    noteOut_[(noteOutHead_ + noteOutCount_++) % kNoteOutSize] =
+        {uint8_t(arp), uint8_t(on), uint8_t(note & 127), uint8_t(velocity & 127)};
+}
+
+bool Engine::popNoteOut(NoteOut& out) {
+    if (noteOutCount_ == 0) return false;
+    out = noteOut_[noteOutHead_];
+    noteOutHead_ = (noteOutHead_ + 1) % kNoteOutSize;
+    --noteOutCount_;
+    return true;
+}
+
+bool Engine::allHeld(int lo, int hi) const {
+    for (int i = lo; i < hi; ++i)
+        if (!arpOwns(i) && !(voices_[i].on && voices_[i].held)) return false;
+    return true;
 }
 
 // --- Audio ---------------------------------------------------------------------
@@ -1198,9 +1299,9 @@ PROVS_HOT void Engine::render(float* out, int frames) {
     // Chorus (ISR @0xDD2): depth = base value + pressure + mod wheel,
     // rate = base value + pressure/4 (in phase steps of the LFO table)
     {
-        const float press = pressure_ * amt99(p_.pressAmount);
+        const float press = pressure_[0] * amt99(p_.pressAmount);
         float mod = 0.0f;
-        if (p_.wheelDest & kWheelChorus) mod += wheel_;
+        if (p_.wheelDest & kWheelChorus) mod += wheel_[0];
         if (p_.pressDest & kPressChorusDepth) mod += press;
         const float rateMod = (p_.pressDest & kPressChorusRate)
             ? press * 8192.0f / (2.0f * 65536.0f * kFwTickSeconds) : 0.0f;
@@ -1279,8 +1380,8 @@ PROVS_HOT void Engine::render(float* out, int frames) {
 
             // Vector mix as in the firmware (@0xB4E): u = (x+y+1)/2, v = (y-x+1)/2,
             // A = (1-u)v, B = (1-u)(1-v), C = u(1-v), D = uv. In the center 25 % each.
-            const float x = clampf(v.mx.v * P.mixAmount + p_.mixX + v.modX, -1.0f, 1.0f);
-            const float y = clampf(v.my.v * P.mixAmount + p_.mixY + v.modY, -1.0f, 1.0f);
+            const float x = clampf(v.mx.v * P.mixAmount + p_.mixX + joyX_[vi] + v.modX, -1.0f, 1.0f);
+            const float y = clampf(v.my.v * P.mixAmount + p_.mixY + joyY_[vi] + v.modY, -1.0f, 1.0f);
             const float u = clampf(0.5f * (x + y) + 0.5f, 0.0f, 1.0f);
             const float w = clampf(0.5f * (y - x) + 0.5f, 0.0f, 1.0f);
             const float gains[4] = {
