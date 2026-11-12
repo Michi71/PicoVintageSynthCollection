@@ -62,6 +62,9 @@ instruments/PicoFaceD5/roms/
 # ROMs they come from.
 instruments/PicoFaceRD/roms/
 
+# PicoFaceCM: the CM-32L's control and PCM ROM.
+instruments/PicoFaceCM/roms/
+
 # PicoFaceM1: the M1's PCM, coefficient and OS ROMs and the factory preload
 # dump. None of it is distributable, and neither is anything converted from it.
 instruments/PicoFaceM1/roms/

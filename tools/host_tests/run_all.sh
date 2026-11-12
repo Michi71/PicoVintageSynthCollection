@@ -69,6 +69,13 @@ t_md_ui() {
         && "$HERE/md/md_ui_shots" "$HERE/md/out" && frames_ok "$HERE/md/out"
 }
 
+# PicoFaceCM: the real CM_Controller on a stand-in for the module (the engine needs a
+# ROM set), drawn with the firmware's own page code. Needs the u8g2 archive as well.
+t_cm_ui() {
+    "$HERE/cm/build_cm_ui.sh" && mkdir -p "$HERE/cm/out" \
+        && "$HERE/cm/cm_ui_shots" "$HERE/cm/out" && frames_ok "$HERE/cm/out"
+}
+
 # PicoFaceVS: generates its data without any ROM (Python 3 with numpy), then
 # the program format, the parameter list, the flash mirror and the real panel.
 # Needs the u8g2 archive that t_ui_kit builds, like t_md_ui.
@@ -88,7 +95,7 @@ t_cp_render() {
     done
 }
 
-ALL="veeprom d5 dx_sysex yc_sysex m1_sysex ob j6_ui yc ui_kit md_ui vs cp_render"
+ALL="veeprom d5 dx_sysex yc_sysex m1_sysex ob j6_ui yc ui_kit md_ui cm_ui vs cp_render"
 
 # --- runner -----------------------------------------------------------------
 
