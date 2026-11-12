@@ -5,14 +5,14 @@ Instrument ein Ordner unter `instruments/` und ein eigenes `.uf2`. Alles
 Weitere zur Struktur steht in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 offene Punkte in dessen §8.
 
-**Stand:** Release **v1.24.0** (12.11.2026, Tag auf `4ed0a32`): **PicoFaceVS**
-bekommt den Rest vom MIDI des Originals und die Cartridge — Empfangsmodi 1, 3
-und 4 mit rechtem und linkem Kanal, Parameter per MIDI in beide Richtungen,
-Arpeggiator-Kanal und Overflow als Noten-Ausgang, Transponieren, Sample-Dump
-auch für ROM-Wellen, Cartridge als zweiter Speicher im Flash (#183, auf der
-Hardware getestet); Doku dazu (#184). Davor v1.23.0 mit PicoFaceVS als
-zwölftem Instrument und achtem Release-Binary (#180). Die sieben übrigen
-Release-Instrumente unverändert. Nichts Ungereleastes auf `main`.
+**Stand:** Release **v1.25.0** (12.11.2026, Tag auf `659b8f8`): **PicoFaceCM**
+als dreizehntes Instrument — Roland CM-32L auf dem Synthesekern von munts
+mt32emu (LGPL, als geänderte Kopie mit Änderungsliste), beide Kerne rendern,
+32 Partials bei 50 % Last im Mittel und 61 % in der Spitze; Panel über den
+Speicher des Moduls, sechs gespeicherte Einstellungen (#186, auf der Hardware
+getestet); Doku dazu (#187). Baut nur lokal mit ROMs, die acht
+Release-Binaries sind unverändert. Davor v1.24.0 mit dem Rest vom MIDI des
+Prophet VS und der Cartridge (#183). Nichts Ungereleastes auf `main`.
 
 ## Sprache
 
