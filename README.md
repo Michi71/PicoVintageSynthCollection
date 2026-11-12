@@ -407,8 +407,8 @@ form, scoped per measurement, for project directories such as DecompHub.
 Copyright (C) 2026 Michi71.
 
 The collection was assembled in August 2026 from seven single-instrument
-repositories -- YC, CP, DX, RD, J6, MD and SM; OB, JV, D5 and M1 were written
-here afterwards, which is why the number is seven and not eleven. Each of those seven
+repositories -- YC, CP, DX, RD, J6, MD and SM; OB, JV, D5, M1 and VS were written
+here afterwards, which is why the number is seven and not twelve. Each of those seven
 already shipped the identical GPL-3 licence text, and every instrument README
 states GPL-3. It is also the lowest common denominator of what the engines are
 built on. Where an instrument derives from someone else's work:

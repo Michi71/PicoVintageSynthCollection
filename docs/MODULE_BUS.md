@@ -14,7 +14,7 @@ after.
 
 Three kinds of board are planned. Only the first exists as firmware today:
 
-- **sound module** — one of the eleven instruments. Consumes power and MIDI, emits
+- **sound module** — one of the twelve instruments. Consumes power and MIDI, emits
   a stereo line-level signal.
 - **MIDI hub** — takes MIDI from the outside world and fans it out to the sound
   modules. Also the obvious place for the shared supply.
@@ -47,7 +47,7 @@ outside world connects. That is the saving: one H11L1 instead of ten.
 The hub sends the MIDI stream through unchanged. Instruments already filter by
 channel themselves (`D5_Midi::accepts` and its equivalents), so a plain fan-out
 needs no firmware change at all. Routing, splits and layering can be added in
-the hub later without touching the eleven instruments.
+the hub later without touching the twelve instruments.
 
 ### Bus 2 — audio to the mixer, 3-pin header, 2.54 mm
 
@@ -62,7 +62,7 @@ away from the power ribbon.
 
 ## The rule that makes USB and bus power safe together
 
-Changing the firmware is a normal thing to do here — eleven images share one board
+Changing the firmware is a normal thing to do here — twelve images share one board
 — so somebody will plug in USB while the module is powered from the bus. Two
 5 V sources on one node.
 
