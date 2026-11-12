@@ -67,6 +67,11 @@ instruments/PicoFaceRD/roms/
 instruments/PicoFaceM1/roms/
 tools/m1_extract/out/
 
+# PicoFaceVS: optional files of the user's own - a Prophet VS OS ROM image,
+# Behringer Pro VS Mini firmware, SysEx banks. The instrument builds without
+# them; none of them is distributable.
+instruments/PicoFaceVS/roms/
+
 # Built by tools/cp_sampleprep/build_loop_finder.sh
 tools/cp_sampleprep/FindLoopPoints
 
