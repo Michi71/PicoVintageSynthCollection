@@ -6,7 +6,7 @@
 //
 // Both live in RAM, in the engine (provs::Engine::vsProgram / storeVsProgram
 // and userWave / setUserWave). This keeps a copy of them in five flash
-// sectors (20 KB): two for the 32 user waves in the firmware's 192-byte
+// sectors (20 KB), and a cartridge of the same layout in five more: two for the 32 user waves in the firmware's 192-byte
 // records, three for the 100 programs in the VS's own packed form, 82 bytes
 // each - both behind a header with a CRC. The sectors sit below the veeprom,
 // below PicoFaceJ6's patch sector and below PicoFaceM1's memory, so a switch
@@ -42,6 +42,14 @@ public:
     // build without the simulated flash).
     bool store();
 
+    // The cartridge: a second memory of the same size in flash, the VS's RAM
+    // cartridge as far as it is a place to put the internal memory and get
+    // it back (owner's manual ch. 3, "Transferring programs and waveforms").
+    // Both write or read at once, so the caller picks a moment without sound.
+    bool cartridgePresent() const;
+    bool saveCartridge(bool programs, bool waves);   // internal -> cartridge
+    bool loadCartridge(bool programs, bool waves);   // cartridge -> internal, to be stored
+
 private:
     uint32_t dirty_ = 0;       // programs: one bit per flash sector
     bool valid_ = false;       // flash holds a complete program image: load()
@@ -52,9 +60,9 @@ private:
 } // namespace vs
 
 #ifdef VS_STORE_HOST_TEST
-// The five sectors, for the host test: waves in the first two, programs in
-// the last three.
-extern uint8_t vs_store_sim_flash[5 * 4096];
+// The ten sectors, for the host test: the cartridge's waves (two) and
+// programs (three), then the internal waves and programs.
+extern uint8_t vs_store_sim_flash[10 * 4096];
 #endif
 
 #endif // VS_STORE_H

@@ -33,7 +33,8 @@ public:
     bool sendProgram(const uint8_t* fields, int slot);
     bool sendBank();
     bool sendWaves();
-    // Sample dump standard: the header, then three packets of 60 words. The
+    // Sample dump standard, for a user wave 0-31 or a ROM wave 32-126 as the
+    // VS answers both: the header, then three packets of 60 words. The
     // next step goes out on an acknowledge, or after the standard's timeouts
     // when the receiver says nothing.
     bool sendWave(int wave, uint8_t channel, uint32_t nowMs);

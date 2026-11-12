@@ -423,18 +423,30 @@ void testPanel() {
     CHECK(std::fabs(p.engine.params().mixX - 0.5f) < 1e-6f && std::fabs(p.engine.params().mixY + 0.25f) < 1e-6f,
           "joystick at %f, %f", p.engine.params().mixX, p.engine.params().mixY);
     p.shot("vs_04_joystick_moved");
-    p.c.setJoystick(0, 0);               // controller 16 at 0: all the way to A
-    CHECK(p.engine.params().mixX == -1.f, "controller 16 puts x at %f", p.engine.params().mixX);
     p.press(Button::ParamA);             // back to the center
     CHECK(p.engine.params().mixX == 0.f && p.engine.params().mixY == 0.f, "joystick not centered");
     p.turn(Encoder::Sel, 1);  p.turn(Encoder::ParamA, 1);  p.shot("vs_05_arp");
     p.turn(Encoder::Sel, 1);  p.shot("vs_06_arp_chord");
     p.turn(Encoder::Sel, 1);  p.shot("vs_07_midi");
-    CHECK(p.c.accepts(0) && p.c.accepts(9), "omni refuses a channel");
-    p.turn(Encoder::ParamA, 3);
-    CHECK(p.c.accepts(2) && !p.c.accepts(0) && !p.c.accepts(3), "channel 3 not selected");
-    p.turn(Encoder::ParamA, -3);
-    CHECK(p.c.accepts(0), "not back at omni");
+    // Mode 1 takes any channel; mode 3 only the right one.
+    CHECK(p.c.noteOn(9, 60, 100) && p.c.noteOff(9, 60), "omni refuses a channel");
+    p.turn(Encoder::ParamA, 1);  p.turn(Encoder::ParamB, 2);
+    CHECK(p.c.noteOn(2, 60, 100) && p.c.noteOff(2, 60) && !p.c.noteOn(0, 60, 100) && !p.c.noteOn(3, 60, 100),
+          "mode 3 does not select channel 3");
+    // Mode 4: eight channels from the right one, a voice each; a second note
+    // on a channel moves the voice (legato), the channel below is global.
+    p.turn(Encoder::ParamA, 1);
+    p.engine.allNotesOff();
+    CHECK(p.c.noteOn(2, 60, 100) && p.c.noteOn(2, 64, 100) && p.c.noteOn(9, 67, 100), "mode 4 refuses its channels");
+    p.render(256);
+    CHECK(p.engine.activeVoices() == 2, "mode 4: %d voices for two channels", p.engine.activeVoices());
+    CHECK(!p.c.noteOn(10, 60, 100) && !p.c.noteOn(1, 60, 100), "mode 4 plays outside its channels");
+    p.c.noteOff(2, 60);                  // the first note of the legato line: nothing ends
+    p.c.noteOff(2, 64);  p.c.noteOff(9, 67);
+    p.engine.allNotesOff();
+    p.turn(Encoder::ParamA, -2);  p.turn(Encoder::ParamB, -2);
+    CHECK(p.c.noteOn(0, 60, 100) && p.c.noteOff(0, 60), "not back at mode 1");
+    p.engine.allNotesOff();
     p.turn(Encoder::Sel, 1);  p.shot("vs_08_diag");
     p.turn(Encoder::Sel, 1);
     CHECK(p.c.page() == VS_Controller::Page::Program, "pages do not wrap");
@@ -487,9 +499,9 @@ void testPanel() {
     CHECK(again.load(), "stored bank not found");
     CHECK(Engine::presetCount() == 6, "restored bank holds %d programs", Engine::presetCount());
     CHECK(memcmp(Engine::vsProgram(5), edited, sizeof edited) == 0, "restored program differs");
-    vs_store_sim_flash[2 * 4096 + 100] ^= 1;
+    vs_store_sim_flash[7 * 4096 + 100] ^= 1;
     CHECK(!again.load(), "corrupt store accepted");
-    vs_store_sim_flash[2 * 4096 + 100] ^= 1;
+    vs_store_sim_flash[7 * 4096 + 100] ^= 1;
 
     // Menu -> Edit Waveform: wave B a fifth harmonic, the mix moved, stored as wave 7.
     p.hold();  p.turn(Encoder::Sel, 3);  p.click();   p.shot("vs_17_wave_a");
@@ -521,7 +533,7 @@ void testPanel() {
 
     // Menu -> Send SysEx -> This Program.
     g_tx.clear();
-    p.hold();  p.turn(Encoder::Sel, 4);  p.click();  p.shot("vs_22_send");
+    p.hold();  p.turn(Encoder::Sel, 6);  p.click();  p.shot("vs_22_send");
     p.click();
     p.wait(100);
     CHECK(g_tx.size() == (size_t)Engine::kVsDumpBytes, "program dump is %zu bytes", g_tx.size());
@@ -529,7 +541,7 @@ void testPanel() {
 
     // Menu -> Send SysEx -> VS Bank, then read it back into an empty bank.
     g_tx.clear();
-    p.hold();  p.turn(Encoder::Sel, 4);  p.click();  p.turn(Encoder::Sel, 1);  p.click();
+    p.hold();  p.turn(Encoder::Sel, 6);  p.click();  p.turn(Encoder::Sel, 1);  p.click();
     p.wait(3000);
     CHECK(g_tx.size() == 16405, "bank dump is %zu bytes", g_tx.size());
     CHECK(!p.c.sending(), "bank dump never ends");
@@ -594,6 +606,96 @@ void testPanel() {
         }
     }
     CHECK(!p.c.sending(), "sample dump never ends");
+    // A ROM wave goes out too, as on the VS.
+    g_tx.clear();
+    p.sysex({0xF0, 0x7E, 0x00, 0x03, 40, 0x00, 0xF7});
+    p.wait(2500);
+    CHECK(g_tx.size() == 21 + 3 * 127 && g_tx[4] == 40, "ROM wave dump: %zu bytes", g_tx.size());
+
+    // Parameters over MIDI: off after power-up; then cutoff (field 12) to
+    // the middle of the slider, and LFO 1 -> filter (switch 04) on.
+    p.c.controlChange(0, 98, 12);  p.c.controlChange(0, 99, 0);  p.c.controlChange(0, 6, 64);
+    const uint8_t cutoff = p.c.editBuffer()[12];
+    p.hold();  p.turn(Encoder::Sel, 4);  p.click();   p.shot("vs_25_midi_options");
+    p.turn(Encoder::Sel, 1);  p.turn(Encoder::ParamA, 3);  p.turn(Encoder::ParamB, 1);   p.shot("vs_26_midi_params");
+    p.c.controlChange(0, 98, 12);  p.c.controlChange(0, 99, 0);
+    p.c.controlChange(0, 38, 0);   p.c.controlChange(0, 6, 64);
+    CHECK(p.c.editBuffer()[12] == 50 && cutoff != 50, "cutoff over MIDI: %d (was %d)", p.c.editBuffer()[12], cutoff);
+    p.c.controlChange(0, 98, 0x04);  p.c.controlChange(0, 99, 1);  p.c.controlChange(0, 6, 127);
+    CHECK(p.c.editBuffer()[103] & 0x10, "LFO 1 -> filter switch not set over MIDI");
+    p.c.controlChange(0, 98, 99);  p.c.controlChange(0, 99, 0);  p.c.controlChange(0, 6, 0);
+    CHECK(p.c.editBuffer()[99] == (uint8_t)-99, "velocity amount at the slider's bottom: %d", (int8_t)p.c.editBuffer()[99]);
+    // ... and going out, when a parameter is turned on the panel.
+    p.hold();                            // leave MIDI options
+    p.hold();  p.click();                // Edit Program, where it was left
+    g_tx.clear();
+    p.turn(Encoder::ParamA, 3);
+    CHECK(g_tx.size() == 12 && g_tx[0] == 0xB0 && g_tx[1] == 98 && g_tx[4] == 99 && g_tx[7] == 38 && g_tx[10] == 6,
+          "parameter out: %zu bytes", g_tx.size());
+    if (g_tx.size() == 12) {             // what was sent, taken as a receiver takes it, is the edit
+        const vs::ParamDef* def = vs::paramByMidi((g_tx[5] << 7) | g_tx[2]);
+        uint8_t copy[Engine::kVsFields];
+        memcpy(copy, p.c.editBuffer(), sizeof copy);
+        CHECK(def != nullptr, "parameter out: unknown number");
+        if (def) {
+            copy[def->field] ^= 0x15;
+            vs::paramSetSlider(*def, copy, (g_tx[11] << 1) | (g_tx[8] >> 6));
+            CHECK(memcmp(copy, p.c.editBuffer(), sizeof copy) == 0, "parameter out does not decode to the edit");
+        }
+    }
+    p.hold();
+
+    // Overflow (switched on above): the ninth held key goes out instead of stealing a voice.
+    p.engine.allNotesOff();
+    p.wait(40);
+    g_tx.clear();
+    for (int k = 0; k < 9; ++k) p.c.noteOn(0, (uint8_t)(48 + k), 100);
+    p.render(256);
+    p.wait(40);
+    const uint8_t over[] = {0x90, 56, 100};
+    CHECK(p.engine.activeVoices() == 8 && g_tx.size() == 3 && memcmp(g_tx.data(), over, 3) == 0,
+          "overflow: %d voices, %zu bytes out", p.engine.activeVoices(), g_tx.size());
+    for (int k = 0; k < 9; ++k) p.c.noteOff(0, (uint8_t)(48 + k));
+    p.wait(40);
+    CHECK(g_tx.size() == 6 && g_tx[3] == 0x80 && g_tx[4] == 56, "overflow note not ended: %zu bytes", g_tx.size());
+    p.engine.allNotesOff();
+
+    // The arpeggiator's notes on its channel (set to 5 here), and a latched
+    // arpeggio transposed from the keyboard.
+    p.hold();  p.turn(Encoder::Sel, 4);  p.click();  p.turn(Encoder::ParamB, 5);  p.hold();
+    p.turn(Encoder::Sel, 3);  p.turn(Encoder::ParamA, 1);        // ARP page: on
+    p.c.noteOn(0, 60, 100);
+    g_tx.clear();
+    p.render(22050);  p.wait(40);
+    CHECK(g_tx.size() >= 6 && g_tx[0] == 0x94 && g_tx[1] == 60, "arpeggiator out: %zu bytes", g_tx.size());
+    p.press(Button::ParamA);             // transpose: the next key
+    CHECK(p.c.noteOn(0, 67, 100), "transpose key refused");
+    p.c.noteOff(0, 67);
+    g_tx.clear();
+    p.render(22050);  p.wait(40);
+    bool up = false;
+    for (size_t k = 0; k + 2 < g_tx.size(); k += 3) up |= g_tx[k] == 0x94 && g_tx[k + 1] == 67;
+    CHECK(up, "arpeggio not transposed by a fifth");
+    p.press(Button::ParamB);
+    p.c.noteOff(0, 60);
+    p.turn(Encoder::ParamA, -1);  p.turn(Encoder::Sel, -3);
+    p.engine.allNotesOff();
+    p.wait(40);
+
+    // Cartridge: save programs and waves, wipe the internal memory, load them back.
+    p.hold();  p.turn(Encoder::Sel, 5);  p.click();   p.shot("vs_27_cartridge");
+    p.click();                                                    // Save Programs
+    p.hold();  p.turn(Encoder::Sel, 5);  p.click();  p.turn(Encoder::Sel, 1);  p.click();   // Save Waves
+    CHECK(p.store.cartridgePresent(), "no cartridge after saving");
+    uint8_t five[Engine::kVsFields];
+    memcpy(five, Engine::vsProgram(5), sizeof five);
+    Engine::resetVsBank();
+    Engine::clearUserWaves();
+    p.hold();  p.turn(Encoder::Sel, 5);  p.click();  p.turn(Encoder::Sel, 2);  p.click();   // Load Programs
+    p.hold();  p.turn(Encoder::Sel, 5);  p.click();  p.turn(Encoder::Sel, 3);  p.click();   // Load Waves
+    CHECK(Engine::presetCount() == 100 && memcmp(Engine::vsProgram(5), five, sizeof five) == 0, "programs not back from the cartridge");
+    CHECK(Engine::userWave(9, back) && memcmp(back, sent, sizeof sent) == 0, "waves not back from the cartridge");
+    CHECK(p.store.dirty(), "loaded memory not marked for storing");
 
     // A program dump coming in is taken, shown and stored.
     uint8_t f[Engine::kVsFields], msg[Engine::kVsDumpBytes];
@@ -606,13 +708,13 @@ void testPanel() {
 
     // Factory reset, with nothing embedded: back to the init program, no user waves.
     p.wait(2000);
-    p.hold();  p.turn(Encoder::Sel, 5);  p.click();  p.shot("vs_24_reset_confirm");
+    p.hold();  p.turn(Encoder::Sel, 7);  p.click();  p.shot("vs_24_reset_confirm");
     p.click();
     CHECK(Engine::presetCount() == 1, "bank holds %d programs after reset", Engine::presetCount());
     CHECK(Engine::userWaveMask() == 0, "user waves survive the reset");
 
     // Settings survive a round trip.
-    VsSettingsV3 s{}, t{};
+    VsSettingsV4 s{}, t{};
     p.c.exportSettings(s);
     Panel q;
     q.engine.init(44100.0);

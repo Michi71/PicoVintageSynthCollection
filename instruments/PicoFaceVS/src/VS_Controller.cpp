@@ -22,8 +22,9 @@ using provs::Engine;
 namespace {
 
 enum MenuAction : uint8_t {
-    A_EDIT, A_WRITE, A_COMPARE, A_WAVE, A_SEND, A_RESET, A_EXIT,
+    A_EDIT, A_WRITE, A_COMPARE, A_WAVE, A_MIDI, A_CART, A_SEND, A_RESET, A_EXIT,
     A_SEND_PROGRAM, A_SEND_BANK, A_SEND_WAVES, A_BACK,
+    A_CART_SAVE_PROGS, A_CART_SAVE_WAVES, A_CART_LOAD_PROGS, A_CART_LOAD_WAVES,
 };
 
 constexpr uint32_t kPopupMs = 1200;
@@ -33,6 +34,9 @@ constexpr int kWavePages = 6;        // wave A-D, mix, store
 
 const char* const kFxName[5] = {"Prog", "Off", "Chorus", "Ensemble", "VS Chorus"};
 const char* const kArpName[3] = {"Off", "On", "Latch"};
+const char* const kModeName[3] = {"1 Omni", "3 Poly", "4 Mono"};
+const char* const kParamsName[4] = {"Off", "Receive", "Transmit", "Both"};
+constexpr int kMidiPages = 3;
 
 // The chord sets come with the Pro VS Mini data; without it the switch shows
 // "n/a" and stays off.
@@ -62,6 +66,7 @@ void VS_Controller::init(const uint8_t* banks, size_t size) {
     store_.loadWaves();
     while (Engine::buildUserWaves(1000)) {}      // nothing sounds yet: all at once
     applyArp();
+    applyMidi();
     select(kBankVs, 0);
 }
 
@@ -125,22 +130,152 @@ void VS_Controller::applyArp() {
     engine_.setArp(arp_ != 0);
 }
 
-void VS_Controller::programChange(uint8_t bankLsb, uint8_t program) {
-    const uint8_t bank = bankLsb == 1 ? kBankMini : kBankVs;
-    if (program >= count(bank)) return;          // past the end: ignored, not wrapped
-    select(bank, program);
-}
-
 void VS_Controller::setVolume(uint8_t volume) {
     volume_ = volume > 100 ? 100 : volume;
     applyOverrides();
 }
 
-// Controllers 16 and 17, as the VS sends and takes them (owner's manual ch. 14)
-void VS_Controller::setJoystick(int axis, uint8_t value) {
-    const int8_t v = (int8_t)(value >= 127 ? 64 : (int)value - 64);
-    if (axis == 0) joyX_ = v; else joyY_ = v;
-    applyOverrides();
+// ---------------------------------------------------------------------------
+// MIDI in
+// ---------------------------------------------------------------------------
+bool VS_Controller::target(uint8_t ch, Target& t) const {
+    const bool two = engine_.params().keyMode != provs::kKeyNormal;
+    t = {Engine::kAllVoices, -1, -1, false};
+    ch &= 15;
+    if (midiMode_ == 0) return true;                         // mode 1: any channel
+    if (midiMode_ == 1) {                                    // mode 3
+        if (!two || leftChannel_ == rightChannel_) return ch == rightChannel_;
+        if (ch == rightChannel_) { t.layer = 0; t.voices = engine_.layerVoices(0); return true; }
+        if (ch == leftChannel_)  { t.layer = 1; t.voices = engine_.layerVoices(1); return true; }
+        return false;
+    }
+    // Mode 4: one voice per channel, wrapping past 16; where the two ranges
+    // of a split overlap, the right program has the channel
+    const int n = two ? 4 : 8;
+    int d = (ch - rightChannel_) & 15;
+    if (d < n) { t.voice = d; t.voices = 1u << d; return true; }
+    if (two) {
+        d = (ch - leftChannel_) & 15;
+        if (d < 4) { t.voice = 4 + d; t.voices = 1u << (4 + d); return true; }
+    }
+    // the channel below a range is its global channel
+    if (ch == ((rightChannel_ - 1) & 15)) { t.voices = engine_.layerVoices(0); t.global = true; return true; }
+    if (two && ch == ((leftChannel_ - 1) & 15)) { t.voices = engine_.layerVoices(1); t.global = true; return true; }
+    return false;
+}
+
+bool VS_Controller::noteOn(uint8_t ch, uint8_t note, uint8_t velocity) {
+    Target t;
+    if (!target(ch, t) || t.global) return false;
+    if (transposeArmed_) {               // Latch/Transpose held and a key: relative to middle C
+        transposeArmed_ = false;
+        transpose_ = (int8_t)((int)note - 60);
+        engine_.setArpTranspose(transpose_);
+        snprintf(popupText_, sizeof popupText_, "Tr %+d", (int)transpose_);
+        popup(popupText_);
+        return true;
+    }
+    if (t.voice >= 0) engine_.voiceOn(t.voice, note, velocity);
+    else if (t.layer >= 0) engine_.layerOn(t.layer, note, velocity);
+    else engine_.noteOn(note, velocity);
+    return true;
+}
+
+bool VS_Controller::noteOff(uint8_t ch, uint8_t note) {
+    Target t;
+    if (!target(ch, t) || t.global) return false;
+    if (t.voice >= 0) engine_.voiceOff(t.voice, note);
+    else if (t.layer >= 0) engine_.layerOff(t.layer, note);
+    else engine_.noteOff(note);
+    return true;
+}
+
+// Controllers as the VS takes them (owner's manual ch. 14, table @0x4FD2).
+// Hold, which the VS does not have, is on 66.
+void VS_Controller::controlChange(uint8_t ch, uint8_t cc, uint8_t value) {
+    Target t;
+    if (!target(ch, t)) return;
+    const float v = (float)value * (1.f / 127.f);
+    switch (cc) {
+    case 32:  midiBank_ = value; break;                              // bank select LSB
+    case 1:                                                          // mod wheel
+    case 4:   engine_.setModWheel(v, t.voices); break;               // foot pedal: the same
+    case 2:   engine_.setPressure(v, t.voices); break;               // breath: as pressure
+    case 7:   setVolume((uint8_t)((value * 100 + 63) / 127)); break;
+    case 16:                                                         // joystick x, y: 64 = center
+    case 17:  engine_.setJoystick(cc - 16, value >= 127 ? 1.f : ((float)value - 64.f) * (1.f / 64.f), t.voices); break;
+    case 64:                                                         // the alternate-release footswitch
+    case 69:  engine_.setAltRelease(value >= 64); break;             // its second number
+    case 66:  engine_.setHold(value >= 64); break;
+    case 98:  paramLsb_ = value; break;                              // parameter select LSB, MSB
+    case 99:  paramMsb_ = value; break;
+    case 38:  dataLsb_ = value; break;                               // data entry LSB
+    case 6: {                                                        // data entry MSB: the slider position
+        if (!(midiParams_ & 1) || bank_ != kBankVs || comparing_) break;
+        const vs::ParamDef* p = vs::paramByMidi((paramMsb_ << 7) | paramLsb_);
+        // @0x50BE: eight bits, the top one of the LSB below the seven of the MSB
+        if (p && vs::paramSetSlider(*p, edit_, (value << 1) | (dataLsb_ >> 6))) {
+            edited_ = true;
+            play();
+        }
+        dataLsb_ = 0;
+        break;
+    }
+    case 120:
+    case 123: engine_.allNotesOff(); break;
+    default:  break;
+    }
+}
+
+void VS_Controller::pitchBend(uint8_t ch, int16_t bend) {
+    Target t;
+    if (target(ch, t)) engine_.pitchBend((float)bend * (1.f / 8192.f), t.voices);
+}
+
+void VS_Controller::pressure(uint8_t ch, uint8_t value) {
+    Target t;
+    if (target(ch, t)) engine_.setPressure((float)value * (1.f / 127.f), t.voices);
+}
+
+// Bank select LSB 0 = Prophet VS programs, 1 = Pro VS Mini patches. On the
+// left channel of a split or double it changes the linked program only.
+void VS_Controller::programChange(uint8_t ch, uint8_t program) {
+    Target t;
+    if (!target(ch, t)) return;
+    if (t.layer == 1 || (t.voice >= 4 && engine_.params().keyMode != provs::kKeyNormal)) {
+        if (bank_ == kBankVs && program < 100 && !comparing_) { edit_[61] = program; edited_ = true; play(); }
+        return;
+    }
+    const uint8_t bank = midiBank_ == 1 ? kBankMini : kBankVs;
+    if (program >= count(bank)) return;          // past the end: ignored, not wrapped
+    select(bank, program);
+}
+
+// ---------------------------------------------------------------------------
+// MIDI out
+// ---------------------------------------------------------------------------
+void VS_Controller::sendChannelMessage(uint8_t status, uint8_t d1, uint8_t d2) {
+    const uint8_t m[3] = {status, (uint8_t)(d1 & 127), (uint8_t)(d2 & 127)};
+    if (vs_sysex_room() >= sizeof m && !dump_.busy()) vs_sysex_write(m, sizeof m);
+}
+
+// A parameter changed on the panel, as the VS sends it: select LSB and MSB,
+// then the slider position as data entry LSB and MSB.
+void VS_Controller::sendParam(int index) {
+    const vs::ParamDef& p = vs::param(index);
+    const int number = vs::paramMidiNumber(p);
+    if (number < 0) return;
+    const int pos = vs::paramSlider(p, edit_);
+    const uint8_t cc = (uint8_t)(0xB0 | rightChannel_);
+    sendChannelMessage(cc, 98, (uint8_t)(number & 127));
+    sendChannelMessage(cc, 99, (uint8_t)(number >> 7));
+    sendChannelMessage(cc, 38, (uint8_t)((pos & 1) << 6));
+    sendChannelMessage(cc, 6, (uint8_t)(pos >> 1));
+}
+
+void VS_Controller::applyMidi() {
+    engine_.setArpOut(arpChannel_ != 0);
+    engine_.setOverflow(overflow_);
 }
 
 void VS_Controller::editStep(int which, int delta) {
@@ -149,6 +284,7 @@ void VS_Controller::editStep(int which, int delta) {
     if (vs::paramStep(vs::param(i), edit_, delta)) {
         edited_ = true;
         play();
+        if (midiParams_ & 2) sendParam(i);
     }
 }
 
@@ -262,6 +398,15 @@ bool VS_Controller::poll(uint32_t nowMs) {
         dirty = true;
     }
 
+    // Notes the engine hands on: the arpeggiator's on its channel, overflow
+    // on the right channel
+    Engine::NoteOut e;
+    while (engine_.popNoteOut(e)) {
+        const uint8_t ch = e.arp ? (uint8_t)(arpChannel_ - 1) : rightChannel_;
+        if (e.arp && arpChannel_ == 0) continue;
+        sendChannelMessage((uint8_t)((e.on ? 0x90 : 0x80) | (ch & 15)), e.note, e.on ? e.velocity : 64);
+    }
+
     // The levels of a user wave that has changed: a few harmonics a tick, so
     // that the audio next door does not notice.
     Engine::buildUserWaves(8);
@@ -297,6 +442,8 @@ void VS_Controller::openMenu() {
         item(comparing_ ? "Compare: Off" : "Compare", A_COMPARE);
     }
     item("Edit Waveform", A_WAVE);
+    item("MIDI Options", A_MIDI);
+    item("Cartridge", A_CART);
     item("Send SysEx", A_SEND);
     item("Factory Reset", A_RESET);
     item("<< Back", A_EXIT);
@@ -313,6 +460,18 @@ void VS_Controller::openSend() {
     item("<< Back", A_BACK);
     list_.open(menu_, (uint8_t)nMenu_, 0);
     state_ = State::Send;
+}
+
+void VS_Controller::openCart() {
+    nMenu_ = 0;
+    auto item = [&](const char* s, uint8_t a) { menu_[nMenu_] = s; menuAction_[nMenu_] = a; ++nMenu_; };
+    item("Save Programs", A_CART_SAVE_PROGS);
+    item("Save Waves", A_CART_SAVE_WAVES);
+    item("Load Programs", A_CART_LOAD_PROGS);
+    item("Load Waves", A_CART_LOAD_WAVES);
+    item("<< Back", A_BACK);
+    list_.open(menu_, (uint8_t)nMenu_, 0);
+    state_ = State::Cart;
 }
 
 void VS_Controller::menuChoose(int i) {
@@ -334,6 +493,13 @@ void VS_Controller::menuChoose(int i) {
         wavePage_ = 0;
         engine_.allNotesOff();
         play();
+        break;
+    case A_MIDI:
+        state_ = State::Midi;
+        midiPage_ = 0;
+        break;
+    case A_CART:
+        openCart();
         break;
     case A_SEND:
         openSend();
@@ -408,6 +574,11 @@ bool VS_Controller::input(const picoface::ui::InputState& raw) {
             break;
         case Page::Arp:
             if (da) { arp_ = (uint8_t)clampInt(arp_ + da, 0, 2); applyArp(); }
+            // The VS transposes a latched arpeggio with Latch/Transpose held
+            // and a key. Here: press A, then play the key (middle C = none);
+            // press B to take the transposition back.
+            if (aPress) { transposeArmed_ = !transposeArmed_; popup(transposeArmed_ ? "Key?" : "Tr off"); }
+            if (bPress) { transposeArmed_ = false; transpose_ = 0; engine_.setArpTranspose(0); popup("Tr +0"); }
             // Layer is a parameter of the program (field 94), as on the VS
             if (db && bank_ == kBankVs && !comparing_) {
                 const uint8_t on = db > 0 ? 1 : 0;
@@ -419,12 +590,9 @@ bool VS_Controller::input(const picoface::ui::InputState& raw) {
             if (db && kHaveChords) { chord_ = (uint8_t)clampInt(chord_ + db, 0, 8); applyOverrides(); }
             break;
         case Page::Midi:
-            if (da) {                    // Omni, then 1..16
-                const int i = clampInt((midiChannel_ > 15 ? 0 : midiChannel_ + 1) + da, 0, 16);
-                midiChannel_ = (uint8_t)(i == 0 ? 16 : i - 1);
-                engine_.allNotesOff();   // a note of the old channel would never end
-            }
-            if (db) { arpClock_ = db > 0 ? 1 : 0; applyArp(); }
+            if (da) midiMode_ = (uint8_t)clampInt(midiMode_ + da, 0, 2);
+            if (db) rightChannel_ = (uint8_t)clampInt(rightChannel_ + db, 0, 15);
+            if (da || db) engine_.allNotesOff();   // a note of the old channel would never end
             break;
         case Page::Diag:
             if (bPress) loadPeak_ = 0.f;
@@ -492,6 +660,44 @@ bool VS_Controller::input(const picoface::ui::InputState& raw) {
             state_ = State::Play;
         }
         break;
+    case State::Midi:
+        if (selLong) { state_ = State::Play; break; }
+        if (ds) {
+            int p = ((int)midiPage_ + ds) % kMidiPages;
+            if (p < 0) p += kMidiPages;
+            midiPage_ = (uint8_t)p;
+        }
+        if (midiPage_ == 0) {
+            if (da) { leftChannel_ = (uint8_t)clampInt(leftChannel_ + da, 0, 15); engine_.allNotesOff(); }
+            if (db) arpChannel_ = (uint8_t)clampInt(arpChannel_ + db, 0, 16);
+        } else if (midiPage_ == 1) {
+            if (da) midiParams_ = (uint8_t)clampInt(midiParams_ + da, 0, 3);
+            if (db) overflow_ = db > 0;
+        } else if (da) {
+            arpClock_ = da > 0 ? 1 : 0;
+            applyArp();
+        }
+        applyMidi();
+        break;
+    case State::Cart: {
+        if (selLong) { state_ = State::Play; break; }
+        const int c = list_.update(in);
+        if (c == picoface::ui::ListView::kNone) break;
+        const uint8_t a = menuAction_[c];
+        state_ = State::Play;
+        if (a == A_BACK) break;
+        engine_.allNotesOff();           // the flash write stops the CPU
+        if (a == A_CART_SAVE_PROGS || a == A_CART_SAVE_WAVES) {
+            popup(store_.saveCartridge(a == A_CART_SAVE_PROGS, a == A_CART_SAVE_WAVES) ? "Saved" : "Failed");
+        } else if (store_.loadCartridge(a == A_CART_LOAD_PROGS, a == A_CART_LOAD_WAVES)) {
+            memChangedMs_ = nowMs_;
+            select(bank_, program_);
+            popup("Loaded");
+        } else {
+            popup("Empty");
+        }
+        break;
+    }
     case State::Wave:
         if (selLong) {                   // back to the program
             state_ = State::Play;
@@ -538,6 +744,8 @@ bool VS_Controller::draw(picoface::ui::Display& d, uint32_t nowMs) {
     case State::Edit:   drawEdit(d); break;
     case State::Write:  drawWrite(d); break;
     case State::Wave:   drawWave(d); break;
+    case State::Midi:   drawMidi(d); break;
+    case State::Cart:   list_.draw(d, "CARTRIDGE"); break;
     case State::Confirm:
         d.clear();
         kit::popup(d, "FACTORY RESET?", "SEL: yes");   // a long press backs out
@@ -647,9 +855,8 @@ bool VS_Controller::drawPlay(picoface::ui::Display& d, uint32_t nowMs) {
         break;
     }
     case Page::Midi:
-        if (midiChannel_ > 15) snprintf(ta, sizeof ta, "Omni");
-        else snprintf(ta, sizeof ta, "%d", (int)midiChannel_ + 1);
-        kit::panelDuo(d, {"Channel", ta, -1}, {"Arp Clock", arpClock_ ? "MIDI" : "Internal", -1});
+        snprintf(tb, sizeof tb, "%d", (int)rightChannel_ + 1);
+        kit::panelDuo(d, {"Mode", kModeName[midiMode_], -1}, {"Channel", tb, (float)rightChannel_ / 15.f});
         break;
     default:
         break;
@@ -690,6 +897,21 @@ void VS_Controller::drawWrite(picoface::ui::Display& d) {
     kit::panelDuo(d, {"To", num, (float)writeTo_ / 99.f}, {"Replaces", name, -1});
 }
 
+void VS_Controller::drawMidi(picoface::ui::Display& d) {
+    char ta[16], tb[16];
+    d.clear();
+    kit::header(d, "MIDI OPTIONS", midiPage_, kMidiPages);
+    if (midiPage_ == 0) {
+        snprintf(ta, sizeof ta, "%d", (int)leftChannel_ + 1);
+        if (arpChannel_) snprintf(tb, sizeof tb, "%d", (int)arpChannel_); else snprintf(tb, sizeof tb, "Off");
+        kit::panelDuo(d, {"Left Ch", ta, (float)leftChannel_ / 15.f}, {"Arp Ch", tb, -1});
+    } else if (midiPage_ == 1) {
+        kit::panelDuo(d, {"Params", kParamsName[midiParams_], -1}, {"Overflow", overflow_ ? "On" : "Off", -1});
+    } else {
+        kit::panelDuo(d, {"Arp Clock", arpClock_ ? "MIDI" : "Internal", -1}, {"", "", -1});
+    }
+}
+
 void VS_Controller::drawWave(picoface::ui::Display& d) {
     static const char* const kTitle[kWavePages] = {"WAVE A", "WAVE B", "WAVE C", "WAVE D", "WAVE MIX", "STORE WAVE"};
     char ta[16], tb[16];
@@ -718,23 +940,28 @@ void VS_Controller::drawWave(picoface::ui::Display& d) {
 // ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
-void VS_Controller::exportSettings(VsSettingsV3& s) const {
+void VS_Controller::exportSettings(VsSettingsV4& s) const {
     s.bank = bank_; s.program = program_; s.fx = fx_; s.volume = volume_;
     s.arp = arp_; s.arpClock = arpClock_; s.clocks = clocks_; s.chord = chord_;
-    s.midiChannel = midiChannel_;
+    s.midiMode = midiMode_; s.rightChannel = rightChannel_; s.leftChannel = leftChannel_;
+    s.arpChannel = arpChannel_;
     s.joyX = joyX_; s.joyY = joyY_;
     for (int k = 0; k < 4; ++k) { s.waveNo[k] = waveNo_[k]; s.waveHarm[k] = waveHarm_[k]; }
     s.waveX = waveX_; s.waveY = waveY_;
 }
 
-void VS_Controller::importSettings(const VsSettingsV3& s) {
+void VS_Controller::importSettings(const VsSettingsV4& s) {
     fx_ = s.fx < 5 ? s.fx : 0;
     volume_ = s.volume <= 100 ? s.volume : 80;
     arp_ = s.arp < 3 ? s.arp : 0;
     arpClock_ = s.arpClock ? 1 : 0;
     clocks_ = (uint8_t)clampInt(s.clocks, 1, 24);
     chord_ = s.chord <= 8 ? s.chord : 0;
-    midiChannel_ = s.midiChannel <= 16 ? s.midiChannel : 16;
+    midiMode_ = s.midiMode < 3 ? s.midiMode : 0;
+    rightChannel_ = s.rightChannel & 15;
+    leftChannel_ = s.leftChannel & 15;
+    arpChannel_ = s.arpChannel <= 16 ? s.arpChannel : 0;
+    applyMidi();
     joyX_ = (int8_t)clampInt(s.joyX, -64, 64);
     joyY_ = (int8_t)clampInt(s.joyY, -64, 64);
     for (int k = 0; k < 4; ++k) {

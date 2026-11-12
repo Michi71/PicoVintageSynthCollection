@@ -210,9 +210,37 @@ public:
     void noteOn(int note, int velocity);
     void noteOff(int note);
     void allNotesOff();
-    void pitchBend(float amount);            // -1..+1 (times bendRange)
-    void setModWheel(float amount);          // 0..1 -> LFO amount
-    void setPressure(float amount);          // 0..1 (Channel Pressure)
+    // Controllers are kept per voice, so that MIDI mode 4 (one channel per
+    // voice) and two channels for the halves of a split can address them
+    // separately; 'voices' is a bit mask, bit 0 = voice 1. The LFOs and the
+    // chorus of a layer follow its first voice.
+    static constexpr unsigned kAllVoices = (1u << kMaxVoices) - 1u;
+    void pitchBend(float amount, unsigned voices = kAllVoices);     // -1..+1 (times bendRange)
+    void setModWheel(float amount, unsigned voices = kAllVoices);   // 0..1 -> LFO amount
+    void setPressure(float amount, unsigned voices = kAllVoices);   // 0..1 (Channel Pressure)
+    // Joystick offset over MIDI, added to Params::mixX / mixY
+    void setJoystick(int axis, float amount, unsigned voices = kAllVoices);
+    // The voices of a layer as a mask (all of them without split or double)
+    unsigned layerVoices(int layer) const;
+
+    // A key for one layer only, over the whole keyboard and past the
+    // arpeggiator - MIDI mode 3 with separate channels for the two halves.
+    void layerOn(int layer, int note, int velocity);
+    void layerOff(int layer, int note);
+    // One voice played directly - MIDI mode 4. A note while the voice still
+    // holds one changes its pitch without restarting the envelopes (legato).
+    void voiceOn(int voice, int note, int velocity);
+    void voiceOff(int voice, int note);
+
+    // Overflow (owner's manual ch. 14): with all voices held, a further key
+    // is not played by stealing one but handed out, for a second instrument.
+    void setOverflow(bool on) { overflow_ = on; }
+    // Hands out the arpeggiator's notes as well (the VS's arpeggiator channel).
+    void setArpOut(bool on) { arpOut_ = on; }
+    // Notes to be sent on: from the arpeggiator or as overflow. Filled while
+    // rendering and playing, emptied by the caller.
+    struct NoteOut { uint8_t arp; uint8_t on; uint8_t note; uint8_t velocity; };
+    bool popNoteOut(NoteOut& out);
     // Alternate-release footswitch: release runs at rate 4A instead of rate 4
     void setAltRelease(bool on) { altRelease_ = on; }
     void setHold(bool on) { hold_ = on; if (!on) releaseHeld(); }
@@ -429,9 +457,18 @@ private:
     Lfo lfo_[2][2];            // [layer][LFO]
     int ctl_ = 0;
     int active_ = 0;
-    float bend_ = 0.0f;
-    float wheel_ = 0.0f;
-    float pressure_ = 0.0f;
+    float bend_[kMaxVoices] = {0, 0, 0, 0, 0, 0, 0, 0};
+    float wheel_[kMaxVoices] = {0, 0, 0, 0, 0, 0, 0, 0};
+    float pressure_[kMaxVoices] = {0, 0, 0, 0, 0, 0, 0, 0};
+    float joyX_[kMaxVoices] = {0, 0, 0, 0, 0, 0, 0, 0};
+    float joyY_[kMaxVoices] = {0, 0, 0, 0, 0, 0, 0, 0};
+    bool overflow_ = false, arpOut_ = false;
+    uint32_t overflowed_[4] = {0, 0, 0, 0};    // notes handed out as overflow
+    static constexpr int kNoteOutSize = 32;
+    NoteOut noteOut_[kNoteOutSize];
+    int noteOutHead_ = 0, noteOutCount_ = 0;
+    void pushNoteOut(bool arp, bool on, int note, int velocity);
+    bool allHeld(int lo, int hi) const;
     // per voice: last played pitch (for glide), survives the Voice reset
     float lastCents_[kMaxVoices] = {0, 0, 0, 0, 0, 0, 0, 0};
     bool played_[kMaxVoices] = {false, false, false, false, false, false, false, false};
