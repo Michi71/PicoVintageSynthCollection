@@ -75,6 +75,7 @@ The instrument is found automatically on the next configure run, included in the
 | SysEx longer than 512 bytes (bank dumps) | return true from `wantsSysExStream()` and take the bytes in `sysExStream()`; pace dumps going out with `usbMidiOut().freeSpace()` / `midiSerial().txFree()`. PicoFaceM1's `M1_SysEx` is the example |
 | user patches in flash beyond the veeprom's 240 bytes | a sector range of your own below the veeprom, written from RAM like `j6_patchstore.cpp` / `m1_memory.cpp` / `vs_store.cpp`; keep clear of the other instruments' sectors, since flash outside the image survives a switch of instrument |
 | tables computed at configure time instead of committed (or built from the user's own files in `roms/`) | run the generator with `execute_process` in `instrument.cmake`, write into the build directory, add that to `INCLUDE_DIRS`, and skip the instrument with a STATUS note if the generator cannot run; `instruments/PicoFaceVS/instrument.cmake` is the example |
+| MIDI going out besides SysEx (notes, controllers) | write the raw bytes with `usbMidiOut().write()` and `midiSerial().write()` after checking their free space, from `uiTick()`; `VS_Controller::sendChannelMessage` is the example |
 | own hardware access | add your own `src/pico_hw.cpp` and set `CORE_EXCLUDE pico_hw.cpp` |
 | own .pio files | list them under `PIO_SOURCES` |
 | no double-tap RESET into BOOTSEL | add the flag `NO_DOUBLE_RESET` (see `docs/ARCHITECTURE.md`, section 7) |

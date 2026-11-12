@@ -387,8 +387,14 @@ These defines are deliberately not unified in the helper but set per instrument 
   program's 116 fields, the VS's two-sequence arpeggiator, Edit Waveform
   mode for the user waves, program and wave dumps with their requests and
   the sample dump standard. Programs and user waves are mirrored to 20 KB of
-  flash below PicoFaceM1's memory. Confirmed on the hardware (2026-11-12),
-  67 % peak load at eight voices and 44.1 kHz.
+  flash below PicoFaceM1's memory, with a cartridge of the same layout in the
+  20 KB below that. Confirmed on the hardware (2026-11-12), 67 % peak load at
+  eight voices and 44.1 kHz. It is also the first instrument with the
+  original's MIDI receive modes - one channel per voice in mode 4, two
+  channels for the halves of a split in mode 3 - for which its engine keeps
+  bend, wheel, pressure and a joystick offset per voice; with parameter
+  changes over MIDI in both directions; and with notes going out (the
+  arpeggiator's on a channel of their own, and overflow).
 - `tools/check_clean_build.sh` builds the collection from a fresh clone with the
   ROMs copied in from outside git. Four instruments need a local ROM set that
   cannot be in the repository, so whether a stranger with the right ROMs can
@@ -414,7 +420,7 @@ These defines are deliberately not unified in the helper but set per instrument 
 | PicoFaceJV | 4,568,120 | 151,300 | 0x1058 | - (new) |
 | PicoFaceD5 | 924,136 | 248,152 | 0x1059 | - (new) |
 | PicoFaceM1 | 4,481,068 | 280,848 | 0x105A | - (new) |
-| PicoFaceVS | 271,248 | 127,876 | 0x105B | - (new) |
+| PicoFaceVS | 277,008 | 128,248 | 0x105B | - (new) |
 
 Measured with `arm-none-eabi-size` (text / bss) on the build of 11.09.2026
 (after the shared UI kit, the 4 MB CP sets and the reface module; RD after the
