@@ -1,16 +1,18 @@
 # PicoVintageSynthCollection — Arbeitsregeln
 
-Elf RP2350-Synthesizer-Firmwares auf einem gemeinsamen Kern (`core/`), je
+Zwölf RP2350-Synthesizer-Firmwares auf einem gemeinsamen Kern (`core/`), je
 Instrument ein Ordner unter `instruments/` und ein eigenes `.uf2`. Alles
 Weitere zur Struktur steht in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 offene Punkte in dessen §8.
 
-**Stand:** Release **v1.22.0** (05.11.2026, Tag auf `d50c18a`): elftes
-Instrument **PicoFaceM1** (Korg M1 ohne Plus+1, nur lokal baubar; Edit-Seiten,
-Benutzerspeicher im Flash, SysEx nach Handbuch, auf der Hardware getestet,
-#176); im Kern optionales Streaming-SysEx für lange Dumps; Doku auf elf
-Instrumente (#177). Die sieben Release-Instrumente unverändert. Nichts
-Ungereleastes auf `main`.
+**Stand:** Release **v1.23.0** (12.11.2026, Tag auf `fe3de0e`): zwölftes
+Instrument **PicoFaceVS** (Sequential Prophet VS, baut ohne ROM aus dem
+Repository und ist das achte Release-Binary; Edit-Seiten, Joystick,
+Arpeggiator mit Layer/Dual, Edit Waveform, Programme und User-Wellen im
+Flash, SysEx nach Handbuch und Firmware, auf der Hardware getestet, #180); im
+UI-Kit sitzt der B-Wert der Namensseite zwei Zeilen tiefer; Doku auf zwölf
+Instrumente (#181). Die sieben bisherigen Release-Instrumente unverändert.
+Nichts Ungereleastes auf `main`.
 
 ## Sprache
 
@@ -38,10 +40,10 @@ sind Englisch — bis auf das D5-Protokoll, das deutsch gewachsen ist.
 
 ## Releases
 
-Nur auf Zuruf. Ablauf: Tag `vX.Y.Z` auf `main` pushen → die CI baut die sieben
+Nur auf Zuruf. Ablauf: Tag `vX.Y.Z` auf `main` pushen → die CI baut die acht
 Instrumente ohne ROMs und legt das Release an → Release-Text von Hand setzen
 (`gh release edit`, Stil wie die vorigen). Danach lokal `cmake -S . -B build`
-und alle elf bauen, damit D5/JV/RD/M1-Abbilder die Version im Splash tragen
+und alle zwölf bauen, damit D5/JV/RD/M1-Abbilder die Version im Splash tragen
 (`PICOFACE_VERSION` kommt aus `git describe` beim Konfigurieren). Zum Schluss
 den Stand oben nachziehen und `decomphub.progress.json` prüfen (statische
 Zahlen mit `measuredAt`, von DecompHub gelesen; ändert sich eine, Datum mit).
@@ -71,6 +73,12 @@ diskutieren).
   Aufnahmen gefittet (VDF-Rate) oder angenommen ist (vier Effektwerte), steht in
   [instruments/PicoFaceM1/doc/ENGINE.md](instruments/PicoFaceM1/doc/ENGINE.md).
   Die Effekt-Annahmen bleiben, Plugin-Werte kommen nicht hinein.
+- **VS: Firmware > Handbuch.** Im Repository liegen nur die Harmonischen-
+  Tabelle der Wellen und die Bildungsregeln der Firmware-Tabellen, kein ROM-
+  Inhalt. Aus der Behringer-Firmware (Pro VS Mini) kommt nichts ins Repo —
+  keine Wellen, keine Tabellen, nichts zum Entschlüsseln; ihre Teile entstehen
+  nur lokal aus Dateien in `roms/`. Das Release-Binary hat deshalb weder die
+  Wellen 0–31 noch Programme.
 - Der Boot-Benchmark `B` ist über Builds hinweg nicht vergleichbar
   (XIP-Cache-Zeilen wandern mit dem Code-Layout); nur direkt hintereinander.
 - Toter Code kostet kein Flash (`gc-sections`); Aufräumen nie damit begründen.
