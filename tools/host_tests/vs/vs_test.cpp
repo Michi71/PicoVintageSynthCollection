@@ -423,6 +423,25 @@ void testPanel() {
     CHECK(std::fabs(p.engine.params().mixX - 0.5f) < 1e-6f && std::fabs(p.engine.params().mixY + 0.25f) < 1e-6f,
           "joystick at %f, %f", p.engine.params().mixX, p.engine.params().mixY);
     p.shot("vs_04_joystick_moved");
+    // ... and it is heard: the same note at corner A and at corner C is a
+    // different sound (the init program has four different waves).
+    auto tone = [&](std::vector<float>& x) {
+        static float b[2 * 256];
+        p.engine.allNotesOff();
+        p.engine.noteOn(60, 100);
+        for (int k = 0; k < 40; ++k) {
+            p.engine.render(b, 256);
+            for (int i = 0; i < 256; ++i) x.push_back(b[2 * i]);
+        }
+        p.engine.noteOff(60);
+        p.engine.allNotesOff();
+    };
+    std::vector<float> atA, atC;
+    p.turn(Encoder::ParamA, -24);  p.turn(Encoder::ParamB, -4);  tone(atA);
+    p.turn(Encoder::ParamA, 32);   tone(atC);
+    double diff = 0, ref = 0;
+    for (size_t n = 0; n < atA.size(); ++n) { diff += std::fabs(atA[n] - atC[n]); ref += std::fabs(atA[n]); }
+    CHECK(ref > 0 && diff > 0.3 * ref, "joystick A and C sound alike: difference %.3f of %.3f", diff, ref);
     p.press(Button::ParamA);             // back to the center
     CHECK(p.engine.params().mixX == 0.f && p.engine.params().mixY == 0.f, "joystick not centered");
     p.turn(Encoder::Sel, 1);  p.turn(Encoder::ParamA, 1);  p.shot("vs_05_arp");
