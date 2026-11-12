@@ -180,7 +180,7 @@ fi
 # ------------------------------------------------------------------- the verdict
 say "result"
 built="$(ls -1 "$WORK/build-full"/*.uf2 2>/dev/null | wc -l | tr -d ' ')"
-echo "   $built of 10 instruments built"
+echo "   $built of $(ls -1d "$TREE"/instruments/*/ 2>/dev/null | wc -l | tr -d ' ') instruments built"
 if [ "$rc" -eq 0 ] && [ "$built" -gt 0 ]; then
     echo "CLEAN BUILD PASS"
 else
