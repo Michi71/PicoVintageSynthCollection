@@ -681,5 +681,5 @@ worth knowing before building another:
   `H3L` to **H**, `H1L`/`H2L`/`H4L` to **L**; a bridge wins against 100k, so
   nothing collides once the resistors are there.
 
-With those two, the board runs every one of the eleven instruments
+With those two, the board runs every one of the twelve instruments
 (the M1 needs a flash larger than 4 MB, which this board has).
