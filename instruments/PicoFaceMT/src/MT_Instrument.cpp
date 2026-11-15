@@ -76,7 +76,7 @@ struct Page { const char* title; uint8_t a, b; };
 const Page kPages[] = {
     {"Mellotron", mello::kTrack,    mello::kVolume},
     {"Tapes A B", kItemInstA,       kItemInstB},
-    {"Tape C",    kItemInstC,       kItemNone},
+    {"Tape C",    kItemInstC,       mello::kClick},
     {"Tape",      mello::kTapeLimit, mello::kRewind},
     {"Tone",      mello::kTone,     mello::kDrive},
     {"Motor",     mello::kWow,      mello::kFlutter},
@@ -90,10 +90,10 @@ constexpr int kDiagPage  = kPageCount - 1;
 
 const char* const kParamNames[mello::kNumParams] = {
     "Volume", "Tone", "Pitch", "Track", "Attack", "Release",
-    "Velocity", "Wow", "Flutter", "Drive", "Drag", "Limit", "Rewind"};
+    "Velocity", "Wow", "Flutter", "Drive", "Drag", "Limit", "Rewind", "Click"};
 
 // The settings record. Bump kSettingsVersion on any change.
-constexpr uint16_t kSettingsVersion = 2;
+constexpr uint16_t kSettingsVersion = 3;
 struct State {
     uint8_t value[mello::kNumParams];   // 0..kScale
     uint8_t inst[mello::kNumTracks];    // bank index per track
@@ -102,8 +102,8 @@ struct State {
 };
 
 const State kDefaults = {
-    // volume tone pitch track attack release velocity wow flutter drive drag limit rewind
-    {80, 75, 50, 0, 0, 12, 0, 25, 25, 20, 30, 0, 30},
+    // volume tone pitch track attack release velocity wow flutter drive drag limit rewind click
+    {80, 75, 50, 0, 0, 12, 0, 25, 25, 20, 30, 0, 30, 40},
     {0, 0, 0},                          // filled from the engine in init()
     2, 0};
 

@@ -20,7 +20,7 @@ using namespace mello;
 
 static const char* const kParamNames[kNumParams] = {
     "volume", "tone", "pitch", "track", "attack", "release",
-    "velocity", "wow", "flutter", "drive", "keydrag", "tapelimit", "rewind"};
+    "velocity", "wow", "flutter", "drive", "keydrag", "tapelimit", "rewind", "click"};
 
 struct Ev { double t; int type; int a; float b; };   // 0 on, 1 off, 2 param
 static std::vector<Ev> score;

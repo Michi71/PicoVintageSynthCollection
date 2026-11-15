@@ -24,7 +24,7 @@ been heard on hardware yet.
 | Keys | 35, MIDI 43–77 (G2–F5) |
 | Polyphony | 16 voices; a selector position between two tracks uses two per key |
 | Sample rate | 44.1 kHz, recordings at 22.05 kHz |
-| Flash / RAM | 7,883,380 / 16,104 bytes, of which 7.78 MB is the sample bank; needs the 16 MB flash |
+| Flash / RAM | 7,885,404 / 16,152 bytes, of which 7.78 MB is the sample bank; needs the 16 MB flash |
 | USB PID | 0x105D |
 
 ## Tapes
@@ -60,7 +60,7 @@ encoders edit the two values of the page.
 |---|---|---|
 | Mellotron | Track (A, A+B, B, B+C, C) | Volume |
 | Tapes A B | tape on track A | tape on track B |
-| Tape C | tape on track C | |
+| Tape C | tape on track C | Click: level of the key click at every key-down, 0 = none (default 40) |
 | Tape | Limit: note runs out after 8 s, as a real tape does (off by default) | Rewind: time a fully played tape takes to spring back, Off to 2 s (default 600 ms) |
 | Tone | Tone (treble cut) | Drive (tape saturation) |
 | Motor | Wow | Flutter |
@@ -76,6 +76,10 @@ attack is missing, and with Limit on there is that much less tape left. With
 Rewind off every note starts at the beginning. The rate is this project's
 choice, not a measurement of the instrument.
 
+Every key-down also plays the key click, a 12 ms recording of the mechanism,
+untransposed and outside the track selector - also when a tape with Limit on
+has run out and the key itself is all there is to hear.
+
 The panel shows the tapes by a short name of at most eight characters - the
 value cell is 50 pixels wide - so "M400 String Section" reads "Strings" and
 "MKII 3 Violins" "3Violins".
@@ -83,7 +87,7 @@ value cell is 50 pixels wide - so "M400 String Section" reads "Strings" and
 A new tape or track position applies to notes struck after the change; a held
 note keeps the track it started on, fading if the selector leaves it.
 
-Everything on the panel is stored (settings record version 2, 18 bytes) once
+Everything on the panel is stored (settings record version 3, 19 bytes) once
 no note is sounding.
 
 ## MIDI

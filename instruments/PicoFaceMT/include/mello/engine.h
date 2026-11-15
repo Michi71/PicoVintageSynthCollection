@@ -37,6 +37,7 @@ enum Param : uint8_t {
     kKeyDrag,    // pitch dip while a tape is pulled up to speed
     kTapeLimit,  // >= 0.5: a note runs out after 8 s like the real tape
     kRewind,     // time a fully played tape takes to spring back; 0 = at once
+    kClick,      // level of the key click at every key-down; 0 = none
     kNumParams
 };
 
@@ -135,6 +136,14 @@ private:
     float wowNoise_ = 0.0f, flutterNoise_ = 0.0f;
     float wowDepth_ = 0.0f, flutterDepth_ = 0.0f;
     uint32_t rng_ = 0x2545F491u;
+
+    // Key clicks. They are short, so a few slots cover any burst of keys.
+    struct Click { uint32_t pos; float gain; };      // pos: 16.16 into kClickPcm, gain 0 = free
+    static constexpr int kMaxClicks = 4;
+    Click    click_[kMaxClicks] = {};
+    uint32_t clickStep_ = 0, clickEnd_ = 0;          // 16.16
+    float    clickGain_ = 0.0f;
+    void     renderClicks(float* mix, int n);
 
     Biquad hp_ = {}, lp_ = {};
 };
