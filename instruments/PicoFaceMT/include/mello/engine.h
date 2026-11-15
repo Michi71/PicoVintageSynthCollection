@@ -36,6 +36,7 @@ enum Param : uint8_t {
     kDrive,      // tape saturation
     kKeyDrag,    // pitch dip while a tape is pulled up to speed
     kTapeLimit,  // >= 0.5: a note runs out after 8 s like the real tape
+    kRewind,     // time a fully played tape takes to spring back; 0 = at once
     kNumParams
 };
 
@@ -74,7 +75,7 @@ private:
         float    ratio;                 // source samples per output sample at speed 1
         float    drag;                  // remaining speed deficit after key-down
         float    env, gain, relCoef;
-        uint32_t age;                   // output samples since key-down
+        uint32_t age;                   // output samples the tape has run
         uint32_t serial;
         uint8_t  note, track;
         Stage    stage;
@@ -91,7 +92,9 @@ private:
         }
     };
 
-    void   startVoice(uint8_t note, float gain, int track);
+    void   startVoice(uint8_t note, float gain, int track, float tapePos);
+    float  tapePosition(uint8_t note) const;
+    void   keyUp(uint8_t note);
     Voice* allocVoice();
     void   releaseVoice(Voice& v, float coef);
     void   renderVoice(Voice& v, float* mix, int n, float speed, float trackGain);
@@ -116,6 +119,17 @@ private:
     float preGain_ = 1.0f, postGain_ = 1.0f;
     float dragDepth_ = 0.0f, dragCoef_ = 0.0f;
     uint32_t tapeFrames_ = 0;
+
+    // Where each key's tape stands. A key has one tape for all three tracks.
+    struct Key {
+        uint64_t frame;      // clock_ at the last key-down or key-up
+        float    pos;        // tape position then, in seconds from the start
+        bool     down;
+        bool     pedal;      // key up, tape still held by the sustain pedal
+    };
+    Key      key_[128] = {};
+    uint64_t clock_ = 0;                     // output samples rendered
+    float    rewindRate_ = 0.0f;             // tape seconds per second; 0 = at once
 
     float wowPhase_ = 0.0f, flutterPhase_ = 0.0f;
     float wowNoise_ = 0.0f, flutterNoise_ = 0.0f;

@@ -104,10 +104,18 @@ t_mt_render() {
         "$HERE/mt/mt_engine_test" "$HERE/mt/out/ci_track$sel.wav" --track "$sel" || return 1
     done
     "$HERE/mt/mt_engine_test" "$HERE/mt/out/ci_poly.wav" --score poly --track 0.25 || return 1
-    "$HERE/mt/mt_engine_test" "$HERE/mt/out/ci_long.wav" --score long --set tapelimit=1
+    "$HERE/mt/mt_engine_test" "$HERE/mt/out/ci_long.wav" --score long --set tapelimit=1 || return 1
+    "$HERE/mt/mt_engine_test" "$HERE/mt/out/ci_rewind.wav" --score rewind
 }
 
-ALL="veeprom d5 dx_sysex yc_sysex m1_sysex ob j6_ui yc ui_kit md_ui cm_ui vs cp_render mt_render"
+# The tape pages with every bank name, as frames: a name too long for its cell
+# shows here.
+t_mt_ui() {
+    "$HERE/mt/build_mt_ui.sh" && mkdir -p "$HERE/mt/out" \
+        && "$HERE/mt/mt_ui_shots" "$HERE/mt/out" && frames_ok "$HERE/mt/out"
+}
+
+ALL="veeprom d5 dx_sysex yc_sysex m1_sysex ob j6_ui yc ui_kit md_ui cm_ui vs cp_render mt_render mt_ui"
 
 # --- runner -----------------------------------------------------------------
 

@@ -22,7 +22,8 @@ struct Zone {
 };
 
 struct Instrument {
-    const char*    name;
+    const char*    name;       // as the tape set is called
+    const char*    label;      // short form for a narrow display
     const int16_t* pcm;        // 16-bit mono
     const Zone*    zones;      // sorted by keyLo
     uint8_t        numZones;

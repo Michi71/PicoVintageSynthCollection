@@ -4,10 +4,15 @@
 """
 compress_sf2.py -- shrink unlooped Mellotron SF2 sets for a 16 MB flash.
 
-Every 7-8 s recording becomes "attack plus short loop" (loop points from the
-FindLoopPoints helper in tools/cp_sampleprep), and of the 35 recordings (one
-per key) only every --step-th is kept; the neighbouring keys are mapped onto
-it by key range.
+Every 7-8 s recording becomes "attack plus loop", and of the 35 recordings
+(one per key) only every --step-th is kept; the neighbouring keys are mapped
+onto it by key range. Two kinds of loop:
+
+  --mode long   (default) about a second of loop with a 250 ms crossfade,
+                found here by correlation; about 0.8 MB per instrument
+  --mode short  a few periods, loop points from the FindLoopPoints helper in
+                tools/cp_sampleprep; about 0.3 MB per instrument, audibly
+                static and pulsing on ensemble recordings
 
     python3 compress_sf2.py -o compressed/ source/*.sf2
     python3 compress_sf2.py --step 4 --max-ms 600 -o compressed/ "M400 Cello.sf2"
@@ -239,6 +244,80 @@ def loop_sample(s, a, tmpdir, tag):
     return best
 
 
+# --------------------------------------------------------------------------
+# Long loops
+# --------------------------------------------------------------------------
+# A loop of a few periods repeats its seam 10-40 times a second, and on
+# ensemble recordings, which have no clean period, that is heard as a pulse.
+# A loop of a second or more with a crossfade of a few hundred milliseconds
+# repeats rarely and has no edge; it costs flash instead. FindLoopPoints is
+# built for the short kind, so this search is done here: for a set of loop
+# ends it looks for the loop start where the waveform lines up best, and
+# prefers pairs whose level and spectrum agree, because a difference there
+# comes round as a slow wobble.
+def _bands_db(seg, sr):
+    spec = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))) ** 2
+    freqs = np.fft.rfftfreq(len(seg), 1.0 / sr)
+    edges = [60, 125, 250, 500, 1000, 2000, 4000, 8000, sr / 2]
+    return np.array([10 * np.log10(spec[(freqs >= lo) & (freqs < hi)].sum() + 1e-3)
+                     for lo, hi in zip(edges[:-1], edges[1:])])
+
+
+def long_loop_sample(s, a):
+    x, sr = s["data"], s["sr"]
+    xf = x.astype(float)
+    X = int(a.xfade_ms * sr / 1000)                 # crossfade length
+    W = int(0.020 * sr)                             # half width of the alignment window
+    ls_lo = max(X, int(a.loop_start_ms[0] * sr / 1000))
+    ls_hi = int(a.loop_start_ms[1] * sr / 1000)
+    csum = np.concatenate([[0.0], np.cumsum(xf * xf)])
+    best = None
+    for le_ms in range(a.long_ms - a.long_window_ms, a.long_ms + a.long_window_ms + 1, 20):
+        le = int(le_ms * sr / 1000)
+        if le + W >= len(xf) or le - ls_hi < 2 * X:
+            continue
+        tmpl = xf[le - W:le + W]
+        tn = np.linalg.norm(tmpl) + 1e-9
+        region = xf[ls_lo - W:ls_hi + W]
+        dots = np.correlate(region, tmpl, "valid")              # one per candidate start
+        idx = np.arange(len(dots)) + ls_lo - W
+        norms = np.sqrt(csum[idx + 2 * W] - csum[idx]) + 1e-9
+        corr = dots / (norms * tn)
+        for k in np.argsort(corr)[-4:]:
+            ls = ls_lo + int(k)
+            a_seg, b_seg = xf[ls - X:ls], xf[le - X:le]         # what the crossfade blends
+            db = 20 * np.log10((np.sqrt(np.mean(a_seg ** 2)) + 1e-9) /
+                               (np.sqrt(np.mean(b_seg ** 2)) + 1e-9))
+            spec = float(np.mean(np.abs(_bands_db(a_seg, sr) - _bands_db(b_seg, sr))))
+            # correlation of the two blended stretches decides the fade law
+            r = float(np.dot(a_seg, b_seg) / (np.linalg.norm(a_seg) * np.linalg.norm(b_seg) + 1e-9))
+            g = float(corr[k]) - 0.08 * abs(db) - 0.04 * spec
+            # The seam correlation only ranks candidates here: ensemble recordings
+            # never reach a high one, and the crossfade does not need it. What
+            # is heard is a level or colour difference between the two ends.
+            ok = abs(db) <= a.max_db and spec <= a.max_spec_db
+            cand = dict(ls=ls, le=le, seam=float(corr[k]), db=float(db), spec=spec, r=r,
+                        ok=bool(ok), tier=int(ok), g=g, score=0.0, cents=0.0,
+                        n_per=0, ms=le_ms)
+            if best is None or (cand["tier"], cand["g"]) > (best["tier"], best["g"]):
+                best = cand
+    return best
+
+
+def bake_long_loop(x, lp, xfade):
+    """Cuts at the loop end and fades the last `xfade` samples into the stretch
+    before the loop start, with gains that keep the power constant for the
+    measured correlation r of the two stretches (r = 1 gives a linear fade,
+    r = 0 an equal-power one)."""
+    ls, le, r = lp["ls"], lp["le"], max(0.0, min(1.0, lp["r"]))
+    y = x[:le].astype(float)
+    w = (np.arange(xfade) + 1.0) / xfade                        # -> 1 at the loop end
+    norm = np.sqrt(w * w + (1 - w) ** 2 + 2 * w * (1 - w) * r)
+    y[le - xfade:le] = (y[le - xfade:le] * (1 - w) + x[ls - xfade:ls].astype(float) * w) / norm
+    y = np.concatenate([y, y[ls:ls + TAIL]])
+    return np.clip(np.round(y), -32768, 32767).astype(np.int16)
+
+
 def bake_loop(x, ls, le):
     """Cuts at the loop end, crossfades the seam, appends the read-ahead tail."""
     y = x[:le].astype(float)
@@ -253,6 +332,36 @@ def bake_loop(x, ls, le):
 # --------------------------------------------------------------------------
 # One file
 # --------------------------------------------------------------------------
+def timbre(s):
+    """Level, spectral centroid and octave balance of a recording's sustain."""
+    x, sr = s["data"], s["sr"]
+    n = 1 << 15
+    seg = x[int(0.6 * sr):int(0.6 * sr) + n].astype(float)
+    spec = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))) ** 2
+    freqs = np.fft.rfftfreq(len(seg), 1.0 / sr)
+    f0 = 440.0 * 2 ** ((s["key"] - 69) / 12)
+
+    def band(h):
+        return spec[(freqs > f0 * h * 0.966) & (freqs < f0 * h * 1.035)].sum() + 1e-6
+    return dict(level=10 * np.log10(np.mean(seg ** 2) + 1e-9),
+                centroid=12 * np.log2((freqs * spec).sum() / spec.sum()),     # in semitones
+                octave=10 * np.log10(band(1) / band(2)))
+
+
+def oddness(zs, i, a):
+    """How far recording i stands out from the recordings around it. One
+    recording now speaks for three keys, so an unusually bright or loud tape,
+    or one with a different octave balance, turns into a step in the keyboard:
+    on the choir a bright recording transposed down sat next to a dull one
+    transposed further down, and the lower key sounded the higher."""
+    near = [z["tim"] for j, z in enumerate(zs) if abs(j - i) <= 3]
+    t = zs[i]["tim"]
+    med = lambda k: float(np.median([n[k] for n in near]))
+    return (a.w_centroid * abs(t["centroid"] - med("centroid"))
+            + a.w_octave * abs(t["octave"] - med("octave"))
+            + a.w_level * abs(t["level"] - med("level")))
+
+
 def zone_parts(z):
     kr = sid = None
     rest = []
@@ -301,9 +410,15 @@ def process(path, out, a):
 
     with tempfile.TemporaryDirectory() as tmp:
         with ThreadPoolExecutor(max_workers=os.cpu_count()) as ex:
-            loops = list(ex.map(lambda z: loop_sample(S[z["sid"]], a, tmp, f"s{z['sid']}"), zs))
+            if a.mode == "long":
+                loops = list(ex.map(lambda z: long_loop_sample(S[z["sid"]], a), zs))
+            else:
+                loops = list(ex.map(lambda z: loop_sample(S[z["sid"]], a, tmp, f"s{z['sid']}"), zs))
     for z, lp in zip(zs, loops):
         z["lp"] = lp
+        z["tim"] = timbre(S[z["sid"]])
+    for i, z in enumerate(zs):
+        z["odd"] = oddness(zs, i, a)
 
     new_samples, new_zones = [], list(glob_zones)
     print(f"{name}:")
@@ -314,7 +429,7 @@ def process(path, out, a):
             lp = z["lp"]
             if lp is None:
                 return (-1, -9.0)
-            return (lp["tier"], lp["g"] + (0.03 if z["key"] == centre else 0.0))
+            return (lp["tier"], lp["g"] - z["odd"] + (a.centre_bonus if z["key"] == centre else 0.0))
         z = max(grp, key=rank)
         s, lp = S[z["sid"]], z["lp"]
         lo, hi = grp[0]["key"], grp[-1]["hi"]
@@ -323,6 +438,12 @@ def process(path, out, a):
             y = s["data"][:n].astype(float)
             y[n // 2:] *= np.linspace(1, 0, n - n // 2)
             data, loop, note = np.round(y).astype(np.int16), None, "NO LOOP"
+        elif a.mode == "long":
+            data = bake_long_loop(s["data"], lp, int(a.xfade_ms * s["sr"] / 1000))
+            loop = (lp["ls"], lp["le"])
+            note = (f"loop {(lp['le'] - lp['ls']) / s['sr'] * 1000:5.0f} ms  seam {lp['seam']:.3f} "
+                    f"level {lp['db']:+4.1f} dB  spectrum {lp['spec']:.1f} dB"
+                    + ("" if lp["ok"] else "  (!) outside tolerance"))
         else:
             data = bake_loop(s["data"], lp["ls"], lp["le"])
             loop = (lp["ls"], lp["le"])
@@ -347,9 +468,29 @@ def main():
     here = os.path.dirname(os.path.abspath(__file__))
     ap.add_argument("files", nargs="*", help="SF2 files (default: all next to the script)")
     ap.add_argument("-o", "--outdir", default=os.path.join(here, "compressed"))
+    ap.add_argument("--mode", choices=["long", "short"], default="long",
+                    help="long: loops of a second or so with a long crossfade (default); "
+                         "short: a few periods via FindLoopPoints, a third of the size")
+    ap.add_argument("--long-ms", type=int, default=1500, help="long: length of a recording")
+    ap.add_argument("--long-window-ms", type=int, default=200,
+                    help="long: how far the loop end may move around --long-ms")
+    ap.add_argument("--xfade-ms", type=int, default=250, help="long: crossfade at the loop end")
+    ap.add_argument("--loop-start-ms", type=int, nargs=2, default=[350, 650],
+                    help="long: range searched for the loop start")
+    ap.add_argument("--max-spec-db", type=float, default=3.0,
+                    help="long: tolerated mean band-level difference between the loop ends")
+    ap.add_argument("--centre-bonus", type=float, default=0.30,
+                    help="preference for the middle recording of a key group, which keeps "
+                         "the transposition to one semitone")
+    ap.add_argument("--w-centroid", type=float, default=0.08,
+                    help="penalty per semitone of spectral centroid away from the neighbours")
+    ap.add_argument("--w-octave", type=float, default=0.015,
+                    help="penalty per dB of octave balance away from the neighbours")
+    ap.add_argument("--w-level", type=float, default=0.03,
+                    help="penalty per dB of level away from the neighbours")
     ap.add_argument("--step", type=int, default=3, help="one recording per N keys (default 3)")
-    ap.add_argument("--min-ms", type=int, default=400, help="earliest loop end")
-    ap.add_argument("--max-ms", type=int, default=800, help="latest loop end")
+    ap.add_argument("--min-ms", type=int, default=400, help="short: earliest loop end")
+    ap.add_argument("--max-ms", type=int, default=800, help="short: latest loop end")
     ap.add_argument("--win-step-ms", type=int, default=20)
     ap.add_argument("--max-cents", type=float, default=6.0, help="tolerated detuning of the loop")
     ap.add_argument("--max-db", type=float, default=2.0, help="tolerated level error of the loop")
@@ -367,7 +508,7 @@ def main():
     ap.add_argument("--seeds", type=int, nargs="+", default=[10, 30, 60, 100, 160, 250],
                     help="seeds for the finder's num_periods")
     a = ap.parse_args()
-    if not os.access(a.finder, os.X_OK):
+    if a.mode == "short" and not os.access(a.finder, os.X_OK):
         sys.exit(f"FindLoopPoints not found: {a.finder}")
     files = a.files or sorted(glob.glob(os.path.join(here, "*.sf2")))
     os.makedirs(a.outdir, exist_ok=True)

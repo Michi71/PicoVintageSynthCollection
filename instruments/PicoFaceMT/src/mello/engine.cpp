@@ -33,6 +33,7 @@ constexpr float kFrac       = 1.0f / 4294967296.0f;  // 2^-32
 constexpr float kTuneRange  = 2.0f;                  // semitones, kPitch
 constexpr float kTapeSecs   = 8.0f;                  // length of a real tape
 constexpr float kTapeEndMs  = 40.0f;                 // run-out fade
+constexpr float kRewindMaxS = 2.0f;                  // kRewind = 1: full tape back in 2 s
 constexpr float kRetrigMs   = 8.0f;                  // fade of a re-struck key
 
 constexpr float kWowHz        = 0.55f;               // capstan/flywheel drift
@@ -79,6 +80,8 @@ uint32_t Engine::rnd() {
 void Engine::init(float sampleRate) {
     sr_ = sampleRate;
     for (Voice& v : voice_) v.stage = kOff;
+    for (Key& k : key_) k = {};
+    clock_ = 0;
     pedal_ = false;
     bend_ = 0.0f;
     wowPhase_ = flutterPhase_ = wowNoise_ = flutterNoise_ = 0.0f;
@@ -97,6 +100,7 @@ void Engine::init(float sampleRate) {
     param_[kDrive]     = 0.2f;
     param_[kKeyDrag]   = 0.3f;
     param_[kTapeLimit] = 0.0f;
+    param_[kRewind]    = 0.3f;
 
     // The classic M400 frame: flute, three violins, cello.
     static const char* const kDefaults[kNumTracks] = {"MKII Flute", "MKII 3 Violins", "M400 Cello"};
@@ -160,6 +164,7 @@ void Engine::updateDerived() {
     dragDepth_ = kDragMax * param_[kKeyDrag];
     dragCoef_  = std::exp(-float(kChunk) / (kDragMs * 0.001f * sr_));
     tapeFrames_ = param_[kTapeLimit] >= 0.5f ? uint32_t(kTapeSecs * sr_) : 0u;
+    rewindRate_ = param_[kRewind] > 0.0f ? kTapeSecs / (kRewindMaxS * param_[kRewind]) : 0.0f;
 
     // Drive pushes the signal into the clipper and takes most of it back out.
     float driveDb = kDriveMaxDb * param_[kDrive];
@@ -225,7 +230,31 @@ void Engine::releaseVoice(Voice& v, float coef) {
     v.keyDown = v.held = false;
 }
 
-void Engine::startVoice(uint8_t note, float gain, int track) {
+// Tape position of a key right now, in seconds from the start of the tape.
+// While the key is down the tape runs, up to its length; once it is let go a
+// spring pulls it back at rewindRate_. A key struck again before the tape is
+// home plays from wherever the tape is - no attack, and less tape left.
+float Engine::tapePosition(uint8_t note) const {
+    const Key& k = key_[note];
+    float t = float(clock_ - k.frame) / sr_;
+    if (k.down || k.pedal) {
+        float p = k.pos + t;
+        return p > kTapeSecs ? kTapeSecs : p;
+    }
+    if (rewindRate_ <= 0.0f) return 0.0f;
+    float p = k.pos - t * rewindRate_;
+    return p > 0.0f ? p : 0.0f;
+}
+
+void Engine::keyUp(uint8_t note) {
+    Key& k = key_[note];
+    if (!k.down && !k.pedal) return;
+    k.pos = tapePosition(note);
+    k.frame = clock_;
+    k.down = k.pedal = false;
+}
+
+void Engine::startVoice(uint8_t note, float gain, int track, float tapePos) {
     uint8_t zi = zoneOf_[track][note];
     if (!zi) return;
     const Instrument& in = kBank[trackInst_[track]];
@@ -234,17 +263,27 @@ void Engine::startVoice(uint8_t note, float gain, int track) {
     if (!v) return;
 
     v->pcm     = in.pcm;
-    v->phase   = uint64_t(z.start) << 32;
     bool loop  = z.loopEnd > z.loopStart;
     v->loopEnd = uint64_t(loop ? z.loopEnd : z.end) << 32;
     v->loopLen = loop ? uint64_t(z.loopEnd - z.loopStart) << 32 : 0;
     float semis = float(int(note) - int(z.root)) + float(z.cents) * 0.01f;
-    v->ratio   = float(in.sampleRate) / sr_ * std::pow(2.0f, semis / 12.0f);
+    float pitch = std::pow(2.0f, semis / 12.0f);
+    v->ratio   = float(in.sampleRate) / sr_ * pitch;
+
+    // A tape that is not home starts that far into the recording; past the
+    // loop end that is somewhere in the loop.
+    uint32_t offset = z.start + uint32_t(tapePos * float(in.sampleRate) * pitch);
+    if (loop) {
+        if (offset >= z.loopEnd) offset = z.loopStart + (offset - z.loopStart) % (z.loopEnd - z.loopStart);
+    } else if (offset >= z.end) {
+        return;                                  // a one-shot that has run out
+    }
+    v->phase   = uint64_t(offset) << 32;
     v->drag    = dragDepth_;
     v->env     = 0.0f;
     v->gain    = gain;
     v->relCoef = relCoef_;
-    v->age     = 0;
+    v->age     = uint32_t(tapePos * sr_);
     v->serial  = ++serial_;
     v->note    = note;
     v->track   = uint8_t(track);
@@ -261,13 +300,27 @@ void Engine::noteOn(uint8_t note, uint8_t velocity) {
     for (Voice& v : voice_)
         if (v.stage != kOff && v.note == note) releaseVoice(v, cut);
 
+    Key& k = key_[note];
+    float pos = tapePosition(note);
+    k.pos = pos;
+    k.frame = clock_;
+    k.down = true;
+    k.pedal = false;
+    if (tapeFrames_ && pos >= kTapeSecs - 0.05f) return;      // no tape left
+
     float vel  = float(velocity) / 127.0f;
     float gain = kVoiceGain * (1.0f - param_[kVelocity] + param_[kVelocity] * vel * vel);
     for (int t = 0; t < kNumTracks; ++t)
-        if (trackTarget_[t] > 0.001f) startVoice(note, gain, t);
+        if (trackTarget_[t] > 0.001f) startVoice(note, gain, t, pos);
 }
 
 void Engine::noteOff(uint8_t note) {
+    if (note > 127) return;
+    if (pedal_) {
+        if (key_[note].down) { key_[note].down = false; key_[note].pedal = true; }
+    } else {
+        keyUp(note);
+    }
     for (Voice& v : voice_) {
         if (v.stage == kOff || v.note != note || !v.keyDown) continue;
         if (pedal_) { v.keyDown = false; v.held = true; }
@@ -278,6 +331,8 @@ void Engine::noteOff(uint8_t note) {
 void Engine::sustainPedal(bool down) {
     pedal_ = down;
     if (down) return;
+    for (int n = 0; n < 128; ++n)
+        if (key_[n].pedal) keyUp(uint8_t(n));
     for (Voice& v : voice_)
         if (v.stage != kOff && v.held) releaseVoice(v, relCoef_);
 }
@@ -290,6 +345,7 @@ void Engine::pitchBend(float bend) {
 
 void Engine::allNotesOff() {
     pedal_ = false;
+    for (int n = 0; n < 128; ++n) keyUp(uint8_t(n));
     for (Voice& v : voice_) releaseVoice(v, relCoef_);
 }
 
@@ -401,6 +457,7 @@ void MELLO_HOT(Engine::process)(float* out, int frames) {
 
         out += n;
         frames -= n;
+        clock_ += uint64_t(n);
     }
 }
 

@@ -76,7 +76,8 @@ struct Page { const char* title; uint8_t a, b; };
 const Page kPages[] = {
     {"Mellotron", mello::kTrack,    mello::kVolume},
     {"Tapes A B", kItemInstA,       kItemInstB},
-    {"Tape C",    kItemInstC,       mello::kTapeLimit},
+    {"Tape C",    kItemInstC,       kItemNone},
+    {"Tape",      mello::kTapeLimit, mello::kRewind},
     {"Tone",      mello::kTone,     mello::kDrive},
     {"Motor",     mello::kWow,      mello::kFlutter},
     {"Keys",      mello::kAttack,   mello::kRelease},
@@ -89,10 +90,10 @@ constexpr int kDiagPage  = kPageCount - 1;
 
 const char* const kParamNames[mello::kNumParams] = {
     "Volume", "Tone", "Pitch", "Track", "Attack", "Release",
-    "Velocity", "Wow", "Flutter", "Drive", "Drag", "Limit"};
+    "Velocity", "Wow", "Flutter", "Drive", "Drag", "Limit", "Rewind"};
 
 // The settings record. Bump kSettingsVersion on any change.
-constexpr uint16_t kSettingsVersion = 1;
+constexpr uint16_t kSettingsVersion = 2;
 struct State {
     uint8_t value[mello::kNumParams];   // 0..kScale
     uint8_t inst[mello::kNumTracks];    // bank index per track
@@ -101,8 +102,8 @@ struct State {
 };
 
 const State kDefaults = {
-    // volume tone pitch track attack release velocity wow flutter drive drag limit
-    {80, 75, 50, 0, 0, 12, 0, 25, 25, 20, 30, 0},
+    // volume tone pitch track attack release velocity wow flutter drive drag limit rewind
+    {80, 75, 50, 0, 0, 12, 0, 25, 25, 20, 30, 0, 30},
     {0, 0, 0},                          // filled from the engine in init()
     2, 0};
 
@@ -299,6 +300,8 @@ private:
     }
 
     // Name, formatted value and knob position of one encoder's item.
+    // Beside a knob the value has 36 pixels, five characters of the small face;
+    // hence "500ms" without a space and cents without a unit.
     picoface::ui::kit::Param describe(uint8_t item, char* text, size_t len) const {
         picoface::ui::kit::Param p;
         p.text = text;
@@ -313,17 +316,23 @@ private:
                     snprintf(text, len, "%s", v == 0 ? "A" : v < 50 ? "A+B" : v == 50 ? "B" : v < 100 ? "B+C" : "C");
                     break;
                 case mello::kPitch:
-                    snprintf(text, len, "%+d ct", (v - 50) * 4);
+                    snprintf(text, len, "%+d", (v - 50) * 4);          // cents
                     break;
                 case mello::kAttack:
-                    snprintf(text, len, "%d ms", int(powf(500.0f, n) + 0.5f));
+                    snprintf(text, len, "%dms", int(powf(500.0f, n) + 0.5f));
                     break;
                 case mello::kRelease: {
                     const int ms = int(5.0f * powf(600.0f, n) + 0.5f);
-                    if (ms < 1000) snprintf(text, len, "%d ms", ms);
+                    if (ms < 1000) snprintf(text, len, "%dms", ms);
                     else snprintf(text, len, "%d.%d s", ms / 1000, (ms % 1000) / 100);
                     break;
                 }
+                case mello::kRewind:
+                    // time a fully played 8 s tape takes to come back
+                    if (v == 0) snprintf(text, len, "Off");
+                    else if (v < 50) snprintf(text, len, "%dms", v * 20);
+                    else snprintf(text, len, "%d.%d s", v / 50, (v % 50) / 5);
+                    break;
                 case mello::kTapeLimit:
                     snprintf(text, len, "%s", v >= 50 ? "8 s" : "Off");
                     p.norm = -1.0f;
@@ -335,7 +344,7 @@ private:
         } else if (item <= kItemInstC) {
             static const char* const kNames[] = {"Tape A", "Tape B", "Tape C"};
             p.name = kNames[item - kItemInstA];
-            snprintf(text, len, "%s", mello::kBank[state_.inst[item - kItemInstA]].name);
+            snprintf(text, len, "%s", mello::kBank[state_.inst[item - kItemInstA]].label);
         } else if (item == kItemBend) {
             p.name = "Bend";
             p.norm = float(state_.bendRange - 1) / 11.0f;

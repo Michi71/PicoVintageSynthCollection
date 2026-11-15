@@ -8,16 +8,16 @@
 namespace mello {
 
 const Instrument kBank[] = {
-    {"Gc3 Brass", kPcm_gc3_brass, kZones_gc3_brass, 12, 22050},
-    {"M300A Violins", kPcm_m300a_violins, kZones_m300a_violins, 12, 22050},
-    {"M300B Violin", kPcm_m300b_violin, kZones_m300b_violin, 12, 22050},
-    {"M400 Cello", kPcm_m400_cello, kZones_m400_cello, 12, 22050},
-    {"M400 Cmb Choir", kPcm_m400_cmb_choir, kZones_m400_cmb_choir, 12, 22050},
-    {"M400 String Section", kPcm_m400_string_section, kZones_m400_string_section, 12, 22050},
-    {"M400 Woodwind2", kPcm_m400_woodwind2, kZones_m400_woodwind2, 12, 22050},
-    {"MKII 3 Violins", kPcm_mkii_3_violins, kZones_mkii_3_violins, 12, 22050},
-    {"MKII Brass", kPcm_mkii_brass, kZones_mkii_brass, 12, 22050},
-    {"MKII Flute", kPcm_mkii_flute, kZones_mkii_flute, 12, 22050},
+    {"Gc3 Brass", "Gc3Brass", kPcm_gc3_brass, kZones_gc3_brass, 12, 22050},
+    {"M300A Violins", "M300A Vn", kPcm_m300a_violins, kZones_m300a_violins, 12, 22050},
+    {"M300B Violin", "M300B Vn", kPcm_m300b_violin, kZones_m300b_violin, 12, 22050},
+    {"M400 Cello", "Cello", kPcm_m400_cello, kZones_m400_cello, 12, 22050},
+    {"M400 Cmb Choir", "Choir", kPcm_m400_cmb_choir, kZones_m400_cmb_choir, 12, 22050},
+    {"M400 String Section", "Strings", kPcm_m400_string_section, kZones_m400_string_section, 12, 22050},
+    {"M400 Woodwind2", "Woodwind", kPcm_m400_woodwind2, kZones_m400_woodwind2, 12, 22050},
+    {"MKII 3 Violins", "3Violins", kPcm_mkii_3_violins, kZones_mkii_3_violins, 12, 22050},
+    {"MKII Brass", "Brass", kPcm_mkii_brass, kZones_mkii_brass, 12, 22050},
+    {"MKII Flute", "Flute", kPcm_mkii_flute, kZones_mkii_flute, 12, 22050},
 };
 const int kBankSize = 10;
 

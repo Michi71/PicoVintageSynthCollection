@@ -5,7 +5,7 @@
 // a 16-bit mono WAV. Used to listen to the engine without flashing, and by
 // run_all.sh, which fails on a silent or runaway render (exit code 2).
 //
-//   mt_engine_test out.wav [--rate 44100] [--score demo|scale|hold|tracks|poly|long]
+//   mt_engine_test out.wav [--rate 44100] [--score demo|scale|hold|tracks|poly|long|rewind]
 //                        [--a N --b N --c N] [--track 0..1] [--set name=value ...]
 //   mt_engine_test --list
 #include "mello/engine.h"
@@ -20,7 +20,7 @@ using namespace mello;
 
 static const char* const kParamNames[kNumParams] = {
     "volume", "tone", "pitch", "track", "attack", "release",
-    "velocity", "wow", "flutter", "drive", "keydrag", "tapelimit"};
+    "velocity", "wow", "flutter", "drive", "keydrag", "tapelimit", "rewind"};
 
 struct Ev { double t; int type; int a; float b; };   // 0 on, 1 off, 2 param
 static std::vector<Ev> score;
@@ -48,6 +48,11 @@ static double buildScore(const char* name) {
     } else if (!strcmp(name, "long")) {            // one note held past the tape length
         note(0.0, 11.0, 60);
         t = 11.5;
+    } else if (!strcmp(name, "rewind")) {          // struck again 0.1 s and 1.5 s after letting go
+        note(0.0, 3.0, 60);
+        note(3.1, 2.0, 60);
+        note(6.6, 2.0, 60);
+        t = 9.0;
     } else if (!strcmp(name, "poly")) {            // worst case: every voice busy
         for (int n = 43; n < 43 + kMaxVoices; ++n) note(0.0, 4.0, n);
         t = 4.5;
