@@ -46,6 +46,8 @@ constexpr float kFlutterMax   = 0.0025f;             // +-0.25 %
 constexpr float kDragMax    = 0.035f;                // -3.5 % at key-down
 constexpr float kDragMs     = 45.0f;
 
+constexpr float kClickFade  = 0.15f;                 // last part of the click, faded out
+
 constexpr float kHighPassHz = 38.0f;
 constexpr float kToneMinHz  = 900.0f;
 constexpr float kToneMaxHz  = 9500.0f;
@@ -81,6 +83,9 @@ void Engine::init(float sampleRate) {
     sr_ = sampleRate;
     for (Voice& v : voice_) v.stage = kOff;
     for (Key& k : key_) k = {};
+    for (Click& c : click_) c = {};
+    clickStep_ = uint32_t(float(kClickRate) / sr_ * 65536.0f);
+    clickEnd_  = kClickLength << 16;
     clock_ = 0;
     pedal_ = false;
     bend_ = 0.0f;
@@ -101,6 +106,7 @@ void Engine::init(float sampleRate) {
     param_[kKeyDrag]   = 0.3f;
     param_[kTapeLimit] = 0.0f;
     param_[kRewind]    = 0.3f;
+    param_[kClick]     = 0.4f;
 
     // The classic M400 frame: flute, three violins, cello.
     static const char* const kDefaults[kNumTracks] = {"MKII Flute", "MKII 3 Violins", "M400 Cello"};
@@ -164,6 +170,7 @@ void Engine::updateDerived() {
     dragDepth_ = kDragMax * param_[kKeyDrag];
     dragCoef_  = std::exp(-float(kChunk) / (kDragMs * 0.001f * sr_));
     tapeFrames_ = param_[kTapeLimit] >= 0.5f ? uint32_t(kTapeSecs * sr_) : 0u;
+    clickGain_  = kVoiceGain * param_[kClick] * param_[kClick];
     rewindRate_ = param_[kRewind] > 0.0f ? kTapeSecs / (kRewindMaxS * param_[kRewind]) : 0.0f;
 
     // Drive pushes the signal into the clipper and takes most of it back out.
@@ -306,6 +313,20 @@ void Engine::noteOn(uint8_t note, uint8_t velocity) {
     k.frame = clock_;
     k.down = true;
     k.pedal = false;
+    // The key itself is heard whether or not there is tape left to play. Each
+    // click is a little different; +-2 dB of level stands in for that.
+    bool hasTape = false;
+    for (int t = 0; t < kNumTracks; ++t) hasTape = hasTape || zoneOf_[t][note] != 0;
+    if (hasTape && clickGain_ > 0.0f && clickEnd_) {
+        Click* slot = &click_[0];
+        for (Click& c : click_) {
+            if (c.gain == 0.0f) { slot = &c; break; }
+            if (c.pos > slot->pos) slot = &c;                  // else the one nearest its end
+        }
+        slot->pos  = 0;
+        slot->gain = clickGain_ * (0.8f + 0.45f * float(rnd() & 0xFFFF) * (1.0f / 65536.0f));
+    }
+
     if (tapeFrames_ && pos >= kTapeSecs - 0.05f) return;      // no tape left
 
     float vel  = float(velocity) / 127.0f;
@@ -428,6 +449,28 @@ void MELLO_HOT(Engine::renderVoice)(Voice& v, float* mix, int n, float speed, fl
         releaseVoice(v, std::exp(-6.9f / (kTapeEndMs * 0.001f * sr_)));
 }
 
+void MELLO_HOT(Engine::renderClicks)(float* mix, int n) {
+    const uint32_t fadeLen = uint32_t(float(clickEnd_) * kClickFade);
+    const uint32_t fadeAt  = clickEnd_ - fadeLen;
+    for (Click& c : click_) {
+        if (c.gain == 0.0f) continue;
+        uint32_t pos = c.pos;
+        const float amp = c.gain * kPcmScale;
+        for (int i = 0; i < n; ++i) {
+            if (pos >= clickEnd_) { c.gain = 0.0f; break; }
+            uint32_t idx = pos >> 16;
+            float fr = float(pos & 0xFFFF) * (1.0f / 65536.0f);
+            float a = float(kClickPcm[idx]);
+            float s = a + (float(kClickPcm[idx + 1]) - a) * fr;
+            // the recording stops dead; take the last part down to nothing
+            if (pos > fadeAt) s *= float(clickEnd_ - pos) / float(fadeLen);
+            mix[i] += s * amp;
+            pos += clickStep_;
+        }
+        c.pos = pos;
+    }
+}
+
 void MELLO_HOT(Engine::process)(float* out, int frames) {
     const float gainSlew = clampf(float(kChunk) / (0.01f * sr_), 0.0f, 1.0f);   // ~10 ms
     while (frames > 0) {
@@ -440,6 +483,7 @@ void MELLO_HOT(Engine::process)(float* out, int frames) {
             trackGain_[t] += gainSlew * (trackTarget_[t] - trackGain_[t]);
         for (Voice& v : voice_)
             if (v.stage != kOff) renderVoice(v, mix, n, speed, trackGain_[v.track]);
+        renderClicks(mix, n);
 
         float vol = volume_;
         const float volStep = (volumeTarget_ - volume_) * gainSlew / float(n);

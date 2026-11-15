@@ -30,6 +30,10 @@ int main(int argc, char** argv) {
     kit::header(d, "Tape", 3, 10);
     kit::panelDuo(d, {"Limit", "Off", -1.0f}, {"Rewind", "600ms", 0.3f});
     uishot::save(argv[1], "mt_tape");
+    uishot::begin();
+    kit::header(d, "Tape C", 2, 10);
+    kit::panelDuo(d, {"Tape C", mello::kBank[0].label, -1.0f}, {"Click", "100", 1.0f});
+    uishot::save(argv[1], "mt_tape_c");
     // The longest values beside a knob.
     uishot::begin();
     kit::header(d, "Keys", 6, 10);

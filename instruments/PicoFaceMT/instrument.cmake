@@ -15,6 +15,7 @@ picoface_add_instrument(
         src/MT_Instrument.cpp
         src/mello/engine.cpp
         src/data/mello_bank.cpp
+        src/data/mello_click.cpp
         src/data/mello_gc3_brass.cpp
         src/data/mello_m300a_violins.cpp
         src/data/mello_m300b_violin.cpp

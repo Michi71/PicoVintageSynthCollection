@@ -73,8 +73,10 @@ outside the tolerance with `(!)`; on this set that was 35 of 120.
 python3 sf2_to_cpp.py --src compressed/
 ```
 
-Writes one `.cpp` per instrument plus the bank table. Single-recording files
-are skipped unless `--all` is given. `instrument.cmake` lists the generated
+Writes one `.cpp` per instrument plus the bank table. A file with a single
+recording shorter than a second is taken as the key click and written,
+unchanged, to `mello_click.cpp`; other single-recording files (the gong) are
+skipped unless `--all` is given. `instrument.cmake` lists the generated
 files by name.
 
 ## Checking a new set

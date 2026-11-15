@@ -33,4 +33,11 @@ struct Instrument {
 extern const Instrument kBank[];
 extern const int        kBankSize;
 
+// The key click: one short recording, played untransposed at every key-down.
+// kClickPcm holds kClickLength samples plus one more for interpolation;
+// a length of zero means the set has none.
+extern const int16_t  kClickPcm[];
+extern const uint32_t kClickLength;
+extern const uint32_t kClickRate;
+
 }  // namespace mello
