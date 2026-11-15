@@ -81,7 +81,7 @@ instrument's documentation.
 | [instruments/PicoFaceSM](instruments/PicoFaceSM/README.md) | ARP/Eminent Solina String Ensemble | PicoFaceSM.uf2 |
 | [instruments/PicoFaceOB](instruments/PicoFaceOB/README.md) | Oberheim OB-X (engine ported from OB-Xf) | PicoFaceOB.uf2 |
 | [instruments/PicoFaceVS](instruments/PicoFaceVS/README.md) | Sequential Prophet VS (native vector-synthesis engine, with edit pages and SysEx) | PicoFaceVS.uf2 |
-| [instruments/PicoFaceMT](instruments/PicoFaceMT/README.md) | Mellotron-style tape replay keyboard (ten tapes on three tracks, looped recordings, wow and flutter, tape rewind) | PicoFaceMT.uf2 |
+| [instruments/PicoFaceMT](instruments/PicoFaceMT/README.md) | Mellotron-style tape replay keyboard (ten tapes on three tracks, looped recordings, wow and flutter, tape rewind, key click) | PicoFaceMT.uf2 |
 | [instruments/PicoFaceRD](instruments/PicoFaceRD/README.md) | Roland RD / MKS-20 (sample piano) | local build only |
 | [instruments/PicoFaceJV](instruments/PicoFaceJV/README.md) | Roland JV-880 (native engine over the original PCM data) | local build only |
 | [instruments/PicoFaceD5](instruments/PicoFaceD5/README.md) | Roland D-50 (native LA engine over the original PCM data) | local build only |
@@ -215,7 +215,7 @@ provide:
 | PicoFaceCM | 1.28 MB | fits |
 | PicoFaceM1 | 4.48 MB | no (4 MB of PCM; no reduced build) |
 | PicoFaceRD | 2.56 MB | fits |
-| PicoFaceMT | 7.88 MB | no (7.78 MB of looped recordings; a 3 MB bank that fits can be built, see below) |
+| PicoFaceMT | 7.89 MB | no (7.78 MB of looped recordings; a 3 MB bank that fits can be built, see below) |
 
 The JV's reduced variant drops something real: the user bank, and the 22
 samples only those patches used. Banks A and B are otherwise untouched --

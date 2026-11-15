@@ -13,8 +13,9 @@ Speicher des Moduls, sechs gespeicherte Einstellungen (#186, auf der Hardware
 getestet); Doku dazu (#187). Baut nur lokal mit ROMs, die acht
 Release-Binaries sind unverändert. Davor v1.24.0 mit dem Rest vom MIDI des
 Prophet VS und der Cartridge (#183). Ungereleast auf `main`: **PicoFaceMT** als vierzehntes
-Instrument (#189, auf der Hardware getestet) — Mellotron-artiges Tape-Keyboard,
-eigene Engine, zehn Bänder auf drei Spuren, 7,88 MB und damit nur für 16 MB
+Instrument (#189, Tastenklick #191, auf der Hardware getestet) —
+Mellotron-artiges Tape-Keyboard, eigene Engine, zehn Bänder auf drei Spuren,
+7,89 MB und damit nur für 16 MB
 Flash; baut ohne ROMs und kommt mit dem nächsten Tag als neuntes
 Release-Binary.
 
