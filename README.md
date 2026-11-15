@@ -1,6 +1,6 @@
 # PicoVintageSynthCollection
 
-Thirteen vintage synthesizer emulations for the RP2350, built from one shared
+Fourteen vintage synthesizer emulations for the RP2350, built from one shared
 codebase. Same board, same core, one firmware image per instrument.
 
 <p align="center">
@@ -81,6 +81,7 @@ instrument's documentation.
 | [instruments/PicoFaceSM](instruments/PicoFaceSM/README.md) | ARP/Eminent Solina String Ensemble | PicoFaceSM.uf2 |
 | [instruments/PicoFaceOB](instruments/PicoFaceOB/README.md) | Oberheim OB-X (engine ported from OB-Xf) | PicoFaceOB.uf2 |
 | [instruments/PicoFaceVS](instruments/PicoFaceVS/README.md) | Sequential Prophet VS (native vector-synthesis engine, with edit pages and SysEx) | PicoFaceVS.uf2 |
+| [instruments/PicoFaceMT](instruments/PicoFaceMT/README.md) | Mellotron-style tape replay keyboard (ten tapes on three tracks, looped recordings, wow and flutter, tape rewind) | PicoFaceMT.uf2 |
 | [instruments/PicoFaceRD](instruments/PicoFaceRD/README.md) | Roland RD / MKS-20 (sample piano) | local build only |
 | [instruments/PicoFaceJV](instruments/PicoFaceJV/README.md) | Roland JV-880 (native engine over the original PCM data) | local build only |
 | [instruments/PicoFaceD5](instruments/PicoFaceD5/README.md) | Roland D-50 (native LA engine over the original PCM data) | local build only |
@@ -90,14 +91,14 @@ instrument's documentation.
 The RD, the JV-880, the D-50, the M1 and the CM-32L are the exceptions to "download and flash":
 they only build where the respective ROM set is present, and those ROMs are not
 distributable, so none of them is in the release binaries. Without them
-the configure step skips them and the eight above are unaffected. All of them run
+the configure step skips them and the nine above are unaffected. All of them run
 on the hardware; see the flash note below for the one build option the JV-880
 needs on a small board.
 
 ## Hardware
 
 - RP2350; the reference board carries 16 MB of flash, 4 MB is enough for every
-  instrument but the JV-880 (see [How much flash an instrument needs](#how-much-flash-an-instrument-needs)).
+  instrument but the JV-880 and the Mellotron (see [How much flash an instrument needs](#how-much-flash-an-instrument-needs)).
   **The board must feed the core from the RP2350's own regulator** -- see
   *The board has to take the overclock* below before buying anything cheap.
 - I2S audio (PCM5102 DAC)
@@ -173,8 +174,8 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=pico2 -DPIC
 ```
 
 Without that second flag, `pico2` caps the image at 4 MB. The CP's sample
-sets were cut for exactly that size, so every instrument but the JV fits
-within it (the CP at 3.99 MB, with 190 KB to spare); the flag is for the JV,
+sets were cut for exactly that size, so every release instrument but the Mellotron fits
+within it (the CP at 3.99 MB, with 190 KB to spare); the flag is for the JV and the Mellotron,
 and for a board that really has 16 MB. Nothing else in the SparkFun definition
 reaches the firmware: the flash timing and the system clock are set by the project itself in
 [core/src/pico_hw.cpp](core/src/pico_hw.cpp), and `PICO_FLASH_SPI_CLKDIV` is
@@ -185,7 +186,7 @@ board first.
 
 ### Switching instruments
 
-One board, thirteen firmware images, so choosing a different instrument is something
+One board, fourteen firmware images, so choosing a different instrument is something
 you do rather than something a factory does once. **Hold all three encoder
 buttons together.** After half a second the display takes over and counts down
 from two; let go and nothing happens. Hold it out and the board silences itself,
@@ -214,6 +215,7 @@ provide:
 | PicoFaceCM | 1.28 MB | fits |
 | PicoFaceM1 | 4.48 MB | no (4 MB of PCM; no reduced build) |
 | PicoFaceRD | 2.56 MB | fits |
+| PicoFaceMT | 7.88 MB | no (7.78 MB of looped recordings; a 3 MB bank that fits can be built, see below) |
 
 The JV's reduced variant drops something real: the user bank, and the 22
 samples only those patches used. Banks A and B are otherwise untouched --
@@ -227,6 +229,14 @@ velocities and a fifth the size. The whole instrument went from 5.15 MB to
 own -- eight patches, and half a ROM set is enough for it -- but nobody needs
 it to fit a board any more.
 
+**The Mellotron is the one release instrument that does not fit 4 MB.** Its
+first bank did - loops a few periods long, 3 MB - but on the hardware the loop
+seams came round 7 to 38 times a second and were plainly audible. The bank
+that ships loops about a second per recording with a long crossfade and takes
+7.78 MB. `tools/mt_sampleprep/compress_sf2.py --mode short` still builds the
+small one from the source SF2 sets; see
+[tools/mt_sampleprep](tools/mt_sampleprep/README.md).
+
 **The CP has no reduced variant either, and needs none.** It used to be
 4.22 MB and carried its five built sample sets as one indivisible whole, with
 no subset to drop; the sets were then cut for a 4 MB flash without dropping
@@ -234,7 +244,7 @@ anything: every sample keeps its attack byte for byte and loops 40-100 ms
 earlier, at a loop cycle chosen to stay within 1 dB and 10 % spectral centroid
 of the cycle it looped before. The rule and the numbers are in
 [tools/cp_sampleprep](tools/cp_sampleprep/README.md#fitting-a-4-mb-flash).
-Anything from 8 MB up holds any of the thirteen instruments. The D-50 is the one
+Anything from 8 MB up holds any of the fourteen instruments. The D-50 is the one
 sample-based instrument that never needed cutting -- its whole sample ROM is
 512 KB.
 
@@ -267,7 +277,7 @@ stepped down from. See the PicoFaceMD README, *The bit the bootrom never sets*. 
 with a faster flash can ask for the full rung with
 `-DPICOFACE_QMI_M0_TIMING_TARGET=PICOFACE_QMI_M0_TIMING_RX4`. The released UF2s
 are the default variant; the RP2350B build is one cmake flag away and produces
-the same thirteen images.
+the same fourteen images.
 
 ```bash
 cmake -S . -B build-b -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICOFACE_BOARD=rp2350b_plus_w
@@ -317,7 +327,7 @@ already building the firmware.
 
 **To check that all of this actually works from scratch**, `tools/check_clean_build.sh`
 clones into a temporary directory, copies the ROMs in from outside git, and
-builds all thirteen. That last part is the point: the ROM sets are not in this
+builds all fourteen. That last part is the point: the ROM sets are not in this
 repository and must never be, so a build here is the one thing CI cannot cover.
 Name a directory to build there instead and keep the result; add `--variants`
 for the reduced images too.
@@ -399,9 +409,9 @@ instrument's README names the document so it can be obtained separately.
 
 ## Status
 
-**All thirteen instruments build from a single configure run, each with its own
-USB PID, and all thirteen run on the hardware.**
-Eight are in the release binaries; the RD, the JV-880, the D-50, the M1 and the CM-32L need a
+**All fourteen instruments build from a single configure run, each with its own
+USB PID, and all fourteen run on the hardware.**
+Nine are in the release binaries; the RD, the JV-880, the D-50, the M1 and the CM-32L need a
 local ROM set and are therefore built locally only.
 Open points are listed in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 section 8.
@@ -415,8 +425,8 @@ form, scoped per measurement, for project directories such as DecompHub.
 Copyright (C) 2026 Michi71.
 
 The collection was assembled in August 2026 from seven single-instrument
-repositories -- YC, CP, DX, RD, J6, MD and SM; OB, JV, D5, M1, VS and CM were added
-here afterwards, which is why the number is seven and not thirteen. Each of those seven
+repositories -- YC, CP, DX, RD, J6, MD and SM; OB, JV, D5, M1, VS, CM and MT were added
+here afterwards, which is why the number is seven and not fourteen. Each of those seven
 already shipped the identical GPL-3 licence text, and every instrument README
 states GPL-3. It is also the lowest common denominator of what the engines are
 built on. Where an instrument derives from someone else's work:
@@ -435,6 +445,7 @@ built on. Where an instrument derives from someone else's work:
 | PicoFaceJV | own engine over the machine's own PCM data, measured against [giulioz/jv880_juce](https://github.com/giulioz/jv880_juce) (host-side reference; tone field layout) | non-commercial; not vendored, see below |
 | PicoFaceM1 | own engine over the machine's own PCM and tables, from a disassembly of the M1 OS; no third-party code | - |
 | PicoFaceVS | own engine, from a disassembly of the Prophet VS OS, its service manual and the CEM3379 data sheet; no third-party code. The waves are recomputed from a harmonic table derived from the original's | - |
+| PicoFaceMT | own engine, no third-party code. The tape recordings are by Taijiguy (Mellotron M400S serial #500, 1973), cut to attack plus loop and thinned to one per three keys; the generated files in `instruments/PicoFaceMT/src/data` carry the credit and the changes | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (recordings only) |
 | PicoFaceCM | [munt](https://github.com/munt/munt)'s mt32emu 2.8.6 (engine): a modified copy in `instruments/PicoFaceCM/mt32emu`, with its licence text and a list of every change | LGPL-2.1-or-later |
 | PicoFaceD5 | [munt](https://github.com/munt/munt) - the LA32's wave generation and the Boss reverb topology as that project *documents* them, no code | LGPL-2.1-or-later upstream, does not reach here; see below |
 

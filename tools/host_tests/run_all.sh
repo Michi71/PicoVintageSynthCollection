@@ -95,7 +95,27 @@ t_cp_render() {
     done
 }
 
-ALL="veeprom d5 dx_sysex yc_sysex m1_sysex ob j6_ui yc ui_kit md_ui cm_ui vs cp_render"
+# Scale and chords on each track, every voice at once, and a note held past the
+# tape length; the renderer exits non-zero on a silent or runaway result.
+t_mt_render() {
+    "$HERE/mt/build_mt.sh" && mkdir -p "$HERE/mt/out" || return 1
+    local sel
+    for sel in 0 0.5 1; do
+        "$HERE/mt/mt_engine_test" "$HERE/mt/out/ci_track$sel.wav" --track "$sel" || return 1
+    done
+    "$HERE/mt/mt_engine_test" "$HERE/mt/out/ci_poly.wav" --score poly --track 0.25 || return 1
+    "$HERE/mt/mt_engine_test" "$HERE/mt/out/ci_long.wav" --score long --set tapelimit=1 || return 1
+    "$HERE/mt/mt_engine_test" "$HERE/mt/out/ci_rewind.wav" --score rewind
+}
+
+# The tape pages with every bank name, as frames: a name too long for its cell
+# shows here.
+t_mt_ui() {
+    "$HERE/mt/build_mt_ui.sh" && mkdir -p "$HERE/mt/out" \
+        && "$HERE/mt/mt_ui_shots" "$HERE/mt/out" && frames_ok "$HERE/mt/out"
+}
+
+ALL="veeprom d5 dx_sysex yc_sysex m1_sysex ob j6_ui yc ui_kit md_ui cm_ui vs cp_render mt_render mt_ui"
 
 # --- runner -----------------------------------------------------------------
 

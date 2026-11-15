@@ -24,6 +24,9 @@ __pycache__/
 tools/host_tests/**/*_test
 !tools/host_tests/**/*_test/
 tools/host_tests/cp/render
+tools/host_tests/mt/obj/
+tools/host_tests/mt/mt_ui_shots
+tools/host_tests/mt/out/
 tools/host_tests/**/*.wav
 
 # build_xip_probe.sh drops its host build of the RD engine here.
