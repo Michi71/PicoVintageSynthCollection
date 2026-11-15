@@ -418,7 +418,8 @@ These defines are deliberately not unified in the helper but set per instrument 
   4 MB, but its seams were audible on the hardware; the one that ships loops
   about a second per recording and makes this the first release instrument
   that needs more than 4 MB of flash. CPU peak below 5 % with the first bank
-  (2026-11-15).
+  (2026-11-15). The key click that came with the tape set plays at every
+  key-down (#191).
 - `tools/check_clean_build.sh` builds the collection from a fresh clone with the
   ROMs copied in from outside git. Four instruments need a local ROM set that
   cannot be in the repository, so whether a stranger with the right ROMs can
@@ -446,7 +447,7 @@ These defines are deliberately not unified in the helper but set per instrument 
 | PicoFaceM1 | 4,481,068 | 280,848 | 0x105A | - (new) |
 | PicoFaceVS | 277,008 | 128,248 | 0x105B | - (new) |
 | PicoFaceCM | 1,276,768 | 123,288 | 0x105C | - (new; measured 12.11.2026) |
-| PicoFaceMT | 7,883,380 | 16,104 | 0x105D | - (new; measured 15.11.2026) |
+| PicoFaceMT | 7,885,404 | 16,152 | 0x105D | - (new; measured 15.11.2026) |
 
 Measured with `arm-none-eabi-size` (text / bss) on the build of 11.09.2026
 (after the shared UI kit, the 4 MB CP sets and the reface module; RD after the
