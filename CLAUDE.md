@@ -1,6 +1,6 @@
 # PicoVintageSynthCollection — Arbeitsregeln
 
-Dreizehn RP2350-Synthesizer-Firmwares auf einem gemeinsamen Kern (`core/`), je
+Vierzehn RP2350-Synthesizer-Firmwares auf einem gemeinsamen Kern (`core/`), je
 Instrument ein Ordner unter `instruments/` und ein eigenes `.uf2`. Alles
 Weitere zur Struktur steht in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 offene Punkte in dessen §8.
@@ -12,7 +12,11 @@ mt32emu (LGPL, als geänderte Kopie mit Änderungsliste), beide Kerne rendern,
 Speicher des Moduls, sechs gespeicherte Einstellungen (#186, auf der Hardware
 getestet); Doku dazu (#187). Baut nur lokal mit ROMs, die acht
 Release-Binaries sind unverändert. Davor v1.24.0 mit dem Rest vom MIDI des
-Prophet VS und der Cartridge (#183). Nichts Ungereleastes auf `main`.
+Prophet VS und der Cartridge (#183). Ungereleast auf `main`: **PicoFaceMT** als vierzehntes
+Instrument (#189, auf der Hardware getestet) — Mellotron-artiges Tape-Keyboard,
+eigene Engine, zehn Bänder auf drei Spuren, 7,88 MB und damit nur für 16 MB
+Flash; baut ohne ROMs und kommt mit dem nächsten Tag als neuntes
+Release-Binary.
 
 ## Sprache
 
@@ -40,10 +44,10 @@ sind Englisch — bis auf das D5-Protokoll, das deutsch gewachsen ist.
 
 ## Releases
 
-Nur auf Zuruf. Ablauf: Tag `vX.Y.Z` auf `main` pushen → die CI baut die acht
+Nur auf Zuruf. Ablauf: Tag `vX.Y.Z` auf `main` pushen → die CI baut die neun
 Instrumente ohne ROMs und legt das Release an → Release-Text von Hand setzen
 (`gh release edit`, Stil wie die vorigen). Danach lokal `cmake -S . -B build`
-und alle dreizehn bauen, damit D5/JV/RD/M1/CM-Abbilder die Version im Splash tragen
+und alle vierzehn bauen, damit D5/JV/RD/M1/CM-Abbilder die Version im Splash tragen
 (`PICOFACE_VERSION` kommt aus `git describe` beim Konfigurieren). Zum Schluss
 den Stand oben nachziehen und `decomphub.progress.json` prüfen (statische
 Zahlen mit `measuredAt`, von DecompHub gelesen; ändert sich eine, Datum mit).
@@ -79,6 +83,11 @@ diskutieren).
   keine Wellen, keine Tabellen, nichts zum Entschlüsseln; ihre Teile entstehen
   nur lokal aus Dateien in `roms/`. Das Release-Binary hat deshalb weder die
   Wellen 0–31 noch Programme.
+- **MT: eigene Konstanten.** Die Engine folgt nur dem Signalfluss eines
+  Rust-Prototyps, der ein Hersteller-Plugin nachbaut; aus Prototyp und Plugin
+  kommt kein Wert ins Repo. Die Aufnahmen sind von Taijiguy (CC BY 4.0), die
+  generierten PCM-Dateien tragen Nennung, Lizenz und Änderungen; die Quell-SF2
+  liegen nur bei Michael. Kette: [tools/mt_sampleprep](tools/mt_sampleprep/README.md).
 - Der Boot-Benchmark `B` ist über Builds hinweg nicht vergleichbar
   (XIP-Cache-Zeilen wandern mit dem Code-Layout); nur direkt hintereinander.
 - Toter Code kostet kein Flash (`gc-sections`); Aufräumen nie damit begründen.
