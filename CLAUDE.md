@@ -5,19 +5,14 @@ Instrument ein Ordner unter `instruments/` und ein eigenes `.uf2`. Alles
 Weitere zur Struktur steht in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 offene Punkte in dessen §8.
 
-**Stand:** Release **v1.25.0** (12.11.2026, Tag auf `659b8f8`): **PicoFaceCM**
-als dreizehntes Instrument — Roland CM-32L auf dem Synthesekern von munts
-mt32emu (LGPL, als geänderte Kopie mit Änderungsliste), beide Kerne rendern,
-32 Partials bei 50 % Last im Mittel und 61 % in der Spitze; Panel über den
-Speicher des Moduls, sechs gespeicherte Einstellungen (#186, auf der Hardware
-getestet); Doku dazu (#187). Baut nur lokal mit ROMs, die acht
-Release-Binaries sind unverändert. Davor v1.24.0 mit dem Rest vom MIDI des
-Prophet VS und der Cartridge (#183). Ungereleast auf `main`: **PicoFaceMT** als vierzehntes
-Instrument (#189, Tastenklick #191, auf der Hardware getestet) —
-Mellotron-artiges Tape-Keyboard, eigene Engine, zehn Bänder auf drei Spuren,
-7,89 MB und damit nur für 16 MB
-Flash; baut ohne ROMs und kommt mit dem nächsten Tag als neuntes
-Release-Binary.
+**Stand:** Release **v1.26.0** (15.11.2026, Tag auf `7629ee2`): **PicoFaceMT**
+als vierzehntes Instrument und neuntes Release-Binary — Mellotron-artiges
+Tape-Keyboard mit eigener Engine, zehn Bänder (Aufnahmen von Taijiguy, CC BY
+4.0) auf drei Spuren mit Spurwähler, Wow/Flutter, Rückspulzeit und Limit
+(#189), Tastenklick (#191), auf der Hardware getestet, CPU-Spitze unter 5 %;
+Doku dazu (#190, #192). 7,89 MB, braucht den 16-MB-Flash; baut ohne ROMs. Die
+anderen acht Binaries sind unverändert. Davor v1.25.0 mit PicoFaceCM als
+dreizehntem Instrument (#186, #187). Nichts Ungereleastes auf `main`.
 
 ## Sprache
 
