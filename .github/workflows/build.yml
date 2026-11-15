@@ -30,6 +30,9 @@ jobs:
           # Builds from the repository alone: its waves and tables are
           # generated at configure time (Python 3 with numpy).
           - PicoFaceVS
+          # Carries its sample bank in the repository (CC BY 4.0 recordings,
+          # 7.8 MB of PCM as source text), so it builds from a plain clone.
+          - PicoFaceMT
           # PicoFaceRD, PicoFaceJV and PicoFaceD5 are not here: each needs a
           # local ROM set that cannot be distributed, so each is built from
           # source only. RD was in this list until its ROM data stopped being
